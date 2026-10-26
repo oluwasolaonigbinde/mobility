@@ -9,7 +9,26 @@
  *   tracking needs a connection.
  */
 const CACHE_PREFIX = "cardvert-driver-";
-const STATIC_CACHE = `${CACHE_PREFIX}static-v3`;
+const release = new URL(self.location.href).searchParams.get("release") ?? "local";
+const STATIC_CACHE = `${CACHE_PREFIX}static-v4-${/^[a-zA-Z0-9._-]{1,80}$/.test(release) ? release : "local"}`;
+const MAX_STATIC_ENTRIES = 64;
+let staticWrite = Promise.resolve();
+
+// Serialize writes so simultaneous chunk requests cannot exceed the bound.
+function rememberStatic(cache, request, response) {
+  staticWrite = staticWrite
+    .catch(() => undefined)
+    .then(async () => {
+      await cache.put(request, response);
+      const keys = await cache.keys();
+      await Promise.all(
+        keys
+          .slice(0, Math.max(0, keys.length - MAX_STATIC_ENTRIES))
+          .map((key) => cache.delete(key)),
+      );
+    });
+  return staticWrite;
+}
 
 self.addEventListener("install", () => self.skipWaiting());
 
@@ -42,13 +61,18 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
   // Hashed, immutable build assets → cache-first
-  if (url.origin === self.location.origin && url.pathname.startsWith("/_next/static/")) {
+  if (
+    event.request.method === "GET" &&
+    url.origin === self.location.origin &&
+    url.pathname.startsWith("/_next/static/")
+  ) {
     event.respondWith(
       caches.open(STATIC_CACHE).then(async (cache) => {
         const hit = await cache.match(event.request);
         if (hit) return hit;
         const res = await fetch(event.request);
-        if (res.ok) cache.put(event.request, res.clone());
+        // A full/unavailable cache must never turn a successful network read into an outage.
+        if (res.ok) await rememberStatic(cache, event.request, res.clone()).catch(() => undefined);
         return res;
       }),
     );

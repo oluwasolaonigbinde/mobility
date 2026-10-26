@@ -30,7 +30,6 @@ function mock(version = "payout_v4", revision: Record<string, unknown> | undefin
           total: revision ? 1 : 0,
         },
       };
-    if (path.endsWith("/status")) return { data: { publishing_enabled: true } };
     throw Error("Unexpected read");
   });
 }
@@ -49,6 +48,7 @@ describe("Current Pay terms", () => {
     )?.[1].params.query;
     expect(query.limit).toBe(1);
     expect(query.effective_before).toBeTruthy();
+    expect(get.mock.calls.some(([path]) => path.endsWith("/payout-v4/status"))).toBe(false);
   });
   it("future-only terms never tick the launch checklist", async () => {
     mock("payout_v4", { ...current, effective_from: "2099-01-01T00:00:00Z" });

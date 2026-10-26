@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -32,7 +32,7 @@ const message = z
   .max(2000, "Keep your message under 2,000 characters");
 
 const raiseSchema = z.object({
-  category: z.enum(CATEGORIES, { message: "Choose what your complaint is about" }),
+  category: z.enum(CATEGORIES, { message: "Choose what you need help with" }),
   message,
   reference: z
     .string()
@@ -51,7 +51,6 @@ const replySchema = followUpSchema.extend({ resolve: z.boolean() });
 const updateSchema = z.object({
   complaint_id: z.string().uuid(),
   status: z.enum(["open", "resolved", ""]),
-  assignee: z.union([z.literal(""), z.literal("none"), z.string().uuid()]),
 });
 
 function field(formData: FormData, name: string): string {
@@ -73,13 +72,10 @@ function explain(error: unknown, notFound: string): ComplaintActionState {
   }
   if (error.status === 404) return { error: notFound };
   if (error.code === "COMPLAINT_MESSAGE_LIMIT") {
-    return { error: "This conversation is full. Please raise a new complaint instead." };
+    return { error: "This conversation is full. Please send a new message instead." };
   }
   if (error.status === 409) {
     return { error: "This was already sent with different details. Refresh the page to see it." };
-  }
-  if (error.code === "COMPLAINT_ASSIGNEE_INVALID") {
-    return { error: "Choose an active Terrax Media staff member." };
   }
   if (error.status === 422) {
     return { error: "Some details weren't accepted. Check them and try again." };
@@ -114,6 +110,7 @@ async function raise(party: Party, formData: FormData): Promise<ComplaintActionS
     if (!data) return explain(undefined, "");
     complaintId = data.id;
   } catch (error) {
+    unstable_rethrow(error);
     return explain(
       error,
       "We couldn't find that record in your account. Choose another one or leave it out.",
@@ -140,7 +137,8 @@ async function followUp(party: Party, formData: FormData): Promise<ComplaintActi
       await api.POST("/api/v1/advertiser/complaints/{complaint_id}/messages", options);
     }
   } catch (error) {
-    return explain(error, "This complaint couldn't be found.");
+    unstable_rethrow(error);
+    return explain(error, "This conversation couldn't be found.");
   }
   revalidatePath(`${BASE[party]}/${complaint_id}`);
   return { done: "Sent. Customer Service will reply here." };
@@ -193,10 +191,11 @@ export async function replyToComplaintAction(
       body,
     });
   } catch (error) {
-    return explain(error, "This complaint couldn't be found.");
+    unstable_rethrow(error);
+    return explain(error, "This conversation couldn't be found.");
   }
   revalidatePath("/admin/support");
-  return { done: body.resolve ? "Reply sent and complaint resolved." : "Reply sent." };
+  return { done: body.resolve ? "Reply sent and conversation resolved." : "Reply sent." };
 }
 
 export async function updateComplaintAction(
@@ -206,14 +205,11 @@ export async function updateComplaintAction(
   const parsed = updateSchema.safeParse({
     complaint_id: field(formData, "complaint_id"),
     status: field(formData, "status"),
-    assignee: field(formData, "assignee"),
   });
-  if (!parsed.success) return { error: "Choose a status or a staff member." };
-  const { complaint_id, status, assignee } = parsed.data;
-  const body: { status?: "open" | "resolved"; assigned_to_user_id?: string | null } = {};
+  if (!parsed.success) return { error: "Choose a status." };
+  const { complaint_id, status } = parsed.data;
+  const body: { status?: "open" | "resolved" } = {};
   if (status) body.status = status;
-  if (assignee === "none") body.assigned_to_user_id = null;
-  else if (assignee) body.assigned_to_user_id = assignee;
   const api = createApiClient(await getSessionToken());
   try {
     await api.PATCH("/api/v1/admin/complaints/{complaint_id}", {
@@ -221,7 +217,8 @@ export async function updateComplaintAction(
       body,
     });
   } catch (error) {
-    return explain(error, "This complaint couldn't be found.");
+    unstable_rethrow(error);
+    return explain(error, "This conversation couldn't be found.");
   }
   revalidatePath("/admin/support");
   return { done: "Saved." };

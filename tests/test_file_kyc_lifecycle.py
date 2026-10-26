@@ -50,9 +50,57 @@ async def _create_terminal_submission(
         agreement_accepted=True,
     )
     view.submission.status = KycSubmissionStatus.REJECTED
-    view.submission.created_at = now - timedelta(days=31)
+    view.submission.created_at = now - timedelta(days=200)
     await session.flush()
     return view.submission
+
+
+def test_fixed_six_calendar_month_cutoff_preserves_time_and_month_end(
+    db_sessionmaker, settings
+) -> None:
+    admin, driver, _, bank_id, files = _seed_driver_authority(
+        db_sessionmaker, suffix="retention-calendar-boundary"
+    )
+    now = datetime(2026, 8, 31, 10, 15, tzinfo=UTC)
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            submission = await _create_terminal_submission(
+                session,
+                driver_id=driver.id,
+                bank_id=bank_id,
+                files=files,
+                now=now,
+                settings=settings,
+            )
+            submission_id = submission.id
+            await session.commit()
+        eligible = []
+        for created_at in (
+            datetime(2026, 2, 28, 10, 14, 59, 999999, tzinfo=UTC),
+            datetime(2026, 2, 28, 10, 15, tzinfo=UTC),
+            datetime(2026, 3, 1, 10, 15, tzinfo=UTC),
+        ):
+            async with db_sessionmaker() as session:
+                submission = await session.get(DriverKycSubmission, submission_id)
+                submission.created_at = created_at
+                await session.commit()
+            async with db_sessionmaker() as session:
+                result = await purge_terminal_file_kyc(
+                    session,
+                    storage=FakeStorageProvider(),
+                    limit=10,
+                    dry_run=True,
+                    actor_user_id=admin.id,
+                    reason="calendar_boundary_review",
+                    now=now,
+                )
+                assert result.purged_submissions == result.purged_files == 0
+                eligible.append(result.eligible_submissions)
+                await session.commit()
+        return eligible
+
+    assert asyncio.run(exercise()) == [1, 0, 0]
 
 
 def test_file_kyc_retention_is_dry_run_first_audited_and_removes_terminal_objects(
@@ -79,7 +127,6 @@ def test_file_kyc_retention_is_dry_run_first_audited_and_removes_terminal_object
             planned = await purge_terminal_file_kyc(
                 session,
                 storage=storage,
-                retention_days=30,
                 limit=10,
                 dry_run=True,
                 actor_user_id=admin.id,
@@ -92,7 +139,6 @@ def test_file_kyc_retention_is_dry_run_first_audited_and_removes_terminal_object
             executed = await purge_terminal_file_kyc(
                 session,
                 storage=storage,
-                retention_days=30,
                 limit=10,
                 dry_run=False,
                 actor_user_id=admin.id,
@@ -123,7 +169,7 @@ def test_file_kyc_retention_is_dry_run_first_audited_and_removes_terminal_object
     assert "file_kyc.retention_executed" in actions
 
 
-def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_closed(
+def test_shared_files_survive_old_rejected_version(
     db_sessionmaker,
     settings,
 ) -> None:
@@ -150,7 +196,7 @@ def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_clos
                 agreement_accepted=True,
             )
             previous = pending.submission
-            previous.created_at = now - timedelta(days=31)
+            previous.created_at = now - timedelta(days=200)
             await session.flush()
             await review_application_person_payee(
                 session,
@@ -184,39 +230,12 @@ def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_clos
             assert current.document_file_ids == {
                 name: files[name] for name in ("driver_license", "driver_photo")
             }
-            assert previous.created_at == now - timedelta(days=31)
+            assert previous.created_at == now - timedelta(days=200)
             await session.commit()
-        async with db_sessionmaker() as session:
-            unavailable = await purge_terminal_file_kyc(
-                session,
-                storage=storage,
-                retention_days=None,
-                limit=10,
-                dry_run=True,
-                actor_user_id=admin.id,
-                reason="policy_readiness_check",
-                now=now,
-            )
-            await session.commit()
-        async with db_sessionmaker() as session:
-            with pytest.raises(AppError) as raised:
-                await purge_terminal_file_kyc(
-                    session,
-                    storage=storage,
-                    retention_days=None,
-                    limit=10,
-                    dry_run=False,
-                    actor_user_id=admin.id,
-                    reason="unsafe_missing_policy",
-                    now=now,
-                )
-            assert raised.value.code == "FILE_KYC_RETENTION_POLICY_REQUIRED"
-            await session.rollback()
         async with db_sessionmaker() as session:
             executed = await purge_terminal_file_kyc(
                 session,
                 storage=storage,
-                retention_days=30,
                 limit=10,
                 dry_run=False,
                 actor_user_id=admin.id,
@@ -228,10 +247,9 @@ def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_clos
             remaining_submissions = int(
                 await session.scalar(select(func.count(DriverKycSubmission.id))) or 0
             )
-        return unavailable, executed, remaining_files, remaining_submissions
+        return executed, remaining_files, remaining_submissions
 
-    unavailable, executed, remaining_files, remaining_submissions = asyncio.run(exercise())
-    assert unavailable.policy_configured is False
+    executed, remaining_files, remaining_submissions = asyncio.run(exercise())
     assert executed.purged_submissions == 1
     assert executed.purged_files == 0
     assert remaining_files == 5
@@ -263,7 +281,6 @@ def test_storage_outage_preserves_retired_identity_and_durable_cleanup(db_sessio
                 await purge_terminal_file_kyc(
                     session,
                     storage=storage,
-                    retention_days=30,
                     limit=10,
                     dry_run=False,
                     actor_user_id=admin.id,
@@ -322,7 +339,6 @@ def test_mid_batch_storage_outage_is_idempotently_recoverable(db_sessionmaker, s
                 await purge_terminal_file_kyc(
                     session,
                     storage=storage,
-                    retention_days=30,
                     limit=10,
                     dry_run=False,
                     actor_user_id=admin.id,
@@ -340,7 +356,6 @@ def test_mid_batch_storage_outage_is_idempotently_recoverable(db_sessionmaker, s
             retried = await purge_terminal_file_kyc(
                 session,
                 storage=storage,
-                retention_days=30,
                 limit=10,
                 dry_run=False,
                 actor_user_id=admin.id,
@@ -396,7 +411,6 @@ def test_kill_after_external_delete_recovers_from_durable_intent(
                 await purge_terminal_file_kyc(
                     session,
                     storage=storage,
-                    retention_days=30,
                     limit=10,
                     dry_run=False,
                     actor_user_id=admin.id,
@@ -455,7 +469,7 @@ def test_kill_after_external_delete_recovers_from_durable_intent(
     assert asyncio.run(exercise()) == (1, 0, 0, ["completed", "completed"])
 
 
-def test_admin_retention_endpoint_is_dry_run_first_and_policy_gated(
+def test_admin_retention_endpoint_is_dry_run_first_with_fixed_policy(
     db_client,
     db_sessionmaker,
     settings,
@@ -465,7 +479,7 @@ def test_admin_retention_endpoint_is_dry_run_first_and_policy_gated(
     db_client.app.dependency_overrides[get_storage_provider] = lambda: storage
     headers = auth_headers(db_client, admin.email, PASSWORD)
     driver_auth = auth_headers(db_client, driver.email, PASSWORD)
-    configured = settings.model_copy(update={"file_kyc_retention_days": 30})
+    configured = settings
 
     try:
         db_client.app.dependency_overrides[get_settings] = lambda: configured
@@ -478,9 +492,6 @@ def test_admin_retention_endpoint_is_dry_run_first_and_policy_gated(
             "/api/v1/admin/operations/file-kyc-retention",
             headers=driver_auth,
             json={"dry_run": True, "reason": "synthetic_api_retention_review"},
-        )
-        db_client.app.dependency_overrides[get_settings] = lambda: settings.model_copy(
-            update={"file_kyc_retention_days": None}
         )
         unsafe = db_client.post(
             "/api/v1/admin/operations/file-kyc-retention",
@@ -495,8 +506,8 @@ def test_admin_retention_endpoint_is_dry_run_first_and_policy_gated(
     assert planned.json()["policy_configured"] is True
     assert planned.json()["dry_run"] is True
     assert forbidden.status_code == 403
-    assert unsafe.status_code == 409
-    assert unsafe.json()["error"]["code"] == "FILE_KYC_RETENTION_POLICY_REQUIRED"
+    assert unsafe.status_code == 200
+    assert unsafe.json()["policy_configured"] is True
 
 
 def test_postgres_retention_lock_prevents_concurrent_double_purge(
@@ -541,7 +552,6 @@ def test_postgres_retention_lock_prevents_concurrent_double_purge(
                 result = await purge_terminal_file_kyc(
                     session,
                     storage=storage,
-                    retention_days=30,
                     limit=10,
                     dry_run=False,
                     actor_user_id=admin.id,
@@ -557,7 +567,6 @@ def test_postgres_retention_lock_prevents_concurrent_double_purge(
             second = await purge_terminal_file_kyc(
                 second_session,
                 storage=storage,
-                retention_days=30,
                 limit=10,
                 dry_run=False,
                 actor_user_id=admin.id,
@@ -644,7 +653,6 @@ def test_postgres_deletion_intent_fences_concurrent_new_file_reference(
                 await purge_terminal_file_kyc(
                     session,
                     storage=storage,
-                    retention_days=30,
                     limit=10,
                     dry_run=False,
                     actor_user_id=admin.id,
@@ -723,7 +731,6 @@ def test_postgres_deletion_waits_for_prior_reference_then_skips_that_file(
                     result = await purge_terminal_file_kyc(
                         purge_session,
                         storage=storage,
-                        retention_days=30,
                         limit=10,
                         dry_run=False,
                         actor_user_id=admin.id,
@@ -777,7 +784,6 @@ def test_kyc_retirement_keeps_deletion_pending_when_provider_versions_remain(
                 await purge_terminal_file_kyc(
                     session,
                     storage=storage,
-                    retention_days=30,
                     limit=10,
                     dry_run=False,
                     actor_user_id=admin.id,

@@ -29,7 +29,7 @@ def test_measurement_rows_are_append_only(
                     text(
                         "INSERT INTO measurement_runs "
                         "(id,organization_id,campaign_id,created_by_user_id,client_request_id,"
-                        "request_fingerprint,mode,test_only,formula_version,method_revision,"
+                        "request_fingerprint,test_only,formula_version,method_revision,"
                         "period_start_at,period_end_at,input_manifest,input_manifest_sha256,"
                         "result_manifest,result_manifest_sha256,proof_manifest,"
                         "proof_manifest_sha256,report_snapshot,report_snapshot_sha256) VALUES "
@@ -38,7 +38,7 @@ def test_measurement_rows_are_append_only(
                         "'63000000-0000-0000-0000-000000000003',"
                         "'63000000-0000-0000-0000-000000000004',"
                         "'63000000-0000-0000-0000-000000000005',repeat('a',64),"
-                        "'performance_only',true,'measurement-result-v1',"
+                        "true,'measurement-result-v1',"
                         "'measurement-contract-v1',now(),now() + interval '1 day',"
                         "'{}'::jsonb,repeat('b',64),'{}'::jsonb,repeat('c',64),"
                         "'{}'::jsonb,repeat('d',64),'{}'::jsonb,repeat('e',64))"
@@ -47,7 +47,7 @@ def test_measurement_rows_are_append_only(
             with pytest.raises(DBAPIError, match="append-only"):
                 async with engine.begin() as connection:
                     await connection.execute(
-                        text("UPDATE measurement_runs SET mode = 'roi_enabled'")
+                        text("UPDATE measurement_runs SET method_revision = 'modified-after-issue'")
                     )
         finally:
             await engine.dispose()

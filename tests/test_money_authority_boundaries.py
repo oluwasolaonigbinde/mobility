@@ -1,6 +1,7 @@
 """Money refusal and frozen-authority boundaries, without provider calls."""
 
 import asyncio
+import hashlib
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -18,7 +19,6 @@ from app.models.billing import CampaignFinancialAuthorization
 from app.models.disbursement import PayoutBatch, PayoutBatchLine
 from app.models.payout import EarningsLedgerEntry
 from app.services import disbursements, payees
-from app.services.billing.authority import record_subsidy_authorization
 from app.services.billing.settlements import _validate_refund_cancellation
 
 
@@ -46,11 +46,31 @@ def test_verified_bank_details_reject_ambiguous_or_invalid_destination(field, va
     assert caught.value.code == "BANK_ACCOUNT_DETAILS_INVALID"
 
 
-@pytest.mark.parametrize("reference", [None, "short", "x" * 513, "x" * 31 + " ", "\ud800"])
+@pytest.mark.parametrize(
+    "reference",
+    [
+        None,
+        "",
+        "   ",
+        {"reference": "structured"},
+        "x" * 513,
+        "bank\nref",
+        "bank\u200bref",
+        "\ud800",
+    ],
+)
 def test_bank_verification_reference_cannot_be_empty_structured_or_malformed(reference):
     with pytest.raises(AppError) as caught:
         payees.verification_reference_hash(reference)
     assert caught.value.code == "VERIFICATION_REFERENCE_INVALID"
+
+
+@pytest.mark.parametrize("reference", ["a", "short", "x" * 31 + " ", "x" * 512])
+def test_bank_verification_reference_accepts_existing_bounded_bank_references(reference):
+    assert (
+        payees.verification_reference_hash(reference)
+        == hashlib.sha256(reference.strip().encode("utf-8")).hexdigest()
+    )
 
 
 @pytest.mark.parametrize("purpose", ["", "private free text", "x" * 200])
@@ -153,20 +173,35 @@ def test_draft_currency_and_retry_authority_leave_no_extra_batches(db_sessionmak
             for currency in ("N", "123", "NGNN"):
                 with pytest.raises(AppError) as caught:
                     await disbursements.create_payout_batch_draft(
-                        session, currency=currency, actor_user_id=admin.id
+                        session,
+                        reason="Focused staff payout action",
+                        currency=currency,
+                        actor_user_id=admin.id,
                     )
                 assert caught.value.code == "PAYOUT_BATCH_CURRENCY_INVALID"
             request_id = uuid4()
             batch = await disbursements.create_payout_batch_draft(
-                session, currency=" ngn ", actor_user_id=admin.id, request_id=request_id
+                session,
+                reason="Focused staff payout action",
+                currency=" ngn ",
+                actor_user_id=admin.id,
+                request_id=request_id,
             )
             replay = await disbursements.create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=admin.id, request_id=request_id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=admin.id,
+                request_id=request_id,
             )
             assert replay.id == batch.id
             with pytest.raises(AppError) as caught:
                 await disbursements.create_payout_batch_draft(
-                    session, currency="USD", actor_user_id=admin.id, request_id=request_id
+                    session,
+                    reason="Focused staff payout action",
+                    currency="USD",
+                    actor_user_id=admin.id,
+                    request_id=request_id,
                 )
             assert caught.value.code == "PAYOUT_DRAFT_RETRY_CONFLICT"
             assert await session.scalar(select(func.count()).select_from(PayoutBatch)) == 1
@@ -175,6 +210,7 @@ def test_draft_currency_and_retry_authority_leave_no_extra_batches(db_sessionmak
                 with pytest.raises(AppError) as caught:
                     await disbursements.reserve_payout_batch(
                         session,
+                        reason="Focused staff payout action",
                         batch_id=batch.id,
                         ledger_entry_ids=selected,
                         actor_user_id=admin.id,
@@ -182,90 +218,6 @@ def test_draft_currency_and_retry_authority_leave_no_extra_batches(db_sessionmak
                 assert caught.value.code == "PAYOUT_BATCH_ENTRIES_INVALID"
 
     asyncio.run(run())
-
-
-def test_non_reversal_never_creates_debt_or_queries_accounts():
-    from app.services.payout_debt import record_reversal_obligation
-
-    session = AsyncMock()
-    with pytest.raises(ValueError, match="Only a reversal"):
-        asyncio.run(
-            record_reversal_obligation(
-                session, reversal_entry=EarningsLedgerEntry(entry_type="trip_payout")
-            )
-        )
-    session.scalar.assert_not_awaited()
-
-
-@pytest.mark.parametrize(
-    "overrides,code",
-    [
-        ({"subsidy_reference": " "}, "SUBSIDY_REFERENCE_REQUIRED"),
-        ({"reason": " "}, "FINANCIAL_AUTHORITY_REASON_REQUIRED"),
-        ({"subsidy_amount": "0.00"}, "INVALID_FINANCIAL_AUTHORITY_AMOUNT"),
-        ({"max_driver_liability": "0.00"}, "INVALID_FINANCIAL_AUTHORITY_AMOUNT"),
-        ({"max_driver_liability": "101.00"}, "DRIVER_LIABILITY_EXCEEDS_AUTHORITY"),
-    ],
-)
-def test_subsidy_requires_positive_bounded_documented_authority(db_sessionmaker, overrides, code):
-    admin, owner, _, campaign = _fixture(db_sessionmaker, "subsidy-boundary")
-
-    async def scenario():
-        async with db_sessionmaker() as session:
-            await _accepted_terms(
-                session, campaign=campaign, admin=admin, owner=owner, reference="SUBSIDY-BOUNDARY"
-            )
-            arguments = dict(
-                campaign_id=campaign.id,
-                actor_user_id=admin.id,
-                subsidy_amount="100.00",
-                max_driver_liability="50.00",
-                subsidy_reference="synthetic-evidence",
-                reason="Approved",
-            )
-            with pytest.raises(AppError) as caught:
-                await record_subsidy_authorization(session, **{**arguments, **overrides})
-            assert caught.value.code == code
-            assert (
-                await session.scalar(
-                    select(func.count()).select_from(CampaignFinancialAuthorization)
-                )
-                == 0
-            )
-
-    asyncio.run(scenario())
-
-
-def test_subsidy_retry_converges_and_cannot_reduce_accepted_authority(db_sessionmaker):
-    admin, owner, _, campaign = _fixture(db_sessionmaker, "subsidy-retry")
-
-    async def scenario():
-        async with db_sessionmaker() as session:
-            await _accepted_terms(
-                session, campaign=campaign, admin=admin, owner=owner, reference="SUBSIDY-RETRY"
-            )
-            arguments = dict(
-                campaign_id=campaign.id,
-                actor_user_id=admin.id,
-                subsidy_amount="100.00",
-                max_driver_liability="50.00",
-                subsidy_reference="synthetic-evidence",
-                reason="Approved",
-            )
-            first = await record_subsidy_authorization(session, **arguments)
-            assert (await record_subsidy_authorization(session, **arguments)).id == first.id
-            for reduction in ({"subsidy_amount": "99.00"}, {"max_driver_liability": "49.00"}):
-                with pytest.raises(AppError) as caught:
-                    await record_subsidy_authorization(session, **{**arguments, **reduction})
-                assert caught.value.code == "FINANCIAL_AUTHORITY_REDUCTION_REQUIRES_GOVERNANCE"
-            assert (
-                await session.scalar(
-                    select(func.count()).select_from(CampaignFinancialAuthorization)
-                )
-                == 1
-            )
-
-    asyncio.run(scenario())
 
 
 @pytest.mark.parametrize(
@@ -419,13 +371,11 @@ def test_missing_billing_prerequisites_cannot_create_authority_or_liability(db_s
     async def run():
         async with db_sessionmaker() as session:
             with pytest.raises(AppError) as caught:
-                await record_subsidy_authorization(
+                await record_prepaid_cash_authorization(
                     session,
                     campaign_id=campaign.id,
                     actor_user_id=admin.id,
-                    subsidy_amount="100",
                     max_driver_liability="50",
-                    subsidy_reference="SYNTHETIC",
                     reason="approved",
                 )
             assert caught.value.code == "COMMERCIAL_TERMS_REQUIRED"

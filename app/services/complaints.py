@@ -52,7 +52,11 @@ OPTIONS_LIMIT = 50
 COMPLAINANT_LIST_LIMIT = 100
 
 PARTY_CATEGORIES: dict[ComplaintParty, frozenset[ComplaintCategory]] = {
-    ComplaintParty.DRIVER: frozenset(ComplaintCategory) - {ComplaintCategory.BILLING_OR_INVOICE},
+    ComplaintParty.DRIVER: frozenset(ComplaintCategory)
+    - {
+        ComplaintCategory.BILLING_OR_INVOICE,
+        ComplaintCategory.CAMPAIGN_CANCELLATION,
+    },
     ComplaintParty.ADVERTISER: frozenset(ComplaintCategory)
     - {ComplaintCategory.PAY_OR_PAYOUT, ComplaintCategory.TRIP_OR_TRACKING},
 }
@@ -64,9 +68,7 @@ PARTY_REFERENCES: dict[ComplaintParty, frozenset[ComplaintReferenceType]] = {
 DRIVER_CAMPAIGN_STATUSES = (
     CampaignAssignmentStatus.ACCEPTED.value,
     CampaignAssignmentStatus.ACTIVE.value,
-    CampaignAssignmentStatus.DEACTIVATED.value,
     CampaignAssignmentStatus.CANCELLED.value,
-    CampaignAssignmentStatus.COMPLETED.value,
 )
 PAYOUT_ENTRY_TYPES = (
     EarningsLedgerEntryType.TRIP_PAYOUT.value,
@@ -231,25 +233,11 @@ async def _active_admin_ids(session: AsyncSession) -> list[UUID]:
     )
 
 
-async def _is_active_admin(session: AsyncSession, user_id: UUID) -> bool:
-    return (
-        await session.scalar(
-            select(User.id).where(
-                User.id == user_id,
-                User.role == UserRole.ADMIN.value,
-                User.status == UserStatus.ACTIVE.value,
-            )
-        )
-    ) is not None
-
-
 async def _notify_staff(
     session: AsyncSession, complaint: Complaint, message: ComplaintMessage
 ) -> None:
-    """Tell the assignee, or every active admin when nobody is assigned, in the app."""
+    """Notify every active admin in the app."""
     recipients = await _active_admin_ids(session)
-    if complaint.assigned_to_user_id in recipients:
-        recipients = [complaint.assigned_to_user_id]
     for recipient in recipients:
         await create_notification(
             session,
@@ -365,6 +353,13 @@ async def raise_complaint(  # noqa: C901
     if (reference_type is None) != (reference_id is None):
         raise _unprocessable(
             "COMPLAINT_REFERENCE_INCOMPLETE", "Choose both the kind of record and the record"
+        )
+    if (
+        category is ComplaintCategory.CAMPAIGN_CANCELLATION
+        and reference_type is not ComplaintReferenceType.CAMPAIGN
+    ):
+        raise _unprocessable(
+            "COMPLAINT_CAMPAIGN_REQUIRED", "Choose the campaign you want Terrax to cancel"
         )
     if reference_type is not None and reference_type not in PARTY_REFERENCES[owner.party]:
         raise _unprocessable(
@@ -575,19 +570,11 @@ async def update_as_staff(
     complaint_id: UUID,
     fields: set[str],
     new_status: str | None,
-    assigned_to_user_id: UUID | None,
 ) -> ComplaintResult:
     complaint = await _lock_owned(session, complaint_id, None)
     status_before = complaint.status
-    assignee_before = complaint.assigned_to_user_id
     status_after = new_status if "status" in fields and new_status is not None else status_before
-    assignee_after = assigned_to_user_id if "assigned_to_user_id" in fields else assignee_before
-    if assignee_after is not None and assignee_after != assignee_before:
-        if not await _is_active_admin(session, assignee_after):
-            raise _unprocessable(
-                "COMPLAINT_ASSIGNEE_INVALID", "Complaints can be assigned only to active staff"
-            )
-    if status_after == status_before and assignee_after == assignee_before:
+    if status_after == status_before:
         return ComplaintResult(complaint, False)
     now = _now()
     complaint.status = status_after
@@ -595,7 +582,6 @@ async def update_as_staff(
         resolved = status_after == ComplaintStatus.RESOLVED.value
         complaint.resolved_at = now if resolved else None
         complaint.resolved_by_user_id = actor_user_id if resolved else None
-    complaint.assigned_to_user_id = assignee_after
     complaint.updated_at = now
     complaint.revision += 1
     await session.flush()
@@ -608,8 +594,6 @@ async def update_as_staff(
         metadata={
             "status_before": status_before,
             "status_after": status_after,
-            "assigned_to_before": str(assignee_before) if assignee_before else None,
-            "assigned_to_after": str(assignee_after) if assignee_after else None,
             "revision": complaint.revision,
         },
     )
@@ -619,18 +603,6 @@ async def update_as_staff(
             complaint,
             NotificationType.COMPLAINT_RESOLVED,
             f"complaint:resolved:v1:{complaint.id}:{complaint.revision}",
-        )
-    if (
-        assignee_after is not None
-        and assignee_after != assignee_before
-        and assignee_after != actor_user_id
-    ):
-        await create_notification(
-            session,
-            recipient_user_id=assignee_after,
-            type_key=NotificationType.COMPLAINT_ASSIGNED,
-            payload={"complaint_id": str(complaint.id)},
-            dedupe_key=f"complaint:assigned:v1:{complaint.id}:{complaint.revision}:in_app",
         )
     return ComplaintResult(complaint, True)
 
@@ -678,12 +650,18 @@ async def reference_labels(session: AsyncSession, complaints: list[Complaint]) -
     return labels
 
 
-async def list_owned_complaints(session: AsyncSession, owner: ComplaintOwner) -> list[Complaint]:
+async def list_owned_complaints(
+    session: AsyncSession, owner: ComplaintOwner, *, campaign_id: UUID | None = None
+) -> list[Complaint]:
+    query = _owned(select(Complaint), owner)
+    if campaign_id is not None:
+        # Filtered before the limit so an old request on this campaign is still found.
+        query = query.where(Complaint.campaign_id == campaign_id)
     return list(
         await session.scalars(
-            _owned(select(Complaint), owner)
-            .order_by(Complaint.last_message_at.desc(), Complaint.id.desc())
-            .limit(COMPLAINANT_LIST_LIMIT)
+            query.order_by(Complaint.last_message_at.desc(), Complaint.id.desc()).limit(
+                COMPLAINANT_LIST_LIMIT
+            )
         )
     )
 
@@ -721,7 +699,6 @@ async def list_staff_complaints(
     *,
     complaint_status: str | None,
     party: str | None,
-    assigned_to_user_id: UUID | None,
     limit: int,
     offset: int,
     user_id: UUID | None = None,
@@ -737,8 +714,6 @@ async def list_staff_complaints(
         filters.append(Complaint.status == complaint_status)
     if party is not None:
         filters.append(Complaint.party == party)
-    if assigned_to_user_id is not None:
-        filters.append(Complaint.assigned_to_user_id == assigned_to_user_id)
     total = int(
         await session.scalar(select(func.count()).select_from(Complaint).where(*filters)) or 0
     )

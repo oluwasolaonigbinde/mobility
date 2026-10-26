@@ -13,16 +13,9 @@ vi.mock("./actions", () => ({
 
 import AutomaticPayoutsPage from "./content";
 
-const NOT_SET_UP = {
-  switched_on: false,
-  frequency: null,
-  batch_limit: null,
+const NO_PROVIDER = {
+  frequency: "daily",
   currency: "NGN",
-  missing_settings: [
-    "PAYOUT_AUTOMATIC_APPROVAL_ENABLED",
-    "PAYOUT_AUTOMATIC_FREQUENCY",
-    "PAYOUT_AUTOMATIC_BATCH_LIMIT_NGN",
-  ],
   paused: false,
   pause_reason: null,
   pause_changed_by_name: null,
@@ -35,16 +28,13 @@ const NOT_SET_UP = {
   unsent_count: 0,
 };
 const RUNNING = {
-  ...NOT_SET_UP,
-  switched_on: true,
-  frequency: "weekly",
-  batch_limit: "50000.00",
-  missing_settings: [],
+  ...NO_PROVIDER,
+  frequency: "daily",
   provider_ready: true,
   runnable: true,
   last_run: {
     id: "run",
-    period_key: "2026-W40",
+    period_key: "2026-09-28",
     created_at: "2026-09-28T00:05:00Z",
     batch_count: 2,
     line_count: 3,
@@ -98,7 +88,7 @@ const DAY = {
 };
 
 function api({
-  status = NOT_SET_UP as object | null,
+  status = NO_PROVIDER as object | null,
   alerts = [] as object[] | null,
   day = { ...DAY, runs: [], outcomes: [], lines: [], total: 0 } as object | null,
 } = {}) {
@@ -127,18 +117,14 @@ describe("AutomaticPayoutsPage", () => {
     mocks.role.mockResolvedValue({ user: { id: "admin" } });
   });
 
-  it("says plainly that nothing runs until every setting is supplied", async () => {
+  it("shows daily payouts waiting for a provider", async () => {
     api();
     render(await page());
     expect(mocks.role).toHaveBeenCalledWith("admin");
-    expect(screen.getByText("Not set up yet — nothing is paid automatically.")).toBeVisible();
-    expect(screen.getByText("The automatic payout switch is off")).toBeVisible();
-    expect(screen.getByText("The most one automatic run may pay has not been set")).toBeVisible();
     expect(screen.getByText(/No payment provider is connected yet/)).toBeVisible();
     expect(screen.getByText("Nothing to follow up.")).toBeVisible();
     expect(screen.getByText("No automatic payouts ran on this day.")).toBeVisible();
     expect(screen.getByRole("button", { name: "Pause automatic payouts" })).toBeVisible();
-    expect(screen.getAllByText("Not set")).toHaveLength(2);
   });
 
   it("shows a running status, open problems and the day's reconciliation", async () => {
@@ -148,8 +134,7 @@ describe("AutomaticPayoutsPage", () => {
       params: { query: { day: "2026-09-28", limit: 100, offset: 0 } },
     });
     expect(screen.getByText(/Running — Cardvert pays clean daily-rate earnings/)).toBeVisible();
-    expect(screen.getByText("Weekly")).toBeVisible();
-    expect(screen.getByText("₦50,000.00")).toBeVisible();
+    expect(screen.getByText("Daily")).toBeVisible();
     expect(screen.getByText(/3 payments · ₦12,000.00/)).toBeVisible();
     const problem = screen
       .getByText("Above one day's pay — kept for a person to check")
@@ -198,7 +183,7 @@ describe("AutomaticPayoutsPage", () => {
   });
 
   it("confirms before moving unsent payments", async () => {
-    api({ status: { ...NOT_SET_UP, unsent_count: 1 } });
+    api({ status: { ...NO_PROVIDER, paused: true, unsent_count: 1 } });
     render(await page());
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     fireEvent.submit(

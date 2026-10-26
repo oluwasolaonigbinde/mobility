@@ -21,7 +21,7 @@ def create_advertiser_campaign(
     db_sessionmaker,
     *,
     email: str,
-    role: MembershipRole = MembershipRole.OWNER,
+    role: MembershipRole = MembershipRole.ADVERTISER,
 ):
     advertiser = create_test_user(
         db_sessionmaker,
@@ -104,7 +104,7 @@ def test_advertiser_manager_can_create_creative_metadata(
     manager, _, campaign = create_advertiser_campaign(
         db_sessionmaker,
         email="manager@example.com",
-        role=MembershipRole.MANAGER,
+        role=MembershipRole.ADVERTISER,
     )
 
     stored = confirm_png(db_client, storage, manager.email)
@@ -117,31 +117,6 @@ def test_advertiser_manager_can_create_creative_metadata(
 
     assert response.status_code == http_status.HTTP_201_CREATED
     assert response.json()["campaign_id"] == str(campaign.id)
-
-
-def test_viewer_cannot_create_or_update_creative_metadata(db_client, db_sessionmaker) -> None:
-    _, _, campaign = create_advertiser_campaign(
-        db_sessionmaker,
-        email="viewer@example.com",
-        role=MembershipRole.VIEWER,
-    )
-    creative = create_test_campaign_creative(db_sessionmaker, campaign_id=campaign.id)
-
-    create_response = db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/creatives",
-        headers=auth_headers(db_client, "viewer@example.com", PASSWORD),
-        json=creative_payload(str(campaign.id)),
-    )
-    update_response = db_client.patch(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/creatives/{creative.id}",
-        headers=auth_headers(db_client, "viewer@example.com", PASSWORD),
-        json={"name": "Updated"},
-    )
-
-    assert create_response.status_code == http_status.HTTP_403_FORBIDDEN
-    assert update_response.status_code == http_status.HTTP_403_FORBIDDEN
-    assert create_response.json()["error"]["code"] == "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN"
-    assert update_response.json()["error"]["code"] == "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN"
 
 
 def test_creative_list_read_and_update_are_campaign_and_tenant_scoped(
@@ -188,8 +163,7 @@ def test_creative_list_read_and_update_are_campaign_and_tenant_scoped(
         headers=headers,
     )
     other_creative_response = db_client.get(
-        f"/api/v1/advertiser/campaigns/{other_campaign.id}/creatives/"
-        f"{other_campaign_creative.id}",
+        f"/api/v1/advertiser/campaigns/{other_campaign.id}/creatives/{other_campaign_creative.id}",
         headers=headers,
     )
     update_response = db_client.patch(
@@ -236,8 +210,15 @@ def test_creative_create_validation_rejects_invalid_inputs(db_client, db_session
     )
     headers = auth_headers(db_client, "advertiser@example.com", PASSWORD)
     invalid_payloads = [
-        creative_payload(str(campaign.id), creative_type="audio"),
-        creative_payload(str(campaign.id), placement="roof"),
+        *[
+            creative_payload(str(campaign.id), creative_type=value)
+            for value in ("audio", "video", "html", "text", "other")
+        ],
+        *[
+            creative_payload(str(campaign.id), placement=value)
+            for value in ("roof", "digital_screen", "print", "other")
+        ],
+        creative_payload(str(campaign.id), status="ready"),
         creative_payload(str(campaign.id), status="published"),
         creative_payload(str(campaign.id), name="   "),
         creative_payload("not-a-uuid"),
@@ -260,8 +241,7 @@ def test_creative_create_validation_rejects_invalid_inputs(db_client, db_session
     ]
 
     assert all(
-        response.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
-        for response in responses
+        response.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT for response in responses
     )
     assert {response.json()["error"]["code"] for response in responses} == {"VALIDATION_ERROR"}
 

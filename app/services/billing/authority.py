@@ -101,7 +101,6 @@ async def _append_financial_authorization(  # noqa: C901
     credit_due_at: datetime | None = None,
     credit_approved_by_user_id: UUID | None = None,
     credit_terms: dict | None = None,
-    subsidy_reference: str | None = None,
 ) -> CampaignFinancialAuthorization:
     await acquire_campaign_terms_lock(session, campaign_id)
     await require_active_admin(session, actor_user_id)
@@ -170,7 +169,6 @@ async def _append_financial_authorization(  # noqa: C901
             latest.credit_due_at == credit_due_at,
             latest.credit_approved_by_user_id == credit_approved_by_user_id,
             latest.credit_terms == normalized_credit_terms,
-            latest.subsidy_reference == subsidy_reference,
         )
     ):
         return latest
@@ -194,7 +192,6 @@ async def _append_financial_authorization(  # noqa: C901
         credit_due_at=credit_due_at,
         credit_approved_by_user_id=credit_approved_by_user_id,
         credit_terms=normalized_credit_terms,
-        subsidy_reference=subsidy_reference,
         effective_from=now,
         created_by_user_id=actor_user_id,
         reason=normalized_reason,
@@ -314,35 +311,6 @@ async def record_approved_credit_authorization(
         credit_due_at=normalized_due_at,
         credit_approved_by_user_id=approved_by_user_id,
         credit_terms=credit_terms,
-    )
-
-
-async def record_subsidy_authorization(
-    session: AsyncSession,
-    *,
-    campaign_id: UUID,
-    actor_user_id: UUID,
-    subsidy_amount: Decimal | str,
-    max_driver_liability: Decimal | str,
-    subsidy_reference: str,
-    reason: str,
-) -> CampaignFinancialAuthorization:
-    reference = subsidy_reference.strip()
-    if not reference:
-        raise AppError(
-            "SUBSIDY_REFERENCE_REQUIRED",
-            "Subsidy authority requires an evidence reference",
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-    return await _append_financial_authorization(
-        session,
-        campaign_id=campaign_id,
-        actor_user_id=actor_user_id,
-        authority_type=FinancialAuthorityType.SUBSIDY,
-        authorized_amount=_money(subsidy_amount, "subsidy_amount"),
-        max_driver_liability=_money(max_driver_liability, "max_driver_liability"),
-        reason=reason,
-        subsidy_reference=reference,
     )
 
 
@@ -800,8 +768,8 @@ async def record_production_start(  # noqa: C901
             basis = ProductionAuthorityBasis.ADVERTISER_EXPEDITED_WAIVER
     else:
         raise AppError(
-            "SUBSIDY_NOT_PRODUCTION_AUTHORITY",
-            "Subsidy liability authority does not by itself authorize advertiser production",
+            "FINANCIAL_AUTHORITY_NOT_PRODUCTION_AUTHORITY",
+            "Confirmed cash or approved credit is required before production can start",
             status_code=status.HTTP_409_CONFLICT,
         )
     production_start = ProductionStart(

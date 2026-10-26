@@ -116,7 +116,7 @@ async def seed_immutable_authority(database_url: str) -> dict[str, str]:
               shortfall_strategy, currency, eligibility_params,
               formula_version, reason, created_by_user_id
             ) VALUES (
-              :revision, :campaign, :rule, 1, now(), 1000.00, 10.00, 0, 1,
+              :revision, :campaign, :rule, 1, now(), 1000.00, 10.00, 0, 0,
               'proportional', 'NGN', '{}'::jsonb, 'payout_v4', 'R18 test', :user
             )
             """,
@@ -126,7 +126,7 @@ async def seed_immutable_authority(database_url: str) -> dict[str, str]:
               minimum_miles, outside_area_weight, shortfall_strategy, currency,
               eligibility_params, formula_version, premium_zone_geometry_hash
             ) VALUES (
-              :binding, :assignment, :revision, 1000.00, 10.00, 0, 1, 'proportional',
+              :binding, :assignment, :revision, 1000.00, 10.00, 0, 0, 'proportional',
               'NGN', '{}'::jsonb, 'payout_v4', repeat('b', 64)
             )
             """,

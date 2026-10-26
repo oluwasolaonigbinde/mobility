@@ -36,7 +36,6 @@ from app.services.billing.quotes import (
 from app.services.billing.receipts import (
     allocate_payment_receipt,
     confirm_payment_receipt,
-    reconcile_payment_receipt,
     record_payment_receipt,
 )
 
@@ -104,19 +103,19 @@ def test_vat_invoice_issues_from_frozen_terms_and_verified_issuer_facts(
                     settings,
                 )
             assert untrusted_verified.value.code == "VERIFIED_ISSUER_GATE_REQUIRED"
-            synthetic = await _issuer(
+            await _issuer(
                 session,
                 admin,
                 IssuerVerificationStatus.SYNTHETIC,
                 "SYNTHETIC-Q28-TEST",
                 settings,
             )
+            settings.invoice_issuer_external_input_reference = "SYNTHETIC-Q28-TEST"
             production_settings = settings.model_copy(update={"environment": "production"})
             with pytest.raises(AppError) as blocked:
                 await issue_invoice(
                     session,
                     invoice_id=draft.id,
-                    issuer_profile_id=synthetic.id,
                     actor_user_id=admin.id,
                     settings=production_settings,
                 )
@@ -128,7 +127,6 @@ def test_vat_invoice_issues_from_frozen_terms_and_verified_issuer_facts(
             issued = await issue_invoice(
                 session,
                 invoice_id=draft.id,
-                issuer_profile_id=synthetic.id,
                 actor_user_id=admin.id,
                 settings=settings,
             )
@@ -724,14 +722,13 @@ def test_commercial_validation_paths_fail_closed(db_sessionmaker, settings) -> N
                 evidence_reference="full-payment",
                 observed_at=datetime.now(UTC),
             )
-            await reconcile_payment_receipt(
+            await confirm_payment_receipt(
                 session,
                 receipt_id=receipt.id,
                 actor_user_id=admin.id,
                 expected_amount="1.08",
                 expected_currency="NGN",
             )
-            await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
             await allocate_payment_receipt(
                 session,
                 receipt_id=receipt.id,
@@ -871,14 +868,13 @@ def test_invoice_numbering_is_scope_sequential_and_payment_status_is_allocation_
                 evidence_reference="line-50",
                 observed_at=datetime.now(UTC),
             )
-            await reconcile_payment_receipt(
+            await confirm_payment_receipt(
                 session,
                 receipt_id=receipt.id,
                 actor_user_id=admin.id,
                 expected_amount="50.00",
                 expected_currency="NGN",
             )
-            await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
             await allocate_payment_receipt(
                 session,
                 receipt_id=receipt.id,

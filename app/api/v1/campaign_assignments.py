@@ -1,7 +1,7 @@
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Response, status
 from sqlalchemy import func, select
 
 from app.api.v1.dependencies import (
@@ -9,6 +9,7 @@ from app.api.v1.dependencies import (
     DriverUserDependency,
     SessionDependency,
     SettingsDependency,
+    StorageDependency,
 )
 from app.core.errors import AppError
 from app.models.assignment_activity import AssignmentActivityFlag, AssignmentActivityFlagEvent
@@ -36,6 +37,7 @@ from app.schemas.campaign_assignments import (
     CampaignAssignmentRecommendationListResponse,
     CampaignAssignmentTransition,
 )
+from app.schemas.stored_files import FileDownloadRead
 from app.services.assignment_activity import list_assignment_activity_flags
 from app.services.audit import create_audit_event
 from app.services.campaign_assignments import (
@@ -59,6 +61,34 @@ from app.services.campaign_assignments import (
 )
 
 router = APIRouter(tags=["Campaign Assignments"])
+
+
+@router.post(
+    "/driver/campaign-assignments/{assignment_id}/artwork/download",
+    response_model=FileDownloadRead,
+    summary="Preview the artwork frozen in the driver's current job",
+)
+async def driver_job_artwork(
+    assignment_id: UUID,
+    current_user: DriverUserDependency,
+    session: SessionDependency,
+    storage: StorageDependency,
+    settings: SettingsDependency,
+    response: Response,
+) -> FileDownloadRead:
+    from app.services.assignment_artwork import issue_driver_job_artwork
+
+    download = await issue_driver_job_artwork(
+        session,
+        actor_user_id=current_user.id,
+        actor_session_version=current_user.session_version,
+        assignment_id=assignment_id,
+        storage=storage,
+        settings=settings,
+    )
+    await session.commit()
+    response.headers["Cache-Control"] = "private, no-store"
+    return FileDownloadRead(url=download.url, expires_in_seconds=download.expires_in_seconds)
 
 
 def campaign_summary(campaign: Campaign | None) -> AssignmentCampaignSummary | None:
@@ -149,7 +179,6 @@ async def assignment_response(
         activated_at=assignment.activated_at,
         deactivated_at=assignment.deactivated_at,
         cancelled_at=assignment.cancelled_at,
-        completed_at=assignment.completed_at,
         notes=assignment.notes,
         metadata=assignment.assignment_metadata,
         offer_terms=assignment.offer_terms,
@@ -201,7 +230,7 @@ async def activity_flag_response(
         last_verified_activity_at=flag.last_verified_activity_at,
         first_detected_at=flag.first_detected_at,
         last_evaluated_at=flag.last_evaluated_at,
-        recovered_at=flag.recovered_at,
+        closed_at=flag.closed_at,
         eligible_trip_count=eligible_trip_count,
         evidence_event_count=event_count,
     )
@@ -253,7 +282,7 @@ async def admin_list_campaign_assignments(
     session: SessionDependency,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
-    status: CampaignAssignmentStatus | None = None,
+    status: CampaignAssignmentStatus | Literal["finished"] | None = None,
     campaign_id: UUID | None = None,
     driver_profile_id: UUID | None = None,
     vehicle_id: UUID | None = None,
@@ -387,7 +416,7 @@ async def driver_list_campaign_assignments(
     session: SessionDependency,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
-    status: CampaignAssignmentStatus | None = None,
+    status: CampaignAssignmentStatus | Literal["finished"] | None = None,
 ) -> CampaignAssignmentListResponse:
     await expire_due_assignment_offers(session)
     await session.commit()
@@ -426,18 +455,16 @@ async def driver_get_active_campaign_assignment(
         return ActiveCampaignAssignmentResponse(assignment=None)
     from datetime import UTC, datetime
 
-    from app.services.installation_evidence import ensure_current_display_proof
+    from app.services.installation_evidence import ensure_current_approved_installation_evidence
 
     photo_status = "ready"
     try:
-        await ensure_current_display_proof(
+        await ensure_current_approved_installation_evidence(
             session, assignment=assignment, settings=settings, now=datetime.now(UTC), lock=False
         )
     except AppError as error:
         photo_status = (
-            "display_required"
-            if error.code == "CURRENT_DISPLAY_PROOF_REQUIRED"
-            else "installation_required"
+            "installation_required"
             if error.code
             in {"APPROVED_INSTALLATION_EVIDENCE_REQUIRED", "INSTALLATION_EVIDENCE_EXPIRED"}
             else "unavailable"
@@ -565,10 +592,7 @@ async def admin_assignment_readiness(
     return AssignmentReadinessRead(
         assignment_id=assignment_id,
         ready=True,
-        message=(
-            "Ready for administrator activation. "
-            "Every prerequisite is checked again when you activate."
-        ),
+        message=("Every prerequisite passes. You can retry starting this approved job."),
     )
 
 

@@ -7,17 +7,11 @@
 type Evidence = Record<string, unknown>;
 
 const reasons: Record<string, string> = {
-  insufficient_pings: "Too few usable location points",
   impossible_speed: "Speed higher than the review limit",
-  poor_accuracy: "Location readings were too inaccurate",
   stationary_trip: "Too much of the trip was spent stopped",
   excessive_ping_gap: "Long gaps between location readings",
-  future_timestamp: "Location readings were timed in the future",
-  route_looping: "The route returned close to where it started",
   exclusion_zone_presence: "Driving recorded in an excluded area",
   route_replay: "Route matches an earlier trip",
-  missed_display_challenge: "Driver missed the display check",
-  concurrent_session_day: "Overlapping trips recorded on the same day",
   physical_spot_check_failed: "An in-person check found a problem",
 };
 export function tripReviewReason(flagType: string, evidence?: Evidence | null) {

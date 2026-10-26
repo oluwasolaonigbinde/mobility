@@ -4,14 +4,16 @@ import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   guard: vi.fn(),
   shell: vi.fn(),
-  readWorkQueue: vi.fn(),
-  waitingCounts: vi.fn(),
+  get: vi.fn(),
 }));
 vi.mock("@/lib/auth/current-user", () => ({ requireRole: mocks.guard }));
 vi.mock("./global-search", () => ({ GlobalSearch: () => <p>Global search</p> }));
-vi.mock("./work-queue", () => ({
-  readWorkQueue: mocks.readWorkQueue,
-  waitingCounts: mocks.waitingCounts,
+vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get }) }));
+vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
+vi.mock("next/navigation", () => ({
+  redirect: (path: string) => {
+    throw new Error(`redirect:${path}`);
+  },
 }));
 vi.mock("@/components/shell/app-shell", () => ({
   AppShell: (props: Record<string, unknown>) => {
@@ -40,7 +42,17 @@ async function renderBadge(item: NavItem) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.guard.mockResolvedValue({ user: { full_name: "Terrax staff" } });
-  mocks.readWorkQueue.mockResolvedValue({});
+  mocks.get.mockReset().mockResolvedValue({
+    data: {
+      total: 3,
+      drivers: 3,
+      campaigns: 0,
+      trips: 0,
+      money: 0,
+      support: 0,
+      source_counts: {},
+    },
+  });
 });
 
 it("provides the eight approved menu items with waiting badges on work areas", async () => {
@@ -64,22 +76,31 @@ it("provides the eight approved menu items with waiting badges on work areas", a
 });
 
 it("shows a known waiting count on the menu badge", async () => {
-  mocks.waitingCounts.mockReturnValue({ drivers: 3 });
   const nav = await navFor();
   const badge = await renderBadge(nav.find((item) => item.label === "Drivers")!);
   expect(badge).toHaveTextContent("3");
   expect(badge?.querySelector('[aria-label="3 waiting"]')).not.toBeNull();
 });
 
-it("shows no badge for zero waiting or when the work lists are unavailable", async () => {
-  mocks.waitingCounts.mockReturnValue({ drivers: 0, campaigns: undefined });
+it("distinguishes zero waiting from unavailable and shares one read across all badges", async () => {
+  mocks.get.mockResolvedValue({ data: { drivers: 0 } });
   const nav = await navFor();
   expect(await renderBadge(nav.find((item) => item.label === "Drivers")!)).toBeNull();
-  expect(await renderBadge(nav.find((item) => item.label === "Campaigns")!)).toBeNull();
+  const missing = await renderBadge(nav.find((item) => item.label === "Campaigns")!);
+  expect(missing?.querySelector('[aria-label="Waiting count unavailable"]')).not.toBeNull();
+  expect(mocks.get).toHaveBeenCalledTimes(1);
+  expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/badge-summary");
+});
+
+it("retains navigation while a failed summary shows unavailable instead of zero", async () => {
+  mocks.get.mockRejectedValue(new Error("offline"));
+  const nav = await navFor();
+  const missing = await renderBadge(nav[0]!);
+  expect(missing).toHaveTextContent("—");
 });
 
 it("does not read staff work before authorization", async () => {
   mocks.guard.mockRejectedValueOnce(new Error("denied"));
   await expect(AdminLayout({ children: null })).rejects.toThrow("denied");
-  expect(mocks.readWorkQueue).not.toHaveBeenCalled();
+  expect(mocks.get).not.toHaveBeenCalled();
 });

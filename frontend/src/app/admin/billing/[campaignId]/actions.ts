@@ -1,7 +1,8 @@
 "use server";
 
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
@@ -11,7 +12,8 @@ function path(campaignId: string) {
 }
 
 function fail(campaignId: string, error: unknown): never {
-  const message = error instanceof ApiError ? error.message : "The billing action failed";
+  const message =
+    error instanceof ApiError ? publicActionError(error) : "The billing action failed";
   redirect(`${path(campaignId)}?error=${encodeURIComponent(message)}#money`);
 }
 
@@ -22,6 +24,22 @@ export async function recordRevisionAction(
 ) {
   try {
     const api = createApiClient(await getSessionToken());
+    const descriptions = formData.getAll("description");
+    const quantities = formData.getAll("quantity");
+    const amounts = formData.getAll("unit_amount");
+    const codes = formData.getAll("line_code");
+    const kinds = formData.getAll("line_kind");
+    const metadata = formData.getAll("line_metadata");
+    const lineItems = descriptions
+      .map((description, index) => ({
+        code: String(codes[index] ?? "MEDIA"),
+        description: String(description).trim(),
+        kind: String(kinds[index] ?? "media"),
+        quantity: Number(quantities[index] ?? 0),
+        unit_amount: String(amounts[index] ?? "").trim(),
+        ...(metadata[index] ? { metadata: JSON.parse(String(metadata[index])) } : {}),
+      }))
+      .filter((line) => line.kind !== "production" || Number(line.unit_amount) !== 0);
     await api.POST("/api/v1/admin/quote-requests/{quote_request_id}/revisions", {
       params: { path: { quote_request_id: quoteRequestId } },
       body: {
@@ -29,27 +47,24 @@ export async function recordRevisionAction(
         currency: String(formData.get("currency") ?? "")
           .trim()
           .toUpperCase(),
-        line_items: [
-          {
-            code: "MEDIA",
-            description: String(formData.get("description") ?? "").trim(),
-            kind: "media",
-            quantity: Number(formData.get("quantity") ?? 0),
-            unit_amount: String(formData.get("unit_amount") ?? "").trim(),
-          },
-        ],
+        line_items: lineItems,
         production_scope: {
+          ...JSON.parse(String(formData.get("previous_production_scope") ?? "{}")),
           vehicle_count: Number(formData.get("vehicle_count") ?? 0),
           campaign_start_date: String(formData.get("campaign_start_date") ?? "").trim(),
           campaign_end_date: String(formData.get("campaign_end_date") ?? "").trim(),
         },
         payment_class: String(formData.get("payment_class")) as
           "standard_prepaid" | "approved_corporate_credit",
-        payment_terms: { notes: String(formData.get("payment_terms") ?? "").trim() },
+        payment_terms: {
+          ...JSON.parse(String(formData.get("previous_payment_terms") ?? "{}")),
+          notes: String(formData.get("payment_terms") ?? "").trim(),
+        },
         tax_rate: String(formData.get("tax_rate") ?? "").trim(),
       },
     });
   } catch (error) {
+    unstable_rethrow(error);
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
@@ -81,6 +96,7 @@ export async function recordManualTransferAction(
       },
     });
   } catch (error) {
+    unstable_rethrow(error);
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
@@ -92,10 +108,25 @@ export async function createInvoiceAction(campaignId: string, termsId: string) {
     const api = createApiClient(await getSessionToken());
     await api.POST("/api/v1/admin/invoices", { body: { commercial_terms_id: termsId } });
   } catch (error) {
+    unstable_rethrow(error);
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
   redirect(`${path(campaignId)}?saved=invoice#money`);
+}
+
+export async function issueInvoiceAction(campaignId: string, invoiceId: string) {
+  try {
+    const api = createApiClient(await getSessionToken());
+    await api.POST("/api/v1/admin/invoices/{invoice_id}/issue", {
+      params: { path: { invoice_id: invoiceId } },
+    });
+  } catch (error) {
+    unstable_rethrow(error);
+    fail(campaignId, error);
+  }
+  revalidatePath(path(campaignId));
+  redirect(`${path(campaignId)}?saved=issued#money`);
 }
 
 export async function reverseReceiptAction(
@@ -110,6 +141,7 @@ export async function reverseReceiptAction(
       body: { reason: String(formData.get("reason") ?? "").trim() },
     });
   } catch (error) {
+    unstable_rethrow(error);
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
@@ -135,6 +167,7 @@ export async function recordRefundAction(
       },
     });
   } catch (error) {
+    unstable_rethrow(error);
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
@@ -159,6 +192,7 @@ export async function recordInvoiceCorrectionAction(
       },
     });
   } catch (error) {
+    unstable_rethrow(error);
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
@@ -186,11 +220,22 @@ export async function recordFinancialAuthorityAction(
         credit_terms: isCredit
           ? { notes: String(formData.get("credit_terms") ?? "").trim() }
           : null,
-        subsidy_amount: null,
-        subsidy_reference: null,
       },
     });
   } catch (error) {
+    unstable_rethrow(error);
+    if (error instanceof ApiError) {
+      const messages: Record<string, string> = {
+        FINANCIAL_AUTHORITY_REDUCTION_REQUIRES_GOVERNANCE:
+          "This approval cannot reduce the existing funding or maximum amount owed to drivers. Enter an amount at least as high as the current approval.",
+        DRIVER_LIABILITY_EXCEEDS_AUTHORITY:
+          "The maximum amount owed to drivers cannot exceed the approved funding.",
+        INVALID_FINANCIAL_AUTHORITY_AMOUNT:
+          "The approved funding and maximum amount owed to drivers must both be greater than zero.",
+      };
+      const message = messages[error.code];
+      if (message) redirect(`${path(campaignId)}?error=${encodeURIComponent(message)}#money`);
+    }
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
@@ -205,21 +250,9 @@ export async function recordProductionStartAction(campaignId: string, waiverId: 
       body: { waiver_id: waiverId },
     });
   } catch (error) {
+    unstable_rethrow(error);
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
   redirect(`${path(campaignId)}?saved=production#money`);
-}
-
-export async function recordBudgetBlockedStateAction(campaignId: string) {
-  try {
-    const api = createApiClient(await getSessionToken());
-    await api.POST("/api/v1/admin/campaigns/{campaign_id}/budget-policy-evaluation", {
-      params: { path: { campaign_id: campaignId } },
-    });
-  } catch (error) {
-    fail(campaignId, error);
-  }
-  revalidatePath(path(campaignId));
-  redirect(`${path(campaignId)}?saved=budget#money`);
 }

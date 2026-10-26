@@ -340,10 +340,10 @@ def test_automatic_payout_bootstrap_identity_and_guards(monkeypatch):
     try:
         upgrade_to(migration_url, "head", monkeypatch)
         asyncio.run(execute(migration_url, MANUAL_BATCH))
-        # Existing batches become maker-checker; nothing is automatic by default.
+        # Manual batches need an explicit human approval; nothing is automatic by default.
         assert asyncio.run(
             fetch_all(migration_url, "SELECT approval_mode, automatic_run_id FROM payout_batches")
-        ) == [("maker_checker", None)]
+        ) == [("manual", None)]
         ((email, role, user_status, password_hash, name),) = asyncio.run(
             fetch_all(
                 migration_url,
@@ -371,10 +371,10 @@ def test_automatic_payout_bootstrap_identity_and_guards(monkeypatch):
             "INSERT INTO payout_automatic_controls (id, paused, actor_password_fingerprint)"
             " VALUES (2, false, '" + "c" * 64 + "')",
             "UPDATE payout_automatic_controls SET paused = true",
-            # A maker-checker batch may not point at a run.
+            # A manual batch may not point at an automatic run.
             "UPDATE payout_batches SET automatic_run_id = '93000000-0000-0000-0000-000000000002'",
-            # An automatic run may not exceed its own limit.
-            RUN.format(total="1000.01"),
+            # Run totals remain non-negative, without a monetary run limit.
+            RUN.format(total="-0.01"),
             # An automatic batch needs its run and approval time, and no human approver.
             automatic_batch(run="NULL"),
             automatic_batch(approved_at="NULL"),
@@ -406,9 +406,9 @@ MANUAL_BATCH = (
     " VALUES ('93000000-0000-0000-0000-000000000001', 'draft', 'NGN', 0, '" + ADMIN + "')"
 )
 RUN = (
-    "INSERT INTO payout_automatic_runs (id, period_key, frequency, currency, batch_limit,"
+    "INSERT INTO payout_automatic_runs (id, period_key, currency,"
     " total_amount, batch_count, line_count, exclusions, settings_fingerprint) VALUES"
-    " ('93000000-0000-0000-0000-000000000002', '2026-09-28', 'daily', 'NGN', 1000, {total},"
+    " ('93000000-0000-0000-0000-000000000002', '2026-09-28', 'NGN', {total},"
     " 1, 1, '{{}}', '" + "a" * 64 + "')"
 )
 AUTOMATIC_BATCH = (

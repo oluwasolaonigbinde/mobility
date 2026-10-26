@@ -114,7 +114,6 @@ class TripSession(Base):
         Index("ix_trip_sessions_campaign_id", "campaign_id"),
         Index("ix_trip_sessions_driver_profile_id", "driver_profile_id"),
         Index("ix_trip_sessions_vehicle_id", "vehicle_id"),
-        Index("ix_trip_sessions_display_proof_id", "display_proof_id"),
         Index("ix_trip_sessions_driver_status", "driver_profile_id", "status"),
         Index("ix_trip_sessions_vehicle_status", "vehicle_id", "status"),
         Index("ix_trip_sessions_campaign_started_at", "campaign_id", "started_at"),
@@ -152,9 +151,6 @@ class TripSession(Base):
     vehicle_id: Mapped[UUID] = mapped_column(
         ForeignKey("vehicles.id", ondelete="CASCADE"),
         nullable=False,
-    )
-    display_proof_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("display_proofs.id", ondelete="RESTRICT")
     )
     started_by_user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -220,7 +216,7 @@ class LocationPingBatch(Base):
             name="ck_location_ping_batches_ping_conservation",
         ),
         CheckConstraint(
-            "evidence_scope IN ('manifest', 'postseal_applied')",
+            "evidence_scope IN ('manifest', 'late', 'late_dropped')",
             name="ck_location_ping_batches_evidence_scope",
         ),
         CheckConstraint(
@@ -310,111 +306,6 @@ class LocationPingBatch(Base):
         default=dict,
         server_default=text("'{}'"),
         nullable=False,
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
-
-
-class QuarantinedPingBatchStatus(StrEnum):
-    QUARANTINED = "quarantined"
-    APPLIED = "applied"
-    DISCARDED = "discarded"
-
-
-class QuarantinedPingBatch(Base):
-    """A ping batch that arrived after its trip was sealed (RM3).
-
-    Evidence-preserving: the full payload is stored, no location_pings rows
-    are written, and only an audited admin action may apply or discard it.
-    Applying never auto-recomputes money — daily-rate payout is write-once and the
-    corrective path stays the admin recompute-day tool (§16.1).
-    """
-
-    __tablename__ = "quarantined_ping_batches"
-    __table_args__ = (
-        CheckConstraint(
-            "status IN ('quarantined', 'applied', 'discarded')",
-            name="ck_quarantined_ping_batches_status",
-        ),
-        CheckConstraint(
-            "(status = 'quarantined') = (resolved_at IS NULL)",
-            name="ck_quarantined_ping_batches_resolution",
-        ),
-        # Resolution facts travel together: a resolved row always names its
-        # actor and note, and only applied rows carry an applied batch.
-        CheckConstraint(
-            "(status = 'quarantined') = (resolved_by_user_id IS NULL AND resolution_note IS NULL)",
-            name="ck_quarantined_ping_batches_resolution_actor",
-        ),
-        CheckConstraint(
-            "applied_batch_id IS NULL OR status = 'applied'",
-            name="ck_quarantined_ping_batches_applied_batch",
-        ),
-        CheckConstraint(
-            "pings_submitted >= 0 AND pings_rejected >= 0",
-            name="ck_quarantined_ping_batches_ping_counts",
-        ),
-        CheckConstraint(
-            "(receipt_format_version IS NULL AND receipt_key_version IS NULL AND "
-            "receipt_signature IS NULL AND receipt_outcome IS NULL) OR "
-            "(receipt_format_version = 2 AND receipt_key_version IS NOT NULL AND "
-            "receipt_signature IS NOT NULL AND receipt_outcome IS NOT NULL)",
-            name="ck_quarantined_ping_batches_receipt_cluster",
-        ),
-        UniqueConstraint(
-            "trip_session_id",
-            "idempotency_key",
-            name="uq_quarantined_ping_batches_trip_idempotency_key",
-        ),
-        Index("ix_quarantined_ping_batches_trip_session_id", "trip_session_id"),
-        Index("ix_quarantined_ping_batches_status", "status"),
-    )
-
-    def __init__(self, **kwargs: Any) -> None:
-        if "pings_submitted" not in kwargs and "ping_count" in kwargs:
-            kwargs["pings_submitted"] = kwargs["ping_count"]
-        super().__init__(**kwargs)
-
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True,
-        default=uuid4,
-        server_default=text("gen_random_uuid()"),
-    )
-    trip_session_id: Mapped[UUID] = mapped_column(
-        ForeignKey("trip_sessions.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
-    batch_sequence: Mapped[int | None] = mapped_column(Integer)
-    payload_hash_version: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=2, server_default=text("2")
-    )
-    payload_hash: Mapped[str] = mapped_column(Text, nullable=False)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    ping_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    pings_submitted: Mapped[int] = mapped_column(Integer, nullable=False)
-    pings_rejected: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0")
-    )
-    receipt_format_version: Mapped[int | None] = mapped_column(Integer)
-    receipt_key_version: Mapped[int | None] = mapped_column(Integer)
-    receipt_signature: Mapped[str | None] = mapped_column(Text)
-    receipt_outcome: Mapped[str | None] = mapped_column(String(32))
-    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    status: Mapped[str] = mapped_column(
-        String(32),
-        nullable=False,
-        default=QuarantinedPingBatchStatus.QUARANTINED.value,
-        server_default=text("'quarantined'"),
-    )
-    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    resolved_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
-    resolution_note: Mapped[str | None] = mapped_column(Text)
-    applied_batch_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("location_ping_batches.id", ondelete="SET NULL")
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -42,7 +42,6 @@ class EarningsLedgerEntryType(StrEnum):
     TRIP_PAYOUT = "trip_payout"
     ADJUSTMENT = "adjustment"
     REVERSAL = "reversal"
-    DEBT_REMAINDER = "debt_remainder"
 
 
 class EarningsLedgerEntryStatus(StrEnum):
@@ -55,9 +54,6 @@ class EarningsLedgerEntryStatus(StrEnum):
 
 class PayoutCorrectionOrderStatus(StrEnum):
     DRAFT = "draft"
-    PENDING_APPROVAL = "pending_approval"
-    APPROVED = "approved"
-    REJECTED = "rejected"
     EXECUTED = "executed"
     STALE = "stale"
 
@@ -69,11 +65,8 @@ PAYOUT_TERMS_SHAPE_SQL = (
     " AND minimum_miles IS NOT NULL AND outside_area_weight IS NOT NULL"
     " AND shortfall_strategy IS NOT NULL"
     " AND daily_rate_naira > 0 AND daily_target_miles > 0"
-    " AND minimum_miles >= 0 AND minimum_miles <= daily_target_miles"
-    " AND outside_area_weight >= 0 AND outside_area_weight <= 1"
-    " AND ((shortfall_strategy = 'proportional' AND deduction_per_mile_naira IS NULL)"
-    " OR (shortfall_strategy = 'per_mile_deduction' AND deduction_per_mile_naira IS NOT NULL"
-    " AND deduction_per_mile_naira > 0))"
+    " AND minimum_miles = 0 AND outside_area_weight = 0"
+    " AND shortfall_strategy = 'proportional' AND deduction_per_mile_naira IS NULL"
 )
 
 CURRENCY_CODE_SQL = (
@@ -334,28 +327,13 @@ class AssignmentRuleBinding(Base):
 
 
 class PayoutCorrectionOrder(Base):
-    """Maker-checker retroactive recompute authority (MNY-06C, Q22).
-
-    A named adjuster PROJECTS a campaign/Lagos-day correction (the PR6 core in
-    dry-run) into a draft order; a DIFFERENT admin approves it (enforced at
-    the service layer and by the approver CHECK below); execution re-verifies
-    the PR12 projection fingerprint and runs the same core in execution mode.
-    States: draft -> pending_approval -> approved -> executed, with rejected
-    (from pending_approval) and stale (fingerprint drift detected at approve
-    or execute) as terminal ends — a stale order is never revived, re-project
-    a new one. Executed orders are idempotent: re-execution returns the
-    recorded execution_result and never recomputes.
-    """
+    """Immutable preview applied once by an admin, with stale-input protection."""
 
     __tablename__ = "payout_correction_orders"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('draft', 'pending_approval', 'approved', 'rejected', 'executed', 'stale')",
+            "status IN ('draft', 'executed', 'stale')",
             name="ck_payout_correction_orders_status",
-        ),
-        CheckConstraint(
-            "approved_by_user_id IS NULL OR approved_by_user_id <> created_by_user_id",
-            name="ck_payout_correction_orders_approver_not_creator",
         ),
         Index("ix_payout_correction_orders_campaign_id", "campaign_id"),
         Index(
@@ -533,7 +511,7 @@ class EarningsLedgerEntry(Base):
     __tablename__ = "earnings_ledger_entries"
     __table_args__ = (
         CheckConstraint(
-            "entry_type IN ('trip_payout', 'adjustment', 'reversal', 'debt_remainder')",
+            "entry_type IN ('trip_payout', 'adjustment', 'reversal')",
             name="ck_earnings_ledger_entries_entry_type",
         ),
         CheckConstraint(
@@ -553,12 +531,6 @@ class EarningsLedgerEntry(Base):
             "trip_session_id",
             unique=True,
             postgresql_where=text("entry_type = 'trip_payout'"),
-        ),
-        Index(
-            "uq_earnings_ledger_entries_source_fraud_flag_id",
-            "source_fraud_flag_id",
-            unique=True,
-            postgresql_where=text("source_fraud_flag_id IS NOT NULL"),
         ),
         Index("ix_earnings_ledger_entries_driver_profile_id", "driver_profile_id"),
         Index("ix_earnings_ledger_entries_driver_user_id", "driver_user_id"),
@@ -600,9 +572,6 @@ class EarningsLedgerEntry(Base):
     # Q22: positive correction-order deltas remain pending until this release
     # time; the MNY-03A sweep rechecks it under the authoritative trip scope.
     release_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    source_fraud_flag_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("fraud_flags.id", ondelete="RESTRICT")
-    )
     ledger_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
         JSON().with_variant(postgresql.JSONB(), "postgresql"),

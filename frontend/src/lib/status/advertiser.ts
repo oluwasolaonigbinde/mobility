@@ -1,17 +1,16 @@
 import type { components } from "@/lib/api/schema";
 import { adminStatus } from "./admin";
 
-export type CampaignStatus = components["schemas"]["CampaignStatus"];
+export type CampaignStatus = components["schemas"]["AdvertiserCampaignRead"]["status"];
 
 export const CAMPAIGN_STATUSES: readonly CampaignStatus[] = [
   "draft",
   "pending_review",
   "approved",
   "rejected",
-  "scheduled",
   "active",
   "paused",
-  "completed",
+  "finished",
   "cancelled",
 ] as const;
 
@@ -20,10 +19,9 @@ export const statusLabel: Record<CampaignStatus, string> = {
   pending_review: "Pending review",
   approved: "Approved",
   rejected: "Changes requested",
-  scheduled: "Scheduled",
-  active: "Live",
+  active: "Running",
   paused: "Paused",
-  completed: "Completed",
+  finished: "Finished",
   cancelled: "Cancelled",
 };
 
@@ -33,10 +31,9 @@ export const statusTone: Record<CampaignStatus, "default" | "amber" | "cyan" | "
     pending_review: "amber",
     approved: "cyan",
     rejected: "coral",
-    scheduled: "cyan",
     active: "green",
     paused: "amber",
-    completed: "default",
+    finished: "default",
     cancelled: "coral",
   };
 

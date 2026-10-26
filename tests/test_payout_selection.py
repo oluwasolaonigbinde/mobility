@@ -23,18 +23,27 @@ def test_draft_identity_and_exact_reservation_recover_lost_responses(request, fi
         async with db_sessionmaker() as session:
             entry = await _seed_authority(session, graph, amount="100.07")
             batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id, request_id=request_id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
+                request_id=request_id,
             )
             await session.commit()
             entry_id = entry.id
             assert batch.id == request_id
         async with db_sessionmaker() as session:
             replay = await create_payout_batch_draft(
-                session, currency="ngn", actor_user_id=graph.admin.id, request_id=request_id
+                session,
+                reason="Focused staff payout action",
+                currency="ngn",
+                actor_user_id=graph.admin.id,
+                request_id=request_id,
             )
             assert replay.id == request_id
             _, lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=request_id,
                 ledger_entry_ids=(entry_id,),
                 actor_user_id=graph.admin.id,
@@ -44,6 +53,7 @@ def test_draft_identity_and_exact_reservation_recover_lost_responses(request, fi
         async with db_sessionmaker() as session:
             batch, replay_lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=request_id,
                 ledger_entry_ids=(entry_id,),
                 actor_user_id=graph.admin.id,
@@ -70,11 +80,16 @@ def test_draft_identity_and_exact_reservation_recover_lost_responses(request, fi
                 )
             with pytest.raises(AppError):
                 await create_payout_batch_draft(
-                    session, currency="USD", actor_user_id=graph.admin.id, request_id=request_id
+                    session,
+                    reason="Focused staff payout action",
+                    currency="USD",
+                    actor_user_id=graph.admin.id,
+                    request_id=request_id,
                 )
             with pytest.raises(AppError):
                 await reserve_payout_batch(
                     session,
+                    reason="Focused staff payout action",
                     batch_id=request_id,
                     ledger_entry_ids=(uuid4(),),
                     actor_user_id=graph.admin.id,
@@ -89,9 +104,7 @@ def test_draft_identity_and_exact_reservation_recover_lost_responses(request, fi
 
 @pytest.mark.parametrize("fixture_name", ["db_sessionmaker", "postgis_db_sessionmaker"])
 def test_advisory_selection_is_exact_paged_and_does_not_decrypt_or_write(request, fixture_name):
-    from test_payout_debt import _debt, _ledger
-
-    from app.services.payout_debt import allocate_available_credit_to_debt
+    from app.models.payout import EarningsLedgerEntry
     from app.services.payout_operations import eligible_payment_entries
 
     sessions = request.getfixturevalue(fixture_name)
@@ -100,8 +113,24 @@ def test_advisory_selection_is_exact_paged_and_does_not_decrypt_or_write(request
     async def exercise():
         async with sessions() as session:
             credit = await _seed_authority(session, graph, amount="100.07")
-            session.add(_ledger(graph, amount="0.03", status="available", currency="USD"))
-            await _debt(session, graph, "20.02")
+
+            def entry(amount, currency, kind="adjustment"):
+                return EarningsLedgerEntry(
+                    driver_profile_id=graph.profile.id,
+                    driver_user_id=graph.driver.id,
+                    campaign_id=graph.campaign.id,
+                    trip_session_id=graph.trip.id,
+                    vehicle_id=graph.vehicle.id,
+                    entry_type=kind,
+                    status="available",
+                    amount=Decimal(amount),
+                    currency=currency,
+                    occurred_at=graph.trip.ended_at,
+                    ledger_metadata={"lagos_day": "2026-08-21"},
+                )
+
+            session.add(entry("0.03", "USD"))
+            session.add(entry("20.02", "NGN", "reversal"))
             await session.commit()
             before = await session.scalar(select(func.count(AuditEvent.id)))
             page = await eligible_payment_entries(session, limit=1, currency="NGN")
@@ -109,34 +138,20 @@ def test_advisory_selection_is_exact_paged_and_does_not_decrypt_or_write(request
             row = page["items"][0]
             assert row["driver_name"] == graph.driver.full_name
             assert row["payee_name"] == graph.driver.full_name
-            assert row["amount"] == Decimal("100.07")
-            assert row["carry_forward_debt"] == Decimal("20.02")
+            assert row["amount"] == Decimal("80.05")
             assert row["destination_verified"] is True
-            assert row["eligible"] is False
+            assert row["eligible"] is True
             assert "account_number" not in repr(page)
             assert "0123456789" not in repr(page)
-            assert page["page_eligible_totals"] == []
+            assert page["page_eligible_totals"] == [{"currency": "NGN", "amount": Decimal("80.05")}]
             assert await session.scalar(select(func.count(AuditEvent.id))) == before
             assert (await eligible_payment_entries(session, offset=100))["items"] == []
             assert (await eligible_payment_entries(session, search="%"))["total"] == 0
             assert (await eligible_payment_entries(session, search=graph.driver.full_name))[
                 "total"
             ] == 2
-            result = await allocate_available_credit_to_debt(
-                session,
-                driver_profile_id=graph.profile.id,
-                currency="NGN",
-                actor_user_id=graph.admin.id,
-            )
-            fresh = await eligible_payment_entries(session, currency="NGN")
-            assert fresh["items"][0]["ledger_entry_id"] == result.remainder_entry_ids[0]
-            assert fresh["items"][0]["amount"] == Decimal("80.05")
-            assert fresh["items"][0]["debt_deducted"] == Decimal("20.02")
-            assert fresh["items"][0]["eligible"] is True
-            assert fresh["page_eligible_totals"] == [
-                {"currency": "NGN", "amount": Decimal("80.05")}
-            ]
-            assert credit.status == "reversed"
+            assert credit.status == "available"
+            assert credit.amount == Decimal("100.07")
 
     asyncio.run(exercise())
 
@@ -150,7 +165,11 @@ def test_concurrent_draft_retry_has_one_durable_winner(postgis_db_sessionmaker):
         async def create():
             async with sessions() as session:
                 batch = await create_payout_batch_draft(
-                    session, currency="NGN", actor_user_id=graph.admin.id, request_id=request_id
+                    session,
+                    reason="Focused staff payout action",
+                    currency="NGN",
+                    actor_user_id=graph.admin.id,
+                    request_id=request_id,
                 )
                 await session.commit()
                 return batch.id
@@ -196,15 +215,24 @@ def test_batch_summaries_and_detail_distinguish_queued_unknown_and_verified_hist
                 await _seed_authority(session, graph, amount="0.20"),
             ]
             batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             _, lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=batch.id,
                 ledger_entry_ids=tuple(entry.id for entry in entries),
                 actor_user_id=graph.admin.id,
             )
-            await approve_payout_batch(session, batch_id=batch.id, actor_user_id=checker.id)
+            await approve_payout_batch(
+                session,
+                reason="Focused staff payout action",
+                batch_id=batch.id,
+                actor_user_id=checker.id,
+            )
             await submit_payout_batch(
                 session,
                 batch_id=batch.id,
@@ -321,7 +349,10 @@ def test_selection_and_reservation_deny_stale_assessment(db_sessionmaker):
         async with db_sessionmaker() as session:
             entry = await _seed_authority(session, graph)
             batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             assessment = await session.scalar(
                 select(FraudAssessment).where(FraudAssessment.trip_session_id == graph.trip.id)
@@ -333,6 +364,7 @@ def test_selection_and_reservation_deny_stale_assessment(db_sessionmaker):
             with pytest.raises(AppError) as error:
                 await reserve_payout_batch(
                     session,
+                    reason="Focused staff payout action",
                     batch_id=batch.id,
                     ledger_entry_ids=(entry.id,),
                     actor_user_id=graph.admin.id,

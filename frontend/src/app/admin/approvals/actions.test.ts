@@ -67,7 +67,8 @@ describe("reviewCampaignAction", () => {
     mocks.post.mockRejectedValue(
       new ApiError(409, {
         code: "CAMPAIGN_REVIEW_STATE_CONFLICT",
-        message: "Campaign review state changed. Refresh and try again.",
+        message: "private campaign state and advertiser details",
+        details: { advertiser: "private@example.com" },
       }),
     );
 
@@ -109,6 +110,26 @@ describe("reviewCampaignChangeAction", () => {
       },
     );
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns");
+  });
+
+  it("keeps approval without claiming application when the 200 response is still pending funding", async () => {
+    mocks.post.mockResolvedValue({
+      data: { status: "pending_funding" },
+      response: new Response(null, { status: 200 }),
+    });
+    await expect(
+      reviewCampaignChangeAction({}, changeForm("approve", "Approval retained")),
+    ).resolves.toEqual({
+      notice: "Approval kept. Still waiting for enough funding.",
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns/[campaignId]", "page");
+  });
+
+  it("retains the normal success feedback when the approved change is applied", async () => {
+    mocks.post.mockResolvedValue({ data: { status: "applied" } });
+    await expect(
+      reviewCampaignChangeAction({}, changeForm("approve", "Funding checked")),
+    ).resolves.toEqual({ done: "Change approved" });
   });
 });
 
@@ -154,7 +175,7 @@ describe("reviewCreativeAction", () => {
 describe("reviewInstallationEvidenceAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.post.mockResolvedValue({ data: {} });
+    mocks.post.mockResolvedValue({ data: { activation: { ready: true } } });
   });
 
   function evidenceForm(intent: "approve" | "reject", reason = ""): FormData {
@@ -167,7 +188,7 @@ describe("reviewInstallationEvidenceAction", () => {
 
   it("uses governed evidence decisions and rejects an empty rejection reason", async () => {
     await expect(reviewInstallationEvidenceAction({}, evidenceForm("approve"))).resolves.toEqual({
-      done: "Installation approved",
+      done: "Installation approved and job started.",
     });
     expect(mocks.post).toHaveBeenCalledWith(
       "/api/v1/admin/installation-evidence/{submission_id}/approve",
@@ -182,5 +203,14 @@ describe("reviewInstallationEvidenceAction", () => {
       reviewInstallationEvidenceAction({}, evidenceForm("reject", "   ")),
     ).resolves.toEqual({ error: "A rejection reason is required" });
     expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it("keeps the approval and shows the unmet activation check", async () => {
+    mocks.post.mockResolvedValue({
+      data: { activation: { ready: false, message: "Production start is required." } },
+    });
+    await expect(reviewInstallationEvidenceAction({}, evidenceForm("approve"))).resolves.toEqual({
+      done: "Installation approved. Job has not started: Production start is required.",
+    });
   });
 });

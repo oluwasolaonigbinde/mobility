@@ -30,7 +30,8 @@ def test_privacy_register_is_fail_closed_and_complete() -> None:
     } <= role_keys
 
     purposes = register["purposes"]
-    assert len(purposes) == 9
+    assert len(purposes) == 8
+    assert "P09_CONTEXTUAL_RETARGETING" not in {purpose["id"] for purpose in purposes}
     assert len({purpose["id"] for purpose in purposes}) == len(purposes)
     required_purpose_fields = {
         "id",

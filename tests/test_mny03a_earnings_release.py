@@ -17,11 +17,6 @@ from conftest import (
 from sqlalchemy import func, select
 
 from app.models.audit import AuditEvent
-from app.models.disbursement import (
-    DriverCurrencyDebtAccount,
-    PayoutBatchLine,
-    PayoutDebtObligation,
-)
 from app.models.driver import DriverOnboardingStatus
 from app.models.fraud_assessment import FraudAssessment
 from app.models.notification import Notification, NotificationType
@@ -42,7 +37,8 @@ from app.services.fraud_assessments import (
     load_current_detection_flags,
     route_replay_assessment_facts,
 )
-from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
+from app.services.fraud_holds import resolve_fraud_flag
+from app.services.payout_balances import trip_money_position
 from app.services.route_replay import route_replay_config_fingerprint
 from app.services.trip_analytics import analytics_output_fingerprint
 
@@ -218,9 +214,7 @@ def release(db_sessionmaker, graph, settings):
     return asyncio.run(run())
 
 
-def test_clean_release_is_immediate_idempotent_and_audited(
-    db_sessionmaker, settings
-) -> None:
+def test_clean_release_is_immediate_idempotent_and_audited(db_sessionmaker, settings) -> None:
     graph = build_graph(db_sessionmaker, "clean")
     seed_assessment_authority(db_sessionmaker, graph, settings)
     entry = create_ledger(db_sessionmaker, graph)
@@ -257,10 +251,10 @@ def test_clean_release_is_immediate_idempotent_and_audited(
     assert notices[0].payload == {"trip_session_id": str(graph.trip.id)}
 
 
-def test_release_creates_one_reversal_debt_obligation_before_commit(
+def test_release_preserves_reversal_and_trip_local_net_before_commit(
     db_sessionmaker, settings
 ) -> None:
-    """A due reversal cannot become available without entering debt authority."""
+    """A due reversal lowers this trip only and creates no debt authority."""
     graph = build_graph(db_sessionmaker, "released-reversal-debt")
     seed_assessment_authority(db_sessionmaker, graph, settings)
     credit = create_ledger(db_sessionmaker, graph, amount="100.00")
@@ -293,17 +287,17 @@ def test_release_creates_one_reversal_debt_obligation_before_commit(
     async def verify():
         async with db_sessionmaker() as session:
             reversal = await session.get(EarningsLedgerEntry, reversal_id)
-            obligations = tuple((await session.scalars(select(PayoutDebtObligation))).all())
-            account = await session.scalar(select(DriverCurrencyDebtAccount))
-            return reversal, obligations, account
+            position = await trip_money_position(
+                session, trip_session_id=graph.trip.id, currency="NGN"
+            )
+            return reversal, position
 
-    reversal, obligations, account = asyncio.run(verify())
+    reversal, position = asyncio.run(verify())
     assert set(first.released_entry_ids) == {credit.id, reversal_id}
     assert second.released_entry_ids == ()
     assert reversal.status == "available"
-    assert len(obligations) == 1
-    assert obligations[0].source_reversal_entry_id == reversal_id
-    assert account.outstanding_amount == Decimal("60.00")
+    assert position.earned_net == Decimal("40.00")
+    assert position.batch_payable == Decimal("40.00")
 
 
 def test_candidate_cursor_skips_future_and_reaches_eligible_after_blocked_pages(
@@ -327,9 +321,7 @@ def test_candidate_cursor_skips_future_and_reaches_eligible_after_blocked_pages(
     async def make_stale():
         async with db_sessionmaker() as session:
             assessment = await session.scalar(
-                select(FraudAssessment).where(
-                    FraudAssessment.trip_session_id == stale.trip.id
-                )
+                select(FraudAssessment).where(FraudAssessment.trip_session_id == stale.trip.id)
             )
             assessment.inputs_fingerprint = "f" * 64
             await session.commit()
@@ -346,9 +338,7 @@ def test_candidate_cursor_skips_future_and_reaches_eligible_after_blocked_pages(
         after = None
         async with db_sessionmaker() as session:
             for _ in range(3):
-                page = await find_pending_release_trip_ids(
-                    session, limit=1, after=after
-                )
+                page = await find_pending_release_trip_ids(session, limit=1, after=after)
                 if not page:
                     break
                 seen.extend(page)
@@ -372,9 +362,6 @@ def test_active_hold_and_dismissed_stale_assessment_block_until_reassessed(
 
     async def dismiss():
         async with db_sessionmaker() as session:
-            await acknowledge_fraud_flag(
-                session, flag_id=flag.id, actor_user_id=graph.admin.id, now=NOW
-            )
             await resolve_fraud_flag(
                 session,
                 flag_id=flag.id,
@@ -395,22 +382,12 @@ def test_active_hold_and_dismissed_stale_assessment_block_until_reassessed(
     assert released.released_entry_ids == (entry.id,)
 
 
-def test_open_acknowledged_and_confirmed_each_hold_release(db_sessionmaker, settings) -> None:
+def test_open_and_confirmed_each_hold_release(db_sessionmaker, settings) -> None:
     graph = build_graph(db_sessionmaker, "all-hold-states")
     flag = create_flag(db_sessionmaker, graph)
     seed_assessment_authority(db_sessionmaker, graph, settings)
     create_ledger(db_sessionmaker, graph)
 
-    assert release(db_sessionmaker, graph, settings).hold_active is True
-
-    async def acknowledge():
-        async with db_sessionmaker() as session:
-            await acknowledge_fraud_flag(
-                session, flag_id=flag.id, actor_user_id=graph.admin.id, now=NOW
-            )
-            await session.commit()
-
-    asyncio.run(acknowledge())
     assert release(db_sessionmaker, graph, settings).hold_active is True
 
     async def confirm():
@@ -450,9 +427,7 @@ def test_any_assessment_authority_drift_blocks_release(db_sessionmaker, settings
     async def mutate():
         async with db_sessionmaker() as session:
             assessment = await session.scalar(
-                select(FraudAssessment).where(
-                    FraudAssessment.trip_session_id == graph.trip.id
-                )
+                select(FraudAssessment).where(FraudAssessment.trip_session_id == graph.trip.id)
             )
             analytics = await session.get(type(graph.analytics), graph.analytics.id)
             replay = await session.scalar(
@@ -518,14 +493,10 @@ def test_seven_day_escalation_is_once_and_never_releases(
 
     async def escalate_twice():
         async with db_sessionmaker() as session:
-            first = await escalate_fraud_flag_if_due(
-                session, flag_id=flag.id, review_sla_days=7
-            )
+            first = await escalate_fraud_flag_if_due(session, flag_id=flag.id, review_sla_days=7)
             await session.commit()
         async with db_sessionmaker() as session:
-            second = await escalate_fraud_flag_if_due(
-                session, flag_id=flag.id, review_sla_days=7
-            )
+            second = await escalate_fraud_flag_if_due(session, flag_id=flag.id, review_sla_days=7)
             await session.commit()
             stored_flag = await session.get(FraudFlag, flag.id)
             stored_entry = await session.get(EarningsLedgerEntry, entry.id)
@@ -537,9 +508,7 @@ def test_seven_day_escalation_is_once_and_never_releases(
     assert status == "pending"
 
 
-def test_confirmed_post_release_flag_posts_one_netted_reversal(
-    db_sessionmaker, settings
-) -> None:
+def test_confirmed_post_release_flag_keeps_ledger_unchanged(db_sessionmaker, settings) -> None:
     graph = build_graph(db_sessionmaker, "reversal")
     flag = create_flag(db_sessionmaker, graph)
     second_flag = create_flag(db_sessionmaker, graph, flag_type="stationary_trip")
@@ -547,9 +516,6 @@ def test_confirmed_post_release_flag_posts_one_netted_reversal(
 
     async def review():
         async with db_sessionmaker() as session:
-            await acknowledge_fraud_flag(
-                session, flag_id=flag.id, actor_user_id=graph.admin.id, now=NOW
-            )
             first = await resolve_fraud_flag(
                 session,
                 flag_id=flag.id,
@@ -565,12 +531,6 @@ def test_confirmed_post_release_flag_posts_one_netted_reversal(
                 outcome="confirmed",
                 resolution_note="Fraud confirmed.",
                 now=NOW + timedelta(seconds=2),
-            )
-            await acknowledge_fraud_flag(
-                session,
-                flag_id=second_flag.id,
-                actor_user_id=graph.admin.id,
-                now=NOW + timedelta(seconds=3),
             )
             await resolve_fraud_flag(
                 session,
@@ -600,10 +560,8 @@ def test_confirmed_post_release_flag_posts_one_netted_reversal(
         if entry.status == "available"
     )
     assert first_changed is True and retry_changed is False
-    assert len(reversals) == 1
-    assert reversals[0].source_fraud_flag_id == flag.id
-    assert reversals[0].amount == Decimal("125.50")
-    assert net == Decimal("0.00")
+    assert reversals == []
+    assert net == Decimal("125.50")
 
 
 @pytest.mark.parametrize("outcome", ["dismissed", "confirmed"])
@@ -616,9 +574,6 @@ def test_dismissed_or_pre_release_review_posts_no_reversal(
 
     async def review():
         async with db_sessionmaker() as session:
-            await acknowledge_fraud_flag(
-                session, flag_id=flag.id, actor_user_id=graph.admin.id, now=NOW
-            )
             await resolve_fraud_flag(
                 session,
                 flag_id=flag.id,
@@ -630,16 +585,15 @@ def test_dismissed_or_pre_release_review_posts_no_reversal(
             await session.commit()
             return await session.scalar(
                 select(func.count(EarningsLedgerEntry.id)).where(
-                    EarningsLedgerEntry.source_fraud_flag_id == flag.id
+                    EarningsLedgerEntry.trip_session_id == graph.trip.id,
+                    EarningsLedgerEntry.entry_type == "reversal",
                 )
             )
 
     assert asyncio.run(review()) == 0
 
 
-def test_postgres_two_release_workers_converge_once(
-    postgis_db_sessionmaker, settings
-) -> None:
+def test_postgres_two_release_workers_converge_once(postgis_db_sessionmaker, settings) -> None:
     graph = build_graph(postgis_db_sessionmaker, "pg-workers")
     seed_assessment_authority(postgis_db_sessionmaker, graph, settings)
     entry = create_ledger(postgis_db_sessionmaker, graph)
@@ -660,135 +614,6 @@ def test_postgres_two_release_workers_converge_once(
     assert sum(outcome == () for outcome in outcomes) == 1
 
 
-def test_postgres_release_vs_reservation_is_all_or_nothing_for_reversal_debt(
-    postgis_db_sessionmaker, settings
-) -> None:
-    """The release trip lock and reservation lock have one safe serial outcome."""
-    from test_payout_batches import _seed_authority
-
-    from app.core.errors import AppError
-    from app.services.disbursements import create_payout_batch_draft, reserve_payout_batch
-
-    graph = build_graph(postgis_db_sessionmaker, "pg-release-reservation-debt")
-    seed_assessment_authority(postgis_db_sessionmaker, graph, settings)
-
-    async def setup():
-        async with postgis_db_sessionmaker() as session:
-            credit = await _seed_authority(session, graph, amount="100.00")
-            reversal = EarningsLedgerEntry(
-                payout_calculation_id=None,
-                driver_profile_id=graph.profile.id,
-                driver_user_id=graph.driver.id,
-                campaign_id=graph.campaign.id,
-                trip_session_id=graph.trip.id,
-                vehicle_id=graph.vehicle.id,
-                entry_type="reversal",
-                status="pending",
-                amount=Decimal("60.00"),
-                currency="NGN",
-                occurred_at=NOW,
-                release_at=None,
-                ledger_metadata={},
-            )
-            session.add(reversal)
-            batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
-            )
-            await session.commit()
-            return credit.id, reversal.id, batch.id
-
-    credit_id, reversal_id, batch_id = asyncio.run(setup())
-
-    async def release_task():
-        async with postgis_db_sessionmaker() as session:
-            try:
-                result = await release_pending_earnings_for_trip(
-                    session, trip_id=graph.trip.id, settings=settings
-                )
-                await session.commit()
-                return "released", result.released_entry_ids
-            except AppError as exc:
-                await session.rollback()
-                return exc.code, ()
-
-    async def reserve_task():
-        async with postgis_db_sessionmaker() as session:
-            try:
-                await reserve_payout_batch(
-                    session,
-                    batch_id=batch_id,
-                    ledger_entry_ids=(credit_id,),
-                    actor_user_id=graph.admin.id,
-                )
-                await session.commit()
-                return "reserved"
-            except AppError as exc:
-                await session.rollback()
-                return exc.code
-
-    async def race():
-        release_result, reservation_result = await asyncio.wait_for(
-            asyncio.gather(release_task(), reserve_task()), timeout=10
-        )
-        async with postgis_db_sessionmaker() as session:
-            reversal = await session.get(EarningsLedgerEntry, reversal_id)
-            obligation_count = int(
-                await session.scalar(select(func.count(PayoutDebtObligation.id))) or 0
-            )
-            account_count = int(
-                await session.scalar(select(func.count(DriverCurrencyDebtAccount.id))) or 0
-            )
-            active_lines = int(
-                await session.scalar(
-                    select(func.count()).select_from(PayoutBatchLine).where(
-                        PayoutBatchLine.ledger_entry_id == credit_id,
-                        PayoutBatchLine.reservation_active.is_(True),
-                    )
-                )
-                or 0
-            )
-            audits = int(
-                await session.scalar(
-                    select(func.count(AuditEvent.id)).where(
-                        AuditEvent.action == "worker.earnings.released",
-                        AuditEvent.entity_id == str(graph.trip.id),
-                    )
-                )
-                or 0
-            )
-            return (
-                release_result,
-                reservation_result,
-                reversal,
-                obligation_count,
-                account_count,
-                active_lines,
-                audits,
-            )
-
-    (
-        release_result,
-        reservation_result,
-        reversal,
-        obligation_count,
-        account_count,
-        active_lines,
-        audits,
-    ) = asyncio.run(race())
-    assert {release_result[0], reservation_result} & {"released", "reserved"}
-    if release_result[0] == "released":
-        assert reversal.status == "available"
-        assert obligation_count == account_count == 1
-        assert active_lines == 0
-        assert audits == 1
-    else:
-        assert release_result[0] == "PAYOUT_DEBT_ACTIVE_RESERVATION"
-        assert reservation_result == "reserved"
-        assert reversal.status == "pending"
-        assert obligation_count == account_count == audits == 0
-        assert active_lines == 1
-
-
 def test_postgres_release_vs_dismiss_never_releases_stale_assessment(
     postgis_db_sessionmaker, settings
 ) -> None:
@@ -799,9 +624,6 @@ def test_postgres_release_vs_dismiss_never_releases_stale_assessment(
 
     async def prepare():
         async with postgis_db_sessionmaker() as session:
-            await acknowledge_fraud_flag(
-                session, flag_id=flag.id, actor_user_id=graph.admin.id, now=NOW
-            )
             await session.commit()
 
     asyncio.run(prepare())

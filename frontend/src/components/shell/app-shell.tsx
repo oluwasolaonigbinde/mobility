@@ -5,6 +5,7 @@ import type { MeResponse } from "@/lib/auth/current-user";
 import { SessionLogoutButton } from "@/components/driver/logout-button";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { SidebarNav, type NavItem } from "./sidebar-nav";
+import { BrandWordmark } from "./brand-wordmark";
 
 export type { NavItem };
 
@@ -15,8 +16,8 @@ const roleLabel: Record<string, string> = {
 };
 
 /**
- * Shared authenticated shell: icon-free sidebar rail, sticky topbar with identity context,
- * content well.
+ * Staff (admin) shell: icon-free sidebar rail, sticky topbar with identity context,
+ * content well. Advertisers and drivers have their own shells.
  */
 export function AppShell({
   me,
@@ -29,13 +30,8 @@ export function AppShell({
   children: ReactNode;
   search?: ReactNode;
 }) {
-  const org = me.advertiser_organization;
-  const canManageAdvertiserPreferences =
-    me.user.role === "advertiser" &&
-    (org?.membership_role === "owner" || org?.membership_role === "manager");
-
   return (
-    <div className="flex min-h-dvh flex-1">
+    <div className={`flex min-h-dvh flex-1 ${me.user.role === "admin" ? "admin-portal" : ""}`}>
       <a
         href="#main"
         className="focus:bg-amber focus:text-bg sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:px-3 focus:py-2 focus:text-sm"
@@ -44,30 +40,27 @@ export function AppShell({
       </a>
 
       {/* Sidebar */}
-      <aside className="border-edge bg-panel sticky top-0 hidden h-dvh w-52 shrink-0 flex-col border-r md:flex">
-        <Link href="/" className="flex items-center gap-2 px-5 pt-5 pb-6">
-          <span className="font-display text-amber text-lg font-bold" aria-hidden>
-            C
-          </span>
-          <span className="font-display text-lg font-semibold tracking-tight">
-            Cardvert<span className="text-amber">.</span>
-          </span>
-        </Link>
-        <SidebarNav items={nav} />
-        <div className="border-edge mt-auto border-t p-4">
-          <p className="truncate text-sm font-medium">{me.user.full_name}</p>
-          <p className="micro text-faint mt-0.5">{roleLabel[me.user.role] ?? me.user.role}</p>
-          <SessionLogoutButton
-            label="Sign out"
-            className="text-muted hover:text-coral text-sm font-medium transition-colors"
-            formClassName="mt-3"
-          />
+      <aside className="border-edge bg-panel hidden w-52 shrink-0 border-r md:block">
+        <div className="sticky top-0 flex h-dvh flex-col">
+          <Link href="/" className="flex items-center gap-2 px-5 pt-5 pb-6">
+            <BrandWordmark />
+          </Link>
+          <SidebarNav items={nav} />
+          <div className="border-edge mt-auto border-t p-4">
+            <p className="truncate text-sm font-medium">{me.user.full_name}</p>
+            <p className="micro text-faint mt-0.5">{roleLabel[me.user.role] ?? me.user.role}</p>
+            <SessionLogoutButton
+              label="Sign out"
+              className="text-muted hover:text-coral text-sm font-medium transition-colors"
+              formClassName="mt-3"
+            />
+          </div>
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Topbar */}
-        <header className="border-edge bg-bg/85 sticky top-0 z-40 flex min-h-14 flex-wrap items-center justify-between gap-3 border-b px-4 py-2 backdrop-blur md:px-6">
+        <header className="border-edge bg-panel sticky top-0 z-40 flex min-h-14 flex-wrap items-center justify-between gap-3 border-b px-4 py-2 md:px-6">
           <div className={search ? "hidden" : "flex items-center gap-3 md:hidden"}>
             <Link href="/" className="font-display text-lg font-semibold">
               Cardvert<span className="text-amber">.</span>
@@ -78,17 +71,7 @@ export function AppShell({
               search ? "text-ink text-sm font-medium" : "text-muted hidden text-sm md:block"
             }
           >
-            {org ? (
-              <>
-                {org.name} · <span className="text-amber">{org.currency}</span>
-              </>
-            ) : (
-              <>
-                {me.user.role === "admin"
-                  ? "Terrax Media operations"
-                  : `Network · ${roleLabel[me.user.role] ?? me.user.role}`}
-              </>
-            )}
+            Terrax Media operations
           </div>
           {search ? (
             <div className="order-last w-full md:order-none md:w-auto md:min-w-64 md:flex-1">
@@ -96,14 +79,11 @@ export function AppShell({
             </div>
           ) : null}
           <div className="text-muted flex items-center gap-3 text-sm">
-            <NotificationCenter
-              canManageAdvertiserPreferences={canManageAdvertiserPreferences}
-              sessionScope={me.user.id}
-            />
+            <NotificationCenter canManageAdvertiserPreferences={false} sessionScope={me.user.id} />
             <span aria-label="Account context" className="hidden md:inline">
-              {me.advertiser_organization?.name ?? me.user.full_name}
+              {me.user.full_name}
             </span>
-            <details className="relative md:hidden">
+            <details className="relative">
               <summary className="hover:text-ink cursor-pointer list-none transition-colors">
                 Account
               </summary>

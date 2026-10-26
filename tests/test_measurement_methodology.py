@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import json
 import re
-from decimal import Decimal
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_PATH = ROOT / "docs" / "measurement-methodology.json"
-FIXTURE_DIR = ROOT / "tests" / "fixtures" / "measurement"
 ADVERTISER_DIR = ROOT / "frontend" / "src" / "app" / "advertiser"
 SHARED_COMPONENTS_DIR = ROOT / "frontend" / "src" / "components"
 COPY_SOURCE_DIRS = (ADVERTISER_DIR, SHARED_COMPONENTS_DIR)
@@ -40,60 +38,13 @@ def read_json(path: Path) -> dict:
     return json.loads(path.read_text())
 
 
-def test_contract_is_complete_and_live_use_fails_closed() -> None:
-    contract = read_json(CONTRACT_PATH)
-
-    assert contract["schema_version"] == "measurement-methodology-v1"
-    assert contract["status"] == "DRAFT_BUILD_ONLY"
-    assert contract["external_gate"] == "EXT-REPORT-METHOD"
-    assert contract["live_report_issuance_authorized"] is False
-    assert contract["standard_deliverable"] == "Campaign Performance Analysis"
-    assert contract["roi_gate"]["default"] == "OMIT"
-    assert contract["roi_gate"]["production_enabled"] is False
-    assert len(contract["roi_gate"]["all_required"]) >= 7
-
-    metrics = {row["id"]: row for row in contract["metric_hierarchy"]}
-    assert set(metrics) == {
-        "verified_vehicle_movement",
-        "modelled_potential_contacts",
-        "target_area_coverage",
-        "driver_campaign_cost",
-        "true_roi",
-    }
-    required = {
-        "display_label",
-        "class",
-        "unit",
-        "source",
-        "vintage",
-        "uncertainty",
-        "missing_data",
-    }
-    assert all(required <= row.keys() for row in metrics.values())
-    contacts = metrics["modelled_potential_contacts"]
-    assert contacts["storage_field"] == "estimated_impressions"
-    assert {"verified views", "unique reach", "audience", "attribution", "people exposed"} <= set(
-        contacts["never_equivalent_to"]
-    )
-
-    coverage = metrics["target_area_coverage"]["candidate_formula"]
-    assert coverage["status"] == "SYNTHETIC_VALIDATION_ONLY"
-    assert coverage["live_method_approval"] == "MISSING"
-    assert coverage["target"] == "at least 60 percent"
-
-
 def test_frozen_disclosure_wording_is_taken_from_the_contract() -> None:
     # R47: the frozen result must reproduce the contract's own clauses verbatim so a
     # run stays reproducible from its manifest without reading this file at runtime.
-    from app.schemas.measurement import (
-        MeasurementRoiMethodRead,
-        MeasurementRoiProvenanceRead,
-    )
-    from app.services.measurement import (
+    from app.services.historical_measurement import (
         DENSITY_PARAMETER_CALIBRATION,
         DENSITY_PARAMETER_SOURCE,
         MODELLED_CONTACTS_UNCERTAINTY,
-        ROI_METHOD_LIMITATIONS,
         SUPPRESSED_TOTAL_LABEL,
         VERIFIED_MOVEMENT_CAVEAT,
     )
@@ -102,8 +53,8 @@ def test_frozen_disclosure_wording_is_taken_from_the_contract() -> None:
     metrics = {row["id"]: row for row in contract["metric_hierarchy"]}
 
     assert VERIFIED_MOVEMENT_CAVEAT == metrics["verified_vehicle_movement"]["uncertainty"]
-    # Pre-R47 wording is preserved verbatim: app/services/audience.py and
-    # app/services/audience_delivery.py both fail closed without this exact statement.
+    # Reports retain the exact model uncertainty statement.
+
     assert MODELLED_CONTACTS_UNCERTAINTY == (
         "Model confidence is a diagnostic, not a statistical confidence interval."
     )
@@ -111,7 +62,6 @@ def test_frozen_disclosure_wording_is_taken_from_the_contract() -> None:
     assert "not a statistical confidence interval" in contacts_uncertainty
     assert DENSITY_PARAMETER_SOURCE == metrics["modelled_potential_contacts"]["source"]
     assert DENSITY_PARAMETER_CALIBRATION == metrics["modelled_potential_contacts"]["calibration"]
-    assert ROI_METHOD_LIMITATIONS == metrics["true_roi"]["limitations"]
 
     rule = contract["completeness_rule"]
     assert set(rule) == {
@@ -127,54 +77,6 @@ def test_frozen_disclosure_wording_is_taken_from_the_contract() -> None:
     assert rule["omitted_label"] == "Omitted - insufficient frozen evidence"
     assert SUPPRESSED_TOTAL_LABEL == "Not enough data"
     assert SUPPRESSED_TOTAL_LABEL.isascii(), "the bounded PDF renderer is ASCII-only"
-    frontend_label = (
-        ADVERTISER_DIR / "campaigns" / "[campaignId]" / "report" / "measurement-authority.tsx"
-    ).read_text()
-    assert 'export const OMITTED_TOTAL_LABEL = "Not enough data";' in frontend_label
-
-    # Every ROI fact the contract demands is a field the read contract actually exposes.
-    exposed = (
-        set(MeasurementRoiMethodRead.model_fields)
-        | set(MeasurementRoiProvenanceRead.model_fields)
-        | {"method_revision"}
-    )
-    assert set(contract["roi_gate"]["required_disclosure"]) <= exposed
-
-
-def test_performance_fixture_omits_roi() -> None:
-    fixture = read_json(FIXTURE_DIR / "performance_only.json")
-
-    assert fixture["test_only"] is True
-    assert fixture["title"] == "Campaign Performance Analysis"
-    assert fixture["mode"] == "performance_only"
-    assert fixture["roi"] is None
-    assert fixture["roi_gate"]["decision"] == "OMIT"
-    assert "true_roi" not in fixture["metrics"]
-
-
-def test_roi_fixture_is_complete_synthetic_evidence_only() -> None:
-    fixture = read_json(FIXTURE_DIR / "roi_enabled_synthetic.json")
-
-    assert fixture["test_only"] is True
-    assert fixture["method"]["approval"] == "SYNTHETIC_TEST_ONLY"
-    for field in (
-        "revision",
-        "formula",
-        "attribution_rule",
-        "attribution_window",
-        "cost_basis",
-        "exclusions",
-        "corrections",
-        "late_data",
-    ):
-        assert fixture["method"][field]
-    inputs = fixture["inputs"]
-    calculated = (
-        Decimal(inputs["attributed_revenue"]) - Decimal(inputs["approved_cost_basis"])
-    ) / Decimal(inputs["approved_cost_basis"])
-    assert calculated == Decimal(fixture["roi"]["ratio"])
-    assert calculated * 100 == Decimal(fixture["roi"]["percent"])
-    assert fixture["roi_gate"]["decision"] == "INCLUDE_FOR_SYNTHETIC_TEST_ONLY"
 
 
 def test_advertiser_copy_uses_safe_measurement_terms() -> None:
@@ -182,13 +84,12 @@ def test_advertiser_copy_uses_safe_measurement_terms() -> None:
     copy_files = advertiser_reachable_copy_files()
     copy = "\n".join(copy_files.values())
 
-    assert "Campaign Performance Analysis" in copy
-    headline_stats = {
-        path: text for path, text in copy_files.items() if HEADLINE_STAT_LABEL in text
-    }
-    assert headline_stats
-    for path, text in headline_stats.items():
-        assert HEADLINE_DISCLAIMER in text, path
+    assert "Estimated views" in copy
+    # S9/D118 moves issued-report uncertainty into the CSV/PDF renderer.
+    from app.services.campaign_report_rendering import UNCERTAINTY
+
+    assert "not measured people or guaranteed views" in UNCERTAINTY
+    assert "no independent traffic survey or field calibration" in UNCERTAINTY
     for path, text in copy_files.items():
         if DIAGNOSTIC_PATTERN.search(text):
             assert (

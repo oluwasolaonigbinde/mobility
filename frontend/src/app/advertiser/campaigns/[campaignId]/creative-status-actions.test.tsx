@@ -12,7 +12,15 @@ vi.mock("./actions", () => ({
   replaceCreativeAndSubmitAction: mocks.replace,
   submitCreativeForReviewAction: mocks.submit,
 }));
-vi.mock("@/lib/files/creative-upload", () => ({ uploadCreativeFile: mocks.upload }));
+vi.mock("@/lib/files/creative-upload", () => ({
+  uploadCreativeFile: mocks.upload,
+  CREATIVE_UPLOAD_PHASE_LABELS: {
+    hashing: "Preparing file…",
+    uploading: "Uploading…",
+    scanning: "Checking file…",
+    clean: "File ready",
+  },
+}));
 
 import { CreativeStatusActions } from "./creative-status-actions";
 
@@ -68,7 +76,7 @@ describe("CreativeStatusActions", () => {
     mocks.submit.mockResolvedValue({ done: "Artwork sent to Terrax Media for review." });
     renderActions("draft");
 
-    await user.click(screen.getByRole("button", { name: "Submit creative" }));
+    await user.click(screen.getByRole("button", { name: "Send artwork" }));
 
     expect(
       await screen.findByText("✓ Artwork sent to Terrax Media for review."),
@@ -126,14 +134,14 @@ describe("CreativeStatusActions", () => {
 
     chooseReplacement(file);
 
-    expect(await screen.findByText("scanning…")).toBeInTheDocument();
+    expect(await screen.findByText("Checking file…")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Replace and submit" })).not.toBeInTheDocument();
     expect(mocks.upload).toHaveBeenCalledWith(file, expect.any(Function), {
       clientRequestId: FIRST_UPLOAD_ID,
     });
 
     release({ storedFileId: STORED_FILE_ID, creativeType: "image" });
-    expect(await screen.findByText("✓ Replacement passed security scan")).toBeInTheDocument();
+    expect(await screen.findByText("✓ Replacement is ready")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Replace and submit" }));
 
     expect(
@@ -151,7 +159,7 @@ describe("CreativeStatusActions", () => {
   it("keeps a failed replacement submission retryable without hiding the cleared file", async () => {
     const user = userEvent.setup();
     let finish!: (state: { error: string }) => void;
-    mocks.upload.mockResolvedValue({ storedFileId: STORED_FILE_ID, creativeType: "video" });
+    mocks.upload.mockResolvedValue({ storedFileId: STORED_FILE_ID, creativeType: "pdf" });
     mocks.replace.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -160,7 +168,7 @@ describe("CreativeStatusActions", () => {
     );
     renderActions("draft");
 
-    chooseReplacement(new File(["clip"], "clip.mp4", { type: "video/mp4" }));
+    chooseReplacement(new File(["%PDF"], "wrap.pdf", { type: "application/pdf" }));
     await user.click(await screen.findByRole("button", { name: "Replace and submit" }));
     expect(await screen.findByRole("button", { name: "Replacing…" })).toBeDisabled();
 
@@ -169,7 +177,7 @@ describe("CreativeStatusActions", () => {
       "The artwork result is not yet confirmed.",
     );
     expect(screen.getByRole("button", { name: "Replace and submit" })).toBeEnabled();
-    expect((mocks.replace.mock.calls[0]?.[1] as FormData).get("creative_type")).toBe("video");
+    expect((mocks.replace.mock.calls[0]?.[1] as FormData).get("creative_type")).toBe("pdf");
   });
 
   it("reuses the upload identity when the same file is retried after a failure", async () => {
@@ -185,7 +193,7 @@ describe("CreativeStatusActions", () => {
     expect(screen.queryByRole("button", { name: "Replace and submit" })).not.toBeInTheDocument();
 
     chooseReplacement(wrap());
-    expect(await screen.findByText("✓ Replacement passed security scan")).toBeInTheDocument();
+    expect(await screen.findByText("✓ Replacement is ready")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(mocks.upload.mock.calls.map((call) => call[2])).toEqual([
       { clientRequestId: FIRST_UPLOAD_ID },
@@ -209,7 +217,7 @@ describe("CreativeStatusActions", () => {
     await waitFor(() => expect(mocks.upload).toHaveBeenCalledTimes(2));
 
     releases[1]?.({ storedFileId: SECOND_STORED_FILE_ID, creativeType: "image" });
-    expect(await screen.findByText("✓ Replacement passed security scan")).toBeInTheDocument();
+    expect(await screen.findByText("✓ Replacement is ready")).toBeInTheDocument();
     await act(async () => {
       releases[0]?.({ storedFileId: STORED_FILE_ID, creativeType: "image" });
     });

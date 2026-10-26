@@ -4,12 +4,19 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
-import { completePasswordResetAction, type PasswordResetCompleteState } from "./actions";
+import {
+  completeAdvertiserInviteAction,
+  completePasswordResetAction,
+  type PasswordResetCompleteState,
+} from "./actions";
 
 const initialState: PasswordResetCompleteState = {};
 
-export function PasswordResetForm({ token }: { token: string }) {
-  const [state, action, pending] = useActionState(completePasswordResetAction, initialState);
+export function PasswordResetForm({ token, invite = false }: { token: string; invite?: boolean }) {
+  const [state, action, pending] = useActionState(
+    invite ? completeAdvertiserInviteAction : completePasswordResetAction,
+    initialState,
+  );
   return (
     <form action={action} className="flex flex-col gap-5" noValidate>
       <input type="hidden" name="token" value={token} />
@@ -33,6 +40,11 @@ export function PasswordResetForm({ token }: { token: string }) {
           className="border-coral/40 bg-coral/10 text-coral rounded-lg border p-3 text-sm"
         >
           {state.error}
+          {!invite && state.requestNewLink ? (
+            <Link href="/forgot-password" className="mt-2 block underline">
+              Send a new link
+            </Link>
+          ) : null}
         </p>
       ) : null}
       {state.done ? (
@@ -48,7 +60,7 @@ export function PasswordResetForm({ token }: { token: string }) {
       ) : null}
       {!state.done ? (
         <Button type="submit" disabled={pending} className="w-full">
-          {pending ? "Resetting…" : "Reset password"}
+          {pending ? "Saving…" : invite ? "Set password" : "Reset password"}
         </Button>
       ) : null}
     </form>

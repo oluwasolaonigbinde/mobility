@@ -2,8 +2,8 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 const { requireRole } = vi.hoisted(() => ({ requireRole: vi.fn() }));
 vi.mock("@/lib/auth/current-user", () => ({ requireRole }));
-vi.mock("@/components/shell/app-shell", () => ({
-  AppShell: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
+vi.mock("@/components/shell/advertiser-shell", () => ({
+  AdvertiserShell: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
 }));
 import AdvertiserLayout from "./layout";
 

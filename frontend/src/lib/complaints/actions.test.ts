@@ -11,7 +11,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
-vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  redirect: mocks.redirect,
+}));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 vi.mock("@/lib/api/client", () => ({
   createApiClient: () => ({ POST: mocks.post, PATCH: mocks.patch }),
@@ -29,7 +32,6 @@ import {
 const COMPLAINT = "00000000-0000-4000-8000-00000000000c";
 const TRIP = "00000000-0000-4000-8000-00000000000d";
 const REQUEST = "00000000-0000-4000-8000-00000000000e";
-const STAFF = "00000000-0000-4000-8000-00000000000f";
 
 function form(values: Record<string, string>): FormData {
   const data = new FormData();
@@ -86,7 +88,7 @@ describe("raise complaint actions", () => {
   it("validates before calling the server", async () => {
     const base = { category: "account", message: "x", reference: "", client_request_id: REQUEST };
     expect(await raiseDriverComplaintAction({}, form({ ...base, category: "" }))).toEqual({
-      error: "Choose what your complaint is about",
+      error: "Choose what you need help with",
     });
     expect(await raiseDriverComplaintAction({}, form({ ...base, message: "   " }))).toEqual({
       error: "Write a message first",
@@ -175,11 +177,11 @@ describe("follow-up actions", () => {
     const values = { complaint_id: COMPLAINT, message: "x", client_request_id: REQUEST };
     mocks.post.mockRejectedValueOnce(apiError(409, "COMPLAINT_MESSAGE_LIMIT"));
     expect(await followUpDriverComplaintAction({}, form(values))).toEqual({
-      error: "This conversation is full. Please raise a new complaint instead.",
+      error: "This conversation is full. Please send a new message instead.",
     });
     mocks.post.mockRejectedValueOnce(apiError(404, "COMPLAINT_NOT_FOUND"));
     expect(await followUpDriverComplaintAction({}, form(values))).toEqual({
-      error: "This complaint couldn't be found.",
+      error: "This conversation couldn't be found.",
     });
     mocks.post.mockRejectedValueOnce(apiError(404, "ADVERTISER_ORGANIZATION_NOT_FOUND"));
     expect(await followUpAdvertiserComplaintAction({}, form(values))).toEqual({
@@ -201,7 +203,7 @@ describe("staff actions", () => {
   it("replies, optionally resolving", async () => {
     const values = { complaint_id: COMPLAINT, message: "Fixed", client_request_id: REQUEST };
     expect(await replyToComplaintAction({}, form({ ...values, resolve: "on" }))).toEqual({
-      done: "Reply sent and complaint resolved.",
+      done: "Reply sent and conversation resolved.",
     });
     expect(mocks.post).toHaveBeenCalledWith("/api/v1/admin/complaints/{complaint_id}/messages", {
       params: { path: { complaint_id: COMPLAINT } },
@@ -211,7 +213,7 @@ describe("staff actions", () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/support");
     mocks.post.mockRejectedValueOnce(apiError(404, "COMPLAINT_NOT_FOUND"));
     expect(await replyToComplaintAction({}, form(values))).toEqual({
-      error: "This complaint couldn't be found.",
+      error: "This conversation couldn't be found.",
     });
     expect(await replyToComplaintAction({}, form({ ...values, message: "" }))).toEqual({
       error: "Write a message first",
@@ -219,14 +221,10 @@ describe("staff actions", () => {
   });
 
   it.each([
-    [{ status: "resolved", assignee: "" }, { status: "resolved" }],
-    [{ status: "", assignee: "none" }, { assigned_to_user_id: null }],
-    [
-      { status: "open", assignee: STAFF },
-      { status: "open", assigned_to_user_id: STAFF },
-    ],
-    [{ status: "", assignee: "" }, {}],
-  ])("maps the status and assignment form %#", async (values, body) => {
+    [{ status: "resolved" }, { status: "resolved" }],
+    [{ status: "open" }, { status: "open" }],
+    [{ status: "" }, {}],
+  ])("maps the status form %#", async (values, body) => {
     expect(await updateComplaintAction({}, form({ complaint_id: COMPLAINT, ...values }))).toEqual({
       done: "Saved.",
     });
@@ -236,19 +234,9 @@ describe("staff actions", () => {
     });
   });
 
-  it("refuses bad input and explains an invalid assignee", async () => {
+  it("refuses an invalid status", async () => {
     expect(
-      await updateComplaintAction(
-        {},
-        form({ complaint_id: COMPLAINT, status: "closed", assignee: "" }),
-      ),
-    ).toEqual({ error: "Choose a status or a staff member." });
-    mocks.patch.mockRejectedValueOnce(apiError(422, "COMPLAINT_ASSIGNEE_INVALID"));
-    expect(
-      await updateComplaintAction(
-        {},
-        form({ complaint_id: COMPLAINT, status: "", assignee: STAFF }),
-      ),
-    ).toEqual({ error: "Choose an active Terrax Media staff member." });
+      await updateComplaintAction({}, form({ complaint_id: COMPLAINT, status: "closed" })),
+    ).toEqual({ error: "Choose a status." });
   });
 });

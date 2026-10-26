@@ -23,12 +23,6 @@ from app.db.base import Base
 
 class VehicleType(StrEnum):
     CAR = "car"
-    VAN = "van"
-    MINIBUS = "minibus"
-    BUS = "bus"
-    MOTORCYCLE = "motorcycle"
-    TRICYCLE = "tricycle"
-    OTHER = "other"
 
 
 class VehicleStatus(StrEnum):
@@ -42,7 +36,7 @@ class Vehicle(Base):
     __tablename__ = "vehicles"
     __table_args__ = (
         CheckConstraint(
-            "vehicle_type IN ('car', 'van', 'minibus', 'bus', 'motorcycle', 'tricycle', 'other')",
+            "vehicle_type = 'car'",
             name="ck_vehicles_vehicle_type",
         ),
         CheckConstraint(

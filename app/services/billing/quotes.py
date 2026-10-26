@@ -112,6 +112,12 @@ async def record_quotation_revision(
         raise AppError("QUOTE_REQUEST_NOT_FOUND", "Quote request was not found", status_code=404)
     assert campaign_id == quote_request.campaign_id
     campaign = await _campaign(session, quote_request.campaign_id, lock=True)
+    if await _commercial_terms_for_campaign(session, campaign.id) is not None:
+        raise AppError(
+            "QUOTATION_ALREADY_ACCEPTED",
+            "This campaign's quotation has been accepted. Request a campaign change instead.",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     reference = quote_reference.strip()
     normalized_currency = currency.strip().upper()
     if not reference or len(normalized_currency) != 3 or normalized_currency != campaign.currency:
@@ -343,6 +349,12 @@ async def accept_quotation_revision(  # noqa: C901
             "This campaign already has immutable accepted commercial terms",
             status_code=status.HTTP_409_CONFLICT,
         ) from exc
+    # D104: the budget covers at least the agreed total (net + VAT, fixed lines included);
+    # a budget the advertiser set higher is never shrunk.
+    prior_budget = campaign.budget_amount
+    if prior_budget is None or prior_budget < terms.gross_amount:
+        campaign.budget_amount = terms.gross_amount
+        await session.flush()
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,
@@ -360,6 +372,7 @@ async def accept_quotation_revision(  # noqa: C901
             "net_amount": f"{terms.net_amount:.2f}",
             "tax_amount": f"{terms.tax_amount:.2f}",
             "gross_amount": f"{terms.gross_amount:.2f}",
+            "prior_budget_amount": None if prior_budget is None else f"{prior_budget:.2f}",
         },
     )
     return terms

@@ -24,7 +24,7 @@ def production_settings(**overrides):
 
 
 def test_settings_defaults_load() -> None:
-    settings = Settings()
+    settings = Settings(environment="local")
 
     assert settings.app_name == "mobility-adtech-api"
     assert settings.environment == "local"
@@ -240,17 +240,6 @@ def test_nonlocal_runtime_url_rejections_redact_credentials(field: str, value: s
     assert "do-not-echo" not in str(captured.value)
 
 
-def test_dsr_exception_references_require_legal_approval_outside_test() -> None:
-    with pytest.raises(ValidationError, match="approved privacy legal reference"):
-        production_settings(dsr_approved_exception_references="LEGAL-EXCEPTION-1")
-
-    settings = production_settings(
-        privacy_legal_approval_reference="COUNSEL-APPROVAL-1",
-        dsr_approved_exception_references="LEGAL-EXCEPTION-1",
-    )
-    assert settings.dsr_approved_exception_references == "LEGAL-EXCEPTION-1"
-
-
 def test_short_jwt_secret_rejected() -> None:
     with pytest.raises(ValidationError):
         Settings(jwt_secret_key="too-short")
@@ -267,149 +256,31 @@ def test_short_jwt_secret_rejected() -> None:
     ],
 )
 @pytest.mark.parametrize("invalid_value", [0, -1])
-def test_location_tracking_settings_must_be_positive(
+def test_location_tracking_limits_cannot_be_overridden(
     setting_name: str,
     invalid_value: int,
 ) -> None:
-    with pytest.raises(ValidationError):
-        Settings(**{setting_name: invalid_value})
-
-
-@pytest.mark.parametrize(
-    "setting_name",
-    [
-        "route_analytics_min_valid_pings",
-        "route_analytics_max_ping_gap_seconds",
-        "route_analytics_moving_speed_mps",
-        "route_analytics_stationary_speed_mps",
-        "route_analytics_impossible_speed_mps",
-        "route_analytics_poor_accuracy_threshold_m",
-        "route_analytics_looping_radius_m",
-        "route_analytics_looping_min_distance_m",
-        "route_replay_time_tolerance_seconds",
-        "route_replay_min_valid_pings",
-        "route_replay_min_distance_m",
-        "route_replay_max_evidence_matches",
-    ],
-)
-@pytest.mark.parametrize("invalid_value", [0, -1])
-def test_route_analytics_settings_must_be_positive(
-    setting_name: str,
-    invalid_value: int,
-) -> None:
-    with pytest.raises(ValidationError):
-        Settings(**{setting_name: invalid_value})
-
-
-@pytest.mark.parametrize("invalid_value", [2, 8])
-def test_route_replay_coordinate_precision_is_bounded(invalid_value: int) -> None:
-    with pytest.raises(ValidationError):
-        Settings(route_replay_coordinate_precision=invalid_value)
-
-
-@pytest.mark.parametrize(
-    "setting_name",
-    [
-        "route_analytics_poor_accuracy_ratio_threshold",
-        "route_analytics_stationary_ratio_threshold",
-    ],
-)
-@pytest.mark.parametrize("invalid_value", [-0.1, 1.1])
-def test_route_analytics_ratio_settings_must_be_between_zero_and_one(
-    setting_name: str,
-    invalid_value: float,
-) -> None:
-    with pytest.raises(ValidationError):
-        Settings(**{setting_name: invalid_value})
-
-
-@pytest.mark.parametrize(
-    "setting_name",
-    [
-        "impression_default_traffic_density_per_km",
-        "impression_default_dwell_impressions_per_minute",
-    ],
-)
-def test_impression_default_settings_must_be_nonnegative(setting_name: str) -> None:
-    with pytest.raises(ValidationError):
-        Settings(**{setting_name: -1})
-
-
-@pytest.mark.parametrize(
-    "setting_name",
-    [
-        "impression_high_fraud_multiplier",
-        "impression_medium_fraud_multiplier",
-        "impression_low_fraud_multiplier",
-        "impression_insufficient_data_confidence",
-        "impression_min_confidence",
-        "impression_max_confidence",
-    ],
-)
-@pytest.mark.parametrize("invalid_value", [-0.1, 1.1])
-def test_impression_ratio_settings_must_be_between_zero_and_one(
-    setting_name: str,
-    invalid_value: float,
-) -> None:
-    with pytest.raises(ValidationError):
-        Settings(**{setting_name: invalid_value})
-
-
-def test_impression_min_confidence_must_not_exceed_max() -> None:
-    with pytest.raises(ValidationError):
-        Settings(impression_min_confidence=0.9, impression_max_confidence=0.5)
-
-
-def test_file_kyc_retention_has_no_default_and_blank_parses_as_unset() -> None:
-    assert Settings().file_kyc_retention_days is None
-    assert Settings(file_kyc_retention_days="").file_kyc_retention_days is None
-
-
-@pytest.mark.parametrize("invalid_value", [0, -1])
-def test_file_kyc_retention_must_be_positive_when_configured(invalid_value: int) -> None:
-    with pytest.raises(ValidationError):
-        Settings(file_kyc_retention_days=invalid_value)
-
-
-def test_recurring_evidence_policy_has_no_production_defaults() -> None:
-    settings = Settings(
-        evidence_high_earner_threshold_ngn="",
-        evidence_renewal_lookback_days="",
-        evidence_challenge_response_hours="",
+    assert getattr(Settings(**{setting_name: invalid_value}), setting_name) == getattr(
+        Settings(), setting_name
     )
 
-    assert settings.evidence_high_earner_threshold_ngn == ""
-    assert settings.evidence_renewal_lookback_days is None
-    assert settings.evidence_challenge_response_hours is None
 
-
-def test_email_provider_and_receipt_authority_have_no_production_defaults() -> None:
+def test_email_provider_have_no_production_defaults() -> None:
     settings = Settings(
         email_provider="",
         email_sender_address="",
         email_smtp_host="",
-        email_receipt_signing_secret=None,
-        email_receipt_key_id="",
     )
 
     assert settings.email_provider == ""
     assert settings.email_sender_address == ""
     assert settings.email_smtp_host == ""
-    assert settings.email_receipt_signing_secret is None
-    assert settings.email_receipt_key_id == ""
 
 
 @pytest.mark.parametrize("invalid_provider", ["ses", "sendgrid", "unknown"])
 def test_email_provider_rejects_unimplemented_live_choices(invalid_provider: str) -> None:
     with pytest.raises(ValidationError):
         Settings(email_provider=invalid_provider)
-
-
-def test_email_receipt_secret_rejects_short_values() -> None:
-    with pytest.raises(ValidationError):
-        Settings(email_receipt_signing_secret="too-short")
-
-    assert Settings(email_receipt_signing_secret="").email_receipt_signing_secret is None
 
 
 @pytest.mark.parametrize(
@@ -422,20 +293,61 @@ def test_email_receipt_secret_rejects_short_values() -> None:
     ],
 )
 def test_email_delivery_numeric_settings_must_be_positive(setting_name: str) -> None:
-    with pytest.raises(ValidationError):
-        Settings(**{setting_name: 0})
-
-
-@pytest.mark.parametrize(
-    "setting_name",
-    ["evidence_renewal_lookback_days", "evidence_challenge_response_hours"],
-)
-@pytest.mark.parametrize("invalid_value", [0, -1])
-def test_recurring_evidence_windows_must_be_positive(setting_name: str, invalid_value: int) -> None:
-    with pytest.raises(ValidationError):
-        Settings(**{setting_name: invalid_value})
+    if setting_name == "email_smtp_port":
+        with pytest.raises(ValidationError):
+            Settings(**{setting_name: 0})
+    else:
+        assert getattr(Settings(**{setting_name: 0}), setting_name) == getattr(
+            Settings(), setting_name
+        )
 
 
 def test_default_currency_must_be_three_letters() -> None:
     with pytest.raises(ValidationError):
         Settings(default_currency="NGNA")
+
+
+# S11/D118: exact pre-change values; removed environment inputs cannot weaken them.
+ANALYTICS_FIXED_DEFAULTS = {
+    "fraud_assessment_formula_version": "fraud_assessment_v1",
+    "heatmap_default_resolution_m": 500,
+    "heatmap_max_bbox_area_sq_km": 2500,
+    "heatmap_max_cells": 5000,
+    "heatmap_max_date_range_days": 90,
+    "heatmap_max_resolution_m": 5000,
+    "heatmap_min_resolution_m": 50,
+    "heatmap_min_trips_per_cell": 1,
+    "impression_default_dwell_impressions_per_minute": 3.0,
+    "impression_default_traffic_density_per_km": 120.0,
+    "impression_formula_version": "impressions_v1",
+    "impression_high_fraud_multiplier": 0.25,
+    "impression_insufficient_data_confidence": 0.1,
+    "impression_low_fraud_multiplier": 0.9,
+    "impression_max_confidence": 1.0,
+    "impression_medium_fraud_multiplier": 0.7,
+    "impression_min_confidence": 0.0,
+    "route_analytics_formula_version": "route_analytics_v1",
+    "route_analytics_impossible_speed_mps": 55.0,
+    "route_analytics_looping_min_distance_m": 1000.0,
+    "route_analytics_looping_radius_m": 50.0,
+    "route_analytics_max_ping_gap_seconds": 900,
+    "route_analytics_min_valid_pings": 2,
+    "route_analytics_moving_speed_mps": 1.0,
+    "route_analytics_poor_accuracy_ratio_threshold": 0.5,
+    "route_analytics_poor_accuracy_threshold_m": 100.0,
+    "route_analytics_stationary_ratio_threshold": 0.8,
+    "route_analytics_stationary_speed_mps": 0.5,
+    "route_replay_coordinate_precision": 5,
+    "route_replay_detector_version": "route_replay_v1",
+    "route_replay_max_evidence_matches": 10,
+    "route_replay_min_distance_m": 250.0,
+    "route_replay_min_valid_pings": 10,
+    "route_replay_time_tolerance_seconds": 5,
+}
+
+
+@pytest.mark.parametrize("name, expected", ANALYTICS_FIXED_DEFAULTS.items())
+def test_fixed_analytics_defaults_ignore_removed_deployment_inputs(name, expected, monkeypatch):
+    monkeypatch.setenv(name.upper(), "0")
+    assert name not in Settings.model_fields
+    assert getattr(Settings(**{name: 0}), name) == expected

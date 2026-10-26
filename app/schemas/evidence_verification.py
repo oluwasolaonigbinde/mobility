@@ -14,23 +14,7 @@ class PhysicalSpotCheckCreate(BaseModel):
     trip_session_id: UUID
     client_request_id: UUID
     note: str = Field(min_length=1, max_length=2000)
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-    @field_validator("note")
-    @classmethod
-    def normalize_note(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("note must not be blank")
-        return normalized
-
-
-class PhysicalSpotCheckResolve(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
     outcome: Literal["passed", "failed"]
-    note: str = Field(min_length=1, max_length=2000)
-    evidence: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("note")
     @classmethod
@@ -52,8 +36,6 @@ class EvidenceVerificationRead(BaseModel):
     status: EvidenceVerificationStatus
     issued_by_user_id: UUID | None
     resolved_by_user_id: UUID | None
-    due_at: datetime | None
-    display_proof_id: UUID | None
     fraud_flag_id: UUID | None
     result_note: str | None
     metadata: dict[str, Any]

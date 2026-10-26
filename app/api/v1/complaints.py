@@ -78,8 +78,10 @@ def _sender(message: ComplaintMessage, owner: ComplaintOwner) -> str:
     return "you" if message.author_user_id == owner.user_id else "your_team"
 
 
-async def _owned_list(session: AsyncSession, owner: ComplaintOwner) -> ComplaintList:
-    complaints = await list_owned_complaints(session, owner)
+async def _owned_list(
+    session: AsyncSession, owner: ComplaintOwner, *, campaign_id: UUID | None = None
+) -> ComplaintList:
+    complaints = await list_owned_complaints(session, owner, campaign_id=campaign_id)
     labels = await reference_labels(session, complaints)
     return ComplaintList(items=[_summary(item, labels.get(item.id)) for item in complaints])
 
@@ -187,9 +189,13 @@ async def driver_add_complaint_message(
 
 @router.get("/advertiser/complaints", response_model=ComplaintList)
 async def advertiser_list_complaints(
-    current_user: AdvertiserUserDependency, session: SessionDependency
+    current_user: AdvertiserUserDependency,
+    session: SessionDependency,
+    campaign_id: UUID | None = None,
 ) -> ComplaintList:
-    return await _owned_list(session, await advertiser_owner(session, current_user))
+    return await _owned_list(
+        session, await advertiser_owner(session, current_user), campaign_id=campaign_id
+    )
 
 
 @router.get("/advertiser/complaints/reference-options", response_model=ComplaintReferenceOptions)
@@ -237,8 +243,7 @@ async def _staff_summaries(
     parties = await party_names(session, complaints)
     names = await user_names(
         session,
-        {c.raised_by_user_id for c in complaints}
-        | {c.assigned_to_user_id for c in complaints if c.assigned_to_user_id},
+        {c.raised_by_user_id for c in complaints},
     )
     return [
         StaffComplaintSummaryRead(
@@ -254,8 +259,6 @@ async def _staff_summaries(
             reference_type=c.reference_type,
             reference_id=complaint_reference_id(c),
             reference_label=labels.get(c.id),
-            assigned_to_user_id=c.assigned_to_user_id,
-            assigned_to_name=(names.get(c.assigned_to_user_id) if c.assigned_to_user_id else None),
             revision=c.revision,
             created_at=c.created_at,
             last_message_at=c.last_message_at,
@@ -292,7 +295,6 @@ async def admin_list_complaints(
     session: SessionDependency,
     status: ComplaintStatus | None = None,
     party: ComplaintParty | None = None,
-    assigned_to_me: bool = False,
     user_id: UUID | None = None,
     organization_id: UUID | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
@@ -304,7 +306,6 @@ async def admin_list_complaints(
         oldest_first=oldest_first,
         complaint_status=status.value if status is not None else None,
         party=party.value if party is not None else None,
-        assigned_to_user_id=current_user.id if assigned_to_me else None,
         user_id=user_id,
         organization_id=organization_id,
         limit=limit,
@@ -355,7 +356,6 @@ async def admin_update_complaint(
         complaint_id=complaint_id,
         fields=set(payload.model_fields_set),
         new_status=payload.status,
-        assigned_to_user_id=payload.assigned_to_user_id,
     )
     await session.commit()
     return await _staff_detail(session, result.complaint)

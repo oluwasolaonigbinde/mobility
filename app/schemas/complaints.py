@@ -9,11 +9,12 @@ from app.models.complaint import ComplaintParty, ComplaintReferenceType, Complai
 
 
 class ComplaintCategory(StrEnum):
-    """Neutral default categories (Batch E); the client has not supplied a list."""
+    """Support categories, including the owner's D7 campaign cancellation request."""
 
     PAY_OR_PAYOUT = "pay_or_payout"
     TRIP_OR_TRACKING = "trip_or_tracking"
     CAMPAIGN_OR_JOB = "campaign_or_job"
+    CAMPAIGN_CANCELLATION = "campaign_cancellation"
     BILLING_OR_INVOICE = "billing_or_invoice"
     ACCOUNT = "account"
     OTHER = "other"
@@ -51,15 +52,11 @@ class StaffComplaintReplyCreate(ComplaintMessageCreate):
 
 
 class StaffComplaintUpdate(BaseModel):
-    """Both fields are optional; an empty body is a valid no-op.
-
-    An omitted field is left unchanged; an explicit null assignee clears it.
-    """
+    """An omitted status is a valid no-op."""
 
     model_config = ConfigDict(extra="forbid")
 
     status: Literal["open", "resolved"] | None = None
-    assigned_to_user_id: UUID | None = None
 
 
 class ComplaintReferenceOption(BaseModel):
@@ -121,8 +118,6 @@ class StaffComplaintSummaryRead(BaseModel):
     reference_type: ComplaintReferenceType | None
     reference_id: UUID | None
     reference_label: str | None
-    assigned_to_user_id: UUID | None
-    assigned_to_name: str | None
     revision: int
     created_at: datetime
     last_message_at: datetime

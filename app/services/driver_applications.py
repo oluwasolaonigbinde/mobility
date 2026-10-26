@@ -4,6 +4,7 @@ import hmac
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
@@ -107,6 +108,18 @@ async def issue_driver_application_access(
         or locked_application.status != DriverApplicationStatus.PENDING.value
     ):
         return None
+    # The application lock serializes resends; always lock it before its access rows.
+    prior_accesses = await session.scalars(
+        select(DriverApplicationAccessToken)
+        .where(
+            DriverApplicationAccessToken.application_id == locked_application.id,
+            DriverApplicationAccessToken.invalidated_at.is_(None),
+        )
+        .order_by(DriverApplicationAccessToken.id)
+        .with_for_update()
+    )
+    for prior in prior_accesses:
+        prior.invalidated_at = datetime.now(UTC)
     access = DriverApplicationAccessToken(
         id=uuid4(),
         application_id=locked_application.id,
@@ -150,8 +163,6 @@ async def application_from_access_token(
 ) -> DriverApplication:
     token_id = _access_token_id(token.strip())
     query = select(DriverApplicationAccessToken).where(DriverApplicationAccessToken.id == token_id)
-    if lock:
-        query = query.with_for_update()
     access = await session.scalar(query) if token_id is not None else None
     if access is None:
         application = None
@@ -161,6 +172,11 @@ async def application_from_access_token(
             .where(DriverApplication.id == access.application_id)
             .with_for_update()
             .execution_options(populate_existing=True)
+        )
+        # Account setup/terminal invalidation owns the application before access
+        # rows. Discover without locking, then acquire and refresh in that order.
+        access = await session.scalar(
+            query.with_for_update().execution_options(populate_existing=True)
         )
     else:
         application = await session.get(DriverApplication, access.application_id)
@@ -208,6 +224,96 @@ async def renew_driver_application_access(
             metadata={"application_id": str(application.id)},
         )
     return access
+
+
+async def current_application_step(session: AsyncSession, application: DriverApplication) -> str:
+    from app.services.vehicle_onboarding import _current_person_payee_approved
+
+    approved = await _current_person_payee_approved(
+        session, driver_profile_id=application.driver_profile_id, lock=False
+    )
+    return "car" if approved else "details"
+
+
+async def _details_state(session: AsyncSession, application: DriverApplication):
+    from app.models.kyc import DriverKycReviewDecision, DriverKycSubmission, KycSubmissionStatus
+    from app.services.document_reviews import document_outcomes
+    from app.services.driver_review_notifications import REASONS, applicant_reason
+    from app.services.payout_rule_serialization import database_clock
+
+    submission = await session.scalar(
+        select(DriverKycSubmission)
+        .where(DriverKycSubmission.driver_profile_id == application.driver_profile_id)
+        .order_by(DriverKycSubmission.version.desc())
+        .limit(1)
+    )
+    if submission is None:
+        return "details_needed", None
+    if submission.status == KycSubmissionStatus.PENDING_REVIEW.value:
+        return "details_in_review", None
+    if submission.status == KycSubmissionStatus.EXPIRED.value:
+        return "details_changes_needed", REASONS["expired_evidence"]
+    decision = await session.scalar(
+        select(DriverKycReviewDecision)
+        .where(DriverKycReviewDecision.submission_id == submission.id)
+        .order_by(DriverKycReviewDecision.created_at.desc(), DriverKycReviewDecision.id.desc())
+        .limit(1)
+    )
+    if submission.status == KycSubmissionStatus.REJECTED.value:
+        return "details_changes_needed", applicant_reason(
+            decision.reason_code if decision else None
+        )
+    outcomes = document_outcomes(
+        decision, decision.document_reviews if decision else {}, await database_clock(session)
+    )
+    if any(item["status"] == "expired" for item in outcomes.values()):
+        return "details_changes_needed", REASONS["expired_evidence"]
+    # Approved, with only the payout verification still outstanding.
+    return "details_in_review", None
+
+
+async def _car_state(session: AsyncSession, application: DriverApplication):
+    from app.models.kyc import KycSubmissionStatus
+    from app.services.driver_review_notifications import REASONS, applicant_reason
+    from app.services.payout_rule_serialization import database_clock
+    from app.services.vehicle_onboarding import _vehicle_approved, application_vehicle_view
+
+    view = await application_vehicle_view(session, application=application)
+    if view.vehicle is None or view.submission is None:
+        return "car_needed", None
+    status_value = view.submission.status
+    if status_value == KycSubmissionStatus.PENDING_REVIEW.value:
+        return "car_in_review", None
+    if status_value == KycSubmissionStatus.REJECTED.value:
+        return "car_changes_needed", applicant_reason(
+            view.decision.reason_code if view.decision else None
+        )
+    if status_value == KycSubmissionStatus.APPROVED.value:
+        approved, _, _ = await _vehicle_approved(
+            session, vehicle=view.vehicle, now=await database_clock(session), lock=False
+        )
+        if approved:
+            return "car_in_review", None
+    return "car_changes_needed", REASONS["expired_evidence"]
+
+
+async def continue_driver_application(session: AsyncSession, *, token: str, settings: Settings):
+    application = await application_from_access_token(
+        session, token=token, settings=settings, lock=True
+    )
+    # application_from_access_token validated and locked this token in this transaction.
+    access = cast(
+        DriverApplicationAccessToken,
+        await session.get(DriverApplicationAccessToken, _access_token_id(token.strip())),
+    )
+    step = await current_application_step(session, application)
+    state, reason = await (_car_state if step == "car" else _details_state)(session, application)
+    return {
+        "step": step,
+        "state": state,
+        "changes_reason": reason,
+        "expires_at": access.expires_at,
+    }
 
 
 async def terminalize_driver_application(

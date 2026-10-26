@@ -1,18 +1,27 @@
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import Any, ClassVar
 
 from arq.connections import RedisSettings
 from arq.worker import func
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.adapters.disbursement.paystack import build_disbursement_adapter
 from app.adapters.storage import build_storage_provider
 from app.core.config import Settings, get_settings
-from app.core.observability import configure_logging, init_error_tracking
+from app.core.observability import (
+    begin_job_logging,
+    configure_logging,
+    end_job_logging,
+    init_error_tracking,
+)
+from app.db.outbox_session import OutboxSession
+from app.db.session import create_database_engine
 from app.jobs.assignment_activity import sweep_assignment_activity_flags
 from app.jobs.automatic_payouts import sweep_automatic_payouts
 from app.jobs.budget_enforcement import sweep_campaign_budget_enforcement
 from app.jobs.business_health import sweep_business_health
 from app.jobs.campaign_assignments import sweep_campaign_assignment_expiries
+from app.jobs.campaign_reports import generate_campaign_report
 from app.jobs.data_lifecycle import (
     check_ping_partition_coverage,
     premake_ping_partitions,
@@ -24,17 +33,14 @@ from app.jobs.disbursements import (
     sweep_disbursement_intents,
     sweep_payout_provider_events,
 )
-from app.jobs.disclosure_retention import purge_expired_disclosure_query_history
 from app.jobs.earnings_release import sweep_earnings_release_reviews
-from app.jobs.email_delivery import sweep_email_notifications
-from app.jobs.evidence_verification import sweep_evidence_verifications
-from app.jobs.exposure_segments import materialize_exposure_segment_job, sweep_exposure_segments
+from app.jobs.email_delivery import deliver_email, enqueue_pending_email
 from app.jobs.file_lifecycle import (
     purge_expired_file_kyc,
     purge_orphaned_file_uploads,
     recover_stored_object_deletions,
 )
-from app.jobs.file_scanning import scan_pending_files
+from app.jobs.file_scanning import scan_file, scan_pending_files
 from app.jobs.monitoring import monitored_cron as cron
 from app.jobs.payment_gateway import (
     process_payment_gateway_event_job,
@@ -47,7 +53,7 @@ from app.jobs.trip_processing import (
 )
 from app.jobs.vehicle_approvals import sweep_vehicle_approval_expiries
 from app.services.paystack_disbursements import build_paystack_destination_resolver
-from app.services.report_issuances import sweep_report_issuances
+from app.services.report_scheduling import sweep_scheduled_reports
 
 
 def sweep_cron_minutes(interval_minutes: int) -> set[int]:
@@ -75,10 +81,15 @@ async def on_startup(ctx: dict[str, Any]) -> None:
     if not settings.database_url:
         raise RuntimeError("DATABASE_URL is not configured")
     # Created here (not at import) so the engine binds to the worker process's event loop.
-    engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+    engine = create_database_engine(settings.database_url, worker=True)
     ctx["settings"] = settings
     ctx["engine"] = engine
-    ctx["sessionmaker"] = async_sessionmaker(engine, expire_on_commit=False)
+    ctx["sessionmaker"] = async_sessionmaker(
+        engine,
+        class_=OutboxSession,
+        expire_on_commit=False,
+        info={"enqueue_settings": settings},
+    )
     ctx["disbursement_adapter"] = build_disbursement_adapter(
         settings,
         destination_resolver=build_paystack_destination_resolver(settings, ctx["sessionmaker"]),
@@ -94,6 +105,8 @@ async def on_shutdown(ctx: dict[str, Any]) -> None:
 
 
 class WorkerSettings:
+    max_jobs = 10
+    job_timeout = 300
     health_check_interval = 30
     # arq reads worker options from this class's raw __dict__ (arq.worker.get_kwargs), so
     # redis_settings cannot be a lazy property. It resolves at import when REDIS_URL is set
@@ -101,12 +114,10 @@ class WorkerSettings:
     # keep_result=0: a deterministic job id must never suppress catch-up via a
     # stale result key — dedup applies only while queued/running (D4).
     functions: list = [
+        func(scan_file, name="scan_file", keep_result=0),
+        func(deliver_email, name="deliver_email", keep_result=0),
+        func(generate_campaign_report, name="generate_campaign_report", max_tries=3, keep_result=0),
         func(process_trip, name="process_trip", keep_result=0),
-        func(
-            materialize_exposure_segment_job,
-            name="materialize_exposure_segment",
-            keep_result=0,
-        ),
         func(
             process_payment_gateway_event_job,
             name="process_payment_gateway_event",
@@ -124,11 +135,6 @@ class WorkerSettings:
         ),
     ]
     cron_jobs: list = [
-        cron(
-            sweep_exposure_segments,
-            minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
-            unique=True,
-        ),
         cron(sweep_business_health, minute=sweep_cron_minutes(5), unique=True),
         cron(
             process_unprocessed_trips,
@@ -168,12 +174,7 @@ class WorkerSettings:
             unique=True,
         ),
         cron(
-            sweep_evidence_verifications,
-            minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
-            unique=True,
-        ),
-        cron(
-            sweep_email_notifications,
+            enqueue_pending_email,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
             unique=True,
         ),
@@ -188,7 +189,7 @@ class WorkerSettings:
             unique=True,
         ),
         cron(
-            sweep_report_issuances,
+            sweep_scheduled_reports,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
             unique=True,
         ),
@@ -196,7 +197,6 @@ class WorkerSettings:
         cron(premake_ping_partitions, hour={1}, minute={10}, unique=True),
         cron(check_ping_partition_coverage, hour={7}, minute={20}, unique=True),
         cron(purge_expired_ping_partitions, hour={3}, minute={30}, unique=True),
-        cron(purge_expired_disclosure_query_history, hour={4}, minute={40}, unique=True),
         cron(
             recover_stored_object_deletions,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
@@ -223,6 +223,8 @@ class WorkerSettings:
     # Worker-level too: finish_failed_job stores max-retries failures under the
     # deterministic job id using this value (func-level keep_result not consulted).
     keep_result = 0
+    on_job_start: ClassVar[Callable[[dict], Awaitable[None]]] = begin_job_logging
+    on_job_end: ClassVar[Callable[[dict], Awaitable[None]]] = end_job_logging
     on_startup = on_startup
     on_shutdown = on_shutdown
     redis_settings = _optional_redis_settings()

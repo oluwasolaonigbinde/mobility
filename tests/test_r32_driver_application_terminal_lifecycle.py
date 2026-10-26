@@ -59,6 +59,7 @@ async def _seed_application(sessionmaker, settings, *, suffix: str):
         submission = await submit_driver_application(
             session,
             DriverApplicationCreate(
+                service_city="Abuja",
                 email=f"r32-{suffix}@example.test",
                 full_name="R32 Applicant",
             ),

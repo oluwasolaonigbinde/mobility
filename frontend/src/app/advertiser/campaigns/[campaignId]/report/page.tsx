@@ -1,44 +1,13 @@
-import type { Metadata } from "next";
-import type { components } from "@/lib/api/schema";
-import Link from "next/link";
-import { notFound } from "next/navigation";
+﻿import { notFound } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
-import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
-import { formatCount, formatDate, formatKm, formatMoneyExact, formatScore } from "@/lib/format";
-import { statusLabel, statusTone } from "@/lib/campaigns/status";
-import { Panel } from "@/components/ui/panel";
-import { StatusChip } from "@/components/ui/status-chip";
-import { AreaTimeseries, BarTimeseries, type SeriesPoint } from "@/components/charts/timeseries";
-import { HighExposureZoneInsights } from "@/components/analytics/high-exposure-zone-insights";
-import {
-  costMetric,
-  GovernedAnalysisState,
-  isUnissued,
-  MeasurementAuthorityPanel,
-  modelledContactsMetric,
-  movementMetric,
-  OMITTED_TOTAL_LABEL,
-  validateMeasurementAuthority,
-} from "./measurement-authority";
-import { ReportIssuancePanel } from "./report-issuance-panel";
-import { dailyMetricPublishable, FrozenDailyMetricChart } from "./frozen-daily-metric-chart";
+import { requireRole } from "@/lib/auth/current-user";
+import { Reports } from "../../../reports/report-list";
+import { loadAdvertiserPageData } from "@/lib/advertiser/page-data";
+import { DataUnavailable } from "@/components/ui/data-unavailable";
+import { PageHeader } from "@/components/ui/page-header";
 
-export const metadata: Metadata = { title: "Campaign Performance Analysis" };
-
-const shortDate = new Intl.DateTimeFormat("en-NG", { day: "numeric", month: "short" });
-type DailyMetric = components["schemas"]["DailyMetricItem"];
-
-function dailySeries(rows: DailyMetric[], field: "estimated_impressions" | "final_payout_total") {
-  return [...rows].reverse().flatMap((row) => {
-    const raw = row[field];
-    if (raw === null) return [];
-    const value = Number(raw);
-    return Number.isFinite(value)
-      ? [{ label: shortDate.format(new Date(row.date)), value } satisfies SeriesPoint]
-      : [];
-  });
-}
+export const metadata = { title: "Campaign reports" };
 
 export default async function CampaignReportPage({
   params,
@@ -46,176 +15,36 @@ export default async function CampaignReportPage({
   params: Promise<{ campaignId: string }>;
 }) {
   const { campaignId } = await params;
+  const me = await requireRole("advertiser");
+  const sessionScope = `${me.user.id}:${me.advertiser_organization?.id}`;
   const api = createApiClient(await getSessionToken());
-
-  let report;
-  try {
-    ({ data: report } = await api.GET("/api/v1/advertiser/campaigns/{campaign_id}/report", {
+  const result = await loadAdvertiserPageData(() =>
+    api.GET("/api/v1/advertiser/campaigns/{campaign_id}", {
       params: { path: { campaign_id: campaignId } },
-    }));
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) notFound();
+    }),
+  );
+  if (!result.available) {
+    if (result.reason === "missing") notFound();
     return (
-      <GovernedAnalysisState
-        code={error instanceof ApiError ? error.code : "REPORT_SOURCE_UNAVAILABLE"}
+      <DataUnavailable
+        title="Reports unavailable"
+        reason={result.reason}
+        retryHref={`/advertiser/campaigns/${campaignId}/report`}
       />
     );
   }
-  if (!report || isUnissued(report)) {
-    return <GovernedAnalysisState code="CAMPAIGN_REPORT_PENDING" />;
-  }
-  const authority = validateMeasurementAuthority(report);
-  if (!authority.ok) {
-    return <GovernedAnalysisState code="MEASUREMENT_RUN_INTEGRITY_FAILURE" />;
-  }
-
-  const c = report.summary;
-  // Daily metrics arrive newest-first; charts read left→right in time. Missing daily
-  // evidence is omitted, never converted into a fabricated zero.
-  const impressionSeries = dailySeries(report.daily_metrics, "estimated_impressions");
-  const payoutSeries = dailySeries(report.daily_metrics, "final_payout_total");
-  // Headline totals read the frozen authority, never the screen-side summaries, so one
-  // suppression decision reaches the screen, the CSV and the PDF. validateMeasurementAuthority
-  // has already proven all three metrics are present.
-  const contacts = modelledContactsMetric(authority.result)!;
-  const frozenCost = costMetric(authority.result)!;
-  const movement = movementMetric(authority.result)!;
-  const frozenCostTotal = frozenCost.totals_by_currency[0];
-  const costCurrency = frozenCostTotal?.currency ?? "NGN";
-  const contactsSuppressed = contacts.completeness.suppressed;
-  const contactsDailyPublishable = dailyMetricPublishable(contacts.completeness);
-  const costDailyPublishable =
-    dailyMetricPublishable(frozenCost.completeness) && frozenCost.totals_by_currency.length === 1;
-  const movementDailyPublishable = dailyMetricPublishable(movement.completeness);
-  const dailyBreakdownPublishable =
-    movementDailyPublishable && contactsDailyPublishable && costDailyPublishable;
-
+  const data = result.data;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(new Date());
   return (
-    <div className="animate-rise mx-auto max-w-6xl">
-      <nav aria-label="Breadcrumb" className="micro text-faint mb-4">
-        <Link href="/advertiser/campaigns" className="hover:text-muted">
-          Campaigns
-        </Link>{" "}
-        /{" "}
-        <Link href={`/advertiser/campaigns/${campaignId}`} className="hover:text-muted">
-          {c.name}
-        </Link>{" "}
-        / <span className="text-muted">Report</span>
-      </nav>
-
-      <div className="mb-8 flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">
-          Campaign Performance Analysis
-        </h1>
-        <StatusChip tone={statusTone[c.status]}>{statusLabel[c.status]}</StatusChip>
-        <span className="micro text-faint">
-          {report.start_at || report.end_at
-            ? `${formatDate(report.start_at)} → ${formatDate(report.end_at)}`
-            : "Full campaign history"}
-        </span>
-      </div>
-
-      <MeasurementAuthorityPanel
-        authority={authority}
-        activityScore={report.exposure_score?.result.score ?? null}
+    <div className="space-y-6">
+      <PageHeader title={`${data.name} reports`} />
+      <Reports
+        key={sessionScope}
+        sessionScope={sessionScope}
+        campaigns={[{ id: data.id, name: data.name }]}
+        today={today}
+        campaignId={campaignId}
       />
-
-      <ReportIssuancePanel measurementRunId={authority.run.id} />
-
-      {report.high_exposure_zone_insights ? (
-        <div className="mt-6">
-          <HighExposureZoneInsights insight={report.high_exposure_zone_insights} surface="report" />
-        </div>
-      ) : null}
-
-      {/* Charts */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <FrozenDailyMetricChart
-          title="Estimated ad exposure · daily"
-          description="Estimated from campaign routes and traffic"
-          suppressed={!contactsDailyPublishable}
-        >
-          <AreaTimeseries
-            points={impressionSeries}
-            color="var(--color-amber)"
-            ariaLabel="Daily estimated ad exposure"
-          />
-        </FrozenDailyMetricChart>
-        <FrozenDailyMetricChart
-          title="Driver campaign cost · daily"
-          description="Driver pay for this campaign"
-          suppressed={!costDailyPublishable}
-        >
-          <BarTimeseries
-            points={payoutSeries}
-            color="var(--color-green)"
-            currency={costCurrency}
-            ariaLabel="Daily driver campaign cost"
-          />
-        </FrozenDailyMetricChart>
-      </div>
-
-      {/* Daily table — the accessible source of truth for the charts */}
-      <Panel className="mt-6 overflow-hidden">
-        <div className="border-edge border-b px-6 py-4">
-          <h2 className="micro text-muted">Daily breakdown</h2>
-        </div>
-        {dailyBreakdownPublishable ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead>
-                <tr className="border-edge micro text-muted border-b text-left">
-                  <th className="px-6 py-3 font-normal">Date</th>
-                  <th className="px-4 py-3 text-right font-normal">Trips</th>
-                  <th className="px-4 py-3 text-right font-normal">Distance</th>
-                  <th className="px-4 py-3 text-right font-normal">Estimated ad exposure</th>
-                  <th className="px-4 py-3 text-right font-normal">Estimate quality factor</th>
-                  <th className="px-4 py-3 text-right font-normal">GPS signal quality</th>
-                  <th className="px-4 py-3 text-right font-normal">Driver cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.daily_metrics.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-muted px-6 py-10 text-center">
-                      No daily metrics yet — data appears once trips are analyzed.
-                    </td>
-                  </tr>
-                ) : (
-                  report.daily_metrics.map((d) => (
-                    <tr
-                      key={d.date}
-                      className="border-edge/60 border-b font-mono text-xs last:border-0"
-                    >
-                      <td className="px-6 py-3">{formatDate(d.date)}</td>
-                      <td className="px-4 py-3 text-right">{d.trip_count}</td>
-                      <td className="px-4 py-3 text-right">{formatKm(d.distance_m)}</td>
-                      <td className="px-4 py-3 text-right">
-                        {contactsSuppressed || d.estimated_impressions === null
-                          ? OMITTED_TOTAL_LABEL
-                          : formatCount(d.estimated_impressions)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {formatScore(d.average_confidence_score)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {formatScore(d.average_quality_score)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {!costDailyPublishable || d.final_payout_total === null
-                          ? OMITTED_TOTAL_LABEL
-                          : formatMoneyExact(d.final_payout_total, costCurrency)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-muted px-6 py-10 text-center text-sm">{OMITTED_TOTAL_LABEL}</p>
-        )}
-      </Panel>
     </div>
   );
 }

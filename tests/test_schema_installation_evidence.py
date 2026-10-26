@@ -1,4 +1,4 @@
-"""Current PostgreSQL schema: assignment-bound installation evidence and display proofs."""
+"""Current PostgreSQL schema: weekly installation authority without daily proof."""
 
 import asyncio
 
@@ -24,6 +24,36 @@ def test_installation_photo_is_append_only(
         engine = create_async_engine(migration_url, poolclass=NullPool)
         try:
             async with engine.begin() as connection:
+                assert (
+                    await connection.scalar(
+                        text(
+                            "SELECT count(*) FROM information_schema.tables "
+                            "WHERE table_schema='public' "
+                            "AND table_name IN ('display_proofs', 'display_proof_challenges', "
+                            "'data_subject_requests', 'data_subject_location_assessments')"
+                        )
+                    )
+                    == 0
+                )
+                assert (
+                    await connection.scalar(
+                        text(
+                            "SELECT count(*) FROM pg_proc p "
+                            "JOIN pg_namespace n ON n.oid=p.pronamespace "
+                            "WHERE n.nspname='public' AND p.prosrc ILIKE '%display_proof%'"
+                        )
+                    )
+                    == 0
+                )
+                assert (
+                    await connection.scalar(
+                        text(
+                            "SELECT count(*) FROM information_schema.columns "
+                            "WHERE table_schema='public' AND column_name='display_proof_id'"
+                        )
+                    )
+                    == 0
+                )
                 await connection.execute(text("SET LOCAL session_replication_role = replica"))
                 await connection.execute(
                     text(

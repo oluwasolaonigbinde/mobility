@@ -54,12 +54,12 @@ describe("complainant Help page", () => {
 
     render(await ComplaintHelpPage({ party: "driver" }));
 
-    expect(screen.getByRole("heading", { level: 1, name: "Help" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Get help" })).toBeInTheDocument();
     const row = screen.getByRole("link", { name: /Trips and tracking/ });
     expect(row).toHaveAttribute("href", `/driver/help/${ID}`);
     expect(within(row).getByText("Terrax Media replied")).toBeInTheDocument();
     expect(within(row).getByText(/3 Sep 2026, 10:00 WAT/)).toBeInTheDocument();
-    expect(screen.getByText("Terrax Media replied to one of your complaints.")).toBeVisible();
+    expect(screen.getByText("Terrax Media replied to one of your messages.")).toBeVisible();
     // Record identifiers are option values only, never visible text.
     expect(screen.queryByText(new RegExp(TRIP))).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Lagos Launch" })).toBeInTheDocument();
@@ -76,7 +76,7 @@ describe("complainant Help page", () => {
 
     render(await ComplaintHelpPage({ party: "advertiser" }));
 
-    expect(screen.getByText("You haven't raised any complaints.")).toBeInTheDocument();
+    expect(screen.getByText("You haven't sent any messages.")).toBeInTheDocument();
     expect(screen.getByText(/Your campaigns couldn't be loaded/)).toBeInTheDocument();
     expect(mocks.get).toHaveBeenCalledWith("/api/v1/advertiser/complaints/reference-options");
   });
@@ -92,7 +92,7 @@ describe("complainant Help page", () => {
     });
     render(await ComplaintHelpPage({ party: "driver" }));
     expect(screen.getByText(/once your driver profile is set up/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Send complaint" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send message" })).not.toBeInTheDocument();
   });
 
   it("sends a signed-out user to sign in", async () => {
@@ -130,7 +130,7 @@ describe("complainant conversation page", () => {
     expect(screen.getByText(/^Trip on 3 Sep 2026/)).toBeInTheDocument();
     expect(screen.getByText(/reply below and it will reopen/)).toBeInTheDocument();
     expect(screen.queryByText(ID)).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "← My complaints" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "← My messages and requests" })).toHaveAttribute(
       "href",
       "/advertiser/help",
     );
@@ -143,7 +143,7 @@ describe("complainant conversation page", () => {
     const { unmount } = render(
       await ComplaintConversationPage({ party: "driver", complaintId: ID }),
     );
-    expect(screen.getByText("Complaint not found")).toBeInTheDocument();
+    expect(screen.getByText("Conversation not found")).toBeInTheDocument();
     unmount();
 
     mocks.get.mockRejectedValueOnce(new Error("offline"));

@@ -1,4 +1,6 @@
+import { publicActionError } from "@/lib/api/public-action-error";
 import "server-only";
+import { unstable_rethrow } from "next/navigation";
 
 import { ApiError } from "@/lib/api/errors";
 import { createApiClient, type ApiClient } from "@/lib/api/client";
@@ -12,13 +14,14 @@ export async function fileResponse<T>(
     if (data === undefined) throw new Error("File API returned an empty response");
     return Response.json(data, { headers: { "cache-control": "no-store" } });
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof ApiError) {
       return Response.json(
         {
           error: {
             code: error.code,
-            message: error.message,
-            details: error.details ?? {},
+            message: publicActionError(error),
+            details: {},
             request_id: error.requestId,
           },
         },

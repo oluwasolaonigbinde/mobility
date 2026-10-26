@@ -7,10 +7,11 @@ from uuid import UUID
 import pytest
 from conftest import (
     auth_headers,
+    create_test_activation_snapshot,
     create_test_campaign,
     create_test_campaign_assignment,
-    create_test_display_proof,
     create_test_driver_profile,
+    create_test_installation_evidence,
     create_test_organization,
     create_test_user,
     create_test_vehicle,
@@ -74,6 +75,7 @@ def create_trip_ready_graph(
     driver_email: str = "driver@example.com",
     plate_number: str = "ABC-123",
     with_financial_authority: bool = True,
+    with_installation_evidence: bool = True,
     eligibility_settings: Settings | None = None,
 ):
     admin = create_test_user(db_sessionmaker, email=admin_email, password=PASSWORD)
@@ -120,11 +122,15 @@ def create_trip_ready_graph(
         if assignment_status == CampaignAssignmentStatus.ACTIVE
         else None,
     )
-    if assignment_status == CampaignAssignmentStatus.ACTIVE:
-        create_test_display_proof(
+    if assignment_status == CampaignAssignmentStatus.ACTIVE and with_installation_evidence:
+        create_test_installation_evidence(
             db_sessionmaker,
             assignment_id=assignment.id,
             reviewed_by_user_id=admin.id,
+        )
+    elif assignment_status == CampaignAssignmentStatus.ACTIVE:
+        create_test_activation_snapshot(
+            db_sessionmaker, assignment_id=assignment.id, actor_user_id=admin.id
         )
 
     async def add_financial_authority(payout_revision) -> None:
@@ -138,11 +144,11 @@ def create_trip_ready_graph(
                     daily_target_miles=Decimal("8.00"),
                     shortfall_strategy="proportional",
                     minimum_miles=Decimal("0"),
-                    outside_area_weight=Decimal("1"),
+                    outside_area_weight=Decimal("0"),
                     currency="NGN",
                     eligibility_params={},
                     resolved_eligibility_params=resolved_eligibility_snapshot(
-                        eligibility_settings, payout_revision.eligibility_params
+                        payout_revision.eligibility_params
                     )
                     if eligibility_settings is not None
                     else {},
@@ -382,7 +388,7 @@ def test_driver_can_start_get_current_read_and_end_trip(db_client, db_sessionmak
     assert created["campaign_id"] == str(campaign.id)
     assert created["driver_profile_id"] == str(profile.id)
     assert created["vehicle_id"] == str(vehicle.id)
-    assert created["display_proof_id"] is not None
+    assert "display_proof_id" not in created
     assert created["status"] == "active"
     assert created["ping_count"] == 0
     assert created["metadata"] == {"shift": "morning"}
@@ -401,6 +407,50 @@ def test_driver_can_start_get_current_read_and_end_trip(db_client, db_sessionmak
     trips = fetch_trip_sessions(db_sessionmaker)
     assert trips[0].started_by_user_id == driver.id
     assert trips[0].status == TripSessionStatus.ENDED.value
+
+
+@pytest.mark.parametrize("offset_ms", [-1, 0, 1])
+def test_shortened_campaign_end_closes_trip_start_without_rewriting_frozen_terms(
+    db_client, db_sessionmaker, monkeypatch, offset_ms
+) -> None:
+    # S23 / D118: Finished closes the campaign at its end even when accepted
+    # assignment terms retain a later immutable end.
+    campaign_end = datetime.now(UTC).replace(microsecond=0) + timedelta(hours=1)
+    frozen_end = campaign_end + timedelta(days=1)
+    _, campaign, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker, end_at=frozen_end)
+
+    async def shorten():
+        async with db_sessionmaker() as session:
+            current = await session.get(Campaign, campaign.id)
+            current.end_at = campaign_end
+            await session.commit()
+
+    asyncio.run(shorten())
+
+    async def at_boundary(_session):
+        return campaign_end + timedelta(milliseconds=offset_ms)
+
+    monkeypatch.setattr(trips_service, "database_clock", at_boundary)
+    response = start_trip(db_client, assignment.id)
+    accepted = offset_ms < 0
+    assert response.status_code == (201 if accepted else 400), response.text
+    if not accepted:
+        assert response.json()["error"]["code"] == "CAMPAIGN_EXPIRED"
+
+    async def inspect():
+        async with db_sessionmaker() as session:
+            assert await session.scalar(select(func.count(TripSession.id))) == int(accepted)
+            assert await session.scalar(
+                select(func.count(AuditEvent.id)).where(AuditEvent.action == "driver.trip.started")
+            ) == int(accepted)
+            binding = await session.scalar(
+                select(AssignmentRuleBinding).where(
+                    AssignmentRuleBinding.assignment_id == assignment.id
+                )
+            )
+            assert binding.campaign_window_end_at == frozen_end
+
+    asyncio.run(inspect())
 
 
 def test_trip_start_rejects_at_frozen_assignment_window_after_campaign_extension(
@@ -512,7 +562,7 @@ def test_trip_start_fails_closed_on_unusable_frozen_payout_window_before_downstr
         "assert_new_work_authorized",
         "ensure_current_activation_snapshot",
         "ensure_no_active_trip_for_driver_or_vehicle",
-        "ensure_current_display_proof",
+        "ensure_current_approved_installation_evidence",
     ):
         monkeypatch.setattr(trips_service, name, unexpected_downstream_check)
 
@@ -929,7 +979,7 @@ def test_pings_require_active_owned_trip_and_active_assignment(db_client, db_ses
     update_assignment_status(
         db_sessionmaker,
         second_assignment.id,
-        CampaignAssignmentStatus.DEACTIVATED,
+        CampaignAssignmentStatus.CANCELLED,
     )
     inactive_assignment = db_client.post(
         f"/api/v1/driver/trips/{second_trip_id}/pings",
@@ -942,7 +992,7 @@ def test_pings_require_active_owned_trip_and_active_assignment(db_client, db_ses
     # D25: ended recovery accepts only an exact precommitted descriptor.
     assert ended.status_code == http_status.HTTP_200_OK
     assert ended.json()["accepted_count"] == 1
-    assert ended.json()["quarantined"] is False
+    assert "quarantined" not in ended.json()
     assert inactive_assignment.status_code == http_status.HTTP_400_BAD_REQUEST
     assert inactive_assignment.json()["error"]["code"] == "CAMPAIGN_ASSIGNMENT_NOT_ACTIVE"
 

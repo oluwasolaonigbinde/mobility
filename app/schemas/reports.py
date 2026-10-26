@@ -1,17 +1,16 @@
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, Field, field_serializer
 
 from app.models.campaign import CampaignStatus, CreativeStatus
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.campaign_zone import CampaignZoneType
 from app.models.trip import TripSessionStatus
 from app.models.trip_analytics import FraudFlagSeverity, FraudFlagStatus
-from app.schemas.exposure_scores import AdvertiserExposureScoreRead
-from app.schemas.measurement import MeasurementResultRead, MeasurementRunSummary
-from app.schemas.zone_insights import HighExposureZoneInsightsRead
+from app.schemas.campaign_lifecycle import CampaignLifecycleReadMixin
 
 
 class DecimalStringMixin(BaseModel):
@@ -46,10 +45,9 @@ class CampaignStatusCounts(BaseModel):
     pending_review: int = 0
     approved: int = 0
     rejected: int = 0
-    scheduled: int = 0
     active: int = 0
     paused: int = 0
-    completed: int = 0
+    finished: int = 0
     cancelled: int = 0
 
 
@@ -58,9 +56,8 @@ class AssignmentStatusCounts(BaseModel):
     offered: int = 0
     accepted: int = 0
     active: int = 0
-    deactivated: int = 0
     cancelled: int = 0
-    completed: int = 0
+    finished: int = 0
 
 
 class TripStatusCounts(BaseModel):
@@ -100,7 +97,6 @@ class CampaignCostSummary(BaseModel):
 
 class FraudFlagCounts(BaseModel):
     open: int = 0
-    acknowledged: int = 0
     confirmed: int = 0
     dismissed: int = 0
     low: int = 0
@@ -126,10 +122,10 @@ class AdvertiserDashboardSummary(BaseModel):
     quality: QualitySummary
 
 
-class CampaignReadSummary(DecimalStringMixin):
+class CampaignReadSummary(CampaignLifecycleReadMixin, DecimalStringMixin):
     id: UUID
     name: str
-    status: CampaignStatus
+    status: CampaignStatus | Literal["finished"]
     start_at: datetime | None
     end_at: datetime | None
     budget_amount: Decimal | None
@@ -139,7 +135,9 @@ class CampaignReadSummary(DecimalStringMixin):
 
 class CreativeStatusCounts(BaseModel):
     total: int = 0
-    ready: int = 0
+    pending_review: int = 0
+    approved: int = 0
+    rejected: int = 0
     draft: int = 0
     archived: int = 0
 
@@ -147,7 +145,6 @@ class CreativeStatusCounts(BaseModel):
 class ZoneTypeCounts(BaseModel):
     total: int = 0
     target: int = 0
-    bonus: int = 0
     exclusion: int = 0
 
 
@@ -176,21 +173,19 @@ class CampaignSummary(BaseModel):
 
 class DailyMetricItem(DecimalStringMixin):
     date: date
-    trip_count: int
-    analyzed_trip_count: int
-    distance_m: Decimal
-    estimated_impressions: Decimal
-    average_confidence_score: Decimal
-    final_payout_total: Decimal
-    gross_payout_total: Decimal
-    open_fraud_flag_count: int
-    average_quality_score: Decimal
+    distance_m: Decimal | None
+    vehicle_count: int | None
+    trip_count: int | None
+    driving_seconds: int | None
+    estimated_impressions: Decimal | None
+    suppressed: bool = False
 
 
 class DailyMetricsResponse(BaseModel):
     campaign_id: UUID
     start_at: datetime | None
     end_at: datetime | None
+    timezone: str = "Africa/Lagos"
     items: list[DailyMetricItem]
     total: int
     limit: int
@@ -206,29 +201,34 @@ class CampaignTripsResponse(BaseModel):
     fraud_flags: FraudFlagCounts
 
 
-class CampaignReportResponse(BaseModel):
+class CampaignPerformanceTotals(BaseModel):
+    distance_m: str | None
+    trip_count: int | None = Field(ge=0)
+    driving_days: int | None = Field(ge=0)
+    estimated_views: str | None
+
+
+class CampaignPerformanceArea(BaseModel):
+    area_id: UUID
+    name: str
+    trip_count: int = Field(ge=0)
+    modelled_potential_contacts: str | None
+
+
+class CampaignPerformanceRead(BaseModel):
     campaign_id: UUID
     start_at: datetime | None
     end_at: datetime | None
-    summary: CampaignReadSummary
-    daily_metrics: list[DailyMetricItem]
-    creative_summary: CreativeStatusCounts
-    zone_summary: ZoneTypeCounts
-    assignment_summary: AssignmentStatusCounts
-    trip_summary: TripStatusCounts
-    impression_summary: ImpressionSummary
-    cost_summary: CampaignCostSummary
-    fraud_summary: FraudFlagCounts
-    measurement_run: MeasurementRunSummary | None = None
-    measurement_result: MeasurementResultRead | None = None
-    exposure_score: AdvertiserExposureScoreRead | None = None
-    high_exposure_zone_insights: HighExposureZoneInsightsRead | None = None
+    totals: CampaignPerformanceTotals
+    areas: list[CampaignPerformanceArea]
+    completeness: str
+    uncertainty: str
 
 
-CAMPAIGN_STATUSES = [status.value for status in CampaignStatus]
+CAMPAIGN_STATUSES = [status.value for status in CampaignStatus] + ["finished"]
 CREATIVE_STATUSES = [status.value for status in CreativeStatus]
 ZONE_TYPES = [zone_type.value for zone_type in CampaignZoneType]
-ASSIGNMENT_STATUSES = [status.value for status in CampaignAssignmentStatus]
+ASSIGNMENT_STATUSES = [status.value for status in CampaignAssignmentStatus] + ["finished"]
 TRIP_STATUSES = [status.value for status in TripSessionStatus]
 FRAUD_STATUSES = [status.value for status in FraudFlagStatus]
 FRAUD_SEVERITIES = [severity.value for severity in FraudFlagSeverity]

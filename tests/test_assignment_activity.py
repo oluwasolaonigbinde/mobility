@@ -12,7 +12,6 @@ from test_trip_processing import build_graph
 from app.models.assignment_activity import (
     AssignmentActivityFlag,
     AssignmentActivityFlagEvent,
-    AssignmentActivityFlagStatus,
     AssignmentActivityFlagType,
 )
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
@@ -22,17 +21,10 @@ from app.models.trip import TripSessionStatus
 from app.models.trip_analytics import FraudFlag, TripAnalyticsStatus
 from app.services.assignment_activity import (
     evaluate_assignment_activity,
-    parse_verified_hours_floor,
     sweep_activity_flags,
-    utc_completed_week_window,
 )
 
 PASSWORD = "long-secure-password"
-
-
-def _settings(settings, value=None):
-    settings.verified_hours_floor_per_week = value
-    return settings
 
 
 def _evaluate(db_sessionmaker, assignment_id, settings, now):
@@ -58,34 +50,10 @@ def _flags(db_sessionmaker):
     return asyncio.run(run())
 
 
-def test_missing_or_invalid_floor_config_fails_closed_but_inactivity_still_runs(
-    db_sessionmaker, settings
-):
-    graph = build_graph(
-        db_sessionmaker,
-        "activity-config",
-        started_at=datetime(2026, 1, 1, 12, tzinfo=UTC),
-    )
-    result = _evaluate(
-        db_sessionmaker,
-        graph.assignment.id,
-        _settings(settings, "not-a-number"),
-        datetime(2026, 1, 8, 12, tzinfo=UTC),
-    )
-    assert result["weekly_floor"] == "skipped_configuration"
-    assert result["inactivity"] == "opened"
-    assert result["flags_opened"] == 1
-    assert [flag.flag_type for flag in _flags(db_sessionmaker)] == [
-        AssignmentActivityFlagType.INACTIVITY.value
-    ]
-    assert parse_verified_hours_floor(_settings(settings, None))[1] == "missing_configuration"
-    assert parse_verified_hours_floor(_settings(settings, 0))[1] == "invalid_configuration"
-
-
-def test_inactivity_is_exact_at_seven_days_and_recovery_is_idempotent(db_sessionmaker, settings):
+def test_inactivity_is_exact_at_seven_days_and_closure_is_idempotent(db_sessionmaker, settings):
     baseline = datetime(2026, 1, 1, 12, tzinfo=UTC)
     graph = build_graph(db_sessionmaker, "activity-inactive", started_at=baseline)
-    configured = _settings(settings, 1)
+    configured = settings
 
     before = _evaluate(
         db_sessionmaker,
@@ -140,21 +108,21 @@ def test_inactivity_is_exact_at_seven_days_and_recovery_is_idempotent(db_session
         last_ping_at=trip.ended_at,
         computed_at=trip.sealed_at + timedelta(seconds=1),
     )
-    recovered = _evaluate(
+    closed = _evaluate(
         db_sessionmaker,
         graph.assignment.id,
         configured,
         baseline + timedelta(days=7, minutes=30),
     )
-    assert recovered["inactivity"] == "recovered"
-    assert recovered["flags_recovered"] == 1
+    assert closed["inactivity"] == "closed"
+    assert closed["flags_closed"] == 1
     again = _evaluate(
         db_sessionmaker,
         graph.assignment.id,
         configured,
         baseline + timedelta(days=7, minutes=31),
     )
-    assert again["flags_recovered"] == 0
+    assert again["flags_closed"] == 0
 
     async def counts():
         async with db_sessionmaker() as session:
@@ -167,293 +135,7 @@ def test_inactivity_is_exact_at_seven_days_and_recovery_is_idempotent(db_session
     flag_count, event_count, notice_count = asyncio.run(counts())
     assert flag_count == 1
     assert event_count == 2
-    assert notice_count == 2
-
-
-def test_weekly_floor_before_equality_and_after_use_only_computed_authoritative_rows(
-    db_sessionmaker, settings
-):
-    started = datetime(2025, 12, 28, 12, tzinfo=UTC)
-    graph = build_graph(db_sessionmaker, "activity-weekly", started_at=started)
-    trip = graph.trip
-    analytics = create_test_trip_analytics(
-        db_sessionmaker,
-        trip_session_id=trip.id,
-        assignment_id=graph.assignment.id,
-        campaign_id=graph.campaign.id,
-        driver_profile_id=graph.profile.id,
-        vehicle_id=graph.vehicle.id,
-        active_tracking_seconds=3599,
-        started_at=trip.started_at,
-        ended_at=trip.ended_at,
-        last_ping_at=datetime(2025, 12, 29, 12, tzinfo=UTC),
-        computed_at=trip.sealed_at + timedelta(seconds=1),
-    )
-    configured = _settings(settings, 1)
-    now = datetime(2026, 1, 8, 12, tzinfo=UTC)
-    opened = _evaluate(db_sessionmaker, graph.assignment.id, configured, now)
-    assert opened["weekly_floor"] == "opened"
-    assert (
-        sum(
-            flag.flag_type == AssignmentActivityFlagType.VERIFIED_HOURS_FLOOR.value
-            for flag in _flags(db_sessionmaker)
-        )
-        == 1
-    )
-
-    async def update_seconds(seconds: int):
-        async with db_sessionmaker() as session:
-            row = await session.get(type(analytics), analytics.id)
-            row.active_tracking_seconds = seconds
-            await session.commit()
-
-    asyncio.run(update_seconds(3600))
-    recovered = _evaluate(db_sessionmaker, graph.assignment.id, configured, now)
-    assert recovered["weekly_floor"] == "recovered"
-
-    # A retry above equality remains one auditable floor occurrence.
-    asyncio.run(update_seconds(3601))
-    after = _evaluate(
-        db_sessionmaker,
-        graph.assignment.id,
-        configured,
-        now + timedelta(minutes=1),
-    )
-    assert after["weekly_floor"] == "recovered"
-    assert (
-        sum(
-            flag.flag_type == AssignmentActivityFlagType.VERIFIED_HOURS_FLOOR.value
-            for flag in _flags(db_sessionmaker)
-        )
-        == 1
-    )
-
-
-def test_current_formula_only_and_weekly_recovered_flag_reopens_on_regression(
-    db_sessionmaker,
-    settings,
-) -> None:
-    activated_at = datetime(2025, 12, 28, 12, tzinfo=UTC)
-    graph = build_graph(db_sessionmaker, "activity-formula-weekly", started_at=activated_at)
-
-    def add_analytics(tag: str, seconds: int, formula_version: str):
-        started_at = datetime(2026, 1, 4, 10 if tag == "current" else 8, tzinfo=UTC)
-        trip = create_test_trip_session(
-            db_sessionmaker,
-            assignment_id=graph.assignment.id,
-            campaign_id=graph.campaign.id,
-            driver_profile_id=graph.profile.id,
-            vehicle_id=graph.vehicle.id,
-            started_by_user_id=graph.driver.id,
-            trip_status=TripSessionStatus.SEALED,
-            started_at=started_at,
-            ended_at=started_at + timedelta(minutes=10),
-        )
-        return create_test_trip_analytics(
-            db_sessionmaker,
-            trip_session_id=trip.id,
-            assignment_id=graph.assignment.id,
-            campaign_id=graph.campaign.id,
-            driver_profile_id=graph.profile.id,
-            vehicle_id=graph.vehicle.id,
-            formula_version=formula_version,
-            active_tracking_seconds=seconds,
-            started_at=trip.started_at,
-            ended_at=trip.ended_at,
-            last_ping_at=trip.ended_at,
-            computed_at=trip.sealed_at + timedelta(seconds=1),
-        )
-
-    current = add_analytics("current", 3599, settings.route_analytics_formula_version)
-    add_analytics("old", 7200, "route_analytics_old")
-    configured = _settings(settings, 1)
-    now = datetime(2026, 1, 8, 12, tzinfo=UTC)
-
-    opened = _evaluate(db_sessionmaker, graph.assignment.id, configured, now)
-    assert opened["weekly_floor"] == "opened"
-    weekly = next(
-        flag
-        for flag in _flags(db_sessionmaker)
-        if flag.flag_type == AssignmentActivityFlagType.VERIFIED_HOURS_FLOOR.value
-    )
-    assert weekly.observed_seconds == 3599
-    assert weekly.current_evidence["eligible_trip_count"] == 1
-    assert (
-        weekly.current_evidence["expected_formula_version"]
-        == settings.route_analytics_formula_version
-    )
-
-    async def update_current(*, seconds: int | None = None, formula_version: str | None = None):
-        async with db_sessionmaker() as session:
-            row = await session.get(type(current), current.id)
-            if seconds is not None:
-                row.active_tracking_seconds = seconds
-            if formula_version is not None:
-                row.formula_version = formula_version
-            await session.commit()
-
-    asyncio.run(update_current(seconds=3600))
-    recovered = _evaluate(
-        db_sessionmaker,
-        graph.assignment.id,
-        configured,
-        now + timedelta(minutes=1),
-    )
-    assert recovered["weekly_floor"] == "recovered"
-
-    asyncio.run(update_current(formula_version="route_analytics_old"))
-    reopened = _evaluate(
-        db_sessionmaker,
-        graph.assignment.id,
-        configured,
-        now + timedelta(minutes=2),
-    )
-    retry = _evaluate(
-        db_sessionmaker,
-        graph.assignment.id,
-        configured,
-        now + timedelta(minutes=3),
-    )
-    assert reopened["weekly_floor"] == "reopened"
-    assert retry["flags_opened"] == 0
-
-    async def history():
-        async with db_sessionmaker() as session:
-            flag = await session.get(AssignmentActivityFlag, weekly.id)
-            events = list(
-                (
-                    await session.scalars(
-                        select(AssignmentActivityFlagEvent)
-                        .where(AssignmentActivityFlagEvent.flag_id == weekly.id)
-                        .order_by(AssignmentActivityFlagEvent.sequence_number)
-                    )
-                ).all()
-            )
-            notices = [
-                notice
-                for notice in (await session.scalars(select(Notification))).all()
-                if notice.payload.get("activity_flag_id") == str(weekly.id)
-            ]
-            return flag, events, notices
-
-    flag, events, notices = asyncio.run(history())
-    assert flag.status == AssignmentActivityFlagStatus.OPEN.value
-    assert flag.recovered_at is None
-    assert flag.first_detected_at == weekly.first_detected_at
-    assert [event.event_type for event in events] == ["opened", "recovered", "opened"]
-    assert [event.sequence_number for event in events] == [1, 2, 3]
-    assert all(
-        event.evidence["expected_formula_version"]
-        == settings.route_analytics_formula_version
-        for event in events
-    )
-    assert len(notices) == 3
-
-
-def test_inactivity_recovered_flag_reopens_when_authoritative_activity_becomes_invalid(
-    db_sessionmaker,
-    settings,
-) -> None:
-    baseline = datetime(2026, 1, 1, 12, tzinfo=UTC)
-    graph = build_graph(db_sessionmaker, "activity-inactivity-reopen", started_at=baseline)
-    configured = _settings(settings, None)
-    _evaluate(db_sessionmaker, graph.assignment.id, configured, baseline + timedelta(days=7))
-    flag = _flags(db_sessionmaker)[0]
-
-    trip = create_test_trip_session(
-        db_sessionmaker,
-        assignment_id=graph.assignment.id,
-        campaign_id=graph.campaign.id,
-        driver_profile_id=graph.profile.id,
-        vehicle_id=graph.vehicle.id,
-        started_by_user_id=graph.driver.id,
-        trip_status=TripSessionStatus.SEALED,
-        started_at=baseline + timedelta(days=7, minutes=10),
-        ended_at=baseline + timedelta(days=7, minutes=20),
-    )
-    analytics = create_test_trip_analytics(
-        db_sessionmaker,
-        trip_session_id=trip.id,
-        assignment_id=graph.assignment.id,
-        campaign_id=graph.campaign.id,
-        driver_profile_id=graph.profile.id,
-        vehicle_id=graph.vehicle.id,
-        active_tracking_seconds=60,
-        started_at=trip.started_at,
-        ended_at=trip.ended_at,
-        last_ping_at=trip.ended_at,
-        computed_at=trip.sealed_at + timedelta(seconds=1),
-    )
-    recovered = _evaluate(
-        db_sessionmaker,
-        graph.assignment.id,
-        configured,
-        baseline + timedelta(days=7, minutes=30),
-    )
-    assert recovered["inactivity"] == "recovered"
-
-    async def invalidate() -> None:
-        async with db_sessionmaker() as session:
-            row = await session.get(type(analytics), analytics.id)
-            row.status = TripAnalyticsStatus.BLOCKED.value
-            await session.commit()
-
-    asyncio.run(invalidate())
-    reopened = _evaluate(
-        db_sessionmaker,
-        graph.assignment.id,
-        configured,
-        baseline + timedelta(days=7, minutes=31),
-    )
-    retry = _evaluate(
-        db_sessionmaker,
-        graph.assignment.id,
-        configured,
-        baseline + timedelta(days=7, minutes=32),
-    )
-    assert reopened["inactivity"] == "reopened"
-    assert retry["flags_opened"] == 0
-
-    async def history():
-        async with db_sessionmaker() as session:
-            stored = await session.get(AssignmentActivityFlag, flag.id)
-            events = list(
-                (
-                    await session.scalars(
-                        select(AssignmentActivityFlagEvent)
-                        .where(AssignmentActivityFlagEvent.flag_id == flag.id)
-                        .order_by(AssignmentActivityFlagEvent.sequence_number)
-                    )
-                ).all()
-            )
-            notices = [
-                notice
-                for notice in (await session.scalars(select(Notification))).all()
-                if notice.payload.get("activity_flag_id") == str(flag.id)
-            ]
-            return stored, events, notices
-
-    stored, events, notices = asyncio.run(history())
-    assert stored.status == AssignmentActivityFlagStatus.OPEN.value
-    assert stored.recovered_at is None
-    assert [event.event_type for event in events] == ["opened", "recovered", "opened"]
-    assert len(notices) == 3
-
-
-def test_utc_completed_week_window_has_explicit_monday_edges() -> None:
-    monday = datetime(2026, 1, 5, 0, tzinfo=UTC)
-    assert utc_completed_week_window(monday) == (
-        datetime(2025, 12, 29, 0, tzinfo=UTC),
-        monday,
-    )
-    assert utc_completed_week_window(datetime(2026, 1, 11, 23, 59, 59, 999999, tzinfo=UTC)) == (
-        datetime(2025, 12, 29, 0, tzinfo=UTC),
-        monday,
-    )
-    assert utc_completed_week_window(datetime(2026, 1, 12, 0, tzinfo=UTC)) == (
-        monday,
-        datetime(2026, 1, 12, 0, tzinfo=UTC),
-    )
+    assert notice_count == 1
 
 
 def test_missing_insufficient_blocked_future_stale_and_wrong_linkage_never_count(
@@ -532,10 +214,9 @@ def test_missing_insufficient_blocked_future_stale_and_wrong_linkage_never_count
     result = _evaluate(
         db_sessionmaker,
         graph.assignment.id,
-        _settings(settings, 1),
+        settings,
         datetime(2026, 1, 15, 12, tzinfo=UTC),
     )
-    assert result["weekly_floor"] == "opened"
     assert result["inactivity"] == "opened"
     flags = _flags(db_sessionmaker)
     assert all(flag.observed_seconds == 0 for flag in flags)
@@ -569,11 +250,11 @@ def test_activity_evaluation_does_not_mutate_lifecycle_earnings_or_fraud_rows(
     result = _evaluate(
         db_sessionmaker,
         graph.assignment.id,
-        _settings(settings, 1),
+        settings,
         datetime(2026, 1, 8, 12, tzinfo=UTC),
     )
     after = asyncio.run(snapshot())
-    assert result["flags_opened"] == 2
+    assert result["flags_opened"] == 1
     assert after == before
 
 
@@ -583,7 +264,7 @@ def test_non_active_assignment_is_skipped_without_mutating_assignment(db_session
     async def deactivate():
         async with db_sessionmaker() as session:
             assignment = await session.get(CampaignAssignment, graph.assignment.id)
-            assignment.status = CampaignAssignmentStatus.DEACTIVATED.value
+            assignment.status = CampaignAssignmentStatus.CANCELLED.value
             await session.commit()
             await session.refresh(assignment)
             return assignment.updated_at
@@ -592,7 +273,7 @@ def test_non_active_assignment_is_skipped_without_mutating_assignment(db_session
     result = _evaluate(
         db_sessionmaker,
         graph.assignment.id,
-        _settings(settings, 1),
+        settings,
         datetime(2026, 1, 8, 12, tzinfo=UTC),
     )
     assert result["skip_reason"] == "assignment_not_active"
@@ -603,11 +284,11 @@ def test_non_active_assignment_is_skipped_without_mutating_assignment(db_session
             return assignment.status, assignment.updated_at
 
     status, after = asyncio.run(read())
-    assert status == CampaignAssignmentStatus.DEACTIVATED.value
+    assert status == CampaignAssignmentStatus.CANCELLED.value
     assert after == updated_at
 
 
-def test_worker_returns_truthful_config_skip_and_processes_inactivity(db_sessionmaker, settings):
+def test_worker_processes_inactivity_without_extra_configuration(db_sessionmaker, settings):
     graph = build_graph(
         db_sessionmaker,
         "activity-worker",
@@ -618,15 +299,13 @@ def test_worker_returns_truthful_config_skip_and_processes_inactivity(db_session
         return await sweep_activity_flags(
             db_sessionmaker,
             assignment_ids=[graph.assignment.id],
-            settings=_settings(settings, None),
+            settings=settings,
             now=datetime(2026, 1, 8, 12, tzinfo=UTC),
         )
 
     result = asyncio.run(run())
     assert result["selected"] == 1
     assert result["evaluated"] == 1
-    assert result["config"] == "skipped_weekly"
-    assert result["config_reason"] == "missing_configuration"
     assert result["flags_opened"] == 1
 
 
@@ -647,7 +326,7 @@ def test_bounded_batch_rolls_back_one_failure_without_losing_later_work(
         return {
             "skip_reason": None,
             "flags_opened": 0,
-            "flags_recovered": 0,
+            "flags_closed": 0,
             "notices_created": 0,
             "skipped": 0,
         }
@@ -661,7 +340,7 @@ def test_bounded_batch_rolls_back_one_failure_without_losing_later_work(
         sweep_activity_flags(
             db_sessionmaker,
             assignment_ids=[failed.assignment.id, succeeded.assignment.id],
-            settings=_settings(settings, None),
+            settings=settings,
             now=datetime(2026, 1, 8, 12, tzinfo=UTC),
         )
     )
@@ -691,7 +370,7 @@ def test_activity_evidence_is_admin_only_and_sanitized(
     _evaluate(
         db_sessionmaker,
         graph.assignment.id,
-        _settings(settings, None),
+        settings,
         datetime(2026, 1, 8, 12, tzinfo=UTC),
     )
 
@@ -723,7 +402,7 @@ def test_postgres_concurrent_sweeps_converge_to_one_flag_per_condition(
         "activity-open-race",
         started_at=datetime(2025, 12, 28, 12, tzinfo=UTC),
     )
-    configured = _settings(settings, 1)
+    configured = settings
     barrier = asyncio.Barrier(2)
     now = datetime(2026, 1, 8, 12, tzinfo=UTC)
 
@@ -754,20 +433,19 @@ def test_postgres_concurrent_sweeps_converge_to_one_flag_per_condition(
             return flags, events, notices
 
     flags, event_count, notice_count = asyncio.run(counts())
-    assert sum(result["flags_opened"] for result in results) == 2
-    assert len(flags) == 2
+    assert sum(result["flags_opened"] for result in results) == 1
+    assert len(flags) == 1
     assert {flag.flag_type for flag in flags} == {
-        AssignmentActivityFlagType.VERIFIED_HOURS_FLOOR.value,
         AssignmentActivityFlagType.INACTIVITY.value,
     }
-    assert event_count == 2
-    assert notice_count == 2
+    assert event_count == 1
+    assert notice_count == 1
 
 
-def test_postgres_concurrent_recovery_is_one_event_and_notice(postgis_db_sessionmaker, settings):
+def test_postgres_concurrent_closure_is_one_event_and_notice(postgis_db_sessionmaker, settings):
     baseline = datetime(2026, 1, 1, 12, tzinfo=UTC)
-    graph = build_graph(postgis_db_sessionmaker, "activity-recovery-race", started_at=baseline)
-    configured = _settings(settings, None)
+    graph = build_graph(postgis_db_sessionmaker, "activity-closure-race", started_at=baseline)
+    configured = settings
     _evaluate(
         postgis_db_sessionmaker,
         graph.assignment.id,
@@ -828,95 +506,7 @@ def test_postgres_concurrent_recovery_is_one_event_and_notice(postgis_db_session
             return flag, events, notices
 
     flag, event_count, notice_count = asyncio.run(state())
-    assert sum(result["flags_recovered"] for result in results) == 1
-    assert flag.status == "recovered"
+    assert sum(result["flags_closed"] for result in results) == 1
+    assert flag.status == "closed"
     assert event_count == 2
-    assert notice_count == 2
-
-
-def test_postgres_concurrent_reopen_is_one_event_and_notice(
-    postgis_db_sessionmaker,
-    settings,
-) -> None:
-    baseline = datetime(2026, 1, 1, 12, tzinfo=UTC)
-    graph = build_graph(postgis_db_sessionmaker, "activity-reopen-race", started_at=baseline)
-    configured = _settings(settings, None)
-    _evaluate(
-        postgis_db_sessionmaker,
-        graph.assignment.id,
-        configured,
-        baseline + timedelta(days=7),
-    )
-    trip = create_test_trip_session(
-        postgis_db_sessionmaker,
-        assignment_id=graph.assignment.id,
-        campaign_id=graph.campaign.id,
-        driver_profile_id=graph.profile.id,
-        vehicle_id=graph.vehicle.id,
-        started_by_user_id=graph.driver.id,
-        trip_status=TripSessionStatus.SEALED,
-        started_at=baseline + timedelta(days=7, minutes=10),
-        ended_at=baseline + timedelta(days=7, minutes=20),
-    )
-    analytics = create_test_trip_analytics(
-        postgis_db_sessionmaker,
-        trip_session_id=trip.id,
-        assignment_id=graph.assignment.id,
-        campaign_id=graph.campaign.id,
-        driver_profile_id=graph.profile.id,
-        vehicle_id=graph.vehicle.id,
-        active_tracking_seconds=60,
-        started_at=trip.started_at,
-        ended_at=trip.ended_at,
-        last_ping_at=trip.ended_at,
-        computed_at=trip.sealed_at + timedelta(seconds=1),
-    )
-    _evaluate(
-        postgis_db_sessionmaker,
-        graph.assignment.id,
-        configured,
-        baseline + timedelta(days=7, minutes=30),
-    )
-
-    async def invalidate() -> None:
-        async with postgis_db_sessionmaker() as session:
-            row = await session.get(type(analytics), analytics.id)
-            row.status = TripAnalyticsStatus.BLOCKED.value
-            await session.commit()
-
-    asyncio.run(invalidate())
-    barrier = asyncio.Barrier(2)
-    now = baseline + timedelta(days=7, minutes=31)
-
-    async def run_one():
-        async with postgis_db_sessionmaker() as session:
-            await barrier.wait()
-            result = await evaluate_assignment_activity(
-                session,
-                assignment_id=graph.assignment.id,
-                settings=configured,
-                now=now,
-            )
-            await session.commit()
-            return result
-
-    async def run_both():
-        return await asyncio.gather(run_one(), run_one())
-
-    results = asyncio.run(run_both())
-
-    async def state():
-        async with postgis_db_sessionmaker() as session:
-            flag = await session.scalar(select(AssignmentActivityFlag))
-            events = await session.scalar(
-                select(func.count()).select_from(AssignmentActivityFlagEvent)
-            )
-            notices = await session.scalar(select(func.count()).select_from(Notification))
-            return flag, events, notices
-
-    flag, event_count, notice_count = asyncio.run(state())
-    assert sum(result["flags_opened"] for result in results) == 1
-    assert flag.status == AssignmentActivityFlagStatus.OPEN.value
-    assert flag.recovered_at is None
-    assert event_count == 3
-    assert notice_count == 3
+    assert notice_count == 1

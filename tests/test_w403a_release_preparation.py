@@ -280,18 +280,9 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
                 "Client-storage-secret-with-more-than-thirty-two-characters-2026"
             ),
             "MALWARE_SCANNER_HOST": "clamav",
-            "MALWARE_SCANNER_PORT": "3310",
-            "MALWARE_SCANNER_TIMEOUT_SECONDS": "30",
-            "FILE_KYC_RETENTION_DAYS": "365",
-            "INSTALLATION_EVIDENCE_UPLOADER_ROLES": "driver,admin",
-            "INSTALLATION_EVIDENCE_REQUIRED_VIEWS": "front,rear,left,right",
-            "INSTALLATION_EVIDENCE_VALIDITY_HOURS": "24",
-            "DISPLAY_PROOF_CHALLENGE_TTL_SECONDS": "900",
-            "DISPLAY_PROOF_VALIDITY_SECONDS": "86400",
-            "EVIDENCE_HIGH_EARNER_THRESHOLD_NGN": "100000",
-            "EVIDENCE_RENEWAL_LOOKBACK_DAYS": "30",
-            "EVIDENCE_CHALLENGE_RESPONSE_HOURS": "24",
-            "VERIFIED_HOURS_FLOOR_PER_WEEK": "10",
+            "DRIVER_ACCOUNT_SETUP_PUBLIC_URL": (
+                "https://cardvert.client-owned-domain.com/driver-account-setup"
+            ),
             "EMAIL_PROVIDER": "smtp",
             "EMAIL_SENDER_ADDRESS": "notifications@client-owned-domain.com",
             "EMAIL_SMTP_HOST": "smtp.client-owned-domain.com",
@@ -299,10 +290,6 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
             "EMAIL_SMTP_USERNAME": "cardvert-notifications",
             "EMAIL_SMTP_PASSWORD": "Smtp-password-with-more-than-thirty-two-characters-2026!",
             "EMAIL_SMTP_STARTTLS": "true",
-            "EMAIL_RECEIPT_SIGNING_SECRET": (
-                "Email-receipt-secret-with-more-than-thirty-two-characters-2026!"
-            ),
-            "EMAIL_RECEIPT_KEY_ID": "email-receipt-2026-01",
             "PRIVACY_LEGAL_APPROVAL_REFERENCE": "legal-approval-reference-2026-01",
             "NEXT_PUBLIC_MAP_STYLE_URL": (
                 "https://maps.client-owned-domain.com/styles/cardvert.json"
@@ -362,21 +349,16 @@ def test_compose_contract_rejects_public_data_or_privileged_application() -> Non
         validate_compose_model(model)
 
     model = production_model(profiles=("release",))
-    model["services"]["api"]["environment"].pop("TRIP_SEAL_GRACE_SECONDS")
-    with pytest.raises(ContractError, match="TRIP_SEAL_GRACE_SECONDS"):
+    model["services"]["api"]["environment"].pop("TRIP_EVIDENCE_SIGNING_KEY_VERSION")
+    with pytest.raises(ContractError, match="TRIP_EVIDENCE_SIGNING_KEY_VERSION"):
         validate_compose_model(model)
 
 
 def test_production_compose_preserves_package_configuration_overrides() -> None:
     overrides = {
-        "LOGIN_RATE_LIMIT_ACCOUNT_MAX_FAILURES": "17",
-        "DRIVER_REGISTRATION_RATE_LIMIT_EMAIL_MAX_ATTEMPTS": "19",
-        "FRAUD_ASSESSMENT_FORMULA_VERSION": "reviewed_formula_v9",
-        "ROUTE_REPLAY_MIN_DISTANCE_M": "777",
-        "PRIVACY_MIN_VEHICLES_PER_CELL": "9",
-        "INSTALLATION_EVIDENCE_VALIDITY_HOURS": "47",
-        "DISPLAY_PROOF_VALIDITY_SECONDS": "313",
-        "EVIDENCE_RENEWAL_LOOKBACK_DAYS": "91",
+        "OBJECT_STORAGE_REGION": "eu-west-1",
+        "OBJECT_STORAGE_BUCKET": "cardvert-private-review",
+        "EMAIL_SENDER_NAME": "Terrax Cardvert",
     }
     model = production_model(profiles=("release",), overrides=overrides)
 
@@ -502,7 +484,6 @@ def test_release_environment_accepts_complete_provider_neutral_contract(tmp_path
     "source_name",
     [
         "JWT_SECRET_KEY",
-        "EMAIL_RECEIPT_SIGNING_SECRET",
         "POSTGRES_PASSWORD",
         "REDIS_PASSWORD",
         "OBJECT_STORAGE_SECRET_ACCESS_KEY",
@@ -546,8 +527,9 @@ def test_staging_environment_uses_same_fail_closed_contract(tmp_path: Path) -> N
 
 @pytest.mark.parametrize("mode", ["staging", "production"])
 def test_complete_synthetic_environment_validates_settings_and_renders_compose(
-    tmp_path: Path, mode: str
+    tmp_path: Path, mode: str, monkeypatch
 ) -> None:
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     environment = valid_release_environment(tmp_path)
     environment["ENVIRONMENT"] = mode
     env_file = tmp_path / f"{mode}.env"
@@ -571,16 +553,12 @@ def test_complete_synthetic_environment_validates_settings_and_renders_compose(
         ("TRIP_EVIDENCE_SIGNING_KEY_VERSION", "2", "TRIP_EVIDENCE"),
         ("MALWARE_SCANNER_HOST", "", "MALWARE_SCANNER_HOST"),
         ("MALWARE_SCANNER_HOST", "scanner.invalid", "MALWARE_SCANNER_HOST"),
-        ("MALWARE_SCANNER_PORT", "0", "MALWARE_SCANNER_PORT"),
-        ("MALWARE_SCANNER_TIMEOUT_SECONDS", "0", "MALWARE_SCANNER_TIMEOUT_SECONDS"),
         ("EMAIL_PROVIDER", "", "EMAIL_PROVIDER"),
         ("EMAIL_SENDER_ADDRESS", "", "EMAIL_SENDER_ADDRESS"),
         ("EMAIL_SMTP_HOST", "", "EMAIL_SMTP_HOST"),
         ("EMAIL_SMTP_USERNAME", "", "EMAIL_SMTP_USERNAME"),
         ("EMAIL_SMTP_PASSWORD", "", "EMAIL_SMTP_PASSWORD"),
         ("EMAIL_SMTP_STARTTLS", "false", "EMAIL_SMTP_STARTTLS"),
-        ("EMAIL_RECEIPT_SIGNING_SECRET", "", "EMAIL_RECEIPT_SIGNING_SECRET"),
-        ("EMAIL_RECEIPT_KEY_ID", "", "EMAIL_RECEIPT_KEY_ID"),
         ("NEXT_PUBLIC_MAP_STYLE_URL", "", "NEXT_PUBLIC_MAP_STYLE_URL"),
         ("NEXT_PUBLIC_MAP_STYLE_URL", "http://maps.example.org/style", "MAP_STYLE"),
         (
@@ -588,16 +566,7 @@ def test_complete_synthetic_environment_validates_settings_and_renders_compose(
             "https://maps.client-owned-domain.com/style?access_token=secret",
             "MAP_STYLE",
         ),
-        ("FILE_KYC_RETENTION_DAYS", "", "FILE_KYC_RETENTION_DAYS"),
-        ("INSTALLATION_EVIDENCE_UPLOADER_ROLES", "", "UPLOADER_ROLES"),
-        ("INSTALLATION_EVIDENCE_REQUIRED_VIEWS", "", "REQUIRED_VIEWS"),
-        ("INSTALLATION_EVIDENCE_VALIDITY_HOURS", "", "VALIDITY_HOURS"),
-        ("DISPLAY_PROOF_CHALLENGE_TTL_SECONDS", "", "CHALLENGE_TTL"),
-        ("DISPLAY_PROOF_VALIDITY_SECONDS", "", "PROOF_VALIDITY"),
-        ("EVIDENCE_HIGH_EARNER_THRESHOLD_NGN", "", "HIGH_EARNER"),
-        ("EVIDENCE_RENEWAL_LOOKBACK_DAYS", "", "RENEWAL_LOOKBACK"),
-        ("EVIDENCE_CHALLENGE_RESPONSE_HOURS", "", "CHALLENGE_RESPONSE"),
-        ("VERIFIED_HOURS_FLOOR_PER_WEEK", "", "VERIFIED_HOURS_FLOOR_PER_WEEK"),
+        ("DRIVER_ACCOUNT_SETUP_PUBLIC_URL", "", "DRIVER_ACCOUNT_SETUP_PUBLIC_URL"),
     ],
 )
 def test_release_environment_rejects_incomplete_live_authority(

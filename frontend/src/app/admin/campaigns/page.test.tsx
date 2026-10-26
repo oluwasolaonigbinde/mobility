@@ -11,6 +11,8 @@ const campaign = {
   currency: "NGN",
   budget_amount: "100000",
   status: "active",
+  assignment_count: 2,
+  target_zone_count: 1,
   start_at: "2026-09-01T00:00:00Z",
   end_at: "2026-10-01T00:00:00Z",
 };
@@ -20,7 +22,7 @@ beforeEach(() => {
     if (path.endsWith("/campaigns")) return { data: { items: [campaign], total: 60 } };
     if (path.endsWith("/campaigns/{campaign_id}")) return { data: campaign };
     if (path.endsWith("/commercial"))
-      return { data: { budget_evaluations: [{ billing_spend_amount: "20000" }] } };
+      return { data: { budget_check: { billing_spend_amount: "20000" } } };
     if (path.endsWith("/campaign-assignments")) return { data: { items: [], total: 2 } };
     return { data: { items: [], total: 0 } };
   });
@@ -30,7 +32,7 @@ it.each([
   ["needs-review", "pending_review", "Review campaign details"],
   ["getting-ready", "draft", "View launch checklist"],
   ["live", "paused", "Review pause and funding"],
-  ["ended", "completed", "View launch checklist"],
+  ["ended", "finished", "View launch checklist"],
 ])(
   "lists named campaigns in %s and preserves the selected work list",
   async (tab, source, next) => {

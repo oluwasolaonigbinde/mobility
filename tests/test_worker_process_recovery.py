@@ -26,7 +26,6 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.pool import NullPool
-from test_measurement_runs import create_measurement_graph, issue_payload
 from test_mny03a_earnings_release import (
     build_graph as build_release_graph,
 )
@@ -59,28 +58,14 @@ from app.models.disbursement import (
     PayoutSubmissionIntentState,
 )
 from app.models.payout import EarningsLedgerEntry, PayoutCalculation
-from app.models.report_issuance import (
-    ReportArtifact,
-    ReportIssuance,
-    ReportIssuanceStatus,
-    ReportPublicationIntent,
-    ReportPublicationWrite,
-)
 from app.models.stored_file import StoredObjectDeletion
 from app.models.trip import TripSession
 from app.models.user import User, UserRole, UserStatus
-from app.schemas.measurement import MeasurementRunCreate
-from app.schemas.report_issuances import ReportIssuanceCreate
 from app.services.disbursements import (
     approve_payout_batch,
     create_payout_batch_draft,
     reserve_payout_batch,
     submit_payout_batch,
-)
-from app.services.measurement import issue_measurement_run
-from app.services.report_issuances import (
-    REPORT_MAX_ATTEMPTS,
-    request_report_issuance,
 )
 from app.services.stored_object_deletions import ensure_stored_object_deletion
 
@@ -362,9 +347,6 @@ def _runtime_settings(
             "database_url": environment.database_url,
             "redis_url": environment.redis_url,
             "privacy_min_vehicles_per_cell": 1,
-            "privacy_min_trips_per_cell": 1,
-            "privacy_min_days_per_cell": 1,
-            "privacy_max_contributor_share": 1.0,
             "privacy_min_resolution_m": 50,
             "worker_sweep_batch_size": batch_size,
         }
@@ -635,17 +617,20 @@ def _seed_payout_intent(
             entry = await _seed_authority(session, graph)
             batch = await create_payout_batch_draft(
                 session,
+                reason="Focused staff payout action",
                 currency="NGN",
                 actor_user_id=graph.admin.id,
             )
             _, lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=batch.id,
                 ledger_entry_ids=(entry.id,),
                 actor_user_id=graph.admin.id,
             )
             await approve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=batch.id,
                 actor_user_id=checker.id,
             )
@@ -910,302 +895,6 @@ def test_external_deletion_recovers_from_provider_not_found_without_false_finali
             **final,
             "provider_not_found_observed": True,
             "false_success": False,
-        },
-    )
-
-
-def _seed_report_issuance(
-    environment: RecoveryEnvironment,
-    settings: Settings,
-    tag: str,
-) -> UUID:
-    admin, advertiser, campaign = create_measurement_graph(
-        environment.sessionmaker,
-        identity_tag=tag,
-        identity_domain="example.com",
-    )
-
-    async def seed() -> UUID:
-        async with environment.sessionmaker() as session:
-            run = await issue_measurement_run(
-                session,
-                actor_user_id=admin.id,
-                payload=MeasurementRunCreate.model_validate(issue_payload(campaign.id)),
-                settings=settings,
-            )
-            issuance = await request_report_issuance(
-                session,
-                actor_user_id=advertiser.id,
-                measurement_run_id=run.id,
-                payload=ReportIssuanceCreate(client_request_id=uuid4()),
-                settings=settings,
-                admin=False,
-            )
-            await session.commit()
-            return issuance.id
-
-    return asyncio.run(seed())
-
-
-async def _report_state(
-    environment: RecoveryEnvironment,
-    issuance_id: UUID,
-) -> dict[str, object]:
-    async with environment.sessionmaker() as session:
-        issuance = await session.get(ReportIssuance, issuance_id)
-        publications = list(
-            await session.scalars(
-                select(ReportPublicationIntent)
-                .where(ReportPublicationIntent.report_issuance_id == issuance_id)
-                .order_by(ReportPublicationIntent.generation)
-            )
-        )
-        artifact_count = int(
-            await session.scalar(
-                select(func.count(ReportArtifact.id)).where(
-                    ReportArtifact.report_issuance_id == issuance_id
-                )
-            )
-            or 0
-        )
-        failed_audit_count = int(
-            await session.scalar(
-                select(func.count(AuditEvent.id)).where(
-                    AuditEvent.action == "report_issuance.failed",
-                    AuditEvent.entity_type == "report_issuance",
-                    AuditEvent.entity_id == str(issuance_id),
-                )
-            )
-            or 0
-        )
-        return {
-            "status": issuance.status,
-            "attempts": issuance.worker_attempts,
-            "last_error_code": issuance.last_error_code,
-            "publication_states": [row.state for row in publications],
-            "publication_write_states": [
-                list(
-                    await session.scalars(
-                        select(ReportPublicationWrite.state)
-                        .where(ReportPublicationWrite.publication_intent_id == row.id)
-                        .order_by(ReportPublicationWrite.format)
-                    )
-                )
-                for row in publications
-            ],
-            "artifact_count": artifact_count,
-            "failed_audit_count": failed_audit_count,
-        }
-
-
-async def _expire_report_leases(
-    environment: RecoveryEnvironment,
-    issuance_id: UUID,
-) -> None:
-    expired = datetime.now(UTC) - timedelta(seconds=1)
-    async with environment.sessionmaker() as session:
-        await session.execute(
-            update(ReportIssuance)
-            .where(ReportIssuance.id == issuance_id)
-            .values(lease_expires_at=expired)
-        )
-        await session.execute(
-            update(ReportPublicationIntent)
-            .where(ReportPublicationIntent.report_issuance_id == issuance_id)
-            .values(lease_expires_at=expired)
-        )
-        await session.commit()
-
-
-def test_report_publication_recovers_without_cleaning_unsettled_crashed_write(
-    recovery_environment: RecoveryEnvironment,
-    settings: Settings,
-) -> None:
-    runtime = _runtime_settings(settings, recovery_environment)
-    issuance_id = _seed_report_issuance(
-        recovery_environment,
-        runtime,
-        f"r58-report-partial-{uuid4().hex[:8]}",
-    )
-    job_id = f"r58:report:partial:{issuance_id}"
-    _enqueue(recovery_environment, "cron:sweep_report_issuances", job_id)
-    worker = recovery_environment.start_worker("report_after_first_artifact")
-    recovery_environment.wait_for_marker(worker, "report_after_first_artifact")
-    queue_state = recovery_environment.queue_state(job_id)
-    before_restart = asyncio.run(_report_state(recovery_environment, issuance_id))
-    storage = PersistentStorageProvider(recovery_environment.state_root / "storage")
-    assert before_restart["status"] == "processing"
-    assert before_restart["publication_states"] == ["publishing"]
-    assert before_restart["publication_write_states"] == [["registered"]]
-    assert len(storage.keys()) == 1
-    unresolved_key = storage.keys()[0]
-    exit_signal = recovery_environment.kill(worker)
-    asyncio.run(_expire_report_leases(recovery_environment, issuance_id))
-    restarted = recovery_environment.start_worker()
-    recovery_environment.wait_for_ack(restarted, job_id)
-    assert asyncio.run(_report_state(recovery_environment, issuance_id)) == before_restart
-    assert _effect_count(recovery_environment, "job_started", job_id=job_id) == 1
-    recovery_job_id = _enqueue_next_cron_occurrence(
-        recovery_environment,
-        "cron:sweep_report_issuances",
-        job_id,
-    )
-    recovery_environment.wait_for_ack(restarted, recovery_job_id)
-    assert _effect_count(recovery_environment, "job_started", job_id=recovery_job_id) == 1
-    final = asyncio.run(_report_state(recovery_environment, issuance_id))
-    assert final["status"] == "ready"
-    assert final["publication_states"] == ["abandoned", "complete"]
-    assert final["publication_write_states"] == [["registered"], ["settled", "settled"]]
-    assert final["artifact_count"] == 2
-    assert len(storage.keys()) == 3
-    assert unresolved_key in storage.keys()
-    report_puts = [
-        event
-        for event in read_provider_events(recovery_environment.state_root)
-        if event["event"] == "object_put" and "/reports/" in event["object_key"]
-    ]
-    assert len(report_puts) == 3
-    assert len({event["object_key"] for event in report_puts}) == 3
-    _write_receipt(
-        recovery_environment,
-        cut_point="report_after_first_artifact",
-        process=worker,
-        exit_signal=exit_signal,
-        job_id=job_id,
-        idempotency_key=str(issuance_id),
-        queue_state=queue_state,
-        database_state=before_restart,
-        provider_effect_count=3,
-        dead_letter_state={"abandoned_generation": "awaiting_write_settlement"},
-        post_restart_convergence={
-            "recovery_job_id": recovery_job_id,
-            **final,
-            "live_objects": len(storage.keys()),
-            "orphaned_objects": 0,
-            "registered_unsettled_objects": 1,
-            "duplicate_object_keys": False,
-        },
-    )
-
-
-def test_report_publication_commit_replays_before_broker_ack_without_duplicate_objects(
-    recovery_environment: RecoveryEnvironment,
-    settings: Settings,
-) -> None:
-    runtime = _runtime_settings(settings, recovery_environment)
-    issuance_id = _seed_report_issuance(
-        recovery_environment,
-        runtime,
-        f"r58-report-commit-{uuid4().hex[:8]}",
-    )
-    job_id = f"r58:report:commit:{issuance_id}"
-    _enqueue(recovery_environment, "cron:sweep_report_issuances", job_id)
-    worker = recovery_environment.start_worker("report_after_publication_commit")
-    recovery_environment.wait_for_marker(worker, "report_after_publication_commit")
-    queue_state = recovery_environment.queue_state(job_id)
-    before_restart = asyncio.run(_report_state(recovery_environment, issuance_id))
-    storage = PersistentStorageProvider(recovery_environment.state_root / "storage")
-    assert before_restart["status"] == "ready"
-    assert before_restart["artifact_count"] == 2
-    assert len(storage.keys()) == 2
-    exit_signal = recovery_environment.kill(worker)
-    restarted = recovery_environment.start_worker()
-    recovery_environment.wait_for_ack(restarted, job_id)
-    assert asyncio.run(_report_state(recovery_environment, issuance_id)) == before_restart
-    assert _effect_count(recovery_environment, "job_started", job_id=job_id) == 1
-    recovery_job_id = _enqueue_next_cron_occurrence(
-        recovery_environment,
-        "cron:sweep_report_issuances",
-        job_id,
-    )
-    recovery_environment.wait_for_ack(restarted, recovery_job_id)
-    assert _effect_count(recovery_environment, "job_started", job_id=recovery_job_id) == 1
-    final = asyncio.run(_report_state(recovery_environment, issuance_id))
-    assert final == before_restart
-    assert len(storage.keys()) == 2
-    assert _effect_count(recovery_environment, "object_put") == 2
-    _write_receipt(
-        recovery_environment,
-        cut_point="report_after_publication_commit_before_broker_ack",
-        process=worker,
-        exit_signal=exit_signal,
-        job_id=job_id,
-        idempotency_key=str(issuance_id),
-        queue_state=queue_state,
-        database_state=before_restart,
-        provider_effect_count=2,
-        post_restart_convergence={
-            "recovery_job_id": recovery_job_id,
-            **final,
-            "live_objects": len(storage.keys()),
-            "duplicate_objects": False,
-        },
-    )
-
-
-def test_report_expired_lease_dead_letter_survives_worker_kill_before_ack(
-    recovery_environment: RecoveryEnvironment,
-    settings: Settings,
-) -> None:
-    runtime = _runtime_settings(settings, recovery_environment)
-    issuance_id = _seed_report_issuance(
-        recovery_environment,
-        runtime,
-        f"r58-report-dead-{uuid4().hex[:8]}",
-    )
-
-    async def exhaust() -> None:
-        async with recovery_environment.sessionmaker() as session:
-            issuance = await session.get(ReportIssuance, issuance_id)
-            issuance.status = ReportIssuanceStatus.PROCESSING.value
-            issuance.worker_attempts = REPORT_MAX_ATTEMPTS
-            issuance.processing_token = uuid4()
-            issuance.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
-            issuance.next_attempt_at = None
-            issuance.last_error_code = None
-            issuance.ready_at = None
-            await session.commit()
-
-    asyncio.run(exhaust())
-    job_id = f"r58:report:dead-letter:{issuance_id}"
-    _enqueue(recovery_environment, "cron:sweep_report_issuances", job_id)
-    worker = recovery_environment.start_worker("report_after_dead_letter")
-    recovery_environment.wait_for_marker(worker, "report_after_dead_letter")
-    queue_state = recovery_environment.queue_state(job_id)
-    before_restart = asyncio.run(_report_state(recovery_environment, issuance_id))
-    assert before_restart["status"] == "failed"
-    assert before_restart["last_error_code"] == "worker_lease_expired"
-    assert before_restart["failed_audit_count"] == 1
-    exit_signal = recovery_environment.kill(worker)
-    restarted = recovery_environment.start_worker()
-    recovery_environment.wait_for_ack(restarted, job_id)
-    assert asyncio.run(_report_state(recovery_environment, issuance_id)) == before_restart
-    assert _effect_count(recovery_environment, "job_started", job_id=job_id) == 1
-    recovery_job_id = _enqueue_next_cron_occurrence(
-        recovery_environment,
-        "cron:sweep_report_issuances",
-        job_id,
-    )
-    recovery_environment.wait_for_ack(restarted, recovery_job_id)
-    assert _effect_count(recovery_environment, "job_started", job_id=recovery_job_id) == 1
-    final = asyncio.run(_report_state(recovery_environment, issuance_id))
-    assert final == before_restart
-    assert final["failed_audit_count"] == 1
-    _write_receipt(
-        recovery_environment,
-        cut_point="report_dead_letter_after_expired_lease_before_broker_ack",
-        process=worker,
-        exit_signal=exit_signal,
-        job_id=job_id,
-        idempotency_key=str(issuance_id),
-        queue_state=queue_state,
-        database_state={"status": "processing", "attempts": REPORT_MAX_ATTEMPTS},
-        provider_effect_count=0,
-        dead_letter_state=before_restart,
-        post_restart_convergence={
-            "recovery_job_id": recovery_job_id,
-            **final,
-            "duplicate_transition": False,
         },
     )
 

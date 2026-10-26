@@ -12,7 +12,6 @@ from starlette import status
 
 from app.core.config import Settings
 from app.core.errors import AppError
-from app.models.driver import DriverProfile
 from app.models.payout import (
     EarningsLedgerEntry,
     EarningsLedgerEntryStatus,
@@ -24,7 +23,7 @@ from app.models.trip import TripSession, TripSessionStatus
 from app.services.impressions import (
     quantize_2,
 )
-from app.services.payout_debt import record_reversal_obligation
+from app.services.payout_balances import lock_driver_money_scope
 from app.services.payout_rule_serialization import (
     acquire_campaign_terms_lock,
 )
@@ -417,21 +416,25 @@ async def write_day_differentials(  # noqa: C901
     recompute_at: datetime,
     correction_order_id: UUID | None = None,
     release_at: datetime | None = None,
+    chain_authority,
 ) -> RecomputeDayOutcome:
     """Execution mode of the PR6 core: posts append-only differential entries
     for the computation's nonzero deltas — adjustment for upward deltas (freed
     cap), positive reversal for downward deltas (netted negative in
     summaries). Under a correction order (MNY-06C), positive deltas post as
     PENDING with the order's own release_at (Q22); negative deltas keep the
-    reversal semantics — carry-forward debt when a reversal exceeds the
-    balance is MNY-11A's scope and is deliberately NOT implemented here.
+    trip-local negative adjustment semantics; no future trip is reduced.
     Calculations are never edited; running twice with unchanged inputs posts
     nothing.
     """
     campaign_id = computation.campaign_id
     driver_profile_id = computation.driver_profile_id
     lagos_date = computation.lagos_date
-    profile = await session.get(DriverProfile, driver_profile_id)
+    from app.services.disbursements import cancel_uncalled_trip_payouts
+
+    profile = await lock_driver_money_scope(
+        session, driver_profile_id=driver_profile_id, currency=computation.currency or ""
+    )
     if profile is None:
         raise AppError(
             "DRIVER_PROFILE_NOT_FOUND",
@@ -555,7 +558,12 @@ async def write_day_differentials(  # noqa: C901
                 adjustment_count += 1
             else:
                 reversal_count += 1
-                await record_reversal_obligation(session, reversal_entry=entry)
+                await cancel_uncalled_trip_payouts(
+                    session,
+                    trip_id=target.trip_session_id,
+                    chain_authority=chain_authority,
+                    resolved_at=recompute_at,
+                )
         outcomes.append(
             RecomputeDayTripOutcome(
                 trip_session_id=target.trip_session_id,
@@ -603,9 +611,15 @@ async def recompute_payout_day(
         lagos_date=lagos_date,
         settings=settings,
     )
+    from app.services.disbursements import lock_payout_chains
+
+    chains = await lock_payout_chains(
+        session, trip_ids=tuple(target.trip_session_id for target in computation.trips)
+    )
     return await write_day_differentials(
         session,
         computation=computation,
         request_metadata=request_metadata,
         recompute_at=recompute_at,
+        chain_authority=chains,
     )

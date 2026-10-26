@@ -249,11 +249,10 @@ def test_request_limit_survives_number_changes_and_live_retry_converges(
     db_client, db_sessionmaker, settings
 ):
     _, headers = setup_phone(db_client, db_sessionmaker, settings)
-    settings.phone_verification_request_max_attempts = 2
     first = db_client.post("/api/v1/driver/contact/phone-verification", headers=headers).json()
     retry = db_client.post("/api/v1/driver/contact/phone-verification", headers=headers).json()
     assert first == retry
-    for suffix, expected in [("102", 200), ("103", 429)]:
+    for suffix, expected in [("102", 200), ("103", 200), ("104", 429)]:
         assert (
             db_client.put(
                 "/api/v1/driver/contact/phone",
@@ -331,29 +330,25 @@ def test_phone_queue_filters_current_driver_and_paginates_without_secrets(
     assert first["code"] not in remaining.text and second["code"] not in remaining.text
 
 
+@pytest.mark.parametrize("environment", ["test", "development", "preview", "production"])
 @pytest.mark.parametrize(
-    "environment,number,operator,name,notice,available",
+    "number,available",
     [
-        ("test", "", False, "", "", False),
-        ("test", "+2347068369842", False, "", "", True),
-        ("development", "+2347074200080", True, "Somto", "approved-reference", False),
-        ("production", "+2347074200080", False, "Somto", "approved-reference", False),
-        ("production", "+2347074200080", True, "", "approved-reference", False),
-        ("production", "+2347074200080", True, "Somto", "", False),
-        ("production", "+447700900999", True, "Somto", "approved-reference", False),
-        ("production", "+2347074200080", True, "Somto", "approved-reference", True),
+        ("", False),
+        ("07074200080", False),
+        ("+2347074200080", True),
+        ("+2347068369842", True),
+        ("+447700900999", False),
+        ("+23407074200080", False),
     ],
 )
-def test_configuration_gates(environment, number, operator, name, notice, available, settings):
+def test_support_number_is_only_phone_configuration(environment, number, available, settings):
     from app.services.contacts import phone_verification_available
 
     configured = settings.model_copy(
         update={
             "environment": environment,
             "phone_verification_terrax_number": number,
-            "phone_operator_external_approved": operator,
-            "phone_operator_name": name,
-            "phone_whatsapp_notice_approval_reference": notice,
         }
     )
     assert phone_verification_available(configured) is available

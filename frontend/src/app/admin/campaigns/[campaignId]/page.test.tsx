@@ -1,9 +1,25 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ get: vi.fn(), notFound: vi.fn(), photo: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  get: vi.fn(),
+  notFound: vi.fn(),
+  photo: vi.fn(),
+  sectionFailure: "",
+  redirect: vi.fn(),
+}));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
-vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  notFound: mocks.notFound,
+  redirect: mocks.redirect,
+}));
+vi.mock("@/lib/auth/current-user", () => ({
+  requireRole: async () => ({ user: { id: "staff", role: "admin" } }),
+}));
+vi.mock("./cancel-campaign-form", () => ({
+  CancelCampaignForm: () => <p>Whole campaign cancellation</p>,
+}));
 vi.mock("../../approvals/review-actions", () => ({
   ReviewActions: () => <button>Review campaign</button>,
 }));
@@ -11,7 +27,9 @@ vi.mock("../../approvals/creative-review-actions", () => ({
   CreativeReviewActions: () => <button>Review artwork</button>,
 }));
 vi.mock("../../approvals/campaign-change-review-actions", () => ({
-  CampaignChangeReviewActions: () => <button>Review change</button>,
+  CampaignChangeReviewActions: ({ pendingFunding }: { pendingFunding?: boolean }) => (
+    <button data-pending-funding={String(pendingFunding)}>Review change</button>
+  ),
 }));
 vi.mock("../../approvals/installation-review-actions", () => ({
   InstallationReviewActions: (props: Record<string, unknown>) => {
@@ -28,17 +46,34 @@ vi.mock("../../assignments/cancel-button", () => ({
 vi.mock("../../assignments/new/assignment-form", () => ({
   AssignmentForm: () => <p>Offer form</p>,
 }));
-vi.mock("../pay-terms-section", () => ({ default: () => <p>Pay terms form</p> }));
-vi.mock("../../billing/[campaignId]/content", () => ({ default: () => <p>Campaign money</p> }));
+vi.mock("../pay-terms-section", () => ({
+  default: async () => {
+    if (mocks.sectionFailure === "terms") throw new Error("terms failed");
+    return <p>Pay terms form</p>;
+  },
+}));
+vi.mock("../../billing/[campaignId]/content", () => ({
+  default: async () => {
+    if (mocks.sectionFailure === "billing") throw new Error("billing failed");
+    return <p>Campaign money</p>;
+  },
+}));
 vi.mock("../../billing/[campaignId]/invoices/[invoiceId]/content", () => ({
-  default: () => <p>Invoice details</p>,
+  default: async () => {
+    if (mocks.sectionFailure === "invoice") throw new Error("invoice failed");
+    return <p>Invoice details</p>;
+  },
 }));
 vi.mock("../../billing/[campaignId]/closeout/content", () => ({
-  default: () => <p>Close-out details</p>,
+  default: async () => {
+    if (mocks.sectionFailure === "closeout") throw new Error("closeout failed");
+    return <p>Close-out details</p>;
+  },
 }));
-vi.mock("../../measurement/[runId]/content", () => ({ default: () => <p>Results details</p> }));
-vi.mock("../../measurement/issue-form", () => ({
-  IssueMeasurementForm: () => <p>Results form</p>,
+// S9/D118 replaces the measurement drawer with the single report list/Re-run.
+vi.mock("../../reports/report-actions", () => ({
+  RerunReportForm: () => <p>Results form</p>,
+  ReportDownloads: () => <p>Report downloads</p>,
 }));
 vi.mock("../resume-form", () => ({ ResumeForm: () => <button>Resume</button> }));
 vi.mock("../artwork-preview", () => ({ ArtworkPreview: () => <button>View artwork</button> }));
@@ -62,7 +97,7 @@ import CampaignHub from "./page";
 import { ApiError } from "@/lib/api/errors";
 const id = "00000000-0000-4000-8000-000000000001";
 const jobId = "00000000-0000-4000-8000-000000000002";
-const runId = "00000000-0000-4000-8000-000000000003";
+
 const campaign = {
   id,
   name: "PalmPay Wuse",
@@ -117,7 +152,8 @@ function reads({
         data: {
           terms: null,
           financial_authority: { authority_type: "corporate_credit" },
-          budget_evaluations: [{ resume_allowed: resume, billing_spend_amount: "100000.00" }],
+          // S14 / D114 retains D104 through the single budget_check projection.
+          budget_check: { resume_allowed: resume, billing_spend_amount: "100000.00" },
           invoices: [{ id: "invoice" }],
         },
       };
@@ -127,9 +163,7 @@ function reads({
     if (path.endsWith("/readiness")) return { data: { ready, message: "Check installation" } };
     if (path.endsWith("/installation-evidence"))
       return { data: { items: [{ id: "photo", revision: 1, status: photoStatus, photos: [] }] } };
-    if (path.endsWith("/measurement-runs")) return { data: { items: [], total: 0 } };
-    if (path.endsWith("/measurement-runs/{run_id}"))
-      return { data: { id: runId, campaign_id: parent } };
+
     return { data: { items: [], total: 0 } };
   });
 }
@@ -140,11 +174,36 @@ const page = (query = {}) =>
   });
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.sectionFailure = "";
   mocks.notFound.mockImplementation(() => {
     throw new Error("not found");
   });
   reads();
 });
+it.each(["terms", "billing"])("keeps siblings usable if the %s section throws", async (failure) => {
+  mocks.sectionFailure = failure;
+  render(await page());
+  expect(screen.getByRole("heading", { name: "PalmPay Wuse" })).toBeInTheDocument();
+  expect(screen.getByText("Offer form")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Try again" })).toBeInTheDocument();
+  expect(screen.queryByText(failure === "terms" ? "Pay terms form" : "Campaign money")).toBeNull();
+  expect(
+    screen.getByText(failure === "terms" ? "Campaign money" : "Pay terms form"),
+  ).toBeInTheDocument();
+});
+it.each([
+  ["invoice", { drawer: "invoice", invoice: "invoice" }, "Invoice"],
+  ["closeout", { drawer: "closeout" }, "Close-out"],
+] as const)(
+  "contains a failed %s panel without crashing the campaign",
+  async (failure, query, title) => {
+    mocks.sectionFailure = failure;
+    render(await page(query));
+    expect(screen.getByRole("dialog", { name: title })).toHaveTextContent("Try again");
+    expect(screen.getByText("Pay terms form")).toBeInTheDocument();
+    expect(screen.getByText("Campaign money")).toBeInTheDocument();
+  },
+);
 it.each([true, false])("offers Start only when readiness allows it (%s)", async (ready) => {
   reads({ ready });
   render(await page({ job: jobId }));
@@ -179,7 +238,7 @@ it("shows one drawer even when a URL includes several selections, and keeps pagi
       drawer: "invoice",
       invoice: "invoice",
       job: jobId,
-      run: runId,
+
       jobs_offset: "25",
     }),
   );
@@ -194,7 +253,6 @@ it("shows one drawer even when a URL includes several selections, and keeps pagi
 it.each([
   { drawer: "invoice", invoice: "elsewhere" },
   { job: "00000000-0000-4000-8000-000000000004" },
-  { run: runId },
 ])("refuses a detail selected from another campaign", async (query) => {
   reads({ parent: "other-campaign" });
   render(await page(query));
@@ -207,22 +265,23 @@ it("does not render or fan out for a denied campaign", async () => {
   await expect(page()).rejects.toThrow("not found");
   expect(mocks.get).toHaveBeenCalledOnce();
 });
-it("retains result reproducibility, replacement and report download state in the hub", async () => {
+// S9/D118: one report list replaces measurement selection/reproducibility controls.
+it("shows immutable ready report versions with both downloads", async () => {
   const original = mocks.get.getMockImplementation()!;
   mocks.get.mockImplementation(async (path: string) => {
-    if (path.endsWith("/measurement-runs"))
+    if (path.endsWith("/reports"))
       return {
         data: {
           items: [
             {
-              id: runId,
-              period_start_at: "2026-09-01T00:00:00Z",
-              period_end_at: "2026-10-01T00:00:00Z",
-              test_only: true,
-              superseded: true,
-              reproducible: false,
-              report_status: "published",
-              report_issuance_id: "report-1",
+              id: "report-1",
+              kind: "weekly",
+              status: "ready",
+              start_date: "2026-09-01",
+              end_date: "2026-10-01",
+              version: 2,
+              legacy: false,
+              campaigns: [{ id, name: campaign.name }],
             },
           ],
           total: 1,
@@ -231,13 +290,13 @@ it("retains result reproducibility, replacement and report download state in the
     return original(path);
   });
   render(await page());
-  const result = screen.getByRole("link", { name: /Replaced results/ });
-  expect(result).not.toHaveTextContent("Synthetic test");
-  expect(result).toHaveTextContent("cannot be reproduced — do not issue a report");
-  expect(result).toHaveTextContent("Report: Published");
-  expect(result).toHaveAttribute(
-    "href",
-    `/admin/campaigns/${id}?run=${runId}&report=report-1#results`,
+  expect(screen.getByText(/Version 2/)).toHaveTextContent(
+    "1 Sept 2026 → 1 Oct 2026 · Weekly report · Version 2",
+  );
+  expect(screen.getByText("Ready")).toBeInTheDocument();
+  expect(screen.getByText("Report downloads")).toBeInTheDocument();
+  expect(mocks.get.mock.calls.some(([path]) => String(path).includes("measurement-runs"))).toBe(
+    false,
   );
 });
 it("preserves job activity problems alongside readiness", async () => {
@@ -276,81 +335,108 @@ it("shows unavailable sections without inventing empty records or completed prer
   render(await page());
   expect(screen.getAllByRole("alert").length).toBeGreaterThan(5);
   expect(screen.queryByText("No driver jobs recorded.")).toBeNull();
-  expect(screen.queryByText("No results calculations recorded.")).toBeNull();
+  expect(screen.queryByText("No reports recorded.")).toBeNull();
   expect(screen.queryByText("Artwork status unavailable")).toBeNull();
   expect(screen.queryByRole("region", { name: "Launch checklist" })).toBeNull();
 });
-it("keeps named artwork, history, reviews and activity within their campaign", async () => {
-  const normal = mocks.get.getMockImplementation()!;
-  mocks.get.mockImplementation(async (path) => {
-    if (path.endsWith("/creatives"))
-      return {
-        data: {
-          items: [
-            {
-              id: "creative",
-              name: "Door wrap",
-              status: "pending_review",
-              stored_file_id: "file",
-              scan_status: "clean",
-            },
-          ],
-          total: 60,
-        },
-      };
-    if (path.endsWith("/review-history"))
-      return {
-        data: {
-          items: [
-            {
-              id: "history",
-              new_status: "rejected",
-              rejection_reason: "Fix artwork",
-              created_at: "2026-09-29T10:00:00Z",
-            },
-          ],
-          total: 60,
-        },
-      };
-    if (path.endsWith("/campaign-change-requests/pending"))
-      return { data: { items: [{ id: "change", campaign_id: id, status: "pending_review" }] } };
-    if (path.endsWith("/fraud-flags"))
-      return {
-        data: {
-          items: [{ id: "review", status: "open", description: "Trip needs checking" }],
-          total: 60,
-        },
-      };
-    if (path.endsWith("/audit-events"))
-      return {
-        data: {
-          items: [
-            { id: "event", action: "admin.campaign.approved", created_at: "2026-09-29T10:00:00Z" },
-          ],
-          total: 60,
-        },
-      };
-    return normal(path);
-  });
-  render(
-    await page({
-      history_offset: "25",
-      artwork_offset: "25",
-      reviews_offset: "25",
-      activity_offset: "25",
-    }),
-  );
-  expect(screen.getByRole("button", { name: "View artwork" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Review artwork" })).toBeTruthy();
-  expect(screen.getByText(/Fix artwork/)).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Review change" })).toBeTruthy();
-  expect(screen.getByRole("link", { name: /Trip needs checking/ })).toHaveAttribute(
-    "href",
-    `/admin/trip-checks?tab=suspicious&campaign_id=${id}&flag=review`,
-  );
-  expect(screen.getByText(/Campaign approved/)).toBeTruthy();
-  expect(screen.getAllByRole("link", { name: "Next →" }).length).toBeGreaterThanOrEqual(4);
-});
+it.each(["pending_admin", "pending_funding"])(
+  "keeps named artwork, history, reviews and activity within their campaign for %s",
+  async (status) => {
+    const normal = mocks.get.getMockImplementation()!;
+    mocks.get.mockImplementation(async (path) => {
+      if (path.endsWith("/creatives"))
+        return {
+          data: {
+            items: [
+              {
+                id: "creative",
+                name: "Door wrap",
+                status: "pending_review",
+                stored_file_id: "file",
+                scan_status: "clean",
+              },
+            ],
+            total: 60,
+          },
+        };
+      if (path.endsWith("/review-history"))
+        return {
+          data: {
+            items: [
+              {
+                id: "history",
+                new_status: "rejected",
+                rejection_reason: "Fix artwork",
+                created_at: "2026-09-29T10:00:00Z",
+              },
+            ],
+            total: 60,
+          },
+        };
+      if (path.endsWith("/campaign-change-requests/pending"))
+        return {
+          data: {
+            items: [
+              {
+                id: "change",
+                campaign_id: id,
+                status,
+                requested_liability_amount: "2000.00",
+                impact_preview: {
+                  before: { end_at: "2026-10-24T00:00:00Z", budget_amount: "100000.00" },
+                  after: { end_at: "2026-10-26T00:00:00Z", budget_amount: "120000.00" },
+                  request_reason: "Extend the advert",
+                },
+              },
+            ],
+          },
+        };
+      if (path.endsWith("/fraud-flags"))
+        return {
+          data: {
+            items: [{ id: "review", status: "open", description: "Trip needs checking" }],
+            total: 60,
+          },
+        };
+      if (path.endsWith("/audit-events"))
+        return {
+          data: {
+            items: [
+              {
+                id: "event",
+                action: "admin.campaign.approved",
+                created_at: "2026-09-29T10:00:00Z",
+              },
+            ],
+            total: 60,
+          },
+        };
+      return normal(path);
+    });
+    render(
+      await page({
+        history_offset: "25",
+        artwork_offset: "25",
+        reviews_offset: "25",
+        activity_offset: "25",
+      }),
+    );
+    expect(screen.getByRole("button", { name: "View artwork" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Review artwork" })).toBeTruthy();
+    expect(screen.getByText(/Fix artwork/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Review change" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Review change" })).toHaveAttribute(
+      "data-pending-funding",
+      String(status === "pending_funding"),
+    );
+    expect(screen.getByRole("link", { name: /Trip needs checking/ })).toHaveAttribute(
+      "href",
+      `/admin/trip-checks?tab=suspicious&campaign_id=${id}&flag=review`,
+    );
+    expect(screen.getByText(/Campaign approved/)).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "Next →" }).length).toBeGreaterThanOrEqual(4);
+  },
+);
 it("retains close-out as one drawer on the campaign hub", async () => {
   render(await page({ drawer: "closeout", page: "2" }));
   expect(screen.getByRole("dialog", { name: "Close-out" })).toHaveTextContent("Close-out details");

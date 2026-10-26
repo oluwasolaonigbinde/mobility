@@ -1,5 +1,7 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
 import { headers } from "next/headers";
 import { z } from "zod";
 import { createLoginApiClient } from "@/lib/api/client";
@@ -38,6 +40,7 @@ export async function requestPasswordResetAction(
       body: { email: parsed.data.email },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return {
       error: publicActionError(
         error,
@@ -51,7 +54,7 @@ export async function requestPasswordResetAction(
     };
   }
   return {
-    done: "If the account can be recovered, reset instructions will be sent.",
+    done: "If that email has an account, we've sent a link to reset your password. Check your inbox.",
     email: parsed.data.email,
   };
 }

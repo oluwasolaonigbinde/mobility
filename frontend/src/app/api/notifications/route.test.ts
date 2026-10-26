@@ -86,13 +86,13 @@ describe("notification BFF routes", () => {
     expect(mocks.get).toHaveBeenCalledTimes(1);
   });
 
-  it("preserves backend error envelopes and proxies advertiser preferences", async () => {
+  it("preserves error status and identifiers with safe copy, and proxies advertiser preferences", async () => {
     mocks.get
       .mockRejectedValueOnce(
         new ApiError(403, {
           code: "FORBIDDEN_ROLE",
-          message: "Advertiser role is required",
-          details: { role: "admin" },
+          message: "private advertiser contact private@example.com and token private-token",
+          details: { role: "admin", token: "private-token", latitude: 9.0765 },
           request_id: "request-1",
         }),
       )
@@ -103,14 +103,17 @@ describe("notification BFF routes", () => {
 
     const rejected = await preferenceGet();
     expect(rejected.status).toBe(403);
-    expect(await rejected.json()).toEqual({
+    expect(rejected.headers.get("cache-control")).toBe("no-store");
+    const rejectedBody = await rejected.json();
+    expect(rejectedBody).toEqual({
       error: {
         code: "FORBIDDEN_ROLE",
-        message: "Advertiser role is required",
-        details: { role: "admin" },
+        message: "The request could not be completed. Check the details and try again.",
+        details: {},
         request_id: "request-1",
       },
     });
+    expect(JSON.stringify(rejectedBody)).not.toMatch(/private|latitude|9\.0765|"role"/);
     expect(await (await preferenceGet()).json()).toEqual({
       in_app_enabled: true,
       transactional_email_enabled: true,

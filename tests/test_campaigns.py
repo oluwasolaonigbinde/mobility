@@ -119,7 +119,7 @@ def create_advertiser_with_org(
     db_sessionmaker,
     *,
     email: str,
-    role: MembershipRole = MembershipRole.OWNER,
+    role: MembershipRole = MembershipRole.ADVERTISER,
     membership_status: MembershipStatus = MembershipStatus.ACTIVE,
     currency: str = "NGN",
 ):
@@ -247,7 +247,7 @@ def test_advertiser_manager_can_create_campaign(db_client, db_sessionmaker) -> N
     _, organization = create_advertiser_with_org(
         db_sessionmaker,
         email="manager@example.com",
-        role=MembershipRole.MANAGER,
+        role=MembershipRole.ADVERTISER,
     )
 
     response = db_client.post(
@@ -292,14 +292,15 @@ def test_campaign_creation_and_generic_lifecycle_transitions_are_rejected(
     assert activate_without_terms.json()["error"]["code"] == "CAMPAIGN_REVIEW_STATE_CONFLICT"
 
 
-def test_advertiser_viewer_and_missing_membership_cannot_write_campaigns(
+def test_inactive_advertiser_and_missing_membership_cannot_write_campaigns(
     db_client,
     db_sessionmaker,
 ) -> None:
     viewer, organization = create_advertiser_with_org(
         db_sessionmaker,
         email="viewer@example.com",
-        role=MembershipRole.VIEWER,
+        role=MembershipRole.ADVERTISER,
+        membership_status=MembershipStatus.DISABLED,
     )
     campaign = create_test_campaign(
         db_sessionmaker,
@@ -315,7 +316,7 @@ def test_advertiser_viewer_and_missing_membership_cannot_write_campaigns(
     create_advertiser_with_org(
         db_sessionmaker,
         email="invited-manager@example.com",
-        role=MembershipRole.MANAGER,
+        role=MembershipRole.ADVERTISER,
         membership_status=MembershipStatus.INVITED,
     )
 
@@ -344,12 +345,12 @@ def test_advertiser_viewer_and_missing_membership_cannot_write_campaigns(
         json=campaign_payload(),
     )
 
-    assert viewer_create.status_code == http_status.HTTP_403_FORBIDDEN
-    assert viewer_update.status_code == http_status.HTTP_403_FORBIDDEN
-    assert viewer_submit.status_code == http_status.HTTP_403_FORBIDDEN
-    assert viewer_create.json()["error"]["code"] == "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN"
-    assert viewer_update.json()["error"]["code"] == "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN"
-    assert viewer_submit.json()["error"]["code"] == "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN"
+    assert viewer_create.status_code == http_status.HTTP_404_NOT_FOUND
+    assert viewer_update.status_code == http_status.HTTP_404_NOT_FOUND
+    assert viewer_submit.status_code == http_status.HTTP_404_NOT_FOUND
+    assert viewer_create.json()["error"]["code"] == "ADVERTISER_ORGANIZATION_NOT_FOUND"
+    assert viewer_update.json()["error"]["code"] == "ADVERTISER_ORGANIZATION_NOT_FOUND"
+    assert viewer_submit.json()["error"]["code"] == "ADVERTISER_ORGANIZATION_NOT_FOUND"
     assert missing_org_create.status_code == http_status.HTTP_404_NOT_FOUND
     assert missing_org_create.json()["error"]["code"] == "ADVERTISER_ORGANIZATION_NOT_FOUND"
     assert invited_manager_create.status_code == http_status.HTTP_404_NOT_FOUND
@@ -481,8 +482,7 @@ def test_campaign_create_validation_rejects_invalid_inputs(db_client, db_session
     ]
 
     assert all(
-        response.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
-        for response in responses
+        response.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT for response in responses
     )
     assert {response.json()["error"]["code"] for response in responses} == {"VALIDATION_ERROR"}
 
@@ -495,7 +495,7 @@ def test_campaign_review_lifecycle_binds_immutable_submission_history_and_audits
     advertiser, organization = create_advertiser_with_org(
         db_sessionmaker,
         email="review-manager@example.com",
-        role=MembershipRole.MANAGER,
+        role=MembershipRole.ADVERTISER,
     )
     other_advertiser, other_organization = create_advertiser_with_org(
         db_sessionmaker,
@@ -555,8 +555,8 @@ def test_campaign_review_lifecycle_binds_immutable_submission_history_and_audits
     assert submitted.json()["status"] == "pending_review"
     assert frozen_update.status_code == http_status.HTTP_409_CONFLICT
     assert frozen_update.json()["error"]["code"] == "CAMPAIGN_REVIEW_STATE_CONFLICT"
-    assert generic_schedule.status_code == http_status.HTTP_409_CONFLICT
-    assert generic_schedule.json()["error"]["code"] == "CAMPAIGN_REVIEW_STATE_CONFLICT"
+    assert generic_schedule.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert generic_schedule.json()["error"]["code"] == "VALIDATION_ERROR"
     assert pending.status_code == http_status.HTTP_200_OK
     assert [item["id"] for item in pending.json()["items"]] == [str(campaign.id)]
     assert blank_rejection.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
@@ -575,9 +575,10 @@ def test_campaign_review_lifecycle_binds_immutable_submission_history_and_audits
     canonical_snapshot = json.dumps(
         first_submission["reviewed_snapshot"], sort_keys=True, separators=(",", ":")
     )
-    assert first_submission["reviewed_snapshot_sha256"] == hashlib.sha256(
-        canonical_snapshot.encode("utf-8")
-    ).hexdigest()
+    assert (
+        first_submission["reviewed_snapshot_sha256"]
+        == hashlib.sha256(canonical_snapshot.encode("utf-8")).hexdigest()
+    )
     assert rejection["submission_event_id"] == first_submission["id"]
     assert rejection["rejection_reason"] == "Provide final dates."
     assert first_submission["created_at"]
@@ -633,15 +634,18 @@ def test_campaign_review_lifecycle_binds_immutable_submission_history_and_audits
         "pending_review",
     ]
     assert history_items[0]["submission_event_id"] == history_items[1]["id"]
-    assert history_items[1]["reviewed_snapshot_sha256"] != first_submission[
-        "reviewed_snapshot_sha256"
-    ]
+    assert (
+        history_items[1]["reviewed_snapshot_sha256"] != first_submission["reviewed_snapshot_sha256"]
+    )
     assert other_history.status_code == http_status.HTTP_404_NOT_FOUND
     assert other_admin_history.status_code == http_status.HTTP_200_OK
     assert other_admin_history.json()["total"] == 0
-    assert db_client.get("/api/v1/admin/campaigns/pending-review", headers=admin_headers).json()[
-        "total"
-    ] == 0
+    assert (
+        db_client.get("/api/v1/admin/campaigns/pending-review", headers=admin_headers).json()[
+            "total"
+        ]
+        == 0
+    )
 
     audit_events = fetch_audit_events(db_sessionmaker)
     assert [event.action for event in audit_events] == [
@@ -899,6 +903,7 @@ def test_admin_can_list_and_read_campaigns_across_organizations(
     assert "password_hash" not in get_response.text
     assert advertiser_response.status_code == http_status.HTTP_403_FORBIDDEN
     assert advertiser_response.json()["error"]["code"] == "FORBIDDEN_ROLE"
+
 
 @pytest.mark.parametrize(
     ("dates", "budget", "zone_type", "missing"),

@@ -1,3 +1,4 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/current-user";
 import type { components } from "@/lib/api/schema";
@@ -8,6 +9,7 @@ import { moneyHref, moneyPage, type MoneyQuery } from "../../../../../money/navi
 import { batchApi, type PayoutBatch } from "../../../batch-api";
 import { outcomeLabel } from "../../../operation-types";
 import { PollLineAction } from "../../../batch-forms";
+import { NegativeAdjustmentForm } from "../../../negative-adjustment-form";
 export default async function PaymentHistory({
   params,
   searchParams,
@@ -21,7 +23,8 @@ export default async function PaymentHistory({
   let parent: PayoutBatch;
   try {
     parent = await batchApi<PayoutBatch>(`/${batchId}`);
-  } catch {
+  } catch (error) {
+    adminValueFailure(error);
     return <QueueUnavailable />;
   }
   if (parent.id !== batchId || !Array.isArray(parent.lines)) return <QueueUnavailable />;
@@ -33,7 +36,8 @@ export default async function PaymentHistory({
     history = await batchApi<components["schemas"]["PayoutLineHistoryRead"]>(
       `/lines/${lineId}/history?limit=25&offset=${page * 25}`,
     );
-  } catch {
+  } catch (error) {
+    adminValueFailure(error);
     return <QueueUnavailable />;
   }
   return (
@@ -45,6 +49,7 @@ export default async function PaymentHistory({
         Back to payment run
       </Link>
       <p>{formatMoneyExact(line.amount, line.currency)}</p>
+      <NegativeAdjustmentForm entryId={line.ledger_entry_id} currency={line.currency} />
       <p>
         Latest provider answer:{" "}
         {history.latest_submission_outcome

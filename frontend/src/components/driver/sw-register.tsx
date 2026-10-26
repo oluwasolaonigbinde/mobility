@@ -5,8 +5,12 @@ import { useEffect } from "react";
 export function ServiceWorkerRegister() {
   useEffect(() => {
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
+      const release = process.env.NEXT_PUBLIC_RELEASE_REVISION?.trim() || "local";
       navigator.serviceWorker
-        .register("/driver-sw.js", { scope: "/driver", updateViaCache: "none" })
+        .register(`/driver-sw.js?release=${encodeURIComponent(release)}`, {
+          scope: "/driver",
+          updateViaCache: "none",
+        })
         .then((registration) => {
           window.dispatchEvent(
             new CustomEvent("cardvert-driver-service-worker", {

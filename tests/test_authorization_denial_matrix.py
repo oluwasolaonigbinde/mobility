@@ -21,7 +21,6 @@ from conftest import (
     create_test_organization,
     create_test_user,
 )
-from pydantic import SecretStr
 from sqlalchemy import func, select
 
 from app.adapters.disbursement import FakeDisbursementAdapter
@@ -300,14 +299,6 @@ def test_machine_callbacks_reject_forged_authority_without_effects(
         PaystackPaymentGatewayAdapter(PaystackClient("sk_test_synthetic_matrix_key"))
     )
     db_client.app.dependency_overrides[get_payment_event_enqueuer] = ForbiddenEnqueuer
-    settings.email_receipt_signing_secret = SecretStr("matrix-email-secret")
-    settings.email_receipt_key_id = "matrix-v1"
-    callback_payload = {
-        "provider_event_id": "matrix-event",
-        "provider_message_id": "matrix-message",
-        "outcome": "delivered",
-        "occurred_at": "2026-09-02T12:00:00Z",
-    }
     before = _database_fingerprint(db_sessionmaker)
 
     responses = {
@@ -320,14 +311,6 @@ def test_machine_callbacks_reject_forged_authority_without_effects(
             "/api/v1/webhooks/paystack",
             content=b"{}",
             headers={"X-Paystack-Signature": "forged"},
-        ),
-        ("POST", "/api/v1/notifications/email/delivery-receipts"): db_client.post(
-            "/api/v1/notifications/email/delivery-receipts",
-            json=callback_payload,
-            headers={
-                "X-Email-Receipt-Signature": "forged",
-                "X-Email-Receipt-Key-Id": "matrix-v1",
-            },
         ),
     }
 
@@ -427,17 +410,18 @@ def test_generated_advertiser_campaign_reads_hide_foreign_guessed_and_stale_memb
 
 
 @pytest.mark.parametrize(
-    ("membership_role", "membership_status", "expected_status"),
+    ("membership_status", "user_status", "organization_status", "expected_status"),
     [
-        (MembershipRole.OWNER, MembershipStatus.ACTIVE, 201),
-        (MembershipRole.MANAGER, MembershipStatus.ACTIVE, 201),
-        (MembershipRole.VIEWER, MembershipStatus.ACTIVE, 403),
-        (MembershipRole.MANAGER, MembershipStatus.DISABLED, 404),
+        (MembershipStatus.ACTIVE, UserStatus.ACTIVE, "active", 201),
+        (MembershipStatus.DISABLED, UserStatus.ACTIVE, "active", 404),
+        (MembershipStatus.ACTIVE, UserStatus.DISABLED, "active", 403),
+        (MembershipStatus.ACTIVE, UserStatus.ACTIVE, "disabled", 404),
     ],
 )
 def test_advertiser_write_capability_matrix(
-    membership_role,
     membership_status,
+    user_status,
+    organization_status,
     expected_status,
     postgis_db_client,
     postgis_db_sessionmaker,
@@ -447,14 +431,16 @@ def test_advertiser_write_capability_matrix(
     db_sessionmaker = postgis_db_sessionmaker
     actor = create_test_user(
         db_sessionmaker,
-        email=f"matrix-{membership_role}-{membership_status}@example.com",
+        email="matrix-advertiser@example.com",
         role=UserRole.ADVERTISER,
+        user_status=user_status,
     )
     create_test_organization(
         db_sessionmaker,
-        name=f"Matrix {membership_role} {membership_status}",
+        name="Matrix advertiser",
+        organization_status=organization_status,
         owner_user_id=actor.id,
-        membership_role=membership_role,
+        membership_role=MembershipRole.ADVERTISER,
         membership_status=membership_status,
     )
     before = _audit_count(db_sessionmaker)
@@ -473,7 +459,7 @@ def test_advertiser_write_capability_matrix(
 
     assert response.status_code == expected_status, response.text
     if expected_status == 403:
-        assert response.json()["error"]["code"] == "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN"
+        assert response.json()["error"]["code"] == "USER_NOT_ACTIVE"
     if expected_status == 404:
         assert response.json()["error"]["code"] == "ADVERTISER_ORGANIZATION_NOT_FOUND"
     expected_audit_delta = 1 if expected_status == 201 else 0
@@ -486,9 +472,11 @@ def test_applicant_capability_routes_reject_invalid_capability_without_audit_eff
 ) -> None:
     db_client = postgis_db_client
     db_sessionmaker = postgis_db_sessionmaker
-    settings.driver_registration_enabled = True
     route = next(route for route in authorization_inventory() if route.key == route_key)
     payloads = {
+        "/api/v1/auth/driver-onboarding/continue": {
+            "application_access_token": "invalid-capability"
+        },
         "/api/v1/auth/driver-onboarding/account-name": {
             "application_access_token": "invalid-capability",
             "bank_code": "058",

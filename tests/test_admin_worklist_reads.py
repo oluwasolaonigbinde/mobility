@@ -35,7 +35,6 @@ READ_OPTIONS = {
         "trip_session_id": "ffffffff-ffff-4fff-8fff-ffffffffffff",
     },
     "/api/v1/admin/fraud-flags": {"group_by_trip": "true", "unresolved_only": "true"},
-    "/api/v1/admin/trips/quarantined-batches": {"status": "quarantined"},
     "/api/v1/admin/payout-batches/summaries": {"needs_attention": "true", "oldest_first": "true"},
     "/api/v1/admin/payouts/automatic/alerts": {"oldest_first": "true"},
     "/api/v1/admin/payouts/correction-orders": {"oldest_first": "true"},
@@ -82,7 +81,7 @@ def test_group_before_count_and_limit_and_hold_once(db_client, db_sessionmaker):
     graph = build_review_graph(db_sessionmaker, "grouped")
     other = build_review_graph(db_sessionmaker, "grouped-other")
     first = create_flag(db_sessionmaker, graph)
-    second = create_flag(db_sessionmaker, graph, flag_type="poor_accuracy")
+    second = create_flag(db_sessionmaker, graph, flag_type="excessive_ping_gap")
     third = create_flag(db_sessionmaker, other)
     create_ledger(db_sessionmaker, graph, amount="3263.51")
 
@@ -91,9 +90,7 @@ def test_group_before_count_and_limit_and_hold_once(db_client, db_sessionmaker):
             f = await session.get(FraudFlag, first.id)
             f.detected_at -= timedelta(days=2)
             s = await session.get(FraudFlag, second.id)
-            s.status = "acknowledged"
-            s.reviewed_by_user_id = graph.admin.id
-            s.reviewed_at = s.detected_at
+            s.status = "open"
             await session.commit()
 
     asyncio.run(dates())
@@ -103,6 +100,9 @@ def test_group_before_count_and_limit_and_hold_once(db_client, db_sessionmaker):
     assert page.status_code == 200, page.text
     data = page.json()
     assert data["total"] == 2 and len(data["items"]) == 1
+    badges = db_client.get("/api/v1/admin/badge-summary", headers=headers)
+    assert badges.status_code == 200
+    assert badges.json()["source_counts"]["trips"] == data["total"]
     row = data["items"][0]
     assert row["id"] == str(first.id) and row["problem_count"] == 2
     assert row["driver_name"] and row["campaign_name"] and row["trip_started_at"]

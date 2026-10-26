@@ -1,5 +1,8 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
@@ -21,35 +24,24 @@ export interface SpotCheckActionState {
   done?: string;
 }
 
-const reviewSchema = z.discriminatedUnion("intent", [
-  z.object({
-    flag_id: z.string().uuid(),
-    intent: z.literal("acknowledge"),
-  }),
-  z.object({
-    flag_id: z.string().uuid(),
-    intent: z.enum(["confirm", "dismiss"]),
-    note: z.string().trim().min(1, "A review note is required").max(2000),
-  }),
-]);
+const reviewSchema = z.object({
+  flag_id: z.string().uuid(),
+  intent: z.enum(["confirm", "dismiss"]),
+  note: z.string().trim().min(1, "A review note is required").max(2000),
+});
 
 const disputeReplySchema = z.object({
   dispute_id: z.string().uuid(),
   reply: z.string().trim().min(1, "A driver reply is required").max(2000),
 });
 
-const spotCheckQueueSchema = z.object({
+const spotCheckSchema = z.object({
   assignment_id: z.string().uuid(),
   trip_session_id: z.string().uuid(),
-  note: z.string().trim().min(1, "A queue note is required").max(2000),
-});
-
-const spotCheckResultSchema = z.object({
-  verification_id: z.string().uuid(),
+  client_request_id: z.string().uuid(),
   outcome: z.enum(["passed", "failed"]),
   note: z.string().trim().min(1, "A result note is required").max(2000),
 });
-
 export async function reviewFraudFlagAction(
   _prev: FraudReviewActionState,
   formData: FormData,
@@ -68,30 +60,22 @@ export async function reviewFraudFlagAction(
   const path = { params: { path: { flag_id } } };
 
   try {
-    if (intent === "acknowledge") {
-      await api.POST("/api/v1/admin/fraud-flags/{flag_id}/review/acknowledge", path);
-    } else {
-      await api.POST("/api/v1/admin/fraud-flags/{flag_id}/review/resolve", {
-        ...path,
-        body: {
-          outcome: intent === "confirm" ? "confirmed" : "dismissed",
-          note: parsed.data.note,
-        },
-      });
-    }
+    await api.POST("/api/v1/admin/fraud-flags/{flag_id}/review/resolve", {
+      ...path,
+      body: {
+        outcome: intent === "confirm" ? "confirmed" : "dismissed",
+        note: parsed.data.note,
+      },
+    });
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the server." };
   }
 
   revalidatePath("/admin/trip-checks");
   return {
-    done:
-      intent === "acknowledge"
-        ? "Review started"
-        : intent === "confirm"
-          ? "Problem confirmed"
-          : "Trip cleared",
+    done: intent === "confirm" ? "Problem confirmed" : "Trip cleared",
   };
 }
 
@@ -115,7 +99,8 @@ export async function replyFraudDisputeAction(
       body: { reply },
     });
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the server." };
   }
 
@@ -123,65 +108,32 @@ export async function replyFraudDisputeAction(
   return { done: "Reply sent to driver" };
 }
 
-export async function queueSpotCheckAction(
+export async function recordSpotCheckAction(
   _prev: SpotCheckActionState,
   formData: FormData,
 ): Promise<SpotCheckActionState> {
-  const parsed = spotCheckQueueSchema.safeParse({
-    assignment_id: String(formData.get("assignment_id") ?? ""),
-    trip_session_id: String(formData.get("trip_session_id") ?? ""),
-    note: String(formData.get("note") ?? ""),
-  });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid spot-check request" };
-  }
+  const parsed = spotCheckSchema.safeParse(
+    Object.fromEntries(
+      ["assignment_id", "trip_session_id", "client_request_id", "outcome", "note"].map((name) => [
+        name,
+        String(formData.get(name) ?? ""),
+      ]),
+    ),
+  );
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the result" };
   const api = createApiClient(await getSessionToken());
   try {
     await api.POST("/api/v1/admin/evidence-verifications/physical-spot-checks", {
-      body: {
-        ...parsed.data,
-        client_request_id: crypto.randomUUID(),
-        metadata: { queue_surface: "admin_fraud_console" },
-      },
+      body: parsed.data,
     });
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
-    return { error: "Could not reach the server." };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
+    return { error: "The result couldn't be confirmed. Retry with the same details." };
   }
   revalidatePath("/admin/trip-checks");
-  return { done: "In-person check requested" };
-}
-
-export async function resolveSpotCheckAction(
-  _prev: SpotCheckActionState,
-  formData: FormData,
-): Promise<SpotCheckActionState> {
-  const parsed = spotCheckResultSchema.safeParse({
-    verification_id: String(formData.get("verification_id") ?? ""),
-    outcome: String(formData.get("outcome") ?? ""),
-    note: String(formData.get("note") ?? ""),
-  });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid spot-check result" };
-  }
-  const { verification_id, outcome, note } = parsed.data;
-  const api = createApiClient(await getSessionToken());
-  try {
-    await api.POST(
-      "/api/v1/admin/evidence-verifications/{verification_id}/physical-spot-check-result",
-      {
-        params: { path: { verification_id } },
-        body: {
-          outcome,
-          note,
-          evidence: { method: "physical_observation", result_surface: "admin_fraud_console" },
-        },
-      },
-    );
-  } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
-    return { error: "Could not reach the server." };
-  }
-  revalidatePath("/admin/trip-checks");
-  return { done: outcome === "passed" ? "In-person check passed" : "Failure sent to trip review" };
+  return {
+    done:
+      parsed.data.outcome === "passed" ? "In-person check passed" : "Failure sent to trip review",
+  };
 }

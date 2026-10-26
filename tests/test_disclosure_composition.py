@@ -46,7 +46,7 @@ def test_three_query_cross_endpoint_and_principal_composition_is_recorded(
         filters={"projection": "issued-report"},
     )
     non_overlapping = DisclosureQuery(
-        route_id="advertiser.audience.export",
+        route_id="advertiser.campaign.live_positions",
         principal_id=uuid4(),
         tenant_id=tenant_id,
         campaign_id=campaign_id,
@@ -107,7 +107,7 @@ def test_non_heatmap_floor_suppression_is_durable(db_sessionmaker) -> None:
                         has_releasable_cells=False,
                         result_hash="0" * 64,
                     )
-                assert suppressed.value.details == {"reason": "minimum_counts_or_contributor_cap"}
+                assert suppressed.value.details == {"reason": "minimum_cars"}
 
     asyncio.run(run())
 
@@ -153,6 +153,6 @@ def test_campaign_summary_denies_a_single_contributor_before_returning_values(
                     settings=live_settings(),
                 )
             assert suppressed.value.code == "DISCLOSURE_SUPPRESSED"
-            assert suppressed.value.details == {"reason": "minimum_counts_or_contributor_cap"}
+            assert suppressed.value.details == {"reason": "minimum_cars"}
 
     asyncio.run(run())

@@ -23,11 +23,7 @@ from app.models.trip_analytics import FraudFlag, FraudFlagStatus, FraudFlagType
 from app.models.user import User, UserRole
 from app.models.vehicle import VehicleStatus
 from app.services import route_replay
-from app.services.fraud_holds import (
-    acknowledge_fraud_flag,
-    fraud_hold_counts,
-    resolve_fraud_flag,
-)
+from app.services.fraud_holds import fraud_hold_counts, resolve_fraud_flag
 
 BASE_TIME = datetime(2026, 8, 1, 8, 0, tzinfo=UTC)
 PASSWORD = "long-secure-password"
@@ -95,9 +91,7 @@ def test_distinct_route_does_not_match() -> None:
 @pytest.mark.parametrize("latitude_offset", [0.001 * index for index in range(1, 21)])
 def test_distinct_route_family_has_no_false_match(latitude_offset: float) -> None:
     original = fingerprints([ping(index) for index in range(10)])
-    distinct = fingerprints(
-        [ping(index, latitude_offset=latitude_offset) for index in range(10)]
-    )
+    distinct = fingerprints([ping(index, latitude_offset=latitude_offset) for index in range(10)])
 
     assert original.normalized_fingerprint != distinct.normalized_fingerprint
 
@@ -363,7 +357,7 @@ def test_cross_account_time_shift_flag_has_bounded_redacted_evidence(
     assert third.replay_flag.evidence["cross_account_match_count"] == 2
 
 
-@pytest.mark.parametrize("review_status", ["acknowledged", "confirmed", "dismissed"])
+@pytest.mark.parametrize("review_status", ["confirmed", "dismissed"])
 def test_replay_redetection_preserves_active_review_and_reopens_after_dismissal(
     db_sessionmaker,
     settings,
@@ -407,21 +401,14 @@ def test_replay_redetection_preserves_active_review_and_reopens_after_dismissal(
                     User.email == f"replay-admin-review-late-{review_status}@example.com"
                 )
             )
-            await acknowledge_fraud_flag(
+            await resolve_fraud_flag(
                 session,
                 flag_id=original_id,
                 actor_user_id=actor.id,
-                now=BASE_TIME + timedelta(hours=4),
+                outcome=review_status,
+                resolution_note=f"Review outcome: {review_status}.",
+                now=BASE_TIME + timedelta(hours=4, minutes=1),
             )
-            if review_status != "acknowledged":
-                await resolve_fraud_flag(
-                    session,
-                    flag_id=original_id,
-                    actor_user_id=actor.id,
-                    outcome=review_status,
-                    resolution_note=f"Review outcome: {review_status}.",
-                    now=BASE_TIME + timedelta(hours=4, minutes=1),
-                )
             await session.commit()
 
         async with db_sessionmaker() as session:
@@ -602,9 +589,7 @@ def test_large_group_counts_all_matches_but_bounds_evidence_sample(
     db_sessionmaker,
     settings,
 ) -> None:
-    bounded_settings = settings.model_copy(
-        update={"route_replay_max_evidence_matches": 3}
-    )
+    bounded_settings = settings.model_copy(update={"route_replay_max_evidence_matches": 3})
     graphs = [
         create_graph(
             db_sessionmaker,
@@ -777,6 +762,7 @@ def test_postgres_regrouping_retains_unresolved_flag_and_money_hold(
 
     asyncio.run(inspect())
 
+
 def test_postgres_concurrent_reverse_processing_flags_only_latest_trip(
     postgis_db_sessionmaker,
     settings,
@@ -913,9 +899,7 @@ def test_postgres_reconciliation_waits_for_other_trip_money_hold(
                     session,
                     trip=incoming_trip,
                     analytics=incoming_analytics,
-                    ordered_pings=[
-                        ping(index, shifted_seconds=7200) for index in range(count)
-                    ],
+                    ordered_pings=[ping(index, shifted_seconds=7200) for index in range(count)],
                     settings=settings,
                     now=BASE_TIME + timedelta(hours=5),
                 )
@@ -1031,10 +1015,7 @@ def test_postgres_concurrent_old_to_new_group_transition_reconciles_both_groups(
             process(
                 moving[0],
                 moving[1],
-                [
-                    ping(index, shifted_seconds=3600, latitude_offset=0.03)
-                    for index in range(count)
-                ],
+                [ping(index, shifted_seconds=3600, latitude_offset=0.03) for index in range(count)],
             ),
             process(
                 old_latest[0],

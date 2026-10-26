@@ -247,7 +247,7 @@ def storage(db_client):
     db_client.app.dependency_overrides.pop(get_storage_provider, None)
 
 
-def advertiser_with_org(db_sessionmaker, email: str, *, role=MembershipRole.OWNER):
+def advertiser_with_org(db_sessionmaker, email: str, *, role=MembershipRole.ADVERTISER):
     user = create_test_user(
         db_sessionmaker,
         email=email,
@@ -557,16 +557,23 @@ def test_confirmation_rejects_server_observed_mismatch_without_creating_file(
     asyncio.run(inspect())
 
 
-def test_upload_expiry_cross_tenant_and_viewer_fail_closed(
+def test_upload_expiry_cross_tenant_and_disabled_company_fail_closed(
     db_client, db_sessionmaker, storage
 ) -> None:
     owner_a, _ = advertiser_with_org(db_sessionmaker, "tenant-a@example.com")
     owner_b, _ = advertiser_with_org(db_sessionmaker, "tenant-b@example.com")
-    advertiser_with_org(
+    disabled_user, disabled_company = advertiser_with_org(
         db_sessionmaker,
-        "viewer-upload@example.com",
-        role=MembershipRole.VIEWER,
+        "disabled-company-upload@example.com",
     )
+
+    async def disable_company():
+        async with db_sessionmaker() as session:
+            company = await session.get(type(disabled_company), disabled_company.id)
+            company.status = "disabled"
+            await session.commit()
+
+    asyncio.run(disable_company())
     created = create_upload(db_client, owner_a.email).json()
     object_key = created["upload"]["fields"]["key"]
     storage.objects[object_key] = ObjectMetadata(
@@ -580,12 +587,12 @@ def test_upload_expiry_cross_tenant_and_viewer_fail_closed(
         f"/api/v1/advertiser/files/uploads/{created['upload_id']}/confirm",
         headers=auth_headers(db_client, owner_b.email, PASSWORD),
     )
-    viewer = create_upload(db_client, "viewer-upload@example.com")
+    disabled_upload = create_upload(db_client, disabled_user.email)
 
     assert cross_tenant.status_code == 404
     assert cross_tenant.json()["error"]["code"] == "FILE_UPLOAD_NOT_FOUND"
-    assert viewer.status_code == 403
-    assert viewer.json()["error"]["code"] == "ORGANIZATION_WRITE_FORBIDDEN"
+    assert disabled_upload.status_code == 404
+    assert disabled_upload.json()["error"]["code"] == "FILE_SCOPE_NOT_FOUND"
 
     async def expire() -> None:
         async with db_sessionmaker() as session:

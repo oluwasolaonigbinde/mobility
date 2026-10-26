@@ -1,5 +1,4 @@
 import hashlib
-import hmac
 import json
 from datetime import UTC, datetime
 from typing import Any
@@ -11,12 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from app.core.errors import AppError
+from app.core.outbox_enqueue import pending_job
 from app.models.assignment_activity import (
     AssignmentActivityFlag,
-    AssignmentActivityFlagEventType,
-    AssignmentActivityFlagType,
 )
-from app.models.billing import BudgetCampaignTransition, BudgetPolicyEvaluation
+from app.models.billing import BudgetCampaignTransition
 from app.models.campaign import Campaign
 from app.models.campaign_assignment import CampaignAssignment
 from app.models.contact import PasswordResetToken
@@ -25,7 +23,6 @@ from app.models.driver_application import DriverAccountSetupToken, DriverApplica
 from app.models.notification import (
     Notification,
     NotificationChannel,
-    NotificationDeliveryReceipt,
     NotificationStatus,
     NotificationType,
 )
@@ -48,22 +45,18 @@ _CAMPAIGN_NOTICE_TYPES = {
     NotificationType.CREATIVE_APPROVED,
     NotificationType.CREATIVE_REJECTED,
     NotificationType.QUOTATION_READY,
+    NotificationType.REPORT_READY,
     NotificationType.FUNDING_CONFIRMED,
     NotificationType.BUDGET_ALERT,
     NotificationType.BUDGET_URGENT_ALERT,
     NotificationType.CAMPAIGN_BUDGET_PAUSED,
     NotificationType.CAMPAIGN_BUDGET_RESUMED,
     NotificationType.CAMPAIGN_CANCELLED,
-    NotificationType.EVIDENCE_CHALLENGE_CREATED,
-    NotificationType.EVIDENCE_VERIFIED,
     NotificationType.PAYOUT_RELEASED,
     NotificationType.FRAUD_HOLD_RAISED,
     NotificationType.FRAUD_REVIEW_RESOLVED,
     NotificationType.FRAUD_DISPUTE_REPLIED,
-    NotificationType.ACTIVITY_FLOOR_BREACHED,
-    NotificationType.ACTIVITY_FLOOR_RECOVERED,
     NotificationType.ASSIGNMENT_INACTIVE,
-    NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED,
 }
 
 
@@ -130,7 +123,8 @@ async def notification_campaign_context(
             )
         except AppError:
             return None
-        return campaign.name, f"/advertiser/campaigns/{campaign.id}"
+        suffix = "/report" if notice.type_key == NotificationType.REPORT_READY else ""
+        return campaign.name, f"/advertiser/campaigns/{campaign.id}{suffix}"
     assignment = await session.scalar(
         select(CampaignAssignment)
         .join(DriverProfile, CampaignAssignment.driver_profile_id == DriverProfile.id)
@@ -259,6 +253,8 @@ async def create_notification(
         if existing.dedupe_fingerprint != fingerprint:
             raise _dedupe_conflict() from None
         return existing
+    if not is_in_app:
+        pending_job(session, "deliver_email", notice.id)
     return notice
 
 
@@ -314,115 +310,6 @@ async def create_advertiser_email_notification(
         channel=NotificationChannel.TRANSACTIONAL_EMAIL,
         template_version=template_version,
     )
-
-
-def email_receipt_fingerprint(payload: dict[str, Any]) -> tuple[bytes, str]:
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-    return canonical, hashlib.sha256(canonical).hexdigest()
-
-
-async def record_email_delivery_receipt(  # noqa: C901
-    session: AsyncSession,
-    *,
-    payload: dict[str, Any],
-    signature: str,
-    signing_key_id: str,
-    signing_secret: bytes | None,
-    configured_key_id: str,
-) -> NotificationDeliveryReceipt:
-    if not signing_secret or not configured_key_id:
-        raise AppError(
-            "EMAIL_RECEIPTS_UNCONFIGURED",
-            "Email delivery receipts are not configured",
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        )
-    canonical, fingerprint = email_receipt_fingerprint(payload)
-    supplied = signature.removeprefix("sha256=")
-    expected = hmac.new(signing_secret, canonical, hashlib.sha256).hexdigest()
-    if signing_key_id != configured_key_id or not hmac.compare_digest(expected, supplied):
-        raise AppError(
-            "INVALID_EMAIL_RECEIPT_SIGNATURE",
-            "Email delivery receipt signature is invalid",
-            status_code=status.HTTP_401_UNAUTHORIZED,
-        )
-    existing_event = await session.scalar(
-        select(NotificationDeliveryReceipt).where(
-            NotificationDeliveryReceipt.provider_event_id == payload["provider_event_id"]
-        )
-    )
-    if existing_event is not None:
-        if existing_event.evidence_fingerprint != fingerprint:
-            raise AppError(
-                "EMAIL_RECEIPT_REPLAY_CONFLICT",
-                "Email delivery receipt retry does not match the original event",
-                status_code=status.HTTP_409_CONFLICT,
-            )
-        return existing_event
-    notice = await session.scalar(
-        select(Notification)
-        .where(Notification.provider_message_id == payload["provider_message_id"])
-        .with_for_update()
-    )
-    if notice is None:
-        raise AppError(
-            "EMAIL_NOTIFICATION_NOT_FOUND",
-            "Email delivery receipt does not match a notification",
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
-    existing_notice = await session.scalar(
-        select(NotificationDeliveryReceipt).where(
-            NotificationDeliveryReceipt.notification_id == notice.id
-        )
-    )
-    if existing_notice is not None:
-        raise AppError(
-            "EMAIL_RECEIPT_TERMINAL_CONFLICT",
-            "A terminal receipt already exists for this notification",
-            status_code=status.HTTP_409_CONFLICT,
-        )
-    if notice.status != NotificationStatus.SENT.value:
-        raise AppError(
-            "EMAIL_RECEIPT_INVALID_STATE",
-            "Email notification is not awaiting a delivery receipt",
-            status_code=status.HTTP_409_CONFLICT,
-        )
-    receipt = NotificationDeliveryReceipt(
-        notification_id=notice.id,
-        provider_event_id=payload["provider_event_id"],
-        provider_message_id=payload["provider_message_id"],
-        outcome=payload["outcome"],
-        occurred_at=(
-            datetime.fromisoformat(payload["occurred_at"].replace("Z", "+00:00"))
-            if isinstance(payload["occurred_at"], str)
-            else payload["occurred_at"]
-        ),
-        evidence_fingerprint=fingerprint,
-        signing_key_id=signing_key_id,
-    )
-    try:
-        async with session.begin_nested():
-            session.add(receipt)
-            notice.status = payload["outcome"]
-            if payload["outcome"] == NotificationStatus.DELIVERED.value:
-                notice.delivered_at = receipt.occurred_at
-            else:
-                notice.failed_at = receipt.occurred_at
-                notice.last_error_code = "provider_delivery_failed"
-            await session.flush()
-    except IntegrityError:
-        concurrent = await session.scalar(
-            select(NotificationDeliveryReceipt).where(
-                NotificationDeliveryReceipt.provider_event_id == payload["provider_event_id"]
-            )
-        )
-        if concurrent is None or concurrent.evidence_fingerprint != fingerprint:
-            raise AppError(
-                "EMAIL_RECEIPT_REPLAY_CONFLICT",
-                "Email delivery receipt conflicts with an accepted receipt",
-                status_code=status.HTTP_409_CONFLICT,
-            ) from None
-        return concurrent
-    return receipt
 
 
 async def _recipient_for_flag(session: AsyncSession, flag: FraudFlag) -> UUID:
@@ -532,11 +419,24 @@ async def create_driver_business_notification(
             event_key=event_key,
             purpose=manual_contact_purpose,
         )
+    if type_key == NotificationType.ASSIGNMENT_OFFERED:
+        await create_notification(
+            session,
+            recipient_user_id=recipient_user_id,
+            type_key=type_key,
+            payload=payload,
+            dedupe_key=f"{event_key}:transactional_email",
+            channel=NotificationChannel.TRANSACTIONAL_EMAIL,
+        )
     return notice
 
 
 async def create_budget_policy_notices(
-    session: AsyncSession, *, campaign: Campaign, evaluation: BudgetPolicyEvaluation
+    session: AsyncSession,
+    *,
+    campaign: Campaign,
+    evaluation,
+    epoch_id: UUID | None = None,
 ) -> list[Notification]:
     type_key = {
         "alert_threshold": NotificationType.BUDGET_ALERT,
@@ -545,10 +445,23 @@ async def create_budget_policy_notices(
     }.get(evaluation.state)
     if type_key is None:
         return []
-    event_key = f"budget:{evaluation.state}:v1:{evaluation.id}"
+    if evaluation.state == "pause_threshold" and not evaluation.pause_applied:
+        # A funded approved draft is not a running campaign that was paused.
+        return []
+    # One notice at each threshold per confirmed budget/resume epoch, rather than
+    # another warning for every spend change while within the same level.
+    identity = {
+        "campaign": str(campaign.id),
+        "epoch": str(epoch_id),
+        "state": evaluation.state,
+        "budget": str(evaluation.campaign_budget_amount),
+        "currency": evaluation.currency,
+    }
+    event_key = (
+        "budget:" + hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+    )
     payload = {
         "campaign_id": str(campaign.id),
-        "budget_evaluation_id": str(evaluation.id),
         "budget_state": evaluation.state,
         "currency": evaluation.currency,
     }
@@ -711,46 +624,24 @@ async def create_activity_flag_notice(
     session: AsyncSession,
     *,
     flag: AssignmentActivityFlag,
-    event_type: AssignmentActivityFlagEventType,
-    event_sequence: int,
-) -> Notification:
-    """Create one typed driver notice for an activity occurrence/recovery."""
-    if event_type == AssignmentActivityFlagEventType.OPENED:
-        type_key = (
-            NotificationType.ACTIVITY_FLOOR_BREACHED
-            if flag.flag_type == AssignmentActivityFlagType.VERIFIED_HOURS_FLOOR.value
-            else NotificationType.ASSIGNMENT_INACTIVE
-        )
-    else:
-        type_key = (
-            NotificationType.ACTIVITY_FLOOR_RECOVERED
-            if flag.flag_type == AssignmentActivityFlagType.VERIFIED_HOURS_FLOOR.value
-            else NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED
-        )
-    recipient_user_id = await session.scalar(
-        select(DriverProfile.user_id).where(DriverProfile.id == flag.driver_profile_id)
-    )
-    if recipient_user_id is None:
-        raise RuntimeError("activity flag driver profile is missing")
-    return await _create_notice(
+) -> list[Notification]:
+    """One staff notice when inactivity opens; closing needs no extra notice."""
+    return await create_active_admin_notices(
         session,
-        recipient_user_id=recipient_user_id,
-        type_key=type_key,
-        payload={
-            "activity_flag_id": str(flag.id),
-            "assignment_id": str(flag.assignment_id),
-            "activity_flag_type": flag.flag_type,
-            "activity_event": event_type.value,
-            "activity_event_sequence": event_sequence,
-        },
-        dedupe_key=(f"assignment_activity:{event_type.value}:v2:{flag.id}:{event_sequence}"),
+        type_key=NotificationType.ASSIGNMENT_INACTIVE,
+        event_key=f"assignment-inactive:{flag.id}",
+        payload={"activity_flag_id": str(flag.id), "assignment_id": str(flag.assignment_id)},
     )
 
 
 async def list_current_user_notifications(
     session: AsyncSession, *, recipient_user_id: UUID, limit: int, offset: int
 ) -> tuple[list[Notification], int]:
+    from app.services.driver_review_notifications import review_notification_visibility
+
+    visible = await review_notification_visibility(session, recipient_user_id)
     query = select(Notification).where(
+        visible,
         Notification.recipient_user_id == recipient_user_id,
         Notification.channel == NotificationChannel.IN_APP.value,
         Notification.read_at.is_(None),
@@ -769,11 +660,15 @@ async def list_current_user_notifications(
 
 
 async def unread_notification_count(session: AsyncSession, *, recipient_user_id: UUID) -> int:
+    from app.services.driver_review_notifications import review_notification_visibility
+
+    visible = await review_notification_visibility(session, recipient_user_id)
     return int(
         await session.scalar(
             select(func.count())
             .select_from(Notification)
             .where(
+                visible,
                 Notification.recipient_user_id == recipient_user_id,
                 Notification.channel == NotificationChannel.IN_APP.value,
                 Notification.read_at.is_(None),
@@ -786,10 +681,14 @@ async def unread_notification_count(session: AsyncSession, *, recipient_user_id:
 async def mark_notification_read(
     session: AsyncSession, *, recipient_user_id: UUID, notification_id: UUID
 ) -> Notification:
+    from app.services.driver_review_notifications import review_notification_visibility
+
+    visible = await review_notification_visibility(session, recipient_user_id)
     read_at = func.statement_timestamp()
     notice = await session.scalar(
         update(Notification)
         .where(
+            visible,
             Notification.id == notification_id,
             Notification.recipient_user_id == recipient_user_id,
             Notification.channel == NotificationChannel.IN_APP.value,
@@ -802,6 +701,7 @@ async def mark_notification_read(
         return notice
     notice = await session.scalar(
         select(Notification).where(
+            visible,
             Notification.id == notification_id,
             Notification.recipient_user_id == recipient_user_id,
             Notification.channel == NotificationChannel.IN_APP.value,
@@ -813,10 +713,14 @@ async def mark_notification_read(
 
 
 async def mark_all_notifications_read(session: AsyncSession, *, recipient_user_id: UUID) -> int:
+    from app.services.driver_review_notifications import review_notification_visibility
+
+    visible = await review_notification_visibility(session, recipient_user_id)
     read_at = func.statement_timestamp()
     result = await session.execute(
         update(Notification)
         .where(
+            visible,
             Notification.recipient_user_id == recipient_user_id,
             Notification.channel == NotificationChannel.IN_APP.value,
             Notification.read_at.is_(None),

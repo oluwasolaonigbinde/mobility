@@ -1,5 +1,8 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
@@ -64,7 +67,8 @@ export async function newOrderAction(
       },
     };
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the server." };
   }
 }
@@ -76,59 +80,37 @@ export interface OrderActionState {
 
 const transitionSchema = z.object({
   order_id: z.string().uuid(),
-  intent: z.enum(["submit", "approve", "reject", "execute"]),
+  reason: z.string().trim().min(3).max(500),
 });
 
-/**
- * Maker-checker transitions (Q22): only the creator submits, a different
- * admin approves, any admin rejects or executes. The backend enforces every
- * rule (403/409); its envelope messages are surfaced verbatim as the truth.
- */
 export async function orderTransitionAction(
   _prev: OrderActionState,
   formData: FormData,
 ): Promise<OrderActionState> {
   const parsed = transitionSchema.safeParse({
     order_id: String(formData.get("order_id") ?? ""),
-    intent: String(formData.get("intent") ?? ""),
+    reason: String(formData.get("reason") ?? ""),
   });
-  if (!parsed.success) return { error: "Invalid request" };
-  const { order_id, intent } = parsed.data;
-
+  if (!parsed.success) return { error: "Give a reason between 3 and 500 characters." };
+  const rawReleaseAt = String(formData.get("release_at") ?? "").trim();
+  let release_at: string | null = null;
+  if (rawReleaseAt) {
+    const date = new Date(rawReleaseAt);
+    if (Number.isNaN(date.getTime())) return { error: "Enter a valid release date and time" };
+    release_at = date.toISOString();
+  }
   const api = createApiClient(await getSessionToken());
-  const path = { params: { path: { order_id } } };
   try {
-    if (intent === "submit") {
-      await api.POST("/api/v1/admin/payouts/correction-orders/{order_id}/submit", path);
-    } else if (intent === "approve") {
-      await api.POST("/api/v1/admin/payouts/correction-orders/{order_id}/approve", path);
-    } else if (intent === "reject") {
-      await api.POST("/api/v1/admin/payouts/correction-orders/{order_id}/reject", path);
-    } else {
-      const rawReleaseAt = String(formData.get("release_at") ?? "").trim();
-      let release_at: string | null = null;
-      if (rawReleaseAt) {
-        const releaseDate = new Date(rawReleaseAt);
-        if (Number.isNaN(releaseDate.getTime())) {
-          return { error: "Enter a valid release date and time" };
-        }
-        release_at = releaseDate.toISOString();
-      }
-      await api.POST("/api/v1/admin/payouts/correction-orders/{order_id}/execute", {
-        ...path,
-        body: { release_at },
-      });
-    }
+    await api.POST("/api/v1/admin/payouts/correction-orders/{order_id}/approve", {
+      params: { path: { order_id: parsed.data.order_id } },
+      body: { release_at, reason: parsed.data.reason },
+    });
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
-    return { error: "Could not reach the server." };
+    unstable_rethrow(error);
+    return {
+      error: error instanceof ApiError ? publicActionError(error) : "Could not reach the server.",
+    };
   }
   revalidatePath("/admin/money");
-  const done: Record<typeof intent, string> = {
-    submit: "Submitted for approval",
-    approve: "Approved — ready to run",
-    reject: "Rejected",
-    execute: "Completed — pay changes recorded",
-  };
-  return { done: done[intent] };
+  return { done: "Completed — pay changes recorded" };
 }

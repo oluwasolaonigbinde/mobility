@@ -1,3 +1,4 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 import Link from "next/link";
 import { Panel } from "@/components/ui/panel";
 import { requireRole } from "@/lib/auth/current-user";
@@ -29,8 +30,8 @@ export default async function PaymentRuns({ searchParams }: { searchParams: Prom
   const runStatus = query.status && statuses.includes(query.status) ? query.status : undefined;
   if (runStatus) runFilters.set("batch_status", runStatus);
   const [entries, summary] = await Promise.all([
-    batchApi<Page<EligiblePayment>>(`/eligible?${filters}`).catch(() => null),
-    batchApi<Page<BatchSummary>>(`/summaries?${runFilters}`).catch(() => null),
+    batchApi<Page<EligiblePayment>>(`/eligible?${filters}`).catch(adminValueFailure),
+    batchApi<Page<BatchSummary>>(`/summaries?${runFilters}`).catch(adminValueFailure),
   ]);
   return (
     <div className="space-y-6">
@@ -103,7 +104,7 @@ export default async function PaymentRuns({ searchParams }: { searchParams: Prom
                   ) : (
                     <>
                       <p>Prepared by: {run.maker_name}</p>
-                      <p>Approved by: {run.checker_name ?? "Waiting for a second approval"}</p>
+                      <p>Approved by: {run.checker_name ?? "Waiting for approval"}</p>
                     </>
                   )}
                   <p className="text-muted text-sm">

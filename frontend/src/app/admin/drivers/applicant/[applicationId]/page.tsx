@@ -1,3 +1,4 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 import { readApplication } from "../../../entity-reads";
 import DriverHub, { type DriverHubQuery } from "../../driver-hub";
 export default async function ApplicantPage({
@@ -14,7 +15,8 @@ export async function generateMetadata({ params }: { params: Promise<{ applicati
   try {
     const { data } = await readApplication((await params).applicationId);
     return { title: data?.full_name ?? "Driver" };
-  } catch {
+  } catch (error) {
+    adminValueFailure(error);
     return { title: "Driver" };
   }
 }

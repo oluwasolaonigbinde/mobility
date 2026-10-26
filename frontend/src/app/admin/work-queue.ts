@@ -1,3 +1,4 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 import { cache } from "react";
 import { headers } from "next/headers";
 import { createApiClient, type ApiClient } from "@/lib/api/client";
@@ -21,7 +22,7 @@ export type QueueTask = {
   event: string;
   describe: () => Promise<{ name: string; reason: string; href: string }>;
 };
-type QueueRows = QueueTask[] & { total?: number; counts?: Partial<Record<Area, number>> };
+type QueueRows = QueueTask[] & { total?: number };
 export type QueueCollections = Record<Department, QueueRows | undefined>;
 type Source = {
   id: string;
@@ -82,13 +83,35 @@ function source<T extends { id: string }>(
         )
           return undefined;
         return { items: data.items.map(project), total: data.total! };
-      } catch {
+      } catch (error) {
+        adminValueFailure(error);
         return undefined;
       }
     },
   };
 }
 export const sources: Source[] = [
+  source(
+    "enquiries",
+    "Customer Service",
+    "support",
+    "New enquiries",
+    "/admin/enquiries",
+    (api, limit, offset) =>
+      api.GET("/api/v1/admin/campaign-enquiries", {
+        params: { query: { status: "new", limit, offset } },
+      }),
+    (r) =>
+      task(
+        `enquiry:${r.id}`,
+        "support",
+        r.created_at,
+        "Received",
+        r.company,
+        `New enquiry from ${r.contact_name}`,
+        `/admin/enquiries/${r.id}`,
+      ),
+  ),
   source(
     "applications",
     "Operations",
@@ -132,27 +155,6 @@ export const sources: Source[] = [
       ),
   ),
   source(
-    "jobs",
-    "Operations",
-    "campaigns",
-    "Accepted jobs",
-    "/admin/campaigns?tab=live",
-    (api, limit, offset) =>
-      api.GET("/api/v1/admin/campaign-assignments", {
-        params: { query: { limit, offset, status: "accepted", oldest_first: true } },
-      }),
-    (r) =>
-      task(
-        `job:${r.id}`,
-        "campaigns",
-        r.accepted_at,
-        "Accepted",
-        `${present(r.driver_profile?.full_name)} · ${present(r.vehicle?.plate_number)}`,
-        `Accepted job waiting to start on ${present(r.campaign?.name)}`,
-        `/admin/campaigns/${r.campaign_id}?drawer=job&job=${r.id}#drivers`,
-      ),
-  ),
-  source(
     "trips",
     "Operations",
     "trips",
@@ -173,27 +175,6 @@ export const sources: Source[] = [
         present(r.driver_name),
         `Trip on ${formatDate(r.trip_started_at)}: ${r.problem_count} ${r.problem_count === 1 ? "problem" : "problems"} · ${r.money_effect.held_currency ? `${formatMoneyExact(r.money_effect.held_pending_net, r.money_effect.held_currency)} held` : "no pay held"}`,
         `/admin/trip-checks?flag=${r.id}`,
-      ),
-  ),
-  source(
-    "late",
-    "Operations",
-    "trips",
-    "Late uploads",
-    "/admin/trip-checks?tab=late",
-    (api, limit, offset) =>
-      api.GET("/api/v1/admin/trips/quarantined-batches", {
-        params: { query: { limit, offset, status: "quarantined" } },
-      }),
-    (r) =>
-      task(
-        `late:${r.id}`,
-        "trips",
-        r.received_at,
-        "Received",
-        `${present(r.driver_name)} · ${present(r.vehicle_plate)}`,
-        `Late upload for ${formatDate(r.trip_started_at)} trip`,
-        `/admin/trip-checks?tab=late&late=${r.id}`,
       ),
   ),
   source(
@@ -264,35 +245,6 @@ export const sources: Source[] = [
       ),
   ),
   source(
-    "checks",
-    "Compliance",
-    "trips",
-    "In-person checks",
-    "/admin/trip-checks?tab=in-person",
-    (api, limit, offset) =>
-      api.GET("/api/v1/admin/evidence-verifications", {
-        params: {
-          query: {
-            limit,
-            offset,
-            status: "pending",
-            verification_type: "physical_spot_check",
-            oldest_first: true,
-          },
-        },
-      }),
-    (r) =>
-      task(
-        `check:${r.id}`,
-        "trips",
-        r.issued_at,
-        "Requested",
-        present(r.driver_name),
-        "In-person check to record",
-        `/admin/trip-checks?tab=in-person&check=${r.id}`,
-      ),
-  ),
-  source(
     "batches",
     "Finance",
     "money",
@@ -310,7 +262,7 @@ export const sources: Source[] = [
         "Created",
         `Payment run ${formatDate(r.created_at)}`,
         [
-          r.status === "reserved" && r.approval_mode === "maker_checker" && !r.approved_at
+          r.status === "reserved" && r.approval_mode === "manual" && !r.approved_at
             ? "Needs approval"
             : null,
           (r.outcomes.failed ?? 0) > 0 ? "Has failed payments" : null,
@@ -351,7 +303,7 @@ export const sources: Source[] = [
     "/admin/money?tab=corrections",
     (api, limit, offset) =>
       api.GET("/api/v1/admin/payouts/correction-orders", {
-        params: { query: { limit, offset, status: "pending_approval", oldest_first: true } },
+        params: { query: { limit, offset, status: "draft", oldest_first: true } },
       }),
     (r) =>
       task(
@@ -480,7 +432,7 @@ export async function collectWorkQueue(api: ApiClient, limit = 5): Promise<Queue
   return combine(await Promise.all(sources.map((s) => s.read(api, limit, 0))));
 }
 function combine(reads: Awaited<ReturnType<Source["read"]>>[]): QueueCollections {
-  const empty = (): QueueRows => Object.assign([] as QueueTask[], { total: 0, counts: {} });
+  const empty = (): QueueRows => Object.assign([] as QueueTask[], { total: 0 });
   const result: QueueCollections = {
     Operations: empty(),
     Compliance: empty(),
@@ -498,7 +450,6 @@ function combine(reads: Awaited<ReturnType<Source["read"]>>[]): QueueCollections
     if (!rows) return;
     rows.push(...read.items);
     rows.total! += read.total;
-    rows.counts![source.area] = (rows.counts![source.area] ?? 0) + read.total;
   });
   departments.forEach((d) =>
     result[d]?.sort((a, b) => Date.parse(a.at) - Date.parse(b.at) || a.key.localeCompare(b.key)),
@@ -509,23 +460,3 @@ export const readWorkQueue = cache(async () => {
   const limit = await previewLimit();
   return combine(await Promise.all(sources.map((s) => readQueueSource(s.id, limit))));
 });
-export function waitingCounts(queue: QueueCollections) {
-  const count = (area?: Area) => {
-    const required: readonly Department[] = area
-      ? [...new Set(sources.filter((s) => s.area === area).map((s) => s.department))]
-      : departments;
-    if (required.some((d) => queue[d] === undefined)) return undefined;
-    return required.reduce<number>(
-      (n, d) => n + (area ? (queue[d]!.counts?.[area] ?? 0) : (queue[d]!.total ?? 0)),
-      0,
-    );
-  };
-  return {
-    total: count(),
-    drivers: count("drivers"),
-    campaigns: count("campaigns"),
-    trips: count("trips"),
-    money: count("money"),
-    support: count("support"),
-  };
-}

@@ -270,7 +270,9 @@ async def login_with_password(session: AsyncSession, *, email: str, password: st
     """
     await _serialize_login_attempts(session, email)
     user = await _lock_user_by_email(session, email)
-    if user is None:
+    from app.services.report_authorization import REPORT_ACTOR_ID
+
+    if user is None or user.id == REPORT_ACTOR_ID:
         await run_password_work(lambda: verify_password(password, _timing_equalizer_hash()))
         raise await _login_rejected(session, email=email)
     if not await verify_password_async(password, user.password_hash):

@@ -347,7 +347,7 @@ def test_quote_request_and_acceptance_are_tenant_safe(db_sessionmaker) -> None:
         db_sessionmaker,
         name="Viewer Org",
         owner_user_id=viewer.id,
-        membership_role=MembershipRole.VIEWER,
+        membership_role=MembershipRole.ADVERTISER,
     )
 
     async def scenario() -> None:

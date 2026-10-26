@@ -2,9 +2,40 @@ import { describe, expect, it } from "vitest";
 import {
   campaignBasicsSchema,
   creativeSchema,
+  lagosDatetimeLocalOneYearAhead,
+  lagosLocalToApi,
   toApiDatetime,
   toLagosDatetimeLocal,
 } from "./schema";
+
+describe("lagosLocalToApi", () => {
+  it("converts a real Lagos time and rejects blank, malformed or impossible values", () => {
+    expect(lagosLocalToApi("2027-10-19T09:30")).toBe("2027-10-19T08:30:00.000Z");
+    for (const value of [
+      "",
+      "soon",
+      "2027-02-30T09:00",
+      "2027-13-01T09:00",
+      "2027-10-19T24:30",
+      "2027-10-19T09:30Z",
+    ])
+      expect(lagosLocalToApi(value)).toBeNull();
+  });
+});
+
+describe("lagosDatetimeLocalOneYearAhead", () => {
+  it("uses the Lagos calendar, not the host's or UTC's", () => {
+    // 23:30 UTC on 31 December is already 00:30 on 1 January in Lagos.
+    expect(lagosDatetimeLocalOneYearAhead(Date.parse("2026-12-31T23:30:00Z"))).toBe(
+      "2028-01-01T00:30",
+    );
+  });
+  it("moves 29 February to 28 February in a non-leap year", () => {
+    expect(lagosDatetimeLocalOneYearAhead(Date.parse("2028-02-29T10:00:00Z"))).toBe(
+      "2029-02-28T11:00",
+    );
+  });
+});
 
 const validBasics = {
   name: "Yello Season Q3",

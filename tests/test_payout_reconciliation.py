@@ -1,6 +1,7 @@
 import asyncio
 import json
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
@@ -51,19 +52,24 @@ def _admins(db_sessionmaker, tag: str):
     return checker, reconciler
 
 
-async def _submitted_batch(session, graph, checker, fake, *, line_count=1):
+async def _submitted_batch(session, graph, checker, fake, *, line_count=1, amount="100.00"):
     entries = [
-        await _seed_authority(session, graph, amount=str(100 + index))
+        await _seed_authority(session, graph, amount=str(Decimal(amount) + index))
         for index in range(line_count)
     ]
-    batch = await create_payout_batch_draft(session, currency="NGN", actor_user_id=graph.admin.id)
+    batch = await create_payout_batch_draft(
+        session, reason="Focused staff payout action", currency="NGN", actor_user_id=graph.admin.id
+    )
     batch, lines = await reserve_payout_batch(
         session,
+        reason="Focused staff payout action",
         batch_id=batch.id,
         ledger_entry_ids=tuple(entry.id for entry in entries),
         actor_user_id=graph.admin.id,
     )
-    await approve_payout_batch(session, batch_id=batch.id, actor_user_id=checker.id)
+    await approve_payout_batch(
+        session, reason="Focused staff payout action", batch_id=batch.id, actor_user_id=checker.id
+    )
     batch, lines = await submit_payout_batch(
         session,
         batch_id=batch.id,
@@ -80,9 +86,7 @@ async def _submitted_batch(session, graph, checker, fake, *, line_count=1):
     await session.commit()
     worker_sessions = async_sessionmaker(session.bind, expire_on_commit=False)
     for intent_id in intent_ids:
-        await process_payout_submission_intent(
-            worker_sessions, intent_id=intent_id, adapter=fake
-        )
+        await process_payout_submission_intent(worker_sessions, intent_id=intent_id, adapter=fake)
     batch, lines = await get_payout_batch(session, batch.id)
     return batch, lines, entries
 
@@ -130,28 +134,18 @@ def test_line_level_partial_reconciliation_preserves_paid_and_failed_finality(
                 outcome="failed",
                 occurred_at=now,
             )
-            with pytest.raises(AppError) as maker_denied:
-                await poll_payout_line(
-                    session,
-                    line_id=second.id,
-                    actor_user_id=graph.admin.id,
-                    adapter=fake,
-                )
-            assert maker_denied.value.code == "PAYOUT_RECONCILER_SEPARATION_REQUIRED"
-            assert fake.poll_calls == []
             second_id = second.id
             second_ledger_entry_id = second.ledger_entry_id
             frozen_retry = (second.idempotency_key, second.provider_transfer_reference)
             batch, lines, _ = await poll_payout_line(
                 session,
+                reason="Focused staff payout action",
                 line_id=second_id,
-                actor_user_id=reconciler.id,
+                actor_user_id=graph.admin.id,
                 adapter=fake,
             )
             second = next(line for line in lines if line.id == second_id)
-            second_ledger = await session.get(
-                EarningsLedgerEntry, second_ledger_entry_id
-            )
+            second_ledger = await session.get(EarningsLedgerEntry, second_ledger_entry_id)
             assert batch.status == "reconciled"
             assert fake.poll_calls == [second.provider_transfer_reference]
             assert second.status == "failed"
@@ -159,6 +153,7 @@ def test_line_level_partial_reconciliation_preserves_paid_and_failed_finality(
             with pytest.raises(AppError) as resolved:
                 await retry_failed_payout_lines(
                     session,
+                    reason="Focused staff payout action",
                     batch_id=batch.id,
                     actor_user_id=graph.admin.id,
                     adapter=fake,
@@ -208,9 +203,7 @@ def test_signed_webhook_duplicate_reordered_and_forged_evidence(db_sessionmaker)
 
     async def exercise():
         async with db_sessionmaker() as session:
-            batch, lines, _entries = await _submitted_batch(
-                session, graph, checker, fake
-            )
+            batch, lines, _entries = await _submitted_batch(session, graph, checker, fake)
             line = lines[0]
             success_payload = json.dumps(
                 {
@@ -254,6 +247,7 @@ def test_signed_webhook_duplicate_reordered_and_forged_evidence(db_sessionmaker)
             )
             batch, lines, ignored = await poll_payout_line(
                 session,
+                reason="Focused staff payout action",
                 line_id=line_id,
                 actor_user_id=reconciler.id,
                 adapter=fake,
@@ -298,15 +292,24 @@ def test_duplicate_provider_reference_is_isolated_to_conflicting_line(
         async with db_sessionmaker() as session:
             entries = [await _seed_authority(session, graph) for _ in range(2)]
             batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             _, lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=batch.id,
                 ledger_entry_ids=tuple(entry.id for entry in entries),
                 actor_user_id=graph.admin.id,
             )
-            await approve_payout_batch(session, batch_id=batch.id, actor_user_id=checker.id)
+            await approve_payout_batch(
+                session,
+                reason="Focused staff payout action",
+                batch_id=batch.id,
+                actor_user_id=checker.id,
+            )
             await submit_payout_batch(
                 session,
                 batch_id=batch.id,
@@ -317,9 +320,7 @@ def test_duplicate_provider_reference_is_isolated_to_conflicting_line(
                 await session.scalars(
                     select(PayoutSubmissionIntent.id)
                     .where(
-                        PayoutSubmissionIntent.payout_batch_line_id.in_(
-                            [line.id for line in lines]
-                        )
+                        PayoutSubmissionIntent.payout_batch_line_id.in_([line.id for line in lines])
                     )
                     .order_by(PayoutSubmissionIntent.payout_batch_line_id)
                 )
@@ -364,25 +365,38 @@ def test_void_releases_only_pre_provider_reservations(db_sessionmaker) -> None:
         async with db_sessionmaker() as session:
             entry = await _seed_authority(session, graph)
             batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             batch, lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=batch.id,
                 ledger_entry_ids=(entry.id,),
                 actor_user_id=graph.admin.id,
             )
             await void_payout_batch(session, batch_id=batch.id, actor_user_id=graph.admin.id)
             replacement = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=replacement.id,
                 ledger_entry_ids=(entry.id,),
                 actor_user_id=graph.admin.id,
             )
-            await approve_payout_batch(session, batch_id=replacement.id, actor_user_id=checker.id)
+            await approve_payout_batch(
+                session,
+                reason="Focused staff payout action",
+                batch_id=replacement.id,
+                actor_user_id=checker.id,
+            )
             await submit_payout_batch(
                 session,
                 batch_id=replacement.id,
@@ -415,15 +429,24 @@ def test_postgres_submit_and_void_serialize_to_one_safe_winner(
         async with postgis_db_sessionmaker() as session:
             entry = await _seed_authority(session, graph)
             batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             _, lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=batch.id,
                 ledger_entry_ids=(entry.id,),
                 actor_user_id=graph.admin.id,
             )
-            await approve_payout_batch(session, batch_id=batch.id, actor_user_id=checker.id)
+            await approve_payout_batch(
+                session,
+                reason="Focused staff payout action",
+                batch_id=batch.id,
+                actor_user_id=checker.id,
+            )
             await session.commit()
 
         async def submit():
@@ -482,9 +505,7 @@ def test_postgres_webhook_and_poll_converge_to_one_paid_transition(
 
     async def exercise():
         async with postgis_db_sessionmaker() as session:
-            batch, lines, entries = await _submitted_batch(
-                session, graph, checker, fake
-            )
+            batch, lines, entries = await _submitted_batch(session, graph, checker, fake)
             batch_id = batch.id
             line_id = lines[0].id
             ledger_entry_id = entries[0].id
@@ -522,6 +543,7 @@ def test_postgres_webhook_and_poll_converge_to_one_paid_transition(
             async with postgis_db_sessionmaker() as session:
                 await poll_payout_line(
                     session,
+                    reason="Focused staff payout action",
                     line_id=line_id,
                     actor_user_id=reconciler.id,
                     adapter=fake,

@@ -1,5 +1,7 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { publicActionError } from "@/lib/api/public-action-error";
@@ -38,6 +40,7 @@ export async function completeDriverAccountSetupAction(
       body: { token: parsed.data.token, new_password: parsed.data.newPassword },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return {
       error: publicActionError(
         error,

@@ -1,33 +1,21 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy import func, select, update
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
 from starlette import status
 
 from app.core.config import Settings
 from app.core.errors import AppError
-from app.db.integrity import is_expected_uniqueness_conflict
-from app.models.impression import (
-    TRAFFIC_PROFILE_FINGERPRINT_FIELDS,
-    ImpressionEstimate,
-    ImpressionEstimateStatus,
-    TrafficDensityProfile,
-    TrafficDensityProfileStatus,
-    TrafficDensityProfileType,
-    traffic_density_profile_fingerprint,
-)
+from app.models.impression import ImpressionEstimate, ImpressionEstimateStatus
 from app.models.trip import TripSession, TripSessionStatus
 from app.models.trip_analytics import (
     FraudFlagSeverity,
     TripAnalytics,
     TripAnalyticsStatus,
 )
-from app.schemas.impressions import TrafficDensityProfileCreate, TrafficDensityProfileUpdate
 from app.services.campaigns import get_advertiser_campaign
 from app.services.disclosure import (
     lock_trip_disclosure_snapshot,
@@ -45,8 +33,6 @@ from app.services.trips import trip_not_found
 
 DECIMAL_2 = Decimal("0.01")
 DECIMAL_4 = Decimal("0.0001")
-DEFAULT_PROFILE_CONSTRAINTS = frozenset({"uq_traffic_density_profiles_active_default"})
-IMPRESSION_ESTIMATE_CONSTRAINTS = frozenset({"uq_impression_estimates_trip_formula_profile"})
 IMPRESSION_FINGERPRINT_FIELDS = (
     "trip_analytics_id",
     "assignment_id",
@@ -66,6 +52,27 @@ IMPRESSION_FINGERPRINT_FIELDS = (
     "started_at",
     "ended_at",
 )
+
+
+@dataclass(frozen=True)
+class FixedEstimateFactors:
+    traffic_density_per_km: Decimal = Decimal(
+        str(Settings.impression_default_traffic_density_per_km)
+    )
+    dwell_impressions_per_minute: Decimal = Decimal(
+        str(Settings.impression_default_dwell_impressions_per_minute)
+    )
+    road_category_weight: Decimal = Decimal("1.0")
+    morning_weight: Decimal = Decimal("1.0")
+    midday_weight: Decimal = Decimal("1.0")
+    evening_weight: Decimal = Decimal("1.0")
+    night_weight: Decimal = Decimal("0.7")
+    target_zone_weight: Decimal = Decimal("1.0")
+    bonus_zone_weight: Decimal = Decimal("1.25")
+    exclusion_zone_weight: Decimal = Decimal("0.0")
+
+
+FIXED_ESTIMATE_FACTORS = FixedEstimateFactors()
 
 
 @dataclass(frozen=True)
@@ -104,7 +111,7 @@ def decimal_km(meters: Decimal) -> Decimal:
 
 def time_bucket_and_weight(
     analytics: TripAnalytics,
-    profile: TrafficDensityProfile,
+    profile: FixedEstimateFactors,
 ) -> tuple[str, Decimal]:
     source_time = analytics.started_at or analytics.first_ping_at
     if source_time is None:
@@ -119,34 +126,10 @@ def time_bucket_and_weight(
     return "night", profile.night_weight
 
 
-def profile_not_found() -> AppError:
-    return AppError(
-        "TRAFFIC_DENSITY_PROFILE_NOT_FOUND",
-        "Traffic density profile was not found",
-        status_code=status.HTTP_404_NOT_FOUND,
-    )
-
-
-def profile_inactive() -> AppError:
-    return AppError(
-        "TRAFFIC_DENSITY_PROFILE_INACTIVE",
-        "Traffic density profile is not active",
-        status_code=status.HTTP_400_BAD_REQUEST,
-    )
-
-
 def impression_estimate_stale() -> AppError:
     return AppError(
         "IMPRESSION_ESTIMATE_STALE",
         "The impression estimate must be recomputed from current trip analytics",
-        status_code=status.HTTP_409_CONFLICT,
-    )
-
-
-def traffic_density_profile_stale() -> AppError:
-    return AppError(
-        "TRAFFIC_DENSITY_PROFILE_STALE",
-        "The traffic density profile revision is no longer current",
         status_code=status.HTTP_409_CONFLICT,
     )
 
@@ -163,8 +146,6 @@ def is_current_estimate_for_analytics(
     settings: Settings,
     *,
     fraud_counts: dict[str, int] | None = None,
-    profile: TrafficDensityProfile | None = None,
-    profile_is_current: bool = True,
 ) -> bool:
     if (
         estimate.formula_version != settings.impression_formula_version
@@ -172,13 +153,6 @@ def is_current_estimate_for_analytics(
     ):
         return False
     metadata = estimate.estimate_metadata or {}
-    if profile is not None:
-        stored_profile_fingerprint = metadata.get("traffic_density_profile_fingerprint")
-        if not profile_is_current or (
-            stored_profile_fingerprint is not None
-            and stored_profile_fingerprint != profile.value_fingerprint
-        ):
-            return False
     if fraud_counts is not None and metadata.get("fraud_flag_counts") != fraud_counts:
         return False
     source_fingerprint = metadata.get("source_analytics_fingerprint")
@@ -240,76 +214,6 @@ def ensure_current_estimate_source(
         raise impression_estimate_stale()
 
 
-async def pin_authoritative_estimate(
-    session: AsyncSession,
-    *,
-    trip_id: UUID,
-    formula_version: str,
-) -> ImpressionEstimate | None:
-    """Preserve pinned authority, or establish it from the active default only."""
-    await session.execute(select(TripSession.id).where(TripSession.id == trip_id).with_for_update())
-    rows = list(
-        (
-            await session.execute(
-                select(ImpressionEstimate, TrafficDensityProfile)
-                .join(
-                    TrafficDensityProfile,
-                    TrafficDensityProfile.id == ImpressionEstimate.traffic_density_profile_id,
-                )
-                .where(
-                    ImpressionEstimate.trip_session_id == trip_id,
-                    ImpressionEstimate.formula_version == formula_version,
-                )
-                .order_by(ImpressionEstimate.id)
-                .with_for_update()
-            )
-        ).all()
-    )
-    if not rows:
-        return None
-    superseded_profile_ids = set(
-        (
-            await session.scalars(
-                select(TrafficDensityProfile.supersedes_id).where(
-                    TrafficDensityProfile.supersedes_id.in_(
-                        [profile.id for _estimate, profile in rows]
-                    )
-                )
-            )
-        ).all()
-    )
-    authoritative = next(
-        (
-            estimate
-            for estimate, profile in rows
-            if estimate.is_authoritative and profile.id not in superseded_profile_ids
-        ),
-        None,
-    )
-    if authoritative is None:
-        authoritative = next(
-            (
-                estimate
-                for estimate, profile in rows
-                if profile.id not in superseded_profile_ids
-                and profile.status == TrafficDensityProfileStatus.ACTIVE.value
-                and profile.is_default
-            ),
-            None,
-        )
-    for estimate, _profile in rows:
-        estimate.is_authoritative = authoritative is not None and estimate.id == authoritative.id
-        metadata = dict(estimate.estimate_metadata or {})
-        metadata["authority"] = (
-            "authoritative"
-            if authoritative is not None and estimate.id == authoritative.id
-            else "scenario"
-        )
-        estimate.estimate_metadata = metadata
-    await session.flush()
-    return authoritative
-
-
 async def get_authoritative_estimate_for_trip(
     session: AsyncSession,
     *,
@@ -338,14 +242,6 @@ async def get_authoritative_estimate_for_trip(
     active_fraud_counts = (
         fraud_counts if fraud_counts is not None else await fraud_hold_counts(session, trip_id)
     )
-    profile = await session.get(TrafficDensityProfile, estimate.traffic_density_profile_id)
-    if profile is None:
-        return None
-    successor_exists = bool(
-        await session.scalar(
-            select(func.count()).where(TrafficDensityProfile.supersedes_id == profile.id)
-        )
-    )
     return (
         estimate
         if is_current_estimate_for_analytics(
@@ -353,357 +249,36 @@ async def get_authoritative_estimate_for_trip(
             analytics,
             settings,
             fraud_counts=active_fraud_counts,
-            profile=profile,
-            profile_is_current=not successor_exists,
         )
         else None
     )
 
 
-async def current_authoritative_estimates(
-    session: AsyncSession,
-    estimates: list[ImpressionEstimate],
-    *,
-    settings: Settings,
-) -> list[ImpressionEstimate]:
-    """Filter pinned rows whose analytics or active fraud fingerprint is stale."""
+async def current_authoritative_estimates(session, estimates, *, settings):
+    """Preserve pinned facts while rejecting stale analytics or active holds."""
     if not estimates:
         return []
-    trip_ids = {estimate.trip_session_id for estimate in estimates}
-    analytics_by_trip = {
-        analytics.trip_session_id: analytics
-        for analytics in (
-            await session.scalars(
-                select(TripAnalytics).where(TripAnalytics.trip_session_id.in_(trip_ids))
+    analytics = {
+        row.trip_session_id: row
+        for row in await session.scalars(
+            select(TripAnalytics).where(
+                TripAnalytics.trip_session_id.in_({row.trip_session_id for row in estimates})
             )
-        ).all()
-    }
-    profiles_by_id = {
-        profile.id: profile
-        for profile in (
-            await session.scalars(
-                select(TrafficDensityProfile).where(
-                    TrafficDensityProfile.id.in_(
-                        {estimate.traffic_density_profile_id for estimate in estimates}
-                    )
-                )
-            )
-        ).all()
-    }
-    superseded_profile_ids = set(
-        (
-            await session.scalars(
-                select(TrafficDensityProfile.supersedes_id).where(
-                    TrafficDensityProfile.supersedes_id.in_(profiles_by_id)
-                )
-            )
-        ).all()
-    )
-    valid: list[ImpressionEstimate] = []
-    counts_by_trip: dict[UUID, dict[str, int]] = {}
-    for estimate in estimates:
-        analytics = analytics_by_trip.get(estimate.trip_session_id)
-        profile = profiles_by_id.get(estimate.traffic_density_profile_id)
-        if (
-            analytics is None
-            or analytics.formula_version != settings.route_analytics_formula_version
-            or profile is None
-        ):
-            continue
-        counts_by_trip.setdefault(
-            estimate.trip_session_id,
-            await fraud_hold_counts(session, estimate.trip_session_id),
         )
+    }
+    valid = []
+    for estimate in estimates:
+        source = analytics.get(estimate.trip_session_id)
+        if source is None or source.formula_version != settings.route_analytics_formula_version:
+            continue
         if is_current_estimate_for_analytics(
             estimate,
-            analytics,
+            source,
             settings,
-            fraud_counts=counts_by_trip[estimate.trip_session_id],
-            profile=profile,
-            profile_is_current=profile.id not in superseded_profile_ids,
+            fraud_counts=await fraud_hold_counts(session, source.trip_session_id),
         ):
             valid.append(estimate)
     return valid
-
-
-async def clear_other_active_defaults(
-    session: AsyncSession,
-    *,
-    profile_id: UUID | None = None,
-) -> None:
-    statement = (
-        update(TrafficDensityProfile)
-        .where(
-            TrafficDensityProfile.status == TrafficDensityProfileStatus.ACTIVE.value,
-            TrafficDensityProfile.is_default.is_(True),
-        )
-        .values(is_default=False, updated_at=utc_now())
-    )
-    if profile_id is not None:
-        statement = statement.where(TrafficDensityProfile.id != profile_id)
-    await session.execute(statement)
-
-
-async def create_traffic_density_profile(
-    session: AsyncSession,
-    payload: TrafficDensityProfileCreate,
-) -> TrafficDensityProfile:
-    profile_id = uuid4()
-    operation_time = utc_now()
-    effective_from = payload.effective_from or operation_time
-    if _normalized_utc(effective_from) > operation_time:
-        raise AppError(
-            "TRAFFIC_DENSITY_PROFILE_EFFECTIVE_TIME_INVALID",
-            "A profile revision cannot take effect in the future",
-            status_code=status.HTTP_409_CONFLICT,
-        )
-    if payload.is_default and payload.status == TrafficDensityProfileStatus.ACTIVE:
-        await clear_other_active_defaults(session)
-    profile_values = {
-        "lineage_id": profile_id,
-        "revision": 1,
-        "effective_from": effective_from,
-        "name": payload.name,
-        "description": payload.description,
-        "profile_type": payload.profile_type,
-        "traffic_density_per_km": payload.traffic_density_per_km,
-        "dwell_impressions_per_minute": payload.dwell_impressions_per_minute,
-        "road_category_weight": payload.road_category_weight,
-        "morning_weight": payload.morning_weight,
-        "midday_weight": payload.midday_weight,
-        "evening_weight": payload.evening_weight,
-        "night_weight": payload.night_weight,
-        "target_zone_weight": payload.target_zone_weight,
-        "bonus_zone_weight": payload.bonus_zone_weight,
-        "exclusion_zone_weight": payload.exclusion_zone_weight,
-        "profile_metadata": payload.metadata,
-    }
-    profile = TrafficDensityProfile(
-        id=profile_id,
-        lineage_id=profile_id,
-        revision=1,
-        effective_from=effective_from,
-        supersedes_id=None,
-        value_fingerprint=traffic_density_profile_fingerprint(profile_values),
-        name=payload.name,
-        description=payload.description,
-        profile_type=payload.profile_type,
-        traffic_density_per_km=payload.traffic_density_per_km,
-        dwell_impressions_per_minute=payload.dwell_impressions_per_minute,
-        road_category_weight=payload.road_category_weight,
-        morning_weight=payload.morning_weight,
-        midday_weight=payload.midday_weight,
-        evening_weight=payload.evening_weight,
-        night_weight=payload.night_weight,
-        target_zone_weight=payload.target_zone_weight,
-        bonus_zone_weight=payload.bonus_zone_weight,
-        exclusion_zone_weight=payload.exclusion_zone_weight,
-        is_default=payload.is_default,
-        status=payload.status,
-        profile_metadata=payload.metadata,
-    )
-    session.add(profile)
-    await session.flush()
-    await session.refresh(profile)
-    return profile
-
-
-async def list_traffic_density_profiles(
-    session: AsyncSession,
-    *,
-    limit: int,
-    offset: int,
-    profile_status: str | None,
-    profile_type: str | None,
-    is_default: bool | None,
-) -> tuple[list[TrafficDensityProfile], int]:
-    filters = []
-    if profile_status is not None:
-        filters.append(TrafficDensityProfile.status == profile_status)
-    if profile_type is not None:
-        filters.append(TrafficDensityProfile.profile_type == profile_type)
-    if is_default is not None:
-        filters.append(TrafficDensityProfile.is_default == is_default)
-
-    statement = select(TrafficDensityProfile)
-    count_statement = select(func.count()).select_from(TrafficDensityProfile)
-    for filter_expression in filters:
-        statement = statement.where(filter_expression)
-        count_statement = count_statement.where(filter_expression)
-
-    total = await session.scalar(count_statement)
-    result = await session.execute(
-        statement.order_by(TrafficDensityProfile.created_at.desc(), TrafficDensityProfile.id)
-        .limit(limit)
-        .offset(offset)
-    )
-    return list(result.scalars().all()), int(total or 0)
-
-
-async def get_traffic_density_profile(
-    session: AsyncSession,
-    profile_id: UUID,
-) -> TrafficDensityProfile:
-    profile = await session.get(TrafficDensityProfile, profile_id)
-    if profile is None:
-        raise profile_not_found()
-    return profile
-
-
-async def update_traffic_density_profile(
-    session: AsyncSession,
-    *,
-    profile_id: UUID,
-    payload: TrafficDensityProfileUpdate,
-) -> TrafficDensityProfile:
-    profile = await session.scalar(
-        select(TrafficDensityProfile)
-        .where(TrafficDensityProfile.id == profile_id)
-        .with_for_update()
-    )
-    if profile is None:
-        raise profile_not_found()
-    update_values = payload.model_dump(exclude_unset=True)
-    expected_revision = update_values.pop("expected_revision", None)
-    expected_fingerprint = update_values.pop("expected_value_fingerprint", None)
-    successor = await session.scalar(
-        select(TrafficDensityProfile.id).where(TrafficDensityProfile.supersedes_id == profile.id)
-    )
-    if (
-        successor is not None
-        or traffic_density_profile_fingerprint(profile) != profile.value_fingerprint
-        or (expected_revision is not None and expected_revision != profile.revision)
-        or (expected_fingerprint is not None and expected_fingerprint != profile.value_fingerprint)
-    ):
-        raise traffic_density_profile_stale()
-    operation_time = utc_now()
-    requested_effective_from = update_values.pop("effective_from", None)
-    if requested_effective_from is not None:
-        raise AppError(
-            "TRAFFIC_DENSITY_PROFILE_EFFECTIVE_TIME_INVALID",
-            "A successor effective time is assigned by the server",
-            status_code=status.HTTP_409_CONFLICT,
-        )
-    effective_from = operation_time
-    if "metadata" in update_values:
-        update_values["profile_metadata"] = update_values.pop("metadata")
-    revision_values = {
-        field: update_values.get(field, getattr(profile, field))
-        for field in TRAFFIC_PROFILE_FINGERPRINT_FIELDS
-        if field not in {"lineage_id", "revision", "effective_from"}
-    }
-    revision_values.update(
-        lineage_id=profile.lineage_id,
-        revision=profile.revision + 1,
-        effective_from=effective_from,
-    )
-    replacement = TrafficDensityProfile(
-        **revision_values,
-        supersedes_id=profile.id,
-        value_fingerprint=traffic_density_profile_fingerprint(revision_values),
-        is_default=update_values.get("is_default", profile.is_default),
-        status=update_values.get("status", profile.status),
-    )
-    profile.is_default = False
-    profile.status = TrafficDensityProfileStatus.INACTIVE.value
-    if replacement.is_default and replacement.status == TrafficDensityProfileStatus.ACTIVE.value:
-        await clear_other_active_defaults(session, profile_id=profile.id)
-    session.add(replacement)
-    await session.flush()
-    await session.refresh(replacement)
-    return replacement
-
-
-async def get_or_create_default_profile(
-    session: AsyncSession,
-    settings: Settings,
-) -> TrafficDensityProfile:
-    profile = await active_default_profile(session)
-    if profile is not None:
-        return profile
-
-    profile_id = uuid4()
-    effective_from = utc_now()
-    profile_values = {
-        "lineage_id": profile_id,
-        "revision": 1,
-        "effective_from": effective_from,
-        "name": "Settings Default Profile",
-        "description": "Settings-backed default v1 profile.",
-        "profile_type": TrafficDensityProfileType.DEFAULT.value,
-        "traffic_density_per_km": Decimal(str(settings.impression_default_traffic_density_per_km)),
-        "dwell_impressions_per_minute": Decimal(
-            str(settings.impression_default_dwell_impressions_per_minute)
-        ),
-        "road_category_weight": Decimal("1.0"),
-        "morning_weight": Decimal("1.0"),
-        "midday_weight": Decimal("1.0"),
-        "evening_weight": Decimal("1.0"),
-        "night_weight": Decimal("0.7"),
-        "target_zone_weight": Decimal("1.0"),
-        "bonus_zone_weight": Decimal("1.25"),
-        "exclusion_zone_weight": Decimal("0.0"),
-        "profile_metadata": {"source": "settings"},
-    }
-    profile = TrafficDensityProfile(
-        id=profile_id,
-        supersedes_id=None,
-        value_fingerprint=traffic_density_profile_fingerprint(profile_values),
-        **profile_values,
-        is_default=True,
-        status=TrafficDensityProfileStatus.ACTIVE.value,
-    )
-    try:
-        async with session.begin_nested():
-            session.add(profile)
-            await session.flush()
-            await session.refresh(profile)
-            return profile
-    except IntegrityError as exc:
-        if not is_expected_uniqueness_conflict(
-            exc,
-            constraints=DEFAULT_PROFILE_CONSTRAINTS,
-        ):
-            raise
-        existing_profile = await active_default_profile(session)
-        if existing_profile is not None:
-            return existing_profile
-        raise
-
-
-async def active_default_profile(session: AsyncSession) -> TrafficDensityProfile | None:
-    successor = aliased(TrafficDensityProfile)
-    return await session.scalar(
-        select(TrafficDensityProfile)
-        .where(
-            TrafficDensityProfile.status == TrafficDensityProfileStatus.ACTIVE.value,
-            TrafficDensityProfile.is_default.is_(True),
-            ~select(successor.id)
-            .where(successor.supersedes_id == TrafficDensityProfile.id)
-            .exists(),
-        )
-        .order_by(TrafficDensityProfile.created_at.desc(), TrafficDensityProfile.id)
-        .limit(1)
-    )
-
-
-async def resolve_active_profile(
-    session: AsyncSession,
-    *,
-    profile_id: UUID | None,
-    settings: Settings,
-) -> TrafficDensityProfile:
-    if profile_id is None:
-        return await get_or_create_default_profile(session, settings)
-    profile = await get_traffic_density_profile(session, profile_id)
-    successor_exists = bool(
-        await session.scalar(
-            select(func.count()).where(TrafficDensityProfile.supersedes_id == profile.id)
-        )
-    )
-    if profile.status != TrafficDensityProfileStatus.ACTIVE.value or successor_exists:
-        raise profile_inactive()
-    return profile
 
 
 async def get_trip_for_estimation(session: AsyncSession, trip_id: UUID) -> TripSession:
@@ -740,30 +315,14 @@ def fraud_multiplier(counts: dict[str, int], settings: Settings) -> Decimal:
     return Decimal("1.0")
 
 
-def profile_metadata(profile: TrafficDensityProfile) -> dict[str, str]:
-    return {
-        "id": str(profile.id),
-        "lineage_id": str(profile.lineage_id),
-        "revision": str(profile.revision),
-        "effective_from": profile.effective_from.isoformat(),
-        "value_fingerprint": profile.value_fingerprint,
-        "traffic_density_per_km": str(profile.traffic_density_per_km),
-        "dwell_impressions_per_minute": str(profile.dwell_impressions_per_minute),
-        "road_category_weight": str(profile.road_category_weight),
-        "morning_weight": str(profile.morning_weight),
-        "midday_weight": str(profile.midday_weight),
-        "evening_weight": str(profile.evening_weight),
-        "night_weight": str(profile.night_weight),
-        "target_zone_weight": str(profile.target_zone_weight),
-        "bonus_zone_weight": str(profile.bonus_zone_weight),
-        "exclusion_zone_weight": str(profile.exclusion_zone_weight),
-    }
+def profile_metadata(profile: FixedEstimateFactors) -> dict[str, str]:
+    return {key: str(value) for key, value in vars(profile).items()}
 
 
 def estimate_values(
     *,
     analytics: TripAnalytics,
-    profile: TrafficDensityProfile,
+    profile: FixedEstimateFactors,
     counts: dict[str, int],
     request_metadata: dict,
     settings: Settings,
@@ -938,153 +497,93 @@ def estimate_values(
     }
 
 
-async def estimate_trip_impressions(  # noqa: C901
-    session: AsyncSession,
-    *,
-    trip_id: UUID,
-    traffic_density_profile_id: UUID | None,
-    metadata: dict,
-    settings: Settings,
-    now: datetime | None = None,
-) -> ImpressionEstimate:
+async def estimate_trip_impressions(session, *, trip_id, metadata, settings, now=None):
     trip = await get_trip_for_estimation(session, trip_id)
     analytics = await get_analytics_for_trip(session, trip.id)
     ensure_current_analytics_formula(analytics, settings)
     counts = await fraud_hold_counts(session, trip.id)
     await session.refresh(analytics)
     ensure_current_analytics_formula(analytics, settings)
-    pinned = await session.scalar(
-        select(ImpressionEstimate)
-        .where(
-            ImpressionEstimate.trip_session_id == trip.id,
-            ImpressionEstimate.formula_version == settings.impression_formula_version,
-            ImpressionEstimate.is_authoritative.is_(True),
-        )
-        .order_by(ImpressionEstimate.id)
-        .limit(1)
-        .with_for_update()
+    pinned = await get_authoritative_estimate_for_trip(
+        session, trip_id=trip.id, settings=settings, fraud_counts=counts
     )
-    pinned_profile = (
-        await get_traffic_density_profile(
-            session,
-            pinned.traffic_density_profile_id,
-        )
-        if pinned is not None
-        else None
-    )
-    if pinned_profile is not None and traffic_density_profile_id is None:
-        profile = await session.scalar(
-            select(TrafficDensityProfile)
-            .where(TrafficDensityProfile.lineage_id == pinned_profile.lineage_id)
-            .order_by(TrafficDensityProfile.revision.desc())
-            .limit(1)
-        )
-        assert profile is not None
-        if profile.status != TrafficDensityProfileStatus.ACTIVE.value:
-            raise profile_inactive()
-    elif pinned_profile is not None and traffic_density_profile_id == pinned_profile.id:
-        pinned_profile_superseded = bool(
-            await session.scalar(
-                select(func.count()).where(TrafficDensityProfile.supersedes_id == pinned_profile.id)
-            )
-        )
-        if (
-            pinned_profile.status != TrafficDensityProfileStatus.ACTIVE.value
-            or pinned_profile_superseded
-        ):
-            raise profile_inactive()
-        profile = pinned_profile
-    else:
-        profile = await resolve_active_profile(
-            session,
-            profile_id=traffic_density_profile_id,
-            settings=settings,
-        )
+    if pinned is not None:
+        pinned.estimate_metadata = {
+            **pinned.estimate_metadata,
+            "request_metadata": metadata,
+        }
+        await session.flush()
+        await session.refresh(pinned)
+        return pinned
+    source_fingerprint = analytics_output_fingerprint(analytics)
     values = estimate_values(
         analytics=analytics,
-        profile=profile,
+        profile=FIXED_ESTIMATE_FACTORS,
         counts=counts,
         request_metadata=metadata,
         settings=settings,
         estimated_at=now or utc_now(),
     )
-    source_analytics_fingerprint = analytics_output_fingerprint(analytics)
     values["estimate_metadata"].update(
         {
             "source_analytics_formula_version": analytics.formula_version,
             "source_analytics_computed_at": analytics.computed_at.isoformat(),
-            "source_analytics_fingerprint": source_analytics_fingerprint,
-            "traffic_density_profile_fingerprint": profile.value_fingerprint,
+            "source_analytics_fingerprint": source_fingerprint,
+            "estimate_method": "fixed-default-factors-v1",
         }
     )
     values.update(
         {
-            "trip_analytics_id": analytics.id,
-            "assignment_id": analytics.assignment_id,
-            "campaign_id": analytics.campaign_id,
-            "driver_profile_id": analytics.driver_profile_id,
-            "vehicle_id": analytics.vehicle_id,
-            "started_at": analytics.started_at,
-            "ended_at": analytics.ended_at,
+            field: getattr(analytics, field)
+            for field in (
+                "assignment_id",
+                "campaign_id",
+                "driver_profile_id",
+                "vehicle_id",
+                "started_at",
+                "ended_at",
+            )
         }
     )
+    values["trip_analytics_id"] = analytics.id
     values["estimate_metadata"]["output_fingerprint"] = impression_output_fingerprint(
         values,
         formula_version=settings.impression_formula_version,
-        traffic_density_profile_id=profile.id,
-        source_analytics_fingerprint=source_analytics_fingerprint,
+        traffic_density_profile_id=None,
+        source_analytics_fingerprint=source_fingerprint,
     )
-    estimate = await session.scalar(
-        select(ImpressionEstimate).where(
-            ImpressionEstimate.trip_session_id == trip.id,
-            ImpressionEstimate.formula_version == settings.impression_formula_version,
-            ImpressionEstimate.traffic_density_profile_id == profile.id,
-        )
-    )
-    if (
-        pinned is not None
-        and pinned.traffic_density_profile_id != profile.id
-        and pinned_profile is not None
-        and pinned_profile.lineage_id == profile.lineage_id
-    ):
-        pinned.is_authoritative = False
-        await session.flush()
-    if estimate is None:
-        candidate = ImpressionEstimate(
-            trip_session_id=trip.id,
-            traffic_density_profile_id=profile.id,
-            formula_version=settings.impression_formula_version,
-            **values,
-        )
-        try:
-            async with session.begin_nested():
-                session.add(candidate)
-                await session.flush()
-        except IntegrityError as exc:
-            if not is_expected_uniqueness_conflict(
-                exc,
-                constraints=IMPRESSION_ESTIMATE_CONSTRAINTS,
-            ):
-                raise
-            estimate = await session.scalar(
-                select(ImpressionEstimate).where(
-                    ImpressionEstimate.trip_session_id == trip.id,
-                    ImpressionEstimate.formula_version == settings.impression_formula_version,
-                    ImpressionEstimate.traffic_density_profile_id == profile.id,
-                )
+    async with session.begin_nested():
+        await session.execute(
+            update(ImpressionEstimate)
+            .where(
+                ImpressionEstimate.trip_session_id == trip.id,
+                ImpressionEstimate.formula_version == settings.impression_formula_version,
+                ImpressionEstimate.is_authoritative.is_(True),
             )
-            if estimate is None:
-                raise
+            .values(is_authoritative=False)
+        )
+        estimate = await session.scalar(
+            select(ImpressionEstimate)
+            .where(
+                ImpressionEstimate.trip_session_id == trip.id,
+                ImpressionEstimate.formula_version == settings.impression_formula_version,
+                ImpressionEstimate.traffic_density_profile_id.is_(None),
+            )
+            .with_for_update()
+        )
+        if estimate is None:
+            estimate = ImpressionEstimate(
+                trip_session_id=trip.id,
+                traffic_density_profile_id=None,
+                formula_version=settings.impression_formula_version,
+                **values,
+            )
+            session.add(estimate)
         else:
-            estimate = candidate
-    for field, value in values.items():
-        setattr(estimate, field, value)
-    await session.flush()
-    await pin_authoritative_estimate(
-        session,
-        trip_id=trip.id,
-        formula_version=settings.impression_formula_version,
-    )
+            for field, value in values.items():
+                setattr(estimate, field, value)
+        estimate.is_authoritative = True
+        await session.flush()
     await session.refresh(estimate)
     return estimate
 
@@ -1099,7 +598,6 @@ async def list_impression_estimates(
     driver_profile_id: UUID | None,
     vehicle_id: UUID | None,
     estimate_status: str | None,
-    traffic_density_profile_id: UUID | None,
 ) -> tuple[list[ImpressionEstimate], int]:
     filters = []
     if campaign_id is not None:
@@ -1112,8 +610,6 @@ async def list_impression_estimates(
         filters.append(ImpressionEstimate.vehicle_id == vehicle_id)
     if estimate_status is not None:
         filters.append(ImpressionEstimate.status == estimate_status)
-    if traffic_density_profile_id is not None:
-        filters.append(ImpressionEstimate.traffic_density_profile_id == traffic_density_profile_id)
 
     statement = select(ImpressionEstimate)
     count_statement = select(func.count()).select_from(ImpressionEstimate)

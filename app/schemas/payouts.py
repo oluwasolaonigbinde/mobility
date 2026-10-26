@@ -9,7 +9,6 @@ from pydantic import (
     Field,
     field_serializer,
     field_validator,
-    model_validator,
 )
 
 from app.models.payout import (
@@ -35,7 +34,6 @@ class DecimalStringMixin(BaseModel):
         "lifetime_earned_amount",
         "released_available_amount",
         "cash_paid_amount",
-        "carry_forward_debt_amount",
         "batch_payable_amount",
         "final_payout_total",
         "gross_payout_total",
@@ -84,23 +82,13 @@ class CampaignPayoutRuleListResponse(BaseModel):
 
 
 class CampaignPayoutV4RevisionCreate(BaseModel):
-    """A daily-rate (payout_v4, D39) revision. Every pay value is required and
-    entered by Terrax Media staff; nothing is defaulted. The stop rule is fixed
-    by the server and cannot be supplied."""
+    """Staff set the day rate and target; D43 fixes the remaining pay rules."""
 
     model_config = ConfigDict(extra="forbid")
 
     effective_from: datetime
     daily_rate_naira: Decimal = Field(gt=Decimal("0"), max_digits=14, decimal_places=2)
     daily_target_miles: Decimal = Field(gt=Decimal("0"), max_digits=10, decimal_places=3)
-    shortfall_strategy: Literal["proportional", "per_mile_deduction"]
-    deduction_per_mile_naira: Decimal | None = Field(
-        default=None, gt=Decimal("0"), max_digits=14, decimal_places=2
-    )
-    minimum_miles: Decimal = Field(ge=Decimal("0"), max_digits=10, decimal_places=3)
-    outside_area_weight: Decimal = Field(
-        ge=Decimal("0"), le=Decimal("1"), max_digits=5, decimal_places=4
-    )
     reason: str
 
     @field_validator("effective_from")
@@ -117,21 +105,6 @@ class CampaignPayoutV4RevisionCreate(BaseModel):
         if not trimmed:
             raise ValueError("reason must not be empty")
         return trimmed
-
-    @model_validator(mode="after")
-    def validate_strategy(self) -> "CampaignPayoutV4RevisionCreate":
-        per_mile = self.shortfall_strategy == "per_mile_deduction"
-        if per_mile and self.deduction_per_mile_naira is None:
-            raise ValueError("deduction_per_mile_naira is required for per_mile_deduction")
-        if not per_mile and self.deduction_per_mile_naira is not None:
-            raise ValueError("deduction_per_mile_naira applies only to per_mile_deduction")
-        if self.minimum_miles > self.daily_target_miles:
-            raise ValueError("minimum_miles must not exceed daily_target_miles")
-        return self
-
-
-class PayoutV4Status(BaseModel):
-    publishing_enabled: bool
 
 
 class CampaignPayoutRuleRevisionRead(DecimalStringMixin):
@@ -199,6 +172,36 @@ class EarningsLedgerEntryRead(PayoutLedgerEntrySummary):
     payment_on_hold: bool = False
 
 
+class DriverMoneyMixin(BaseModel):
+    @field_serializer("amount", "today", "this_week", "total", "on_hold", check_fields=False)
+    def serialize_money(self, value: Decimal) -> str:
+        return str(value.quantize(Decimal("0.01")))
+
+
+class DriverEarningsDayRead(DriverMoneyMixin):
+    day: date
+    currency: str
+    amount: Decimal
+    status: Literal["on_hold", "paid", "paying_tonight", "being_checked"]
+    paid_at: datetime | None
+    trip_ids: list[UUID]
+
+
+class DriverEarningsTotalsRead(DriverMoneyMixin):
+    currency: str
+    today: Decimal
+    this_week: Decimal
+    total: Decimal
+    on_hold: Decimal
+
+
+class DriverEarningsDaysRead(BaseModel):
+    """REQ-208: the driver's daily earnings and headline totals in one read."""
+
+    totals: list[DriverEarningsTotalsRead]
+    days: list[DriverEarningsDayRead]
+
+
 class PayoutCalculationRead(DecimalStringMixin):
     id: UUID
     trip_session_id: UUID
@@ -252,7 +255,6 @@ class DriverEarningsCurrencySummary(DecimalStringMixin):
     lifetime_earned_amount: Decimal
     released_available_amount: Decimal
     cash_paid_amount: Decimal
-    carry_forward_debt_amount: Decimal
     batch_payable_amount: Decimal
     ledger_entry_count: int
 
@@ -336,8 +338,15 @@ class PayoutCorrectionOrderCreate(BaseModel):
         return trimmed
 
 
-class PayoutCorrectionOrderExecuteRequest(BaseModel):
+class PayoutCorrectionOrderApproveRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=3, max_length=500)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def strip_reason(cls, value):
+        return value.strip() if isinstance(value, str) else value
 
     # Q22: positive deltas post as pending with their OWN release date — no
     # default is invented, so executing an order with positive deltas without

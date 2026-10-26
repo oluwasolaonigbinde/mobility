@@ -1,32 +1,63 @@
+"""Only queued delivery sends mail; recovery re-enqueues durable outbox rows."""
+
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
+from arq import Retry
 from sqlalchemy import or_, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.adapters.messaging import EmailAdapter, build_email_adapter
+from app.adapters.messaging import build_email_adapter
 from app.core.config import Settings, get_settings
-from app.models.notification import (
-    Notification,
-    NotificationChannel,
-    NotificationStatus,
-)
-from app.services.email_delivery import (
-    email_sweep_visit_order,
-    process_email_notification,
-    record_unexpected_email_failure,
-)
+from app.core.outbox_enqueue import enqueue_outbox_jobs
+from app.models.notification import Notification, NotificationChannel, NotificationStatus
+from app.services.email_delivery import process_email_notification, record_unexpected_email_failure
 
 
-async def sweep_email_notifications(
-    ctx: dict[str, Any], *, now: datetime | None = None
+async def deliver_email(ctx: dict[str, Any], notification_id: str) -> str:
+    settings = ctx["settings"]
+    identity = UUID(notification_id)
+    current = datetime.now(UTC)
+    try:
+        result = await process_email_notification(
+            ctx["sessionmaker"],
+            notification_id=identity,
+            settings=settings,
+            email_adapter=ctx.get("email_adapter") or build_email_adapter(settings),
+            now=current,
+        )
+    except Exception as exc:
+        await record_unexpected_email_failure(
+            ctx["sessionmaker"],
+            notification_id=identity,
+            error=exc,
+        )
+        # A crash may leave an uncertain send claimed. Never race its lease.
+        raise Retry(defer=settings.email_delivery_claim_seconds) from None
+    if result == "retry_scheduled":
+        async with ctx["sessionmaker"]() as session:
+            retry_at = await session.scalar(
+                select(Notification.next_attempt_at).where(Notification.id == identity)
+            )
+        if retry_at is not None:
+            raise Retry(defer=max(0, (retry_at - datetime.now(UTC)).total_seconds()))
+    return result
+
+
+async def enqueue_pending_email(
+    ctx: dict[str, Any],
+    *,
+    now: datetime | None = None,
 ) -> dict[str, int]:
+    """Recover lost Redis hints, including a crash after committing the SQL outbox.
+
+    This never calls an email adapter, sends SMTP, or decides retries. A single
+    stable queue ID and the delivery claim fence concurrent recovery/dispatch.
+    """
     settings: Settings = ctx.get("settings") or get_settings()
-    sessionmaker: async_sessionmaker[AsyncSession] = ctx["sessionmaker"]
-    email_adapter: EmailAdapter = ctx.get("email_adapter") or build_email_adapter(settings)
     current = now or datetime.now(UTC)
-    async with sessionmaker() as session:
-        ids = list(
+    async with ctx["sessionmaker"]() as session:
+        identities = list(
             await session.scalars(
                 select(Notification.id)
                 .where(
@@ -41,24 +72,9 @@ async def sweep_email_notifications(
                         Notification.delivery_claim_expires_at <= current,
                     ),
                 )
-                .order_by(email_sweep_visit_order(session), Notification.id)
+                .order_by(Notification.created_at, Notification.id)
                 .limit(settings.worker_sweep_batch_size)
             )
         )
-    counts: dict[str, int] = {}
-    for notification_id in ids:
-        try:
-            result = await process_email_notification(
-                sessionmaker,
-                notification_id=notification_id,
-                settings=settings,
-                email_adapter=email_adapter,
-                now=current,
-            )
-        except Exception as exc:
-            await record_unexpected_email_failure(
-                sessionmaker, notification_id=notification_id, error=exc
-            )
-            result = "unexpected_failure"
-        counts[result] = counts.get(result, 0) + 1
-    return counts
+    await enqueue_outbox_jobs(settings, {("deliver_email", identity) for identity in identities})
+    return {"selected": len(identities)}

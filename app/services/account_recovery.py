@@ -29,6 +29,7 @@ def _recovery_eligible(user: User | None) -> bool:
             (user.role in RECOVERY_ELIGIBLE_ROLES and user.status in RECOVERY_ELIGIBLE_STATUSES)
             or (user.role == UserRole.DRIVER.value and user.status == UserStatus.ACTIVE.value)
         )
+        and not (user.role == UserRole.ADVERTISER and user.status == UserStatus.INVITED)
     )
 
 
@@ -54,9 +55,13 @@ async def _acquire_rate_limit_locks(
 def _reset_token_value(row: PasswordResetToken, user: User, settings: Settings) -> str:
     expires = int(_utc(row.expires_at).timestamp())
     payload = f"{row.id}:{user.id}:{row.session_version}:{expires}"
+    purpose = "password-reset:v1"
+    if row.purpose == "advertiser_invite":
+        purpose = "advertiser-invite:v1"
+        payload += f":{row.organization_id}"
     signature = hmac.new(
         settings.jwt_secret_key.encode(),
-        f"password-reset:v1:{payload}".encode(),
+        f"{purpose}:{payload}".encode(),
         hashlib.sha256,
     ).digest()
     encoded = base64.urlsafe_b64encode(signature).decode().rstrip("=")
@@ -201,7 +206,7 @@ async def complete_password_reset(
         if reset_id is not None
         else None
     )
-    if reset is None:
+    if reset is None or reset.purpose != "password_reset":
         raise AppError(
             "PASSWORD_RESET_INVALID",
             "Password reset token is invalid or expired",

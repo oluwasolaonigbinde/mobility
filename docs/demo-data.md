@@ -7,7 +7,7 @@ Identical repeat views reveal nothing new. Narrowly differing date windows are t
 
 Removed controls: legal display/collection authorization and synthetic switches, disclosure/configuration/history approval references, live measurement authorization and report-method approval setting; dynamic advertiser report fallback; legal approval for aggregate CSV export. Reports display a frozen measurement snapshot; CSV/PDF publication uses that same snapshot.
 
-Retained controls: organization membership and roles; aggregation vehicle/trip/day floors, contributor caps and resolution limits; disclosure query recording; report reproducibility, file integrity and conditional ROI inputs/method authority; person-level export rejection; storage/scanning/encryption; payment, payout and email provider controls; blocked live Meta/Google activation. `PRIVACY_LEGAL_APPROVAL_REFERENCE` remains only for actual ad-platform approval and DSR retention exceptions. `MEASUREMENT_ROI_METHOD_REFERENCE` remains for financial ROI, and the calculation method revision stays recorded on each run. Synthetic lineage fields remain where they describe source provenance and protect provider activation, without legal display authority switches.
+Retained controls: organization membership and roles; aggregation distinct-vehicle floor and resolution limits (D107 removed the trip/day floors and contributor caps); disclosure query recording; report reproducibility, file integrity and conditional ROI inputs/method authority; person-level export rejection; storage/scanning/encryption; payment, payout and email provider controls; blocked live Meta/Google activation. `PRIVACY_LEGAL_APPROVAL_REFERENCE` remains only for actual ad-platform approval and DSR retention exceptions. `MEASUREMENT_ROI_METHOD_REFERENCE` remains for financial ROI, and the calculation method revision stays recorded on each run. Synthetic lineage fields remain where they describe source provenance and protect provider activation, without legal display authority switches.
 
 Owner Batch 2 seed review corrections (REQ-097–REQ-103) were committed in `6879c95` after review and integrated into master. [Full CI](https://github.com/oluwasolaonigbinde/mobility/actions/runs/37433319087) on `b77945d` passed on 6 October 2026, including production build and the controlled coverage receipt. The earlier dated seed and preview receipts below remain historical evidence; this closure includes no application deployment.
 
@@ -38,14 +38,6 @@ No missing client answer is recorded as approved. These records are fictional an
 
 | Temporary input | Current value and location | Replacing answer |
 | --- | --- | --- |
-| Installation upload roles | `driver,admin` in development compose and local/client-preview API and seed environment files | REQ-039 |
-| Required installation photos | `front,back,left,right,close_up` in those files | REQ-039 |
-| Installation evidence lifetime | `INSTALLATION_EVIDENCE_VALIDITY_HOURS=168` in those files | REQ-039 |
-| Display challenge lifetime | `DISPLAY_PROOF_CHALLENGE_TTL_SECONDS=600` in those files | REQ-039 |
-| Display proof lifetime | `DISPLAY_PROOF_VALIDITY_SECONDS=86400` in those files | REQ-039 |
-| Higher-earner spot-check threshold | `EVIDENCE_HIGH_EARNER_THRESHOLD_NGN=50000` in those files | REQ-039 |
-| Renewal lookback | `EVIDENCE_RENEWAL_LOOKBACK_DAYS=7` in those files | REQ-039 |
-| Reply window | `EVIDENCE_CHALLENGE_RESPONSE_HOURS=24` in those files | REQ-039 |
 | Invoice bank and number prefix | OPay, non-routable all-zero account `0000000000`, prefix `TXM`, held only in the seeded issuer profile and invoice snapshots | REQ-041, REQ-042 and REQ-052 |
 | Reach estimates | Abuja weekday: 240 contacts/km, 5/minute, road factor 1.15; Abuja office: 180/km, 4/minute, road factor 1; Abuja weekend: 140/km, 4/minute, road factor 1; morning/midday/evening/night factors 1.2/1/1.3/0.7; target/bonus/exclusion factors 1.2/1.35/0 | EXT-REPORT-METHOD: calculation, labels and limitations |
 | Report calculation inputs | Seeded traffic profiles, routes, impression estimates, exposure scores and frozen measurement snapshots; `impressions_v1` / `exposure_v1` identify the existing calculation | EXT-REPORT-METHOD; no revenue or conversion inputs are invented |
@@ -58,7 +50,7 @@ No missing client answer is recorded as approved. These records are fictional an
 
 The eight installation values are an explicit owner-approved development/preview exception to the seed-only rule. They are present in `.env.example`, both API and worker sections of `docker-compose.yml`, and the local client-preview `api.env` / `seed.env`. Numeric code defaults and production/staging templates remain unset. The client preview was freshly seeded on 4 October with its existing c2ab2d9 application image preserved; no application-source deployment is claimed.
 
-Budget warning/pause thresholds remain unset (EXT-BUDGET-POLICY). Automatic provider dispatch remains disabled; the illustrated run reserves credits but sends no transfers. The ₦10,000 / 70-mile proportional daily rate is the confirmed D43 rule, not an unanswered commercial placeholder. Terrax's legal name, address, TIN, RC, phone and email are confirmed REQ-019 facts and are retained.
+Budget thresholds use the owner's fixed 80/95/100 rule (D92 / REQ-190); accepting a quote raises a lower budget to the agreed price, so seeded running campaigns stay within budget and raise no warnings (D104 / REQ-193). The cancelled demo campaign is cancelled by staff from the advertiser's cancellation request. Automatic provider dispatch remains disabled; the illustrated run reserves credits but sends no transfers. The ₦10,000 / 70-mile proportional daily rate is the confirmed D43 rule, not an unanswered commercial placeholder. Terrax's legal name, address, TIN, RC, phone and email are confirmed REQ-019 facts and are retained.
 
 Installation images are synthetic Marula Kitchens vehicle photographs reused across the fictional fleet. Applicant portraits and documents are illustrated cards. They exercise private storage, scanning and review flows; replace them with each person's own captured documents and each assigned vehicle's actual installation photos before real operations.
 
@@ -139,7 +131,7 @@ This one table lists persisted names and human-written fields, including frozen 
 | `commercial_quote_requests.request_details.notes` | Please quote for the Wuse II book fair weekend.<br>Please quote for weekday visibility around the selected areas.<br>Please quote for weekend lunch deliveries around Wuse II. |
 | `commercial_terms.line_items[].description` | Vehicle advertising on the agreed routes |
 | `commercial_terms.payment_terms.notes` | Payment before printing and installation. |
-| `complaint_messages.body` | Can the cars cover Aminu Kano Crescent before lunch?<br>Could you send the invoice with our Wuse office address?<br>My Tuesday trip ended near Wuse II but the earnings are still pending.<br>Please visit the Wuse office tomorrow morning for a replacement.<br>The app stopped recording after I left the fuel station.<br>The corrected panel is fitted and the photos are attached.<br>The lunch menu on the back panel needs the new phone number.<br>The rear sticker is lifting at the left corner.<br>Yes, the morning route includes Aminu Kano Crescent.<br>Your route has been checked and the missing section has been corrected. |
+| `complaint_messages.body` | Can the cars cover Aminu Kano Crescent before lunch?<br>Could you send the invoice with our Wuse office address?<br>My Tuesday trip ended near Wuse II but the earnings are still pending.<br>Please cancel the Asokoro launch until the new branch is ready.<br>Please cancel the collection campaign; the van delivery has been delayed.<br>Please visit the Wuse office tomorrow morning for a replacement.<br>The app stopped recording after I left the fuel station.<br>The campaign has been cancelled.<br>The corrected panel is fitted and the photos are attached.<br>The lunch menu on the back panel needs the new phone number.<br>The rear sticker is lifting at the left corner.<br>Yes, the morning route includes Aminu Kano Crescent.<br>Your route has been checked and the missing section has been corrected. |
 | `creative_review_events.rejection_reason` | Please enlarge the phone number before printing. |
 | `creative_review_events.reviewed_snapshot.name` | Aster Vale Foods door panel<br>Beryl Lane Grocers door panel<br>Cedar Bay Furnishings door panel<br>Copper Finch Bakery door panel<br>Door panel — teal<br>Dove Crescent Laundry door panel<br>Juniper Court Pharmacy door panel<br>Linden Harbour Clothing door panel<br>Mango Grove Interiors door panel<br>Marula Kitchens door panel<br>Oriole Books door panel<br>Sable Ridge Travel door panel |
 | `disclosure_query_decisions.reason` | privacy_floor_passed |
@@ -236,9 +228,10 @@ separate audited reads. Bank approval still requires verification authority.
 For the phone demonstration, save the driver's fictional number, tap Verify my
 phone, then enter the displayed code and that same sender in Phone → Record
 phone verification, or Support → Driver contact. Staff never fetch the code.
-Production/staging destinations remain blank; real use additionally requires
-`PHONE_OPERATOR_EXTERNAL_APPROVED`, `PHONE_OPERATOR_NAME` and
-`PHONE_WHATSAPP_NOTICE_APPROVAL_REFERENCE` with REQ-032 approved wording.
+D117/REQ-216 supersedes the old temporary destination and operator settings:
+all default examples use the client Terrax support number +2347074200080
+(07074200080). Code expiry, attempt limits and staff audit remain. Approved
+message wording remains a controller launch-checklist responsibility.
 Preview deployment is a separate owner action; this change provides configuration
 and source only.
 

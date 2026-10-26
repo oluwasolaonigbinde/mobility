@@ -1,13 +1,13 @@
 import json
 from collections.abc import AsyncIterator
-from typing import Annotated
+from typing import Annotated, Literal
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import ValidationError
 from redis.asyncio import Redis
 
-from app.adapters.messaging.email import EmailAdapter, build_email_adapter
-from app.api.v1.dependencies import SettingsDependency
+from app.api.v1.dependencies import AdminUserDependency, SessionDependency, SettingsDependency
 from app.core.campaign_enquiry_rate_limit import (
     EnquiryRateLimiter,
     RedisEnquiryRateLimiter,
@@ -15,19 +15,28 @@ from app.core.campaign_enquiry_rate_limit import (
 )
 from app.core.errors import AppError
 from app.core.rate_limit import login_client_ip
-from app.schemas.campaign_enquiries import CampaignEnquiryCreate, CampaignEnquiryRead
-from app.services.campaign_enquiries import send_campaign_enquiry
+from app.schemas.campaign_enquiries import (
+    CampaignEnquiryConversion,
+    CampaignEnquiryConverted,
+    CampaignEnquiryCreate,
+    CampaignEnquiryRead,
+    StaffCampaignEnquiryList,
+    StaffCampaignEnquiryRead,
+)
+from app.services.campaign_enquiries import (
+    convert_enquiry,
+    enquiry_read,
+    save_campaign_enquiry,
+    staff_enquiries,
+    staff_enquiry,
+)
 
 router = APIRouter(tags=["Campaign enquiries"])
 MAX_BODY_BYTES = 8192
 
 
-def get_enquiry_email_adapter(settings: SettingsDependency) -> EmailAdapter:
-    return build_email_adapter(settings)
-
-
 async def get_enquiry_limiter(settings: SettingsDependency) -> AsyncIterator[EnquiryRateLimiter]:
-    if not settings.campaign_enquiry_enabled or not settings.redis_url:
+    if not settings.redis_url:
         yield UnavailableEnquiryRateLimiter()
         return
     try:
@@ -71,12 +80,8 @@ async def submit_campaign_enquiry(
     request: Request,
     settings: SettingsDependency,
     limiter: Annotated[EnquiryRateLimiter, Depends(get_enquiry_limiter)],
-    adapter: Annotated[EmailAdapter, Depends(get_enquiry_email_adapter)],
+    session: SessionDependency,
 ) -> CampaignEnquiryRead:
-    if not settings.campaign_enquiry_enabled:
-        raise AppError(
-            "campaign_enquiry_unavailable", "Please contact Terrax by email.", status_code=503
-        )
     enquiry = await read_enquiry(request)
     decision = await limiter.reserve(login_client_ip(request, settings))
     if not decision.storage_available:
@@ -90,5 +95,49 @@ async def submit_campaign_enquiry(
             status_code=429,
             headers={"Retry-After": str(decision.retry_after_seconds)},
         )
-    await send_campaign_enquiry(enquiry, adapter)
+    await save_campaign_enquiry(session, enquiry)
+    await session.commit()
     return CampaignEnquiryRead()
+
+
+@router.get("/admin/campaign-enquiries", response_model=StaffCampaignEnquiryList)
+async def list_staff_enquiries(
+    user: AdminUserDependency,
+    session: SessionDependency,
+    status: Literal["new", "converted"] = "new",
+    q: str | None = Query(default=None, max_length=128),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> StaffCampaignEnquiryList:
+    items, total = await staff_enquiries(
+        session, actor_user_id=user.id, status=status, q=q, limit=limit, offset=offset
+    )
+    return StaffCampaignEnquiryList(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/admin/campaign-enquiries/{enquiry_id}", response_model=StaffCampaignEnquiryRead)
+async def read_staff_enquiry(
+    enquiry_id: UUID, user: AdminUserDependency, session: SessionDependency
+):
+    return enquiry_read(await staff_enquiry(session, actor_user_id=user.id, enquiry_id=enquiry_id))
+
+
+@router.post(
+    "/admin/campaign-enquiries/{enquiry_id}/create-advertiser",
+    response_model=CampaignEnquiryConverted,
+)
+async def convert_staff_enquiry(
+    enquiry_id: UUID,
+    payload: CampaignEnquiryConversion,
+    user: AdminUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> CampaignEnquiryConverted:
+    organization_id = await convert_enquiry(
+        session,
+        actor_user_id=user.id,
+        enquiry_id=enquiry_id,
+        settings=settings,
+    )
+    await session.commit()
+    return CampaignEnquiryConverted(organization_id=organization_id)

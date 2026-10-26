@@ -4,7 +4,7 @@ from copy import deepcopy
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
@@ -26,7 +26,6 @@ from app.models.billing import (
     PaymentReceipt,
     ReceiptLifecycleStatus,
     ReceiptMethod,
-    ReceiptReconciliation,
 )
 from app.services.audit import create_audit_event
 from app.services.billing.common import MONEY_QUANTUM, _money, _stored_aware_utc
@@ -37,10 +36,28 @@ from app.services.billing.queries import (
 )
 from app.services.billing.receipts import (
     _append_receipt_event,
+    _trusted_confirmed_gateway_event,
     allocate_payment_receipt,
     record_payment_receipt,
 )
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
+
+PERMANENT_PAYMENT_ERROR_CODES = frozenset(
+    {"PAYMENT_EVENT_TERMS_MISMATCH", "PAYMENT_CHECKOUT_BINDING_MISMATCH"}
+)
+
+
+def payment_attempt_is_terminal():
+    """One SQL predicate for processing, failure recording and catch-up selection."""
+    return or_(
+        PaymentGatewayProcessingAttempt.outcome.in_(
+            ("confirmed", "confirmed_unallocated", "ignored_failed")
+        ),
+        and_(
+            PaymentGatewayProcessingAttempt.outcome == "failed",
+            PaymentGatewayProcessingAttempt.error_code.in_(PERMANENT_PAYMENT_ERROR_CODES),
+        ),
+    )
 
 
 async def ingest_payment_gateway_webhook(
@@ -217,71 +234,51 @@ async def ingest_verified_payment_event(  # noqa: C901
     return event, True
 
 
-async def _reconcile_verified_gateway_receipt(
+async def _confirm_verified_gateway_receipt(
     session: AsyncSession,
     *,
     receipt: PaymentReceipt,
     event: PaymentGatewayEvent,
 ) -> None:
+    persisted, terms = await _trusted_confirmed_gateway_event(session, event.id)
     locked_receipt = await session.scalar(
         select(PaymentReceipt).where(PaymentReceipt.id == receipt.id).with_for_update()
     )
     if locked_receipt is None:
         raise AppError("RECEIPT_NOT_FOUND", "Receipt was not found", status_code=404)
     receipt = locked_receipt
-    reconciliation = await session.scalar(
-        select(ReceiptReconciliation).where(ReceiptReconciliation.receipt_id == receipt.id)
-    )
-    now = await database_clock(session)
-    if reconciliation is None:
-        reconciliation = ReceiptReconciliation(
-            receipt_id=receipt.id,
-            expected_amount=event.amount,
-            expected_currency=event.currency,
-            matched=True,
-            verification_source="provider",
-            provider_event_id=event.id,
-            reconciled_by_user_id=None,
-            reconciled_at=now,
-        )
-        session.add(reconciliation)
-        await session.flush()
-    elif (
-        Decimal(reconciliation.expected_amount) != Decimal(event.amount)
-        or reconciliation.expected_currency != event.currency
-        or not reconciliation.matched
+    if (
+        receipt.method != ReceiptMethod.GATEWAY
+        or receipt.organization_id != terms.organization_id
+        or receipt.provider != persisted.provider
+        or receipt.external_transaction_id
+        != f"{persisted.provider}:{persisted.external_transaction_id}"
+        or Decimal(receipt.amount) != Decimal(persisted.amount)
+        or receipt.currency != persisted.currency
     ):
         raise AppError(
-            "GATEWAY_RECONCILIATION_CONFLICT",
-            "Existing receipt reconciliation conflicts with verified provider evidence",
-            status_code=status.HTTP_409_CONFLICT,
+            "GATEWAY_CONFIRMATION_CONFLICT",
+            "Receipt facts conflict with verified provider evidence",
+            status_code=409,
         )
     current = await _receipt_status(session, receipt.id)
-    if current == ReceiptLifecycleStatus.OBSERVED:
-        await _append_receipt_event(
-            session,
-            receipt_id=receipt.id,
-            lifecycle_status=ReceiptLifecycleStatus.RECONCILED,
-            actor_user_id=None,
-            occurred_at=now,
-            reason=f"verified provider event {event.provider_event_id}",
-        )
-        current = ReceiptLifecycleStatus.RECONCILED
-    if current == ReceiptLifecycleStatus.RECONCILED:
-        await _append_receipt_event(
-            session,
-            receipt_id=receipt.id,
-            lifecycle_status=ReceiptLifecycleStatus.CONFIRMED,
-            actor_user_id=None,
-            occurred_at=now,
-            reason=f"verified provider event {event.provider_event_id}",
-        )
-    elif current != ReceiptLifecycleStatus.CONFIRMED:
+    if current == ReceiptLifecycleStatus.CONFIRMED:
+        return
+    if current != ReceiptLifecycleStatus.RECORDED:
         raise AppError(
             "GATEWAY_RECEIPT_NOT_CONFIRMABLE",
             "Verified gateway receipt is not in a confirmable state",
-            status_code=status.HTTP_409_CONFLICT,
+            status_code=409,
         )
+    await _append_receipt_event(
+        session,
+        receipt_id=receipt.id,
+        lifecycle_status=ReceiptLifecycleStatus.CONFIRMED,
+        actor_user_id=None,
+        occurred_at=await database_clock(session),
+        reason=f"verified provider event {persisted.provider_event_id}",
+        provider_event_id=persisted.id,
+    )
 
 
 async def process_payment_gateway_event(
@@ -296,9 +293,7 @@ async def process_payment_gateway_event(
         select(PaymentGatewayProcessingAttempt)
         .where(
             PaymentGatewayProcessingAttempt.gateway_event_id == event.id,
-            PaymentGatewayProcessingAttempt.outcome.in_(
-                ("confirmed", "confirmed_unallocated", "ignored_failed")
-            ),
+            payment_attempt_is_terminal(),
         )
         .order_by(PaymentGatewayProcessingAttempt.attempt_number.desc())
         .limit(1)
@@ -378,7 +373,7 @@ async def process_payment_gateway_event(
         observed_at=_stored_aware_utc(event.occurred_at),
         trusted_gateway_event_id=event.id,
     )
-    await _reconcile_verified_gateway_receipt(session, receipt=receipt, event=event)
+    await _confirm_verified_gateway_receipt(session, receipt=receipt, event=event)
     await acquire_campaign_terms_lock(session, terms.campaign_id)
     obligation = await effective_invoice_obligation(session, commercial_terms_id=terms.id)
     allocated = sum(
@@ -437,9 +432,7 @@ async def record_payment_gateway_failure(
         select(PaymentGatewayProcessingAttempt)
         .where(
             PaymentGatewayProcessingAttempt.gateway_event_id == event.id,
-            PaymentGatewayProcessingAttempt.outcome.in_(
-                ("confirmed", "confirmed_unallocated", "ignored_failed")
-            ),
+            payment_attempt_is_terminal(),
         )
         .order_by(PaymentGatewayProcessingAttempt.attempt_number.desc())
         .limit(1)

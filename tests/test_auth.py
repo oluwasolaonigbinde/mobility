@@ -223,9 +223,7 @@ def test_password_timing_equalizer_is_warmed_once(monkeypatch) -> None:
     assert calls == ["cardvert-timing-equalizer-not-a-real-password"]
 
 
-def test_only_production_app_creation_prewarms_password_equalizer(
-    settings, monkeypatch
-) -> None:
+def test_only_production_app_creation_prewarms_password_equalizer(settings, monkeypatch) -> None:
     from app import main as main_module
 
     calls: list[str] = []
@@ -703,7 +701,7 @@ def test_me_returns_user_and_advertiser_organization_context(
         "id": str(organization.id),
         "name": "Acme Ads",
         "currency": "NGN",
-        "membership_role": "owner",
+        "membership_role": "advertiser",
         "membership_status": "active",
     }
     assert "password_hash" not in response.text

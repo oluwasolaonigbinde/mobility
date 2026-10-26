@@ -14,7 +14,6 @@ const entryTypePresentation: Record<LedgerEntry["entry_type"], string | null> = 
   trip_payout: null,
   adjustment: "Adjustment",
   reversal: "Reversal",
-  debt_remainder: "Debt carried",
 };
 
 export function activeHeldTripIds(holds: DriverFraudHold[]): Set<string> {

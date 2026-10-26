@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 import pytest
-from test_measurement_runs import create_measurement_graph
+from report_fixtures import create_report_fixture
 
 from scripts import evaluate_pilot_gates
 from scripts import run_w403b_synthetic_journey as journey
@@ -31,8 +31,6 @@ def test_stage_contract_and_reviewed_blockers_are_exact() -> None:
         "synthetic GPS",
         "measurement",
         "Campaign Performance Analysis",
-        "qualified synthetic conditional ROI",
-        "aggregate contextual activation",
         "payout instruction",
         "incident/recovery",
     )
@@ -42,8 +40,8 @@ def test_stage_contract_and_reviewed_blockers_are_exact() -> None:
     )
 
 
-def test_shared_measurement_fixture_preserves_legacy_defaults() -> None:
-    parameters = inspect.signature(create_measurement_graph).parameters
+def test_shared_report_fixture_preserves_synthetic_cohort_defaults() -> None:
+    parameters = inspect.signature(create_report_fixture).parameters
 
     assert parameters["organization_name"].default == "Acme Ads"
     assert parameters["billing_email"].default == "billing@acme.test"

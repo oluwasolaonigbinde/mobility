@@ -65,14 +65,14 @@ def test_payout_projection_routes_are_exact_bounded_and_read_only(
         created = client.post(
             "/api/v1/admin/payout-batches",
             headers=headers,
-            json={"currency": "NGN", "request_id": request_id},
+            json={"currency": "NGN", "request_id": request_id, "reason": "Synthetic manual payout"},
         )
         assert created.status_code == 201
         assert created.json()["id"] == request_id
         reserved = client.post(
             f"/api/v1/admin/payout-batches/{request_id}/reserve",
             headers=headers,
-            json={"ledger_entry_ids": ids},
+            json={"ledger_entry_ids": ids, "reason": "Reserve verified earnings"},
         )
         assert reserved.status_code == 200
     summary = client.get("/api/v1/admin/payout-batches/summaries?limit=1", headers=headers)
@@ -80,6 +80,12 @@ def test_payout_projection_routes_are_exact_bounded_and_read_only(
     assert summary.json()["total"] == 1
     assert "lines" not in summary.json()["items"][0]
     assert summary.json()["items"][0]["line_count"] == 2
+    attention = client.get(
+        "/api/v1/admin/payout-batches/summaries?needs_attention=true", headers=headers
+    )
+    badges = client.get("/api/v1/admin/badge-summary", headers=headers)
+    assert badges.status_code == 200
+    assert badges.json()["source_counts"]["batches"] == attention.json()["total"] == 1
     detail = client.get(
         f"/api/v1/admin/payout-batches/{request_id}/detail?limit=1", headers=headers
     )

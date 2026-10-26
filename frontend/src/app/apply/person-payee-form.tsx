@@ -19,8 +19,7 @@ type StageResponse = {
 
 const FILES = ["license", "photo"] as const;
 
-export function PersonPayeeForm() {
-  const [accessToken, setAccessToken] = useState("");
+export function PersonPayeeForm({ accessToken }: { accessToken: string }) {
   const [bankReset, setBankReset] = useState(0);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
@@ -32,11 +31,6 @@ export function PersonPayeeForm() {
 
   function changed(event?: FormEvent<HTMLFormElement>) {
     if ((event?.target as HTMLInputElement | undefined)?.name === "bank_search") return;
-    if ((event?.target as HTMLInputElement | undefined)?.name === "application_access_token") {
-      uploads.reset();
-      fileUploads.clear();
-      setAccessToken((event?.target as HTMLInputElement).value);
-    }
     generation.current += 1;
     submissionRequestId.current = crypto.randomUUID();
     setResult(undefined);
@@ -61,7 +55,6 @@ export function PersonPayeeForm() {
     const form = new FormData(formElement);
     const track = uploads.tracker(isCurrent);
     try {
-      const accessToken = String(form.get("application_access_token") ?? "").trim();
       const license = (formElement.elements.namedItem("driver_license") as HTMLInputElement)
         .files?.[0];
       const photo = (formElement.elements.namedItem("driver_photo") as HTMLInputElement).files?.[0];
@@ -80,15 +73,17 @@ export function PersonPayeeForm() {
       const [licenseId, photoId] = await Promise.all([
         track(
           "license",
-          fileUploads.upload("license", license, accessToken, (id, progress) =>
-            uploadOnboardingFile(accessToken, license, id, "driver_kyc", progress),
-          ),
+          fileUploads.upload("license", license, accessToken, (id, progress) => {
+            progress.onStatus = uploads.onStatus("license", isCurrent);
+            return uploadOnboardingFile(accessToken, license, id, "driver_kyc", progress);
+          }),
         ),
         track(
           "photo",
-          fileUploads.upload("photo", photo, accessToken, (id, progress) =>
-            uploadOnboardingFile(accessToken, photo, id, "driver_kyc", progress),
-          ),
+          fileUploads.upload("photo", photo, accessToken, (id, progress) => {
+            progress.onStatus = uploads.onStatus("photo", isCurrent);
+            return uploadOnboardingFile(accessToken, photo, id, "driver_kyc", progress);
+          }),
         ),
       ]);
       if (!isCurrent()) return;
@@ -114,7 +109,6 @@ export function PersonPayeeForm() {
       if (!isCurrent()) return;
       setResult(nextResult);
       formElement.reset();
-      setAccessToken("");
       setBankReset((value) => value + 1);
       uploads.reset();
       submissionRequestId.current = crypto.randomUUID();
@@ -133,6 +127,15 @@ export function PersonPayeeForm() {
     }
   }
 
+  if (result)
+    return (
+      <Panel className="mt-5 p-6">
+        <h2 className="font-display text-2xl font-semibold">Details sent</h2>
+        <p role="status" className="text-muted mt-3 text-sm">
+          Terrax Media will check your details. We’ll email you when it’s time to add your car.
+        </p>
+      </Panel>
+    );
   return (
     <Panel className="mt-5 p-6">
       <h2 className="font-display text-2xl font-semibold">Your ID and bank details</h2>
@@ -141,17 +144,6 @@ export function PersonPayeeForm() {
         private.
       </p>
       <form onSubmit={submit} onChange={changed} className="grid gap-4" noValidate>
-        <Field
-          label="Code from your email"
-          name="application_access_token"
-          type="password"
-          autoComplete="one-time-code"
-          aria-describedby="person-payee-code-hint"
-          required
-        />
-        <p id="person-payee-code-hint" className="text-muted -mt-2 text-xs">
-          Check your email for the code we sent you.
-        </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label="NIN (11 digits)"
@@ -186,11 +178,6 @@ export function PersonPayeeForm() {
         {error ? (
           <p role="alert" className="text-coral text-sm">
             {error}
-          </p>
-        ) : null}
-        {result ? (
-          <p role="status" className="text-green text-sm">
-            Sent. We&apos;ll check your details. Check your status with your application reference.
           </p>
         ) : null}
         <Button type="submit" disabled={pending}>

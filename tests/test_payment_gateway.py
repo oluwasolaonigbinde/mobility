@@ -10,7 +10,7 @@ from test_receipt_allocations import _accepted_terms
 
 from app.adapters.payments import DisabledPaymentGatewayAdapter, FakePaymentGatewayAdapter
 from app.core.errors import AppError
-from app.jobs.payment_gateway import process_payment_gateway_event_job
+from app.jobs.payment_gateway import process_payment_gateway_event_job, sweep_payment_gateway_events
 from app.models.billing import (
     PaymentGatewayEvent,
     PaymentGatewayProcessingAttempt,
@@ -29,7 +29,6 @@ from app.services.billing.gateway import (
 from app.services.billing.receipts import (
     allocate_payment_receipt,
     confirm_payment_receipt,
-    reconcile_payment_receipt,
     record_payment_receipt,
 )
 
@@ -63,6 +62,191 @@ def _payload(terms_id, *, event_id="gateway-event-1", transaction_id="gateway-tx
         },
         sort_keys=True,
     ).encode()
+
+
+def test_permanent_failure_redelivery_is_terminal_and_poison_page_cannot_starve(db_sessionmaker):
+    fake = FakePaymentGatewayAdapter()
+
+    async def scenario():
+        poison_ids = []
+        async with db_sessionmaker() as session:
+            for index in range(100):
+                payload = _payload(
+                    uuid4(), event_id=f"poison-{index}", transaction_id=f"poison-{index}"
+                )
+                event, _ = await ingest_payment_gateway_webhook(
+                    session, adapter=fake, payload=payload, signature=fake.sign_webhook(payload)
+                )
+                poison_ids.append(event.id)
+                await record_payment_gateway_failure(
+                    session, event_id=event.id, error_code="PAYMENT_EVENT_TERMS_MISMATCH"
+                )
+            payload = json.loads(
+                _payload(uuid4(), event_id="eligible-later", transaction_id="eligible-later")
+            )
+            payload["event_type"] = "payment_failed"
+            encoded = json.dumps(payload).encode()
+            later, _ = await ingest_payment_gateway_webhook(
+                session, adapter=fake, payload=encoded, signature=fake.sign_webhook(encoded)
+            )
+            await session.commit()
+        ctx = {"sessionmaker": db_sessionmaker}
+        # A deterministic duplicate job returns the existing terminal evidence.
+        for _ in range(3):
+            result = await process_payment_gateway_event_job(ctx, str(poison_ids[0]))
+            assert result["outcome"] == "failed"
+            assert result["attempt_number"] == 1
+        result = await sweep_payment_gateway_events(ctx)
+        assert result == {"selected": 1, "processed": 1, "failed": 0}
+        assert await sweep_payment_gateway_events(ctx) == {
+            "selected": 0,
+            "processed": 0,
+            "failed": 0,
+        }
+        async with db_sessionmaker() as session:
+            assert (
+                await session.scalar(select(func.count(PaymentGatewayProcessingAttempt.id))) == 101
+            )
+            assert await session.scalar(select(func.count(PaymentReceipt.id))) == 0
+            assert await session.scalar(select(func.count(ReceiptAllocation.id))) == 0
+            assert (
+                await session.scalar(
+                    select(PaymentGatewayProcessingAttempt.outcome).where(
+                        PaymentGatewayProcessingAttempt.gateway_event_id == later.id
+                    )
+                )
+                == "ignored_failed"
+            )
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "code", ["PAYMENT_EVENT_TERMS_MISMATCH", "PAYMENT_CHECKOUT_BINDING_MISMATCH"]
+)
+def test_terminal_recording_serializes_duplicate_jobs_and_cannot_append_attempts(
+    db_sessionmaker, code
+):
+    fake = FakePaymentGatewayAdapter()
+
+    async def scenario():
+        async with db_sessionmaker() as session:
+            payload = _payload(uuid4(), event_id="terminal-race", transaction_id="terminal-race")
+            event, _ = await ingest_payment_gateway_webhook(
+                session, adapter=fake, payload=payload, signature=fake.sign_webhook(payload)
+            )
+            await session.commit()
+
+        async def record():
+            async with db_sessionmaker() as session:
+                attempt = await record_payment_gateway_failure(
+                    session, event_id=event.id, error_code=code
+                )
+                await session.commit()
+                return attempt.id
+
+        first, second = await asyncio.gather(record(), record())
+        assert first == second
+        assert await process_payment_gateway_event_job(
+            {"sessionmaker": db_sessionmaker}, str(event.id)
+        ) == {"event_id": str(event.id), "outcome": "failed", "attempt_number": 1}
+        async with db_sessionmaker() as session:
+            assert (
+                await record_payment_gateway_failure(
+                    session, event_id=event.id, error_code="TRANSIENT_UNAVAILABLE"
+                )
+            ).id == first
+            assert await session.scalar(select(func.count(PaymentGatewayProcessingAttempt.id))) == 1
+
+    asyncio.run(scenario())
+
+
+def test_failure_persistence_error_remains_retryable_and_racing_jobs_converge(
+    db_sessionmaker, monkeypatch
+):
+    import app.jobs.payment_gateway as jobs
+
+    fake = FakePaymentGatewayAdapter()
+    original = jobs.record_payment_gateway_failure
+
+    async def scenario():
+        async with db_sessionmaker() as session:
+            payload = _payload(uuid4(), event_id="retry-persist", transaction_id="retry-persist")
+            event, _ = await ingest_payment_gateway_webhook(
+                session, adapter=fake, payload=payload, signature=fake.sign_webhook(payload)
+            )
+            await session.commit()
+
+        async def unavailable(*args, **kwargs):
+            raise RuntimeError("synthetic failure-store outage")
+
+        monkeypatch.setattr(jobs, "record_payment_gateway_failure", unavailable)
+        ctx = {"sessionmaker": db_sessionmaker}
+        with pytest.raises(RuntimeError, match="failure-store outage"):
+            await jobs.process_payment_gateway_event_job(ctx, str(event.id))
+        async with db_sessionmaker() as session:
+            assert await session.scalar(select(func.count(PaymentGatewayProcessingAttempt.id))) == 0
+            assert await session.scalar(select(func.count(PaymentReceipt.id))) == 0
+        monkeypatch.setattr(jobs, "record_payment_gateway_failure", original)
+        first, second = await asyncio.gather(
+            jobs.process_payment_gateway_event_job(ctx, str(event.id)),
+            jobs.process_payment_gateway_event_job(ctx, str(event.id)),
+        )
+        assert (
+            first == second == {"event_id": str(event.id), "outcome": "failed", "attempt_number": 1}
+        )
+        async with db_sessionmaker() as session:
+            assert await session.scalar(select(func.count(PaymentGatewayProcessingAttempt.id))) == 1
+            assert await session.scalar(select(func.count(ReceiptAllocation.id))) == 0
+
+    asyncio.run(scenario())
+
+
+def test_transient_processing_failure_is_swept_again_and_recovers(db_sessionmaker, monkeypatch):
+    import app.jobs.payment_gateway as jobs
+
+    fake = FakePaymentGatewayAdapter()
+    original = jobs.process_payment_gateway_event
+
+    async def scenario():
+        payload = json.loads(_payload(uuid4(), event_id="transient", transaction_id="transient"))
+        payload["event_type"] = "payment_failed"
+        encoded = json.dumps(payload).encode()
+        async with db_sessionmaker() as session:
+            event, _ = await ingest_payment_gateway_webhook(
+                session, adapter=fake, payload=encoded, signature=fake.sign_webhook(encoded)
+            )
+            await session.commit()
+
+        async def temporarily_unavailable(*args, **kwargs):
+            raise RuntimeError("synthetic recoverable processing outage")
+
+        monkeypatch.setattr(jobs, "process_payment_gateway_event", temporarily_unavailable)
+        ctx = {"sessionmaker": db_sessionmaker}
+        with pytest.raises(RuntimeError, match="recoverable processing outage"):
+            await jobs.process_payment_gateway_event_job(ctx, str(event.id))
+        monkeypatch.setattr(jobs, "process_payment_gateway_event", original)
+        assert await jobs.sweep_payment_gateway_events(ctx) == {
+            "selected": 1,
+            "processed": 1,
+            "failed": 0,
+        }
+        async with db_sessionmaker() as session:
+            attempts = list(
+                await session.scalars(
+                    select(PaymentGatewayProcessingAttempt)
+                    .where(PaymentGatewayProcessingAttempt.gateway_event_id == event.id)
+                    .order_by(PaymentGatewayProcessingAttempt.attempt_number)
+                )
+            )
+            assert [(attempt.outcome, attempt.error_code) for attempt in attempts] == [
+                ("failed", "RuntimeError"),
+                ("ignored_failed", None),
+            ]
+            assert await session.scalar(select(func.count(PaymentReceipt.id))) == 0
+            assert await session.scalar(select(func.count(ReceiptAllocation.id))) == 0
+
+    asyncio.run(scenario())
 
 
 def test_signed_gateway_ingestion_is_thin_and_worker_retry_converges(db_sessionmaker) -> None:
@@ -142,8 +326,7 @@ def test_signed_gateway_ingestion_is_thin_and_worker_retry_converges(db_sessionm
                 )
             )
             assert statuses == [
-                ReceiptLifecycleStatus.OBSERVED,
-                ReceiptLifecycleStatus.RECONCILED,
+                ReceiptLifecycleStatus.RECORDED,
                 ReceiptLifecycleStatus.CONFIRMED,
             ]
             await session.commit()
@@ -249,14 +432,13 @@ def test_manual_payment_before_gateway_confirmation_preserves_unallocated_cash(
                 evidence_reference="statement-before-gateway",
                 observed_at=datetime.now(UTC),
             )
-            await reconcile_payment_receipt(
+            await confirm_payment_receipt(
                 session,
                 receipt_id=manual.id,
                 actor_user_id=admin.id,
                 expected_amount="100.00",
                 expected_currency="NGN",
             )
-            await confirm_payment_receipt(session, receipt_id=manual.id, actor_user_id=admin.id)
             await allocate_payment_receipt(
                 session,
                 receipt_id=manual.id,
@@ -304,11 +486,11 @@ def test_worker_job_persists_failure_attempt_after_business_rollback(db_sessionm
             return event.id
 
     event_id = asyncio.run(setup())
-    with pytest.raises(AppError) as processing_error:
-        asyncio.run(
-            process_payment_gateway_event_job({"sessionmaker": db_sessionmaker}, str(event_id))
-        )
-    assert processing_error.value.code == "PAYMENT_EVENT_TERMS_MISMATCH"
+    result = asyncio.run(
+        process_payment_gateway_event_job({"sessionmaker": db_sessionmaker}, str(event_id))
+    )
+    assert result["outcome"] == "failed"
+    assert result["attempt_number"] == 1
 
     async def assert_failure() -> None:
         async with db_sessionmaker() as session:

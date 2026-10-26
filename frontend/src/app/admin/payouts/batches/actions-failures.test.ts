@@ -12,8 +12,8 @@ vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ POST: mocks.post 
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 
 import {
-  allocateDebtAction,
   maskedDestinationAction,
+  negativeAdjustmentAction,
   pollLineAction,
   previewSelectionAction,
 } from "./actions";
@@ -23,6 +23,52 @@ const entry = "22222222-2222-4222-8222-222222222222";
 
 describe("payout action failure paths", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  function adjustment(amount = "999999999999.99") {
+    const form = new FormData();
+    form.set("entry_id", entry);
+    form.set("request_id", version);
+    form.set("currency", "NGN");
+    form.set("amount", amount);
+    form.set("reason", "Correct recorded overpayment");
+    form.set("lagos_day", "2026-10-20");
+    return form;
+  }
+
+  it("preserves the exact decimal, reference and Nigeria day on an uncertain adjustment retry", async () => {
+    mocks.post.mockRejectedValueOnce(new Error("lost response"));
+    const form = adjustment();
+    expect(await negativeAdjustmentAction({}, form)).toEqual({
+      error: "No result was confirmed. Retry the same adjustment or check the ledger.",
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    mocks.post.mockResolvedValueOnce({ data: { id: version } });
+    expect(await negativeAdjustmentAction({}, form)).toEqual({
+      done: "Negative adjustment recorded. Other trips' pay is unchanged.",
+    });
+    expect(mocks.post.mock.calls[0]).toEqual(mocks.post.mock.calls[1]);
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      "/api/v1/admin/earnings-ledger/{entry_id}/negative-adjustments",
+      {
+        params: { path: { entry_id: entry } },
+        body: {
+          request_id: version,
+          currency: "NGN",
+          amount: "999999999999.99",
+          reason: "Correct recorded overpayment",
+          lagos_day: "2026-10-20",
+        },
+      },
+    );
+  });
+
+  it.each(["0", "-1", "1.001", "1e3", "1000000000000"])(
+    "refuses invalid adjustment amount %s before any mutation",
+    async (amount) => {
+      expect((await negativeAdjustmentAction({}, adjustment(amount))).error).toBeTruthy();
+      expect(mocks.post).not.toHaveBeenCalled();
+    },
+  );
 
   it("refuses an invalid preview selection before calling the server", async () => {
     expect(await previewSelectionAction("ngn", [entry])).toEqual({
@@ -57,29 +103,11 @@ describe("payout action failure paths", () => {
 
     mocks.batchApi.mockRejectedValueOnce(new Error("timeout"));
     const form = new FormData();
+    form.set("reason", "Staff payment review");
     form.set("line_id", entry);
     expect(await pollLineAction({}, form)).toEqual({
       error:
         "No verified result could be confirmed. The current payment status remains authoritative.",
-    });
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("does not claim a debt allocation that failed or was malformed", async () => {
-    const malformed = new FormData();
-    malformed.set("driver_profile_id", entry);
-    malformed.set("currency", "NAIRA");
-    expect(await allocateDebtAction({}, malformed)).toEqual({
-      error: "Select a driver and currency.",
-    });
-    expect(mocks.batchApi).not.toHaveBeenCalled();
-
-    mocks.batchApi.mockRejectedValueOnce(new Error("conflict"));
-    const form = new FormData();
-    form.set("driver_profile_id", entry);
-    form.set("currency", "NGN");
-    expect(await allocateDebtAction({}, form)).toEqual({
-      error: "The allocation could not be confirmed. Refresh the driver's credits before retrying.",
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });

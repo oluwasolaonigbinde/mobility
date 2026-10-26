@@ -1,5 +1,42 @@
 # Mobility operations runbook
 
+## Artwork QR scans and delayed campaign dots (REQ-223/225)
+
+Artwork website destinations are validated public https URLs. An advertiser's
+saved link keeps its random `/q/<code>` when the destination changes; the QR
+download encodes `PUBLIC_ORIGIN` plus that path, never a request Host. Set the
+existing app origin correctly before downloading printable codes. Encoding runs
+locally. Redirect GETs commit a Nigeria-date aggregate count before responding;
+HEAD never counts. These are scans, not distinct people or website conversions.
+No scan event, IP or user-agent column exists. Redis link/global counters contain
+only the artwork code/count, expire after one minute and fail closed on outage
+(120 redirects per link and 5,000 globally per minute). Do not add visitor keys.
+
+The new public scan handler suppresses Uvicorn scan access records and scan error
+telemetry; the frontend suppresses `/q/` error telemetry and relays no visitor
+headers or cookies. **External release gate:** verify the actual trusted edge,
+any hosting access logs and monitoring keep no QR-scan IP/user agent, and preserve
+no-referrer/no-store on redirects. Repository Caddy excludes access logs for
+`/q/*` only, under the orchestrator's narrow ownership exception. A QR-specific
+named logger discards its proxy-error records; other paths retain their normal
+access logs and error diagnostics. Scoped immediate/deferred headers preserve
+no-referrer/no-store. A frontend outage keeps Caddy's plain 502 with an empty
+body, an orchestrator-approved trade-off to preserve other paths' logging. The internal
+`/api/v1/qr/*` route is not forwarded by the public edge. Local application and
+Caddy validation checks do not prove a deployed edge. No provider call or real
+scan-data collection is authorized by this feature.
+
+Live campaign maps read a fresh snapshot of active work only. Each dot uses the
+latest delay-eligible point (recorded and received at least 15 minutes ago), is
+no more than 30 minutes old, moving, in a target area and outside exclusions.
+Responses contain no driver/car identity or stable dot identifier and are not
+cached. Refresh replaces the dots; there is no historical query, trail or per-car
+filter. Disclosure history keeps only policy/window and salted result hashes,
+not coordinates. This reduces disclosure; legal real-use approval remains open.
+An empty snapshot says No cars driving right now; a failed read stays unavailable.
+The basemap stays schematic until the MapTiler account/style (REQ-050) is ready;
+never add invented streets or landmarks to a campaign map.
+
 This runbook covers the Docker Compose pilot stack. Run commands from the repository root. Production-like environments must use externally supplied credentials and explicit hostnames, require TLS and authentication for both PostgreSQL and Redis, keep both private, and put the frontend behind a trusted TLS edge. Bundled and managed data services are both permitted; do not infer provider values from this repository.
 
 ## Stack overview
@@ -66,9 +103,10 @@ blank or false. Placeholder values are always rejected.
 
 Before staging or production can start, the live path additionally requires a
 configured scanner, retained trip-evidence signing keyring, approved privacy
-collection reference, authenticated STARTTLS SMTP adapter with an independent
-receipt key, an approved HTTPS basemap build input, and complete evidence and
-activity-policy inputs. The checked-in examples intentionally contain blanks,
+collection reference, authenticated STARTTLS SMTP adapter, an approved HTTPS basemap build input, and complete evidence and
+activity-policy inputs. D117 fixes numeric security/worker/scanner limits in code; retired email receipt
+keys and phone operator approval/name/reference are not deployment prerequisites.
+Phone support defaults to +2347074200080. The checked-in examples intentionally contain blanks,
 false gates, and `EXAMPLE-ONLY` markers, so neither file is deployable. Replace
 them only with externally approved values in the mode-0600 copy outside the
 repository; never weaken preflight to make an example pass.
@@ -228,9 +266,11 @@ trap - EXIT
 
 ## Migrations
 
-D83 replaces the disposable development chain with the single root/head
-`0106_development_baseline`. Subsequent migration `0107_audience_sweep_cursor`
-is the current head and adds only the fair aggregate-planning scan position.
+D83 replaces the disposable development chain with root
+`0106_development_baseline`. The current Lane A head is
+`0113_remove_pilot_audiences`, following the driver and money simplifications.
+It removes the pilot audience tables and ROI columns without changing issued
+report JSON or stored artifact bytes.
 Initialize a fresh PostgreSQL database with:
 
 ```bash
@@ -310,6 +350,21 @@ COMMIT;
 
 Require exactly one returned row. The session bump immediately revokes possibly compromised sessions; the user must replace the temporary password at next login. Record the operator, reason, and timestamp in the incident record. A future admin-reset endpoint may replace this procedure, but is not part of F7.
 
+### First staff account
+
+A fresh deployment has no staff login. After migrations, create the first
+Terrax admin from the API container (REQ-208):
+
+```bash
+docker compose exec api python -m app.operations.create_staff --email ops@terrax.example --name "Ada Obi"
+```
+
+The command creates an active admin and prints a temporary password once. Give
+it to the person privately; they must choose a new password at first sign-in.
+It refuses an email that already has an account and changes nothing. The audit
+log records `admin.user.created` with source `cli`. Further staff are added
+from the admin portal.
+
 ## Driver PWA session behavior
 
 While tracking, the mounted PWA sends a lightweight GET keepalive every 10 minutes. Middleware can refresh a near-expiry session without downloading a full page. Keepalive errors are fail-open and retried: buffered pings remain client-side, and a later flush surfaces the existing error if the session ultimately expires. No refresh can cross the 12-hour absolute login cap, so a trip longer than 12 hours must reauthenticate.
@@ -380,6 +435,29 @@ docker compose stop worker
 
 The worker publishes no host port. Settings: `WORKER_SWEEP_INTERVAL_MINUTES` (default `5`; must be a divisor of 60 between 1 and 60 — anything else fails Settings validation at startup), `WORKER_SWEEP_BATCH_SIZE` (default `25` trips per sweep), and `TRIP_SEAL_GRACE_SECONDS` (default `600` — how long an incomplete/legacy trip end waits for late GPS batches before the seal sweep finalizes it).
 
+REQ-180 adds immediate `scan_file` and `deliver_email` jobs after successful outer
+database commits. Enqueue is bounded to one second per commit and fails open to
+the durable sweep; no provider runs in the API process. Files remain quarantined
+until clean, and early scan replays respect `next_scan_at`. Email claims, retries
+and current recipient permissions remain authoritative. Deterministic job IDs
+deduplicate queued/running work; `keep_result=0` permits later catch-up.
+
+Set `PUBLIC_ORIGIN`, `PASSWORD_RESET_PUBLIC_URL` and
+`DRIVER_ACCOUNT_SETUP_PUBLIC_URL` to the actual browser origin and corresponding
+`/reset-password` and `/driver-account-setup` pages. Local compose defaults use
+`http://localhost:3000`; when using a demo tunnel, override all three together.
+`DRIVER_ACCOUNT_SETUP_PUBLIC_URL` is a required release value (D106): without
+it an approved driver's email cannot carry a link. The link works once, for 24
+hours (`DRIVER_ACCOUNT_SETUP_TTL_SECONDS=86400`). If the setup URL is missing,
+the email asks the recipient to contact Terrax for a replacement link and never
+includes a bare token. D108/REQ-211 removes daily display proof and its configuration.
+Trip start requires current staff-approved weekly installation photos, not a daily photo.
+Driver applications, website enquiries and installation photos need no
+deployment switch. An account-name lookup does
+not verify a payout account: when it is unavailable, D89 permits staff to make a
+small test transfer and record its bank reference. Only the trimmed reference's
+hash is retained; the exact bank version and first-manual-payout rules still apply.
+
 | Failure | Effect | Recovery |
 |---|---|---|
 | Redis down at trip end | Trip end still returns 200; API logs a `event=trip_enqueue_failed` warning | Sweep completes the trip within one interval |
@@ -400,6 +478,33 @@ removed under D80; current corrections use the governed recompute-day authority
 and never silently rewrite accepted money. The worker also owns location-ping
 partition premake, coverage alarms and audited retention, so it is mandatory in
 every deployed environment.
+
+## Manual money operations (D112–D114 / REQ-213)
+
+One active admin may prepare, approve and reconcile a manual payout batch and
+approve/apply a correction. Enter a reason for each action; the audit records
+it. Check the current net amount, destination and verified provider result.
+The first payout to a new bank account stays manual; held or flagged pay never
+auto-releases. A stale correction must be prepared again.
+
+Record an overpayment as a manual negative adjustment on the original trip,
+with a reason and the actual Nigeria day (choose one for a cross-midnight trip).
+It appends a ledger entry and never edits paid history or takes another trip's
+earnings. There is no debt recovery queue or automatic future deduction.
+Uncertain or already claimed transfers must be verified by their existing
+reference before any new submission. Partial corrected cash can settle a trip;
+the Paid display follows actual verified cash against net earned pay.
+
+Manual receipt handling records then confirms the exact expected amount and
+currency before allocation. Mismatches remain recorded. Budget checks retain
+D104's accepted-price exception, 80/95 warnings and strict-above-100 pause;
+resume requires a reason and changed funding/budget facts. No automatic resume.
+
+Late GPS uploads are admitted before pay has been calculated for any affected
+Nigeria day. Otherwise the signed acknowledgement drops the batch and the
+audit records it, without storing its coordinates or repricing pay. There is
+no staff apply/discard step. Review pay-changing flags directly as confirmed
+or dismissed; confirmation keeps the hold and never creates an automatic debit.
 
 ## Location-ping data lifecycle (S4)
 
@@ -454,8 +559,7 @@ never fabricate or rewrite purge evidence to unblock deletion.
 days so purged pings age out of backups automatically. The local
 `scripts/db_backup.sh` enforces both newest-14 and age-at-most-35-days bounds;
 `BACKUP_RETENTION_DAYS` may narrow that age but cannot exceed 35. Keep approved
-encrypted off-host copies on the same or a shorter bounded rotation. The
-cross-store request procedure is in `docs/data-subject-request-runbook.md`.
+encrypted off-host copies on the same or a shorter bounded rotation. Terrax staff handle privacy requests manually across the affected stores until a lawyer sets rules (D110).
 
 | Failure | Effect | Recovery |
 |---|---|---|
@@ -518,18 +622,17 @@ Production storage, malware scanner and key-custody selections remain external
 deployment inputs. The local MinIO, ClamAV and keyring adapters prove the
 provider-neutral contracts; they are not production-provider approval.
 
-KYC retention execution is disabled unless an approved positive
-`FILE_KYC_RETENTION_DAYS` value is configured. Do not copy a local or synthetic
-test value into a live environment. After legal/privacy approval, an active
-admin must run the dry-run first and reconcile its eligible count before any
-execution:
+KYC file retention is fixed at six calendar months (D119 / REQ-218, client
+item 17, owner confirmed 20 October). The purge job runs without a retention
+setting. An active admin can run the dry-run and reconcile its eligible count
+before manual execution:
 
 ```text
 POST /api/v1/admin/operations/file-kyc-retention
 {"dry_run":true,"reason":"approved_retention_review_reference"}
 ```
 
-Only rejected or expired submissions older than the configured cutoff are
+Only rejected or expired submissions older than the six-calendar-month cutoff are
 eligible. Pending and approved submissions remain untouched. The worker uses
 the same boundary once daily; without the setting it records
 `policy_configured=false` and deletes nothing. Execution commits payload clearing,
@@ -610,15 +713,8 @@ Keep secrets in the host/platform secret store, not Git or image layers. Rotate 
 
 ## Scheduled job check-ins and Finance health (D82)
 
-`sweep_exposure_segments` uses the normal worker sweep interval and batch bound.
-It discovers committed current measurement/link pairs without Redis enqueue
-authority, advances a durable UUID-pair cursor, and materializes each pair in an
-isolated transaction. Cursor wrap retries lost/failed work; empty aggregates
-complete as suppressed segments. Safe catch-up logs show scanned/completed/
-failed counts and refusal codes. Stale or superseded parents require a current
-measurement/link, not manual segment edits or lower disclosure thresholds.
-Planning output is advisory aggregate geography/time; no ad-platform push is
-enabled by this job.
+The pilot has no audience producer, export or ad-platform job (D115/REQ-214).
+Report publication and all retained worker check-ins continue independently.
 
 Every `WorkerSettings.cron_jobs` entry emits `in_progress`, then `ok` or
 `error` (including cancellation), to `cardvert-<job-name-with-hyphens>`. Its

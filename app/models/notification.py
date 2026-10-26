@@ -24,6 +24,10 @@ from app.db.base import Base
 
 
 class NotificationType(StrEnum):
+    DRIVER_ID_APPROVED = "driver_id_approved"
+    DRIVER_ID_REJECTED = "driver_id_rejected"
+    DRIVER_CAR_APPROVED = "driver_car_approved"
+    DRIVER_CAR_REJECTED = "driver_car_rejected"
     ASSIGNMENT_OFFERED = "assignment_offered"
     ASSIGNMENT_ACCEPTED = "assignment_accepted"
     CAMPAIGN_APPROVED = "campaign_approved"
@@ -31,32 +35,28 @@ class NotificationType(StrEnum):
     CREATIVE_APPROVED = "creative_approved"
     CREATIVE_REJECTED = "creative_rejected"
     QUOTATION_READY = "quotation_ready"
+    REPORT_READY = "report_ready"
     FUNDING_CONFIRMED = "funding_confirmed"
     BUDGET_ALERT = "budget_alert"
     BUDGET_URGENT_ALERT = "budget_urgent_alert"
     CAMPAIGN_BUDGET_PAUSED = "campaign_budget_paused"
     CAMPAIGN_BUDGET_RESUMED = "campaign_budget_resumed"
     CAMPAIGN_CANCELLED = "campaign_cancelled"
-    EVIDENCE_CHALLENGE_CREATED = "evidence_challenge_created"
-    EVIDENCE_VERIFIED = "evidence_verified"
     PAYOUT_RELEASED = "payout_released"
     PASSWORD_RESET_REQUESTED = "password_reset_requested"
+    ADVERTISER_LOGIN_INVITE = "advertiser_login_invite"
     DRIVER_ONBOARDING_ACCESS_REQUESTED = "driver_onboarding_access_requested"
     DRIVER_ACCOUNT_SETUP_REQUESTED = "driver_account_setup_requested"
     FRAUD_HOLD_RAISED = "fraud_hold_raised"
     FRAUD_REVIEW_RESOLVED = "fraud_review_resolved"
     FRAUD_DISPUTE_REPLIED = "fraud_dispute_replied"
-    ACTIVITY_FLOOR_BREACHED = "activity_floor_breached"
-    ACTIVITY_FLOOR_RECOVERED = "activity_floor_recovered"
     ASSIGNMENT_INACTIVE = "assignment_inactive"
-    ASSIGNMENT_ACTIVITY_RECOVERED = "assignment_activity_recovered"
     PAYOUT_AUTOMATIC_ALERT = "payout_automatic_alert"
     PAYOUT_AUTOMATIC_PAUSED = "payout_automatic_paused"
     PAYOUT_AUTOMATIC_RESUMED = "payout_automatic_resumed"
     COMPLAINT_RECEIVED = "complaint_received"
     COMPLAINT_REPLIED = "complaint_replied"
     COMPLAINT_RESOLVED = "complaint_resolved"
-    COMPLAINT_ASSIGNED = "complaint_assigned"
 
 
 class NotificationChannel(StrEnum):
@@ -67,7 +67,6 @@ class NotificationChannel(StrEnum):
 class NotificationStatus(StrEnum):
     PENDING = "pending"
     SENT = "sent"
-    DELIVERED = "delivered"
     FAILED = "failed"
 
 
@@ -88,7 +87,7 @@ class Notification(Base):
             name="ck_notifications_channel",
         ),
         CheckConstraint(
-            "status IN ('pending', 'sent', 'delivered', 'failed')",
+            "status IN ('pending', 'sent', 'failed')",
             name="ck_notifications_status",
         ),
         CheckConstraint("attempt_count >= 0", name="ck_notifications_attempt_count"),
@@ -157,49 +156,10 @@ class Notification(Base):
     dedupe_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-
-
-class NotificationDeliveryReceipt(Base):
-    __tablename__ = "notification_delivery_receipts"
-    __table_args__ = (
-        CheckConstraint(
-            "outcome IN ('delivered', 'failed')",
-            name="ck_notification_delivery_receipts_outcome",
-        ),
-        UniqueConstraint("notification_id", name="uq_notification_receipts_notification"),
-        UniqueConstraint("provider_event_id", name="uq_notification_receipts_provider_event"),
-    )
-
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
-    )
-    notification_id: Mapped[UUID] = mapped_column(
-        ForeignKey("notifications.id", ondelete="RESTRICT"), nullable=False
-    )
-    provider_event_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    provider_message_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    evidence_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
-    signing_key_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    verified_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-
-@event.listens_for(NotificationDeliveryReceipt, "before_update")
-def reject_notification_receipt_update(_mapper, _connection, _target) -> None:
-    raise ValueError("notification delivery receipts are immutable")
-
-
-@event.listens_for(NotificationDeliveryReceipt, "before_delete")
-def reject_notification_receipt_delete(_mapper, _connection, _target) -> None:
-    raise ValueError("notification delivery receipts are append-only")
 
 
 _FROZEN_EVIDENCE_FIELDS = frozenset(

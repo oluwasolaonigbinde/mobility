@@ -254,7 +254,6 @@ async def request_phone_verification(
             "phone_version_id": str(phone.id),
             "phone_version": phone.version,
             "expires_at": challenge.expires_at.isoformat(),
-            "external_gate": "EXT-PHONE-OPERATOR",
         },
     )
     return challenge
@@ -264,16 +263,8 @@ def phone_verification_available(settings: Settings) -> bool:
     number = settings.phone_verification_terrax_number.strip()
     if not PHONE_PATTERN.fullmatch(number):
         return False
-    if settings.environment in {"local", "dev", "development", "test", "testing", "preview"}:
-        # Owner-approved temporary destination; no provider or send operation.
-        return number == "+2347068369842"
-    return bool(
-        settings.phone_operator_external_approved
-        and settings.phone_operator_name.strip()
-        and settings.phone_whatsapp_notice_approval_reference.strip()
-        and not re.fullmatch(r"\+447700900[0-9]{3}", number)
-        and not number.startswith("+2340")
-    )
+    # The support destination is the only site value; no operator approval switch.
+    return not re.fullmatch(r"\+447700900[0-9]{3}", number) and not number.startswith("+2340")
 
 
 def require_phone_verification_available(settings: Settings) -> None:

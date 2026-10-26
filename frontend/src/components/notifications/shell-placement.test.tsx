@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AppShell } from "@/components/shell/app-shell";
+import { AdvertiserShell } from "@/components/shell/advertiser-shell";
 import type { MeResponse } from "@/lib/auth/current-user";
 import DriverPortalLayout from "@/app/driver/(portal)/layout";
 
@@ -25,8 +26,11 @@ vi.mock("@/lib/auth/actions", () => ({ signOutAction: vi.fn() }));
 vi.mock("@/lib/auth/current-user", () => ({ requireRole: mocks.requireRole }));
 vi.mock("@/components/driver/tab-bar", () => ({ TabBar: () => <div /> }));
 vi.mock("@/components/driver/sw-register", () => ({ ServiceWorkerRegister: () => null }));
+vi.mock("@/components/shell/advertiser-navigation", () => ({
+  AdvertiserNavigation: () => <nav />,
+}));
 
-function me(role: "admin" | "advertiser" | "driver", membershipRole?: "owner" | "viewer") {
+function me(role: "admin" | "advertiser" | "driver", membershipRole?: "advertiser") {
   return {
     user: { full_name: "Avery User", role },
     advertiser_organization:
@@ -50,14 +54,15 @@ describe("notification shell placement", () => {
     expect(screen.getByTestId("notification-centre")).toHaveAttribute("data-compact", "false");
 
     rerender(
-      <AppShell me={me("advertiser", "owner")} nav={[]}>
+      <AdvertiserShell me={me("advertiser", "advertiser")}>
         <p>Advertiser content</p>
-      </AppShell>,
+      </AdvertiserShell>,
     );
     expect(screen.getByTestId("notification-centre")).toHaveAttribute(
       "data-can-manage-preferences",
       "true",
     );
+    expect(screen.getByTestId("notification-centre")).toHaveAttribute("data-compact", "true");
   });
 
   it("mounts the same centre in the driver portal without advertiser preferences", async () => {

@@ -11,6 +11,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import NamedTuple, Protocol
 from uuid import NAMESPACE_URL, uuid4, uuid5
+from zoneinfo import ZoneInfo
 
 from pydantic import SecretStr
 from sqlalchemy import func, select
@@ -30,8 +31,6 @@ from app.models.campaign_assignment import (
 )
 from app.models.driver import DriverProfile
 from app.models.installation_evidence import (
-    DisplayProof,
-    DisplayProofChallenge,
     InstallationEvidencePhoto,
     InstallationEvidenceStatus,
     InstallationEvidenceSubmission,
@@ -58,6 +57,10 @@ from app.services.campaign_assignments import (
     build_offer_terms,
     create_rule_binding_for_accept,
     ensure_current_activation_snapshot,
+)
+from app.services.installation_evidence import (
+    INSTALLATION_EVIDENCE_VIEWS,
+    INSTALLATION_PHOTO_VALIDITY_HOURS,
 )
 
 
@@ -287,7 +290,6 @@ async def seed_campaign_financials(
         PaymentReceipt,
         ReceiptAllocation,
         ReceiptLifecycleEvent,
-        ReceiptReconciliation,
     )
 
     if await session.scalar(
@@ -374,18 +376,7 @@ async def seed_campaign_financials(
         )
         session.add(receipt)
         await session.flush()
-        session.add(
-            ReceiptReconciliation(
-                receipt_id=receipt.id,
-                expected_amount=funded_amount,
-                expected_currency="NGN",
-                matched=True,
-                verification_source="manual",
-                reconciled_by_user_id=admin.id,
-                reconciled_at=at + timedelta(hours=4),
-            )
-        )
-        for i, state in enumerate(("observed", "reconciled", "confirmed")):
+        for i, state in enumerate(("recorded", "confirmed")):
             session.add(
                 ReceiptLifecycleEvent(
                     receipt_id=receipt.id,
@@ -804,6 +795,8 @@ async def ensure_primary_demo_documents(session, *, driver, profile, vehicle, re
         keys=settings.payout_crypto_keys, active_key_version=settings.payout_crypto_key_version
     )
     valid_until = datetime.now(UTC) + timedelta(days=90)
+    # Document expiry dates are Nigeria dates; a UTC date can end before valid_until.
+    expires_on = valid_until.astimezone(ZoneInfo("Africa/Lagos")).date()
 
     async def documents(kinds, purpose):
         return {
@@ -887,7 +880,7 @@ async def ensure_primary_demo_documents(session, *, driver, profile, vehicle, re
                 document_reviews={
                     kind: DocumentReviewRead(
                         status="accepted",
-                        expires_on=valid_until.date() if kind == "driver_license" else None,
+                        expires_on=expires_on if kind == "driver_license" else None,
                     )
                     for kind in files
                 },
@@ -929,7 +922,7 @@ async def ensure_primary_demo_documents(session, *, driver, profile, vehicle, re
                 document_reviews={
                     kind: DocumentReviewRead(
                         status="accepted",
-                        expires_on=valid_until.date() if kind == "insurance" else None,
+                        expires_on=expires_on if kind == "insurance" else None,
                     )
                     for kind in files
                 },
@@ -1077,15 +1070,21 @@ async def ensure_demo_start_authority(
             at=captured_at,
         )
 
-    proof = await session.scalar(
-        select(DisplayProof)
-        .where(DisplayProof.assignment_id == assignment.id)
-        .order_by(DisplayProof.verified_at.desc())
+    evidence = await session.scalar(
+        select(InstallationEvidenceSubmission)
+        .where(
+            InstallationEvidenceSubmission.assignment_id == assignment.id,
+            InstallationEvidenceSubmission.status == InstallationEvidenceStatus.APPROVED.value,
+        )
+        .order_by(InstallationEvidenceSubmission.revision.desc())
         .limit(1)
     )
-    if proof is None or proof.valid_until.replace(tzinfo=UTC) <= now:
+    if (
+        evidence is None
+        or evidence.approved_until is None
+        or evidence.approved_until.replace(tzinfo=UTC) <= now
+    ):
         installation_file = await managed_image("front")
-        proof_file = await managed_image("back")
         device_id = uuid4()
         evidence = InstallationEvidenceSubmission(
             assignment_id=assignment.id,
@@ -1107,14 +1106,10 @@ async def ensure_demo_start_authority(
             request_fingerprint="d" * 64,
             device_id=device_id,
             captured_at=captured_at,
-            required_views=list(
-                settings.installation_evidence_views
-                or ("front", "back", "left", "right", "close_up")
-            ),
+            required_views=list(INSTALLATION_EVIDENCE_VIEWS),
             status=InstallationEvidenceStatus.APPROVED.value,
             reviewed_at=reviewed_at,
-            approved_until=now
-            + timedelta(hours=settings.installation_evidence_validity_hours or 168),
+            approved_until=now + timedelta(hours=INSTALLATION_PHOTO_VALIDITY_HOURS),
             evidence_metadata={"demo_synthetic": True},
             submitted_at=submitted_at,
         )
@@ -1127,32 +1122,6 @@ async def ensure_demo_start_authority(
                     submission_id=evidence.id, view_code=view, stored_file_id=image_file.id
                 )
             )
-        challenge = DisplayProofChallenge(
-            assignment_id=assignment.id,
-            evidence_submission_id=evidence.id,
-            driver_profile_id=profile.id,
-            vehicle_id=vehicle.id,
-            device_id=device_id,
-            nonce_sha256=hashlib.sha256(uuid4().bytes).hexdigest(),
-            expires_at=now + timedelta(minutes=5),
-            consumed_at=now,
-            created_at=now,
-        )
-        session.add(challenge)
-        await session.flush()
-        proof = DisplayProof(
-            challenge_id=challenge.id,
-            assignment_id=assignment.id,
-            evidence_submission_id=evidence.id,
-            driver_profile_id=profile.id,
-            vehicle_id=vehicle.id,
-            device_id=device_id,
-            stored_file_id=proof_file.id,
-            verified_at=now,
-            valid_until=now + timedelta(seconds=settings.display_proof_validity_seconds or 3600),
-            proof_metadata={"demo_synthetic": True},
-        )
-        session.add(proof)
 
     await ensure_daily_terms(
         session,
@@ -1211,8 +1180,8 @@ async def ensure_demo_start_authority(
             "offer_terms_sha256": assignment.offer_terms_sha256,
             "activated_at": activated_at.isoformat(),
             "creative_id": offer_terms["creative"]["id"],
-            "installation_evidence_submission_id": str(proof.evidence_submission_id),
-            "installation_evidence_revision": image_revision,
+            "installation_evidence_submission_id": str(evidence.id),
+            "installation_evidence_revision": evidence.revision,
             "assignment_rule_binding_id": str(binding.id),
             "liability_reservation_id": str(reservation.id),
             "financial_authorization_id": str(reservation.authorization_id),

@@ -13,7 +13,10 @@ import { loadDriverCampaignJourney } from "@/lib/driver/load-campaign-journey";
 import { loadDailyEarnings } from "@/lib/driver/load-daily-earnings";
 import { watDay } from "@/lib/driver/daily-earnings";
 import { TripTracker } from "./track/trip-tracker";
-import { InstallationEvidenceActions } from "./assignments/installation-evidence-actions";
+import { JobVisual } from "@/components/driver/job-visual";
+import { frozenJob } from "@/lib/driver/frozen-job";
+import { VanPreview } from "@/components/brand/van-preview";
+import { IconTile, PortalIcon } from "@/components/brand/portal-icon";
 
 export const metadata: Metadata = { title: "Home" };
 const actionClass =
@@ -31,7 +34,11 @@ export default async function DriverHomePage() {
   const now = new Date();
   const today = watDay(now);
   const yesterday = watDay(new Date(now.getTime() - 86400000));
-  const days = earnings.state === "ready" ? earnings.data : null;
+  const days = earnings.state === "ready" ? earnings.data.days : null;
+  const weeks =
+    earnings.state === "ready"
+      ? earnings.data.totals.filter((total) => Number(total.this_week) !== 0)
+      : [];
   const todayDays = days?.filter((day) => day.day === today && Number(day.amount) !== 0) ?? [];
   const lastPaid = days
     ?.filter((day) => day.paidAt && Number(day.amount) > 0)
@@ -40,8 +47,7 @@ export default async function DriverHomePage() {
     lastPaid?.paidAt && watDay(new Date(lastPaid.paidAt)) === yesterday
       ? "Paid yesterday"
       : lastPaid?.status;
-  const photoDue =
-    work.photoStatus === "display_required" && work.journey.canStart && !work.currentTrip;
+  const noOffer = next?.id === "offer" && /^No (current|campaign) offer/.test(next.title);
   return (
     <FreshDriverAuthority
       refreshKey={crypto.randomUUID()}
@@ -50,28 +56,80 @@ export default async function DriverHomePage() {
       retryHref="/driver"
     >
       <div className="animate-rise flex flex-col gap-4">
-        <h1 className="font-display text-2xl font-semibold">Today</h1>
+        <div className="pt-3 pb-5">
+          <p className="text-ink mb-1 text-base font-medium">
+            Hello, {me.user.full_name.split(" ")[0]}
+          </p>
+          <h1 className="font-display text-2xl font-semibold">
+            {work.currentTrip
+              ? "You’re on a trip now."
+              : assignment
+                ? "Here’s your current job."
+                : noOffer
+                  ? "No job yet."
+                  : "Here’s your next step."}
+          </h1>
+        </div>
         <Panel className="p-5">
+          {noOffer ? (
+            <div className="-mx-5 -mt-5 mb-5 h-48 overflow-hidden rounded-t-[1.25rem]">
+              <VanPreview terrax label="Terrax Media van illustration" />
+            </div>
+          ) : null}
           <h2 className="font-display text-xl font-semibold">
             {assignment?.campaignName ?? "Your next job"}
           </h2>
           {assignment ? (
-            <p className="text-muted mt-1 text-sm">Car {assignment.plateNumber}</p>
+            <p className="text-ink border-edge mt-3 inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1.5 text-sm">
+              <PortalIcon name="car" className="size-4" />
+              Car {assignment.plateNumber}
+            </p>
+          ) : null}
+          {noOffer ? (
+            <>
+              <p className="text-ink mt-3 text-base leading-6">
+                {work.needsServiceCity
+                  ? "Add the city you drive in so Terrax Media can find a job for you."
+                  : "You’re all set. We’ll message you when a job is ready."}
+              </p>
+              <ul className="mt-4 grid gap-3 text-sm">
+                {work.journey.steps
+                  .filter(
+                    (step) =>
+                      step.state === "complete" &&
+                      ["application", "person_payee", "vehicle"].includes(step.id),
+                  )
+                  .map((step) => (
+                    <li key={step.id} className="flex items-center gap-3">
+                      <span className="text-green rounded-full bg-[#e3f4dd] p-1">
+                        <PortalIcon name="check" className="size-4" />
+                      </span>
+                      {step.id === "application"
+                        ? "Your driver account is active"
+                        : step.id === "vehicle"
+                          ? "Your car is approved"
+                          : "Your identity and bank details are approved"}
+                    </li>
+                  ))}
+              </ul>
+            </>
+          ) : null}
+          {assignment ? (
+            <JobVisual
+              compact
+              assignmentId={assignment.id}
+              job={
+                work.visualAssignment?.id === assignment.id
+                  ? work.visualAssignment.job
+                  : frozenJob(null)
+              }
+            />
           ) : null}
           <div className="mt-5">
             {work.currentTrip ? (
               <Link href="/driver/track" className={actionClass}>
                 View live trip
               </Link>
-            ) : photoDue ? (
-              <InstallationEvidenceActions
-                assignmentId={assignment!.id}
-                status="active"
-                requiredViews={[]}
-                latestEvidenceStatus="approved"
-                displayOnly
-                primaryPhoto
-              />
             ) : work.journey.canStart && work.photoStatus === "ready" ? (
               <TripTracker
                 assignment={work.trackerAssignment}
@@ -79,12 +137,21 @@ export default async function DriverHomePage() {
                 driverId={me.user.id}
                 compact
               />
+            ) : next?.state === "degraded" ? (
+              <p className="text-muted text-sm" role="status">
+                {next.title}. {next.detail}{" "}
+                <Link href={next.href} className="text-green font-semibold">
+                  Check details
+                </Link>
+              </p>
             ) : (
               <Link
                 href={
                   work.photoStatus === "installation_required"
                     ? `/driver/assignments#photos-${assignment?.id}`
-                    : (next?.href ?? "/driver/assignments")
+                    : noOffer && work.needsServiceCity
+                      ? "/driver/profile"
+                      : (next?.href ?? "/driver/assignments")
                 }
                 className={actionClass}
               >
@@ -92,7 +159,11 @@ export default async function DriverHomePage() {
                   ? "Check photo status"
                   : work.photoStatus === "installation_required"
                     ? "Send installation photos"
-                    : (next?.title ?? "See jobs")}
+                    : noOffer
+                      ? work.needsServiceCity
+                        ? "Add your city"
+                        : "See jobs"
+                      : (next?.title ?? "See jobs")}
               </Link>
             )}
           </div>
@@ -105,6 +176,10 @@ export default async function DriverHomePage() {
           />
         ) : (
           <Panel className="p-5">
+            <div className="mb-4 flex items-center gap-3">
+              <IconTile name="wallet" tone="gold" />
+              <h2 className="font-semibold">Your earnings</h2>
+            </div>
             {todayDays.length ? (
               todayDays.map((day) => (
                 <div key={day.currency}>
@@ -112,7 +187,7 @@ export default async function DriverHomePage() {
                     Today {formatMoney(day.amount, day.currency)}
                   </p>
                   {Number(day.amount) !== 0 ? (
-                    <p className="text-muted mt-1 text-sm">{day.status}</p>
+                    <p className="text-muted mt-1 text-base">{day.status}</p>
                   ) : null}
                 </div>
               ))
@@ -126,11 +201,19 @@ export default async function DriverHomePage() {
               </p>
             )}
             {todayDays.length && lastPaid ? (
-              <p className="text-muted mt-3 text-sm">
+              <p className="text-muted mt-3 text-base">
                 {lastPaidLabel} · {formatMoney(lastPaid.amount, lastPaid.currency)}
               </p>
             ) : null}
-            <Link href="/driver/earnings" className="text-amber mt-3 inline-block text-sm">
+            {weeks.map((total) => (
+              <p key={total.currency} className="text-muted mt-3 text-base">
+                This week {formatMoney(total.this_week, total.currency)}
+              </p>
+            ))}
+            <Link
+              href="/driver/earnings"
+              className="text-amber mt-3 inline-block text-base font-medium"
+            >
               Earnings
             </Link>
           </Panel>

@@ -9,9 +9,9 @@ from conftest import (
     create_test_campaign,
     create_test_campaign_assignment,
     create_test_driver_profile,
+    create_test_estimate_source,
     create_test_impression_estimate,
     create_test_organization,
-    create_test_traffic_density_profile,
     create_test_trip_analytics,
     create_test_trip_session,
     create_test_user,
@@ -169,7 +169,7 @@ def create_heatmap_graph(
         distance_m=Decimal("1000.00"),
         quality_score=Decimal("0.8000"),
     )
-    density_profile = create_test_traffic_density_profile(
+    density_profile = create_test_estimate_source(
         db_sessionmaker,
         name=f"Heatmap density {plate_number}",
     )
@@ -207,10 +207,14 @@ def test_heatmap_settings_defaults_and_validation() -> None:
     assert settings.heatmap_max_cells == 5000
     assert settings.heatmap_min_trips_per_cell == 1
 
-    with pytest.raises(ValueError):
-        Settings(heatmap_min_resolution_m=1000, heatmap_default_resolution_m=500)
-    with pytest.raises(ValueError):
-        Settings(heatmap_min_trips_per_cell=0)
+    fixed = Settings(
+        heatmap_min_resolution_m=1000,
+        heatmap_default_resolution_m=500,
+        heatmap_min_trips_per_cell=0,
+    )
+    assert fixed.heatmap_min_resolution_m == 50
+    assert fixed.heatmap_default_resolution_m == 500
+    assert fixed.heatmap_min_trips_per_cell == 1
 
 
 def test_heatmap_validation_rbac_cross_org_and_scope_guards(db_client, db_sessionmaker) -> None:
@@ -561,9 +565,6 @@ def test_heatmap_excludes_estimate_when_active_fraud_counts_change(
                 query=query,
                 settings=Settings(
                     privacy_min_vehicles_per_cell=1,
-                    privacy_min_trips_per_cell=1,
-                    privacy_min_days_per_cell=1,
-                    privacy_max_contributor_share=1.0,
                 ),
                 campaign_id=campaign.id,
                 organization_id=None,
@@ -594,7 +595,7 @@ def test_admin_heatmap_filters_global_campaign_org_and_vehicle_type(
         advertiser_email="heatmap-filter-other@example.com",
         driver_email="heatmap-filter-other-driver@example.com",
         plate_number="HMAP-3",
-        vehicle_type=VehicleType.BUS,
+        vehicle_type=VehicleType.CAR,
         organization_name="Heatmap Other Org",
     )
     headers = auth_headers(postgis_db_client, admin.email, PASSWORD)
@@ -652,9 +653,9 @@ def test_admin_heatmap_filters_global_campaign_org_and_vehicle_type(
     assert organization_response.json()["metadata"]["organization_id"] == str(organization.id)
     assert organization_response.json()["features"][0]["properties"]["ping_count"] == 2
     assert vehicle_type_response.json()["metadata"]["vehicle_type"] == "car"
-    assert vehicle_type_response.json()["features"][0]["properties"]["ping_count"] == 2
-    assert empty_vehicle_type.status_code == http_status.HTTP_409_CONFLICT
-    assert empty_vehicle_type.json()["error"]["code"] == "DISCLOSURE_SUPPRESSED"
+    assert vehicle_type_response.json()["features"][0]["properties"]["ping_count"] == 4
+    assert empty_vehicle_type.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert empty_vehicle_type.json()["error"]["code"] == "VALIDATION_ERROR"
     assert invalid_vehicle_type.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
     assert invalid_vehicle_type.json()["error"]["code"] == "VALIDATION_ERROR"
     assert advertiser.role == UserRole.ADVERTISER

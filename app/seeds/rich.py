@@ -12,7 +12,7 @@ import random
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
-from typing import Any, Literal, cast
+from typing import Any, cast
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from sqlalchemy import func, select
@@ -34,11 +34,6 @@ from app.models.campaign import (
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.driver import DriverOnboardingStatus, DriverProfile
-from app.models.impression import (
-    TrafficDensityProfile,
-    TrafficDensityProfileStatus,
-    TrafficDensityProfileType,
-)
 from app.models.organization import AdvertiserOrganization
 from app.models.payout import CampaignPayoutRule, CampaignPayoutRuleStatus
 from app.models.trip import (
@@ -102,19 +97,19 @@ DRIVER_AREAS = (
 VEHICLE_DETAILS = (
     ("Toyota", "Corolla", "White", VehicleType.CAR),
     ("Honda", "Accord", "Silver", VehicleType.CAR),
-    ("Toyota", "Sienna", "Blue", VehicleType.MINIBUS),
+    ("Toyota", "Yaris", "Blue", VehicleType.CAR),
     ("Hyundai", "Elantra", "Black", VehicleType.CAR),
     ("Kia", "Rio", "Red", VehicleType.CAR),
-    ("Nissan", "Urvan", "White", VehicleType.VAN),
+    ("Nissan", "Sentra", "White", VehicleType.CAR),
     ("Toyota", "Camry", "Grey", VehicleType.CAR),
     ("Honda", "Civic", "Blue", VehicleType.CAR),
-    ("Suzuki", "Every", "Silver", VehicleType.MINIBUS),
+    ("Suzuki", "Swift", "Silver", VehicleType.CAR),
 )
 
 CAMPAIGN_SPECS = (
     ("Aster Vale Foods — Garki Deliveries", CampaignStatus.ACTIVE, "rolling"),
     ("Cedar Bay Furnishings — Jabi Showroom", CampaignStatus.PAUSED, "paused"),
-    ("Oriole Books — Maitama Reading Week", CampaignStatus.COMPLETED, "completed"),
+    ("Oriole Books — Maitama Reading Week", CampaignStatus.ACTIVE, "completed"),
     ("Sable Ridge Travel — Airport Arrivals", CampaignStatus.DRAFT, "draft"),
 )
 
@@ -342,7 +337,7 @@ async def _ensure_creative(session: AsyncSession, campaign: Campaign, index: int
                 width_px=1600,
                 height_px=900,
                 checksum=None,
-                status=CreativeStatus.READY.value,
+                status=CreativeStatus.DRAFT.value,
                 creative_metadata=f7_metadata(campaign_index=index),
             )
         )
@@ -491,7 +486,6 @@ async def _ensure_assignment(
     # postdate the seed run.
     offered_at = min(campaign.start_at or now, now)
     is_offered = status_value == CampaignAssignmentStatus.OFFERED
-    is_completed = status_value == CampaignAssignmentStatus.COMPLETED
     from app.seeds.demo_authority import prepare_daily_offer
 
     terms, digest = await prepare_daily_offer(
@@ -514,7 +508,6 @@ async def _ensure_assignment(
         offered_at=offered_at,
         accepted_at=None if is_offered else offered_at + timedelta(minutes=10),
         activated_at=None if is_offered else offered_at + timedelta(minutes=20),
-        completed_at=min(campaign.end_at - timedelta(minutes=1), now) if is_completed else None,
         notes="Collect the door panels at the Wuse office.",
         assignment_metadata=f7_metadata(driver_index=asset.index),
     )
@@ -625,13 +618,13 @@ def _assert_trip_lifecycle(
     allowed_campaign_statuses = {
         "rolling": {CampaignStatus.ACTIVE.value},
         "paused": {CampaignStatus.PAUSED.value},
-        "completed": {CampaignStatus.COMPLETED.value},
+        "completed": {CampaignStatus.ACTIVE.value},
     }
     if campaign.status not in allowed_campaign_statuses[kind]:
         raise AppError("F7_SEED_INVALID_LIFECYCLE", "Campaign status cannot own this trip class")
     if assignment.status not in {
         CampaignAssignmentStatus.ACTIVE.value,
-        CampaignAssignmentStatus.COMPLETED.value,
+        CampaignAssignmentStatus.ACTIVE.value,
     }:
         raise AppError("F7_SEED_INVALID_LIFECYCLE", "Assignment status cannot own trips")
 
@@ -866,7 +859,6 @@ async def build_rich_seed(
     admin: User,
     advertiser: User,
     organization: AdvertiserOrganization,
-    traffic_profile: TrafficDensityProfile,
 ) -> RichSeedResult:
     now = utc_now()
     density = max_trips_per_day()
@@ -898,8 +890,8 @@ async def build_rich_seed(
 
     assignment_specs = (
         (0, range(0, 5), CampaignAssignmentStatus.ACTIVE),
-        (1, range(4, 7), CampaignAssignmentStatus.COMPLETED),
-        (2, range(0, 3), CampaignAssignmentStatus.COMPLETED),
+        (1, range(4, 7), CampaignAssignmentStatus.ACTIVE),
+        (2, range(0, 3), CampaignAssignmentStatus.ACTIVE),
         (3, range(0, 2), CampaignAssignmentStatus.OFFERED),
     )
     assignments: list[CampaignAssignment] = []
@@ -980,7 +972,6 @@ async def build_rich_seed(
                 estimate = await estimate_trip_impressions(
                     session,
                     trip_id=trip.id,
-                    traffic_density_profile_id=traffic_profile.id,
                     metadata=f7_metadata(seed_step="impressions"),
                     settings=settings,
                 )
@@ -1170,7 +1161,6 @@ async def ensure_portal_people(session, *, graph, settings):
             advertiser_organization_id=graph.organization.id if party == "advertiser" else None,
             category=category,
             status=state,
-            assigned_to_user_id=staff[1].id,
             client_request_id=key,
             last_message_at=answered_at if reply else opened_at,
             resolved_at=answered_at if state == "resolved" else None,
@@ -1205,7 +1195,6 @@ async def ensure_portal_people(session, *, graph, settings):
             )
     await session.flush()
     await _ensure_contact_work(session, graph=graph, staff=staff)
-    await _ensure_reach_profiles(session)
     return staff
 
 
@@ -1255,7 +1244,7 @@ async def _ensure_advertiser_directory(session, *, settings):
             session,
             organization=organization,
             user=person,
-            role=MembershipRole.OWNER,
+            role=MembershipRole.ADVERTISER,
         )
     await session.flush()
 
@@ -1272,7 +1261,7 @@ async def business_owner(session, campaign_name):
         .join(OrganizationMembership)
         .where(
             OrganizationMembership.organization_id == organization.id,
-            OrganizationMembership.role == "owner",
+            OrganizationMembership.role == "advertiser",
             OrganizationMembership.status == "active",
         )
     )
@@ -1334,45 +1323,6 @@ async def _ensure_contact_work(session, *, graph, staff):
             )
         )
     await session.flush()
-
-
-async def _ensure_reach_profiles(session):
-    from app.schemas.impressions import TrafficDensityProfileCreate
-    from app.services.impressions import create_traffic_density_profile
-
-    for name, description, state, density in (
-        ("Abuja office traffic", "Weekday traffic around Wuse and Garki offices.", "active", "180"),
-        (
-            "Abuja weekend traffic",
-            "Weekend traffic around Wuse and Jabi shopping streets.",
-            "inactive",
-            "140",
-        ),
-    ):
-        if await session.scalar(
-            select(TrafficDensityProfile.id).where(TrafficDensityProfile.name == name)
-        ):
-            continue
-        await create_traffic_density_profile(
-            session,
-            TrafficDensityProfileCreate(
-                name=name,
-                description=description,
-                profile_type=TrafficDensityProfileType.URBAN,
-                status=TrafficDensityProfileStatus(state),
-                traffic_density_per_km=Decimal(density),
-                dwell_impressions_per_minute=Decimal("4"),
-                road_category_weight=Decimal("1"),
-                morning_weight=Decimal("1.2"),
-                midday_weight=Decimal("1"),
-                evening_weight=Decimal("1.3"),
-                night_weight=Decimal("0.7"),
-                target_zone_weight=Decimal("1.2"),
-                bonus_zone_weight=Decimal("1.35"),
-                exclusion_zone_weight=Decimal("0"),
-                is_default=False,
-            ),
-        )
 
 
 async def ensure_golden_contributors(session, *, graph, settings):
@@ -1473,7 +1423,6 @@ async def ensure_golden_contributors(session, *, graph, settings):
             await estimate_trip_impressions(
                 session,
                 trip_id=trip.id,
-                traffic_density_profile_id=graph.traffic_profile.id,
                 metadata=f7_metadata(),
                 settings=settings,
             )
@@ -1491,20 +1440,37 @@ async def _seed_cancelled_campaign(session, *, graph, staff, campaign, state):
         return
     name = campaign.name
     from app.models.billing import CommercialTerms, PaymentReceipt, ReceiptAllocation
+    from app.models.complaint import ComplaintReferenceType
+    from app.models.user import User
     from app.schemas.campaign_cancellations import CampaignCancellationCreate
+    from app.schemas.complaints import ComplaintCategory
     from app.services.billing.receipts import reverse_payment_receipt
     from app.services.billing.settlements import record_refund_settlement
     from app.services.campaign_cancellations import request_campaign_cancellation
+    from app.services.complaints import advertiser_owner, raise_complaint
 
     reason = (
         "Please cancel the collection campaign; the van delivery has been delayed."
         if "Home" in name
         else "Please cancel the Asokoro launch until the new branch is ready."
     )
+    # D7: the advertiser asks Terrax, then staff cancel with the request linked.
+    advertiser = await session.get(User, campaign.created_by_user_id)
+    request = await raise_complaint(
+        session,
+        owner=await advertiser_owner(session, advertiser),
+        category=ComplaintCategory.CAMPAIGN_CANCELLATION,
+        message=reason,
+        reference_type=ComplaintReferenceType.CAMPAIGN,
+        reference_id=campaign.id,
+        client_request_id=uuid5(campaign.id, "cancellation-request"),
+    )
     cancellation = await request_campaign_cancellation(
         session,
-        actor_user_id=campaign.created_by_user_id,
+        actor_user_id=staff[0].id,
+        actor_session_version=staff[0].session_version,
         campaign_id=campaign.id,
+        complaint_id=request.complaint.id,
         payload=CampaignCancellationCreate(
             client_request_id=uuid5(campaign.id, "cancellation"), reason=reason
         ),
@@ -1743,7 +1709,6 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
     for i, person in enumerate([graph.admin, graph.advertiser, graph.driver, *staff[:5]]):
         for j, kind in enumerate(
             (
-                NotificationType.EVIDENCE_VERIFIED,
                 NotificationType.COMPLAINT_REPLIED,
                 NotificationType.PAYOUT_RELEASED,
             )
@@ -1807,17 +1772,13 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
         accept_driver_assignment,
         create_campaign_assignment,
     )
-    from app.services.installation_evidence import submit_installation_evidence
+    from app.services.installation_evidence import (
+        INSTALLATION_EVIDENCE_VIEWS,
+        submit_installation_evidence,
+    )
 
     campaign = await session.scalar(
         select(Campaign).where(Campaign.name == "Marula Kitchens — Wuse Weekend Catering")
-    )
-    seed_settings = settings.model_copy(
-        update={
-            "installation_evidence_uploader_roles": "driver,admin",
-            "installation_evidence_required_views": "front,back,left,right,close_up",
-            "installation_evidence_validity_hours": 168,
-        }
     )
     for email, accept in (
         ("driver@demo.mobility.local", False),
@@ -1847,7 +1808,7 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
                 profile=profile,
                 admin=staff[3],
                 advertiser=await session.get(User, campaign.created_by_user_id),
-                settings=seed_settings,
+                settings=settings,
                 offered_at=offered_at,
             )
             creative = await session.scalar(
@@ -1856,7 +1817,7 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
             assignment = await create_campaign_assignment(
                 session,
                 admin_user_id=staff[3].id,
-                settings=seed_settings,
+                settings=settings,
                 payload=CampaignAssignmentCreate(
                     campaign_id=campaign.id,
                     driver_profile_id=profile.id,
@@ -1871,7 +1832,7 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
                     session,
                     user_id=person.id,
                     assignment_id=assignment.id,
-                    settings=seed_settings,
+                    settings=settings,
                     payload=CampaignAssignmentTransition(),
                 )
         if not accept or await session.scalar(
@@ -1882,10 +1843,10 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
             continue
         captured_at = datetime.now(UTC)
         photos = []
-        for view in seed_settings.installation_evidence_views:
+        for view in INSTALLATION_EVIDENCE_VIEWS:
             stored = await managed_seed_image(
                 session,
-                settings=seed_settings,
+                settings=settings,
                 subject=person,
                 label=view,
                 purpose=FilePurpose.INSTALLATION_EVIDENCE.value,
@@ -1897,7 +1858,7 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
             actor_user_id=person.id,
             actor_role="driver",
             assignment_id=assignment.id,
-            settings=seed_settings,
+            settings=settings,
             payload=InstallationEvidenceCreate(
                 client_request_id=uuid5(assignment.id, "installation"),
                 device_id=uuid5(assignment.id, "phone"),
@@ -1948,7 +1909,9 @@ async def ensure_completed_report_contributors(session, *, graph, settings):
     campaigns = await session.scalars(
         select(Campaign).where(
             Campaign.campaign_metadata["driver_story"].as_boolean() == True,  # noqa: E712
-            Campaign.status.in_(("completed", "active")),
+            # S23 maps former completed campaigns to stored active. Keep the
+            # original active/finished cohort; paused campaigns were excluded.
+            Campaign.status == "active",
         )
     )
     for campaign in campaigns:
@@ -1983,7 +1946,7 @@ async def ensure_completed_report_contributors(session, *, graph, settings):
                 admin=graph.admin,
                 advertiser=advertiser,
                 settings=settings,
-                status_value=CampaignAssignmentStatus.COMPLETED,
+                status_value=CampaignAssignmentStatus.ACTIVE,
             )
             await _ensure_assignment_authority(
                 session,
@@ -2024,7 +1987,6 @@ async def ensure_completed_report_contributors(session, *, graph, settings):
                 await estimate_trip_impressions(
                     session,
                     trip_id=trip.id,
-                    traffic_density_profile_id=graph.traffic_profile.id,
                     metadata=demo_metadata(driver_story=True),
                     settings=settings,
                 )
@@ -2038,14 +2000,15 @@ async def ensure_completed_report_contributors(session, *, graph, settings):
 
 
 async def ensure_portal_reports(session, *, graph, settings):
-    from app.models.measurement import MeasurementRun
     from app.models.payout import EarningsLedgerEntry, PayoutCalculation
-    from app.schemas.measurement import MeasurementRunCreate
-    from app.schemas.report_issuances import ReportIssuanceCreate
-    from app.services.measurement import issue_measurement_run
-    from app.services.report_issuances import request_report_issuance
 
-    campaigns = list(await session.scalars(select(Campaign).where(Campaign.status == "completed")))
+    campaigns = list(
+        await session.scalars(
+            select(Campaign).where(
+                Campaign.end_at <= utc_now(), Campaign.status.in_(("active", "paused"))
+            )
+        )
+    )
     campaigns += [graph.campaign, graph.rich.campaigns[0]]
     campaigns += list(
         await session.scalars(
@@ -2094,156 +2057,24 @@ async def ensure_portal_reports(session, *, graph, settings):
             select(TripSession.id).where(TripSession.campaign_id == campaign.id).limit(1)
         ):
             continue
-        key = uuid5(NAMESPACE_URL, f"cardvert-preview:measurement:{campaign.id}")
-        run = await session.scalar(
-            select(MeasurementRun).where(MeasurementRun.client_request_id == key)
-        )
-        if run is None:
-            period_start = campaign.start_at
-            period_end = min(utc_now(), campaign.end_at)
-            if campaign.status != "completed":
-                # Live audience exports require aligned whole UTC hours.
-                aligned_start = period_start.replace(minute=0, second=0, microsecond=0)
-                period_start = aligned_start + timedelta(hours=period_start != aligned_start)
-                period_end = period_end.replace(minute=0, second=0, microsecond=0)
-            run = await issue_measurement_run(
-                session,
-                actor_user_id=graph.admin.id,
-                settings=settings,
-                payload=MeasurementRunCreate(
-                    campaign_id=campaign.id,
-                    client_request_id=key,
-                    period_start_at=period_start,
-                    period_end_at=period_end,
-                    test_only=False,
-                ),
-            )
-        await request_report_issuance(
+        from app.adapters.storage import build_storage_provider
+        from app.services.campaign_reports import create_report
+        from app.services.disclosure import _canonical_hash
+
+        key = uuid5(NAMESPACE_URL, f"cardvert-preview:report:{campaign.id}")
+        await create_report(
             session,
             actor_user_id=graph.admin.id,
-            measurement_run_id=run.id,
-            payload=ReportIssuanceCreate(client_request_id=uuid5(key, "publication")),
+            campaigns=[campaign],
+            request_id=key,
+            request_fingerprint=_canonical_hash(str(key)),
+            start=campaign.start_at,
+            end=campaign.end_at,
+            kind="final",
             settings=settings,
-            admin=True,
+            storage=build_storage_provider(settings),
+            now=utc_now(),
         )
-
-
-async def ensure_portal_audiences(session, *, graph, settings):
-    from app.models.measurement import MeasurementRun
-    from app.models.retargeting_source_link import RetargetingSourceLink
-    from app.schemas.retargeting_source_links import RetargetingSourceLinkCreate
-    from app.schemas.retargeting_sources import ManualInsightSourceCreate
-    from app.services.audience import (
-        create_retargeting_source,
-        create_retargeting_source_link,
-        materialize_exposure_segment,
-    )
-    from app.services.audience_delivery import export_exposure_segment
-
-    for campaign in (graph.campaign, graph.rich.campaigns[0]):
-        run = await session.scalar(
-            select(MeasurementRun)
-            .where(MeasurementRun.campaign_id == campaign.id)
-            .order_by(MeasurementRun.created_at.desc())
-            .limit(1)
-        )
-        if run is None:
-            continue
-        zone = await session.scalar(
-            select(CampaignZone).where(
-                CampaignZone.campaign_id == campaign.id, CampaignZone.zone_type == "target"
-            )
-        )
-        insights: tuple[
-            tuple[
-                Literal["area-demand", "time-pattern", "contextual-affinity"],
-                Literal["low", "medium", "high"],
-            ],
-            ...,
-        ] = (
-            ("area-demand", "high"),
-            ("time-pattern", "medium"),
-            ("contextual-affinity", "low"),
-        )
-        for category, confidence in insights:
-            source = await create_retargeting_source(
-                session,
-                settings=settings,
-                actor_user_id=campaign.created_by_user_id,
-                idempotency_key=f"cardvert-preview:audience:{campaign.id}:{category}",
-                payload=ManualInsightSourceCreate(
-                    source_type="manual-insight",
-                    provenance="advertiser-declared",
-                    lawful_basis_reference="candidate-legitimate-interest",
-                    lawful_basis_status="unapproved",
-                    consent_disclaimer_status="not-reviewed",
-                    expires_at=campaign.end_at,
-                    dsr_owner_role="compliance-owner",
-                    dsr_status="pending",
-                    insight_category=category,
-                    confidence_band=confidence,
-                ),
-            )
-            existing = await session.scalar(
-                select(RetargetingSourceLink).where(
-                    RetargetingSourceLink.source_id == source.id,
-                    RetargetingSourceLink.campaign_id == campaign.id,
-                )
-            )
-            link = existing or await create_retargeting_source_link(
-                session,
-                settings=settings,
-                actor_user_id=campaign.created_by_user_id,
-                idempotency_key=f"cardvert-preview:link:{campaign.id}:{category}",
-                payload=RetargetingSourceLinkCreate(
-                    source_id=source.id,
-                    campaign_id=campaign.id,
-                    zone_id=zone.id,
-                    start_at=run.period_start_at,
-                    end_at=run.period_end_at,
-                ),
-            )
-            segment = await materialize_exposure_segment(
-                session, settings=settings, source_link_id=link.id, measurement_run_id=run.id
-            )
-            if category == "area-demand" and segment.releasable_cell_count > 0:
-                await export_exposure_segment(
-                    session,
-                    settings=settings,
-                    actor_user_id=campaign.created_by_user_id,
-                    segment_id=segment.id,
-                    idempotency_key=f"cardvert-preview:aggregate-export:{campaign.id}",
-                )
-    from app.schemas.retargeting_sources import WebsiteTrafficSourceCreate
-    from app.services.audience import deactivate_retargeting_source
-
-    for category in ("site-visitor", "content-interest"):
-        source = await create_retargeting_source(
-            session,
-            settings=settings,
-            actor_user_id=graph.advertiser.id,
-            idempotency_key=f"cardvert-preview:website:{category}",
-            payload=WebsiteTrafficSourceCreate(
-                source_type="website-traffic",
-                provenance="advertiser-declared",
-                lawful_basis_reference="candidate-consent",
-                lawful_basis_status="unapproved",
-                consent_disclaimer_status="not-reviewed",
-                expires_at=graph.campaign.end_at,
-                dsr_owner_role="privacy-officer",
-                dsr_status="pending",
-                audience_category=category,
-                aggregation_window_days=30,
-            ),
-        )
-        if category == "content-interest":
-            await deactivate_retargeting_source(
-                session,
-                settings=settings,
-                actor_user_id=graph.advertiser.id,
-                source_id=source.id,
-                idempotency_key="cardvert-preview:website:deactivate",
-            )
 
 
 async def _prepare_portal_earnings(session, entries, settings):
@@ -2268,7 +2099,7 @@ async def _prepare_portal_earnings(session, entries, settings):
 
 async def _review_seed_fraud_flags(session, *, campaign_id, actor_user_id):
     from app.models.trip_analytics import FraudFlag
-    from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
+    from app.services.fraud_holds import resolve_fraud_flag
 
     flags = list(
         (
@@ -2290,7 +2121,7 @@ async def _review_seed_fraud_flags(session, *, campaign_id, actor_user_id):
     for vehicle_flags in review_groups:
         for flag, outcome, note in zip(
             vehicle_flags,
-            ("acknowledged", "confirmed", "dismissed"),
+            ("open", "confirmed", "dismissed"),
             (
                 None,
                 "The car remained at the depot during the recorded trip.",
@@ -2300,8 +2131,7 @@ async def _review_seed_fraud_flags(session, *, campaign_id, actor_user_id):
         ):
             if flag.status != "open":
                 continue
-            await acknowledge_fraud_flag(session, flag_id=flag.id, actor_user_id=actor_user_id)
-            if outcome != "acknowledged":
+            if outcome != "open":
                 if note is None:
                     raise ValueError("Expected demo fraud resolution note is missing")
                 await resolve_fraud_flag(
@@ -2315,13 +2145,7 @@ async def _review_seed_fraud_flags(session, *, campaign_id, actor_user_id):
 
 async def ensure_trip_review_work(session, *, graph, staff, settings):
     from app.services.evidence_verification import (
-        queue_physical_spot_check,
-        resolve_physical_spot_check,
-    )
-    from app.services.trips import (
-        apply_quarantined_ping_batch,
-        discard_quarantined_ping_batch,
-        quarantine_ping_batch,
+        record_physical_spot_check,
     )
 
     if max_trips_per_day() > 0:
@@ -2341,80 +2165,25 @@ async def ensure_trip_review_work(session, *, graph, staff, settings):
     for _index, (trip, outcome, note) in enumerate(
         zip(
             trips[:4],
-            ("pending", "pending", "passed", "failed"),
+            ("passed", "passed", "passed", "failed"),
             (
-                "Please check the rear panel at the Wuse office.",
-                "Meet the driver near Wuse Market after the morning route.",
+                "The inspector checked the rear panel at the Wuse office; it was secure.",
+                "The inspector saw all panels in place after the morning route.",
                 "All panels are secure and the phone number is readable.",
                 "The rear panel is peeling; arrange a replacement before the next route.",
             ),
             strict=False,
         )
     ):
-        check = await queue_physical_spot_check(
+        await record_physical_spot_check(
             session,
             actor_user_id=staff[3].id,
             assignment_id=trip.assignment_id,
             trip_session_id=trip.id,
             client_request_id=uuid5(trip.id, "spot-check"),
             note=note,
-            metadata={},
+            outcome=outcome,
         )
-        if outcome != "pending" and check.status == "pending":
-            await resolve_physical_spot_check(
-                session,
-                verification_id=check.id,
-                actor_user_id=staff[3].id,
-                outcome=outcome,
-                note=note,
-                evidence={},
-            )
-    for trip, state in zip(trips[4:], ("quarantined", "applied", "discarded"), strict=False):
-        payload = LocationPingBatchCreate(
-            idempotency_key=f"{F7_SEED_VERSION}:f7:late:{trip.id}",
-            batch_sequence=1,
-            metadata=f7_metadata(),
-            pings=[
-                LocationPingCreate(
-                    recorded_at=trip.started_at + timedelta(minutes=1),
-                    lat=LATE_UPLOAD_POINT[0],
-                    lon=LATE_UPLOAD_POINT[1],
-                    accuracy_m=10.0,
-                    sequence_number=0,
-                )
-            ],
-        )
-        result = await quarantine_ping_batch(
-            session,
-            trip=trip,
-            payload=payload,
-            digest=batch_payload_hash(payload),
-            received_at=utc_now(),
-            settings=settings,
-            hash_version=2,
-        )
-        late = result.quarantine
-        if late is None:
-            raise ValueError("Expected demo quarantined upload is missing")
-        if late.status != "quarantined":
-            continue
-        if state == "applied":
-            await apply_quarantined_ping_batch(
-                session,
-                trip_id=trip.id,
-                quarantine_id=late.id,
-                admin_user_id=staff[3].id,
-                note="The upload matches the route recorded that morning.",
-                settings=settings,
-            )
-        if state == "discarded":
-            await discard_quarantined_ping_batch(
-                session,
-                trip_id=trip.id,
-                quarantine_id=late.id,
-                admin_user_id=staff[2].id,
-                note="The upload repeats a point already recorded on this route.",
-            )
 
 
 async def ensure_portal_payouts(session, *, graph, staff, settings):
@@ -2476,7 +2245,7 @@ async def ensure_portal_payouts(session, *, graph, staff, settings):
             approved_at=now if state == "completed" else None,
             created_at=now,
             submitted_at=now if state == "completed" else None,
-            approval_mode="maker_checker",
+            approval_mode="manual",
         )
         line = build_frozen_payout_line(
             batch_id=key, entry=entry, payee_version=version, account_version=account
@@ -2559,15 +2328,14 @@ async def _ensure_payout_review_history(session, *, graph, staff, settings):
     from app.services.payout_corrections import (
         approve_correction_order,
         create_correction_order,
-        submit_correction_order,
     )
 
     for trip, state, reason in zip(
         graph.trips,
-        ("draft", "pending_approval", "approved", "rejected"),
+        ("draft", "draft", "executed", "draft"),
         (
             "Please check the Garki distance after the route was corrected.",
-            "The Central Area return leg needs a second review.",
+            "Please check the Central Area return leg.",
             "The route review is complete; please confirm the earnings.",
             "Please recheck the distance recorded near the fuel station.",
         ),
@@ -2588,19 +2356,16 @@ async def _ensure_payout_review_history(session, *, graph, staff, settings):
             created_by_user_id=staff[0].id,
             settings=settings,
         )
-        if state != "draft":
-            await submit_correction_order(session, order_id=order.id, actor_user_id=staff[0].id)
-        if state == "approved":
+        if state == "executed":
             await approve_correction_order(
                 session,
                 order_id=order.id,
-                actor_user_id=staff[4].id,
+                actor_user_id=staff[0].id,
+                reason="Checked the corrected route and pay preview",
+                release_at=trip.ended_at,
+                request_metadata={"source": "synthetic_pilot_seed"},
                 settings=settings,
             )
-        if state == "rejected":
-            from app.services.payout_corrections import reject_correction_order
-
-            await reject_correction_order(session, order_id=order.id, actor_user_id=staff[4].id)
     recorded = await session.scalar(
         select(AuditEvent.id)
         .where(
@@ -2650,13 +2415,7 @@ async def _prepare_automatic_batch(session, *, settings):
     try:
         result = await run_automatic_payouts(
             session,
-            settings=settings.model_copy(
-                update={
-                    "payout_automatic_approval_enabled": True,
-                    "payout_automatic_frequency": "daily",
-                    "payout_automatic_batch_limit_ngn": Decimal("250000.00"),
-                }
-            ),
+            settings=settings,
             adapter=adapter,
             now=moment,
         )

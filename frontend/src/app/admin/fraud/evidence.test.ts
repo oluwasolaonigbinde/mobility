@@ -156,7 +156,5 @@ describe("readableEvidence", () => {
 it.each([
   ["exclusion_zone_presence", "Driving recorded in an excluded area"],
   ["route_replay", "Route matches an earlier trip"],
-  ["missed_display_challenge", "Driver missed the display check"],
-  ["concurrent_session_day", "Overlapping trips recorded on the same day"],
   ["physical_spot_check_failed", "An in-person check found a problem"],
 ])("explains %s in plain words", (kind, label) => expect(tripReviewReason(kind)).toBe(label));

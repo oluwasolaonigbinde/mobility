@@ -1,3 +1,4 @@
+import { adminReadFailure, adminValueFailure } from "@/lib/api/admin-read";
 export const metadata = { title: "Support" };
 import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
@@ -12,10 +13,13 @@ import { adminStatus } from "@/lib/status/admin";
 import { HubDrawer } from "../hub-drawer";
 import { QueueUnavailable } from "../queue-search";
 import { OperationForm } from "../operation-form";
-import { completePages, worklistHref } from "../worklist-reads";
+import { worklistHref } from "../worklist-reads";
+import { completePages } from "@/lib/complete-pages";
 import { ApiError } from "@/lib/api/errors";
 import type { components } from "@/lib/api/schema";
 import { RecordPhoneVerification } from "../drivers/record-phone-verification";
+import { CancelCampaignForm } from "../campaigns/[campaignId]/cancel-campaign-form";
+import { isCancellableCampaign } from "@/lib/campaigns/cancellation";
 
 type Query = {
   tab?: string;
@@ -27,7 +31,6 @@ type Query = {
   complaint?: string;
   task?: string;
   history?: string;
-  mine?: string;
 };
 export default async function SupportPage({ searchParams }: { searchParams: Promise<Query> }) {
   const p = await searchParams;
@@ -53,12 +56,11 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
                 status,
                 user_id: p.user_id,
                 organization_id: p.organization_id,
-                assigned_to_me: p.mine === "true",
               },
             },
           })
           .then(({ data }) => data)
-          .catch(() => undefined)
+          .catch(adminValueFailure)
       : undefined;
   const contact =
     tab === "contact"
@@ -74,7 +76,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
             },
           })
           .then(({ data }) => data)
-          .catch(() => undefined)
+          .catch(adminValueFailure)
       : undefined;
   const phoneWork =
     tab === "contact"
@@ -83,7 +85,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
             params: { query: { driver_profile_id: p.driver_profile_id, limit: 25, offset } },
           })
           .then(({ data }) => data)
-          .catch(() => undefined)
+          .catch(adminValueFailure)
       : undefined;
   let selectedComplaint;
   let complaintMissing = false;
@@ -93,10 +95,10 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
         params: { path: { complaint_id: p.complaint } },
       })
       .then(({ data }) => ({ data, missing: false }))
-      .catch((error: unknown) => ({
-        data: undefined,
-        missing: error instanceof ApiError && error.status === 404,
-      }));
+      .catch((error: unknown) => {
+        adminValueFailure(error);
+        return { data: undefined, missing: error instanceof ApiError && error.status === 404 };
+      });
     selectedComplaint = selection.data;
     complaintMissing = selection.missing;
     if (
@@ -109,12 +111,28 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
       complaintMissing = true;
     }
   }
+  const cancellationCampaign =
+    selectedComplaint?.category === "campaign_cancellation" &&
+    selectedComplaint.reference_type === "campaign" &&
+    selectedComplaint.reference_id
+      ? (
+          await api
+            .GET("/api/v1/admin/campaigns/{campaign_id}", {
+              params: { path: { campaign_id: selectedComplaint.reference_id } },
+            })
+            .catch(adminReadFailure)
+        ).data
+      : undefined;
+  const cancellationCampaignMatches =
+    cancellationCampaign &&
+    cancellationCampaign.id === selectedComplaint?.reference_id &&
+    cancellationCampaign.organization_id === selectedComplaint.advertiser_organization_id;
   const staff = selectedComplaint
     ? await completePages((next) =>
         api.GET("/api/v1/admin/users", {
           params: { query: { role: "admin", status: "active", limit: 100, offset: next } },
         }),
-      ).catch(() => undefined)
+      ).catch(adminValueFailure)
     : undefined;
   let selectedTask: components["schemas"]["ManualContactTaskRead"] | undefined;
   let taskMissing = false;
@@ -130,7 +148,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
           },
         },
       }),
-    ).catch(() => undefined);
+    ).catch(adminValueFailure);
     selectedTask = all?.find((item) => item.id === p.task);
     taskMissing = !!all && !selectedTask;
     if (
@@ -166,7 +184,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
         items={[
           {
             href: href({ tab: "complaints", offset: undefined, task: undefined }),
-            label: "Complaints",
+            label: "Requests and messages",
             active: tab === "complaints",
           },
           {
@@ -179,7 +197,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
       {tab === "complaints" ? (
         <>
           <FilterChips
-            label="Complaint status"
+            label="Request status"
             items={(
               [
                 ["open", "Needs a reply"],
@@ -198,7 +216,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
           ) : (
             <>
               {!complaints.items.length ? (
-                <p>No complaints match these filters.</p>
+                <p>No requests match these filters.</p>
               ) : (
                 <ul className="grid gap-3">
                   {complaints.items.map((item) => (
@@ -313,10 +331,17 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
         </>
       )}
       {tab === "complaints" && p.complaint ? (
-        <HubDrawer title="Complaint" closeHref={closeHref}>
+        <HubDrawer
+          title={
+            selectedComplaint?.category === "campaign_cancellation"
+              ? "Cancellation request"
+              : "Support conversation"
+          }
+          closeHref={closeHref}
+        >
           {!selectedComplaint ? (
             complaintMissing ? (
-              <p>Complaint not found for these filters.</p>
+              <p>Conversation not found for these filters.</p>
             ) : (
               <QueueUnavailable />
             )
@@ -328,6 +353,28 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
               <p className="text-muted mb-4 text-sm">
                 {STAFF_STATUS[selectedComplaint.status].label}
               </p>
+              {selectedComplaint.category === "campaign_cancellation" ? (
+                cancellationCampaignMatches ? (
+                  cancellationCampaign.status === "cancelled" ? (
+                    <p role="status" className="mb-4 text-sm">
+                      This campaign has already been cancelled.
+                    </p>
+                  ) : !isCancellableCampaign(cancellationCampaign.status) ? (
+                    <p role="status" className="mb-4 text-sm">
+                      This campaign can’t be cancelled in its current state.
+                    </p>
+                  ) : (
+                    <CancelCampaignForm
+                      key={`${selectedComplaint.id}:${cancellationCampaign.id}`}
+                      campaignId={cancellationCampaign.id}
+                      campaignName={cancellationCampaign.name}
+                      complaintId={selectedComplaint.id}
+                    />
+                  )
+                ) : (
+                  <QueueUnavailable />
+                )
+              ) : null}
               <ol aria-label="Conversation" className="mb-5 grid gap-3">
                 {selectedComplaint.messages.map((message) => (
                   <li key={message.id} className="border-edge rounded-lg border p-3">
@@ -352,7 +399,6 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
                 <ComplaintUpdateForm
                   complaintId={selectedComplaint.id}
                   action={updateComplaintAction}
-                  staff={staff.map((person) => ({ id: person.id, label: person.full_name }))}
                 />
               )}
             </>
@@ -375,7 +421,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
               {!selectedTask.completed_at &&
               p.history !== "true" &&
               selectedTask.status === "open" ? (
-                <OperationForm id={selectedTask.id} contact />
+                <OperationForm id={selectedTask.id} />
               ) : (
                 <p className="text-muted mt-4">Recorded history.</p>
               )}

@@ -12,8 +12,7 @@ export default function ForgotPasswordPage() {
         <p className="micro text-amber mb-3">Account recovery</p>
         <h1 className="font-display text-4xl font-semibold">Reset your password</h1>
         <p className="text-muted mt-3 mb-8 text-sm">
-          Enter your account email. For privacy, the response is the same whether or not an eligible
-          account exists.
+          Enter your email and we’ll send you a link to choose a new password.
         </p>
         <Panel className="p-6">
           <PasswordResetRequestForm />

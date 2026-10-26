@@ -1,13 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  AllocateDebtForm,
-  BatchActions,
-  CreateBatchForm,
-  MaskedDestination,
-  PollLineAction,
-} from "./batch-forms";
+import { BatchActions, CreateBatchForm, MaskedDestination, PollLineAction } from "./batch-forms";
 import type { EligiblePayment } from "./operation-types";
 
 const calls = vi.hoisted(() => ({
@@ -15,7 +9,6 @@ const calls = vi.hoisted(() => ({
   preview: vi.fn(),
   mask: vi.fn(),
   transition: vi.fn(),
-  allocate: vi.fn(),
   poll: vi.fn(),
 }));
 vi.mock("./actions", () => ({
@@ -23,7 +16,6 @@ vi.mock("./actions", () => ({
   previewSelectionAction: calls.preview,
   maskedDestinationAction: calls.mask,
   batchTransitionAction: calls.transition,
-  allocateDebtAction: calls.allocate,
   pollLineAction: calls.poll,
 }));
 
@@ -36,8 +28,6 @@ const entry: EligiblePayment = {
   occurred_at: "2026-09-14T10:00:00Z",
   amount: "100.07",
   currency: "NGN",
-  debt_deducted: "0.00",
-  carry_forward_debt: "0.00",
   destination_verified: true,
   bank_account_version_id: null,
   eligible: true,
@@ -61,6 +51,7 @@ async function checkWhenEnabled(user: { click: (element: Element) => Promise<voi
 
 describe("payout form states", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
     localStorage.clear();
     Object.defineProperty(navigator, "locks", {
@@ -70,7 +61,7 @@ describe("payout form states", () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it("shows debt, unverified destination and missing payee context on credit cards", () => {
+  it("shows unverified destination and missing payee context on credit cards", () => {
     render(
       <CreateBatchForm
         entries={[
@@ -78,8 +69,6 @@ describe("payout form states", () => {
             ...entry,
             payee_name: null,
             destination_verified: false,
-            debt_deducted: "10.02",
-            carry_forward_debt: "5.00",
             bank_account_version_id: "44444444-4444-4444-8444-444444444444",
           },
         ]}
@@ -89,10 +78,7 @@ describe("payout form states", () => {
     expect(
       screen.getByText(/Paid to: No bank account on file · Bank details not checked/),
     ).toBeTruthy();
-    expect(screen.getByText(/Already taken off for money the driver owed: .*10\.02/)).toBeTruthy();
-    expect(screen.getByText(/Driver still owes from earlier pay: .*5\.00/)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Allocate debt" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Show bank details (logged)" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Show bank details" })).toBeTruthy();
   });
 
   it("states when no credits match and keeps creation disabled", () => {
@@ -107,6 +93,10 @@ describe("payout form states", () => {
     calls.preview.mockResolvedValue({ currency: "NGN", total_amount: "100.07" });
     const user = userEvent.setup();
     render(<CreateBatchForm entries={[entry]} actorId="maker" />);
+    await user.type(
+      screen.getByRole("textbox", { name: "Preparation reason" }),
+      "Staff payment review",
+    );
     await user.click(screen.getByRole("checkbox"));
     await clickWhenEnabled(user, "Review selected credits");
     expect(await screen.findByText(/Advisory selected total/)).toBeTruthy();
@@ -126,6 +116,10 @@ describe("payout form states", () => {
     calls.reserve.mockRejectedValue(new Error("network"));
     const user = userEvent.setup();
     render(<CreateBatchForm entries={[entry]} actorId="maker" />);
+    await user.type(
+      screen.getByRole("textbox", { name: "Preparation reason" }),
+      "Staff payment review",
+    );
     await user.click(screen.getByRole("checkbox"));
     await clickWhenEnabled(user, "Review selected credits");
     await screen.findByText(/Advisory selected total/);
@@ -144,6 +138,10 @@ describe("payout form states", () => {
     });
     const user = userEvent.setup();
     render(<CreateBatchForm entries={[entry]} actorId="maker" />);
+    await user.type(
+      screen.getByRole("textbox", { name: "Preparation reason" }),
+      "Staff payment review",
+    );
     await user.click(screen.getByRole("checkbox"));
     await clickWhenEnabled(user, "Review selected credits");
     await screen.findByText(/Advisory selected total/);
@@ -159,42 +157,19 @@ describe("payout form states", () => {
     expect(screen.getByRole("checkbox")).not.toBeChecked();
   });
 
-  it("allocates debt only after confirmation and reports the result", async () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValue(true);
-    calls.allocate.mockResolvedValue({ done: "Available credits allocated to carry-forward debt" });
-    const user = userEvent.setup();
-    render(<AllocateDebtForm entry={{ ...entry, carry_forward_debt: "5.00" }} />);
-    await user.click(screen.getByRole("button", { name: "Allocate debt" }));
-    expect(confirm).toHaveBeenCalledWith(
-      "Allocate available NGN credits to Ada Driver's carry-forward debt?",
-    );
-    expect(calls.allocate).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "Allocate debt" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("allocated to carry-forward debt");
-    const sent = calls.allocate.mock.calls[0]![1] as FormData;
-    expect(sent.get("driver_profile_id")).toBe(entry.driver_profile_id);
-    expect(sent.get("currency")).toBe("NGN");
-  });
-
-  it("shows a debt allocation refusal", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    calls.allocate.mockResolvedValue({ error: "The allocation could not be confirmed." });
-    render(<AllocateDebtForm entry={entry} />);
-    await userEvent.click(screen.getByRole("button", { name: "Allocate debt" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("could not be confirmed");
-  });
-
   it("shows a destination review error and hides a mask when the page is hidden", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     calls.mask.mockResolvedValueOnce({ error: "Administrator access is required." });
     const { unmount } = render(<MaskedDestination versionId="version" />);
-    await userEvent.click(screen.getByRole("button", { name: "Show bank details (logged)" }));
+    await fillReasons();
+    await userEvent.click(screen.getByRole("button", { name: "Show bank details" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Administrator access is required.");
     unmount();
 
     calls.mask.mockResolvedValueOnce({ mask: "Bank 058 · account ending 6789" });
     render(<MaskedDestination versionId="version" />);
-    await userEvent.click(screen.getByRole("button", { name: "Show bank details (logged)" }));
+    await fillReasons();
+    await userEvent.click(screen.getByRole("button", { name: "Show bank details" }));
     expect(await screen.findByText(/account ending 6789/)).toBeTruthy();
     Object.defineProperty(document, "hidden", { configurable: true, value: true });
     act(() => {
@@ -206,19 +181,22 @@ describe("payout form states", () => {
 
   it("asks before voiding a reservation and reports a refused transition", async () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-    calls.transition.mockResolvedValue({ error: "A different administrator must approve." });
+    calls.transition.mockResolvedValue({ error: "The saved instructions changed." });
     render(<BatchActions batchId="batch-1" status="reserved" />);
+    await fillReasons();
     await userEvent.click(screen.getByRole("button", { name: "Void reservation" }));
     expect(confirm).toHaveBeenCalledWith("Release this payment run's unsent reservations?");
     expect(calls.transition).not.toHaveBeenCalled();
+    await fillReasons();
     await userEvent.click(screen.getByRole("button", { name: "Queue submission" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("different administrator");
+    expect(await screen.findByRole("alert")).toHaveTextContent("saved instructions changed");
     expect((calls.transition.mock.calls[0]![1] as FormData).get("intent")).toBe("submit");
   });
 
   it("reports line verification results and refusals", async () => {
     calls.poll.mockResolvedValueOnce({ done: "Verified provider result applied to this line" });
     const { unmount } = render(<PollLineAction lineId="line-1" />);
+    await fillReasons();
     await userEvent.click(screen.getByRole("button", { name: "Check provider result" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Verified provider result");
     expect((calls.poll.mock.calls[0]![1] as FormData).get("line_id")).toBe("line-1");
@@ -226,6 +204,7 @@ describe("payout form states", () => {
 
     calls.poll.mockResolvedValueOnce({ error: "Manual verification requires another admin." });
     render(<PollLineAction lineId="line-1" />);
+    await fillReasons();
     await userEvent.click(screen.getByRole("button", { name: "Check provider result" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("another admin");
   });
@@ -246,6 +225,7 @@ describe("payout form states", () => {
         }}
       />,
     );
+    await fillReasons();
     await userEvent.click(
       screen.getByRole("button", { name: "Request replacement for failed payments" }),
     );
@@ -255,3 +235,10 @@ describe("payout form states", () => {
     );
   });
 });
+
+async function fillReasons() {
+  for (const box of screen.queryAllByRole("textbox")) {
+    const input = box as HTMLTextAreaElement;
+    if (!input.disabled && !input.value) await userEvent.type(input, "Staff payment review");
+  }
+}

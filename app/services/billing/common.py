@@ -33,10 +33,9 @@ EXPEDITED_WAIVER_WORDING_HASH = hashlib.sha256(EXPEDITED_WAIVER_WORDING.encode()
 
 
 RECEIPT_SEQUENCE = {
-    ReceiptLifecycleStatus.OBSERVED: 1,
-    ReceiptLifecycleStatus.RECONCILED: 2,
-    ReceiptLifecycleStatus.CONFIRMED: 3,
-    ReceiptLifecycleStatus.REVERSED: 4,
+    ReceiptLifecycleStatus.RECORDED: 1,
+    ReceiptLifecycleStatus.CONFIRMED: 2,
+    ReceiptLifecycleStatus.REVERSED: 3,
 }
 
 

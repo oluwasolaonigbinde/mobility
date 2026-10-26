@@ -31,10 +31,10 @@ function revision(overrides: Partial<Revision>): Revision {
     effective_from: "2026-10-01T07:00:00Z",
     daily_rate_naira: "10000.00",
     daily_target_miles: "70.000",
-    shortfall_strategy: "per_mile_deduction",
-    deduction_per_mile_naira: "140.00",
+    shortfall_strategy: "proportional",
+    deduction_per_mile_naira: null,
     minimum_miles: "0.000",
-    outside_area_weight: "0.5000",
+    outside_area_weight: "0.0000",
     currency: "NGN",
     eligibility_params: { stationary_window_min: 5, stationary_grace_min: 0 },
     formula_version: "payout_v4",
@@ -55,7 +55,7 @@ describe("DailyRatePanel", () => {
     render(
       <DailyRatePanel
         campaignId={CAMPAIGN_ID}
-        publishingEnabled
+
         revisions={[revision({ revision_number: 2, id: "00000000-0000-4000-8000-000000000002" })]}
       />,
     );
@@ -63,78 +63,56 @@ describe("DailyRatePanel", () => {
     for (const label of [
       "Day rate (₦)",
       "Daily miles for a full day",
-      "Shorter days are paid",
-      "Deduction per missing mile (₦, per-mile rule only)",
-      "Minimum miles for any pay (0 for none)",
-      "Share of miles outside the campaign area that count (0 to 1)",
       "Starts (future)",
-      "Reason (logged)",
+      "Reason",
     ]) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.queryByLabelText(/Deduction|Minimum miles|Share of miles/)).toBeNull();
     const headers = screen.getAllByRole("columnheader").map((cell) => cell.textContent);
-    expect(headers).toEqual([
-      "#",
-      "Starts",
-      "Day rate",
-      "Daily miles",
-      "Shorter days",
-      "Minimum",
-      "Outside area",
-      "Reason",
-    ]);
+    expect(headers).toEqual(["#", "Starts", "Day rate", "Daily miles", "Reason"]);
     expect(headers.join(" ")).not.toMatch(/hour/i);
     const [daily] = screen.getAllByRole("row").slice(1);
     if (!daily) throw new Error("expected daily row");
     expect(within(daily).getByText(/10,000\.00/)).toBeInTheDocument();
     expect(within(daily).getByText("70")).toBeInTheDocument();
-    expect(within(daily).getByText(/140\.00 off per missing mile/)).toBeInTheDocument();
-    expect(within(daily).getByText("Count at 50%")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Publish daily rate" })).toBeEnabled();
   });
 
-  it("shows the empty history and the not-switched-on state with the form disabled", () => {
-    render(<DailyRatePanel campaignId={CAMPAIGN_ID} publishingEnabled={false} revisions={[]} />);
+  it("allows publication with an empty history", () => {
+    render(<DailyRatePanel campaignId={CAMPAIGN_ID} revisions={[]} />);
 
     expect(screen.getByText("No pay versions for this campaign yet.")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Daily-rate pay is not switched on yet.");
-    expect(screen.getByLabelText("Day rate (₦)")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Publish daily rate" })).toBeDisabled();
+    expect(screen.getByLabelText("Day rate (₦)")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Publish daily rate" })).toBeEnabled();
   });
 
   it("keeps typed values and shows a field error, a retryable error and success", () => {
     actionState.current = {
-      error: "Enter the amount taken off for each missing mile",
-      field: "deduction_per_mile_naira",
-      values: { daily_rate_naira: "9800", shortfall_strategy: "per_mile_deduction" },
+      error: "Enter the daily miles",
+      field: "daily_target_miles",
+      values: { daily_rate_naira: "9800", daily_target_miles: "" },
     };
-    const { rerender } = render(
-      <DailyRatePanel campaignId={CAMPAIGN_ID} publishingEnabled revisions={[]} />,
-    );
-    const deduction = screen.getByLabelText("Deduction per missing mile (₦, per-mile rule only)");
-    expect(deduction).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Enter the amount taken off for each missing mile",
-    );
+    const { rerender } = render(<DailyRatePanel campaignId={CAMPAIGN_ID} revisions={[]} />);
+    const target = screen.getByLabelText("Daily miles for a full day");
+    expect(target).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter the daily miles");
     expect(screen.getByLabelText("Day rate (₦)")).toHaveValue("9800");
 
     actionState.current = { error: "Could not reach the server. Try again.", values: {} };
-    rerender(<DailyRatePanel campaignId={CAMPAIGN_ID} publishingEnabled revisions={[]} />);
+    rerender(<DailyRatePanel campaignId={CAMPAIGN_ID} revisions={[]} />);
     expect(screen.getByRole("alert")).toHaveTextContent("Could not reach the server. Try again.");
     expect(screen.getByRole("button", { name: "Publish daily rate" })).toBeEnabled();
 
-    actionState.current = { notSwitchedOn: true };
-    rerender(<DailyRatePanel campaignId={CAMPAIGN_ID} publishingEnabled revisions={[]} />);
-    expect(screen.getByRole("status")).toHaveTextContent("not switched on yet");
-
     actionState.current = { created: true };
-    rerender(<DailyRatePanel campaignId={CAMPAIGN_ID} publishingEnabled revisions={[]} />);
+    rerender(<DailyRatePanel campaignId={CAMPAIGN_ID} revisions={[]} />);
     expect(screen.getByText(/Daily rate published/)).toBeInTheDocument();
   });
 
   it("shows the pending state while publishing", () => {
     actionState.pending = true;
-    render(<DailyRatePanel campaignId={CAMPAIGN_ID} publishingEnabled revisions={[]} />);
+    render(<DailyRatePanel campaignId={CAMPAIGN_ID} revisions={[]} />);
     expect(screen.getByRole("button", { name: "Publishing…" })).toBeDisabled();
   });
 });

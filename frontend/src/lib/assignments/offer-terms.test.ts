@@ -17,7 +17,7 @@ describe("offerTermLines", () => {
         daily_target_miles: "10.000",
         shortfall_strategy: "proportional",
         minimum_miles: "0",
-        outside_area_weight: "1",
+        outside_area_weight: "0",
         eligibility_params: { stationary_window_min: 5 },
       },
       zones: {
@@ -74,7 +74,7 @@ describe("dailyRateSentences", () => {
       shortfall_strategy: "proportional",
       deduction_per_mile_naira: null,
       minimum_miles: "0.000",
-      outside_area_weight: "1.0000",
+      outside_area_weight: "0.0000",
       ...payout,
     },
     eligibility: {
@@ -84,32 +84,15 @@ describe("dailyRateSentences", () => {
     },
   });
 
-  it("states the day rate, target, proportional rule, stop rule and full outside miles", () => {
+  it("states the day rate, target, proportional rule, stop rule and only in-area miles", () => {
     expect(dailyRateSentences(offer({}))).toEqual([
       "₦10,000.00 for a full day of 70 miles.",
       "Driving more than 70 miles in a day still earns ₦10,000.00.",
       "Shorter days are paid in proportion to the miles covered.",
       "Stops of up to 5 minutes count as driving; longer stops add no miles.",
       "No miles are counted while your phone loses its location for more than 2 minutes.",
-      "Miles outside the campaign area count in full.",
-    ]);
-  });
-
-  it("states the per-mile deduction, the minimum and the outside-area share", () => {
-    const sentences = dailyRateSentences(
-      offer({
-        shortfall_strategy: "per_mile_deduction",
-        deduction_per_mile_naira: "140.00",
-        minimum_miles: "20.000",
-        outside_area_weight: "0.5000",
-      }),
-    );
-    expect(sentences).toContain("Each mile short of 70 takes ₦140.00 off the day's pay.");
-    expect(sentences).toContain("Days under 20 miles are not paid.");
-    expect(sentences).toContain("Miles outside the campaign area count at 50%.");
-    expect(dailyRateSentences(offer({ outside_area_weight: "0.0000" }))).toContain(
       "Only miles inside the campaign area count.",
-    );
+    ]);
   });
 
   it("returns nothing for unknown offers and hides the raw daily-rate keys", () => {

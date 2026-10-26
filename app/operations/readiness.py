@@ -157,8 +157,6 @@ async def _signing_check(settings: Settings) -> dict[str, str]:
                     "SELECT evidence_manifest_receipt_key_version FROM trip_sessions "
                     "WHERE evidence_manifest_receipt_key_version IS NOT NULL UNION "
                     "SELECT receipt_key_version FROM location_ping_batches "
-                    "WHERE receipt_key_version IS NOT NULL UNION "
-                    "SELECT receipt_key_version FROM quarantined_ping_batches "
                     "WHERE receipt_key_version IS NOT NULL"
                 )
             )
@@ -312,22 +310,28 @@ async def run_probe(
     checks["scanner"] = await _scanner_check(settings)
     checks["trip_evidence_signing"] = await _signing_check(settings)
     if compatibility_scope is not None:
+
         def api_liveness() -> None:
             with urlopen("http://127.0.0.1:8000/api/v1/health", timeout=5) as response:
                 if response.status != 200:
                     raise RuntimeError("previous-image API is unavailable")
+
         await asyncio.to_thread(api_liveness)
         checks["api"] = {"status": "ok"}
     return {
         "event": "release_readiness",
         "status": "ready",
-        **({
-            "compatibility_capability": CAPABILITY,
-            "compatibility_scope": compatibility_scope,
-            "authority_sha256": hashlib.sha256(
-                json.dumps(authority, sort_keys=True, separators=(",", ":")).encode()
-            ).hexdigest(),
-        } if authority else {}),
+        **(
+            {
+                "compatibility_capability": CAPABILITY,
+                "compatibility_scope": compatibility_scope,
+                "authority_sha256": hashlib.sha256(
+                    json.dumps(authority, sort_keys=True, separators=(",", ":")).encode()
+                ).hexdigest(),
+            }
+            if authority
+            else {}
+        ),
         "release_revision": settings.release_revision,
         "checked_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "checks": checks,

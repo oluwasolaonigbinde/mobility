@@ -8,18 +8,13 @@ import { poppins } from "@/fonts/families/poppins";
 /**
  * The Cardvert type system, self-hosted (zero external font requests, at build
  * time as well as in the browser):
- * - Fraunces — default display face
+ * - Fraunces — available display face; staff screens use Inter
  * - Inter — UI text and body copy
- * - IBM Plex Mono — data, labels, telemetry
+ * - IBM Plex Mono — available data face; staff labels use Inter
+ * - Poppins — advertiser/driver headings and the public Terrax site
  *
- * Retained direction voices (the theme blocks remap --font-display/--font-sans):
- * - Fraunces — Ivory Ledger
- * - Poppins — Dispatch and the public Terrax site
- * - Archivo — Ledger
- * - Big Shoulders + Inter — Broadside
- * - Big Shoulders + Inter — Broadside (the pairing used by the Terrax landing
- *   page; Google has since merged Display/Text into one family with an `opsz`
- *   axis, so one variable face covers both roles)
+ * The additional vendored families retain their provenance and licences;
+ * there are no selectable product directions or font-provider requests.
  *
  * The formerly Google-hosted families are vendored under `src/fonts/google` and
  * declared per family in `src/fonts/families`, which export font-family chains

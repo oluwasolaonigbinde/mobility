@@ -23,7 +23,7 @@ def upload(purpose: FilePurpose, content_type: str, size_bytes: int) -> FileUplo
 @pytest.mark.parametrize(
     ("purpose", "content_type", "limit"),
     [
-        (FilePurpose.CREATIVE, "video/mp4", 25 * MB),
+        (FilePurpose.CREATIVE, "application/pdf", 25 * MB),
         (FilePurpose.DRIVER_KYC, "application/pdf", 10 * MB),
         # Registration and insurance papers are vehicle evidence too.
         (FilePurpose.VEHICLE_EVIDENCE, "application/pdf", 20 * MB),
@@ -41,6 +41,7 @@ def test_each_purpose_accepts_up_to_its_own_limit(purpose, content_type, limit) 
 @pytest.mark.parametrize(
     ("purpose", "content_type"),
     [
+        (FilePurpose.CREATIVE, "video/mp4"),
         (FilePurpose.DRIVER_KYC, "video/mp4"),
         (FilePurpose.VEHICLE_EVIDENCE, "video/mp4"),
         (FilePurpose.INSTALLATION_EVIDENCE, "application/pdf"),

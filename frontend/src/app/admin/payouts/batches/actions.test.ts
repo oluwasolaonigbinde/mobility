@@ -6,7 +6,6 @@ vi.mock("./batch-api", () => ({ batchApi: mocks.batchApi }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 
 import {
-  allocateDebtAction,
   batchTransitionAction,
   createAndReserveBatchAction,
   pollLineAction,
@@ -35,6 +34,7 @@ describe("payout batch actions", () => {
       new Error("https://provider.invalid/private?token=secret"),
     );
     const data = new FormData();
+    data.set("reason", "Staff payment review");
     data.set("request_id", "11111111-1111-4111-8111-111111111111");
     data.set("currency", "NGN");
     data.set("ledger_entry_ids", "22222222-2222-4222-8222-222222222222");
@@ -47,6 +47,7 @@ describe("payout batch actions", () => {
   it("never calls a queued submission paid or submitted", async () => {
     mocks.batchApi.mockResolvedValueOnce({ status: "reserved" });
     const data = new FormData();
+    data.set("reason", "Staff payment review");
     data.set("batch_id", "11111111-1111-4111-8111-111111111111");
     data.set("intent", "submit");
     const result = await batchTransitionAction({}, data);
@@ -59,6 +60,7 @@ describe("payout batch actions", () => {
       .mockResolvedValueOnce({ id: "11111111-1111-4111-8111-111111111111" })
       .mockResolvedValueOnce({ status: "reserved" });
     const form = new FormData();
+    form.set("reason", "Staff payment review");
     form.set("request_id", "11111111-1111-4111-8111-111111111111");
     form.set("currency", "ngn");
     form.set(
@@ -69,7 +71,11 @@ describe("payout batch actions", () => {
     expect(result.done).toMatch(/reservation confirmed/i);
     expect(mocks.batchApi).toHaveBeenNthCalledWith(1, "", {
       method: "POST",
-      body: JSON.stringify({ currency: "NGN", request_id: "11111111-1111-4111-8111-111111111111" }),
+      body: JSON.stringify({
+        currency: "NGN",
+        request_id: "11111111-1111-4111-8111-111111111111",
+        reason: "Staff payment review",
+      }),
     });
     expect(mocks.batchApi).toHaveBeenNthCalledWith(
       2,
@@ -81,6 +87,7 @@ describe("payout batch actions", () => {
             "22222222-2222-4222-8222-222222222222",
             "33333333-3333-4333-8333-333333333333",
           ],
+          reason: "Staff payment review",
         }),
       },
     );
@@ -91,6 +98,7 @@ describe("payout batch actions", () => {
       .mockResolvedValueOnce({ id: "11111111-1111-4111-8111-111111111111" })
       .mockResolvedValueOnce({ status: "void" });
     const form = new FormData();
+    form.set("reason", "Staff payment review");
     form.set("request_id", "11111111-1111-4111-8111-111111111111");
     form.set("currency", "NGN");
     form.set("ledger_entry_ids", "22222222-2222-4222-8222-222222222222");
@@ -107,6 +115,7 @@ describe("payout batch actions", () => {
       }),
     );
     const form = new FormData();
+    form.set("reason", "Staff payment review");
     form.set("batch_id", "11111111-1111-4111-8111-111111111111");
     form.set("intent", "submit");
     const result = await batchTransitionAction({}, form);
@@ -116,10 +125,11 @@ describe("payout batch actions", () => {
 
   it("rejects malformed ledger IDs before any API mutation", async () => {
     const form = new FormData();
+    form.set("reason", "Staff payment review");
     form.set("currency", "NGN");
     form.set("ledger_entry_ids", "not-a-uuid");
     const result = await createAndReserveBatchAction({}, form);
-    expect(result.error).toMatch(/available earnings record/i);
+    expect(result.error).toMatch(/available earnings/i);
     expect(mocks.batchApi).not.toHaveBeenCalled();
   });
 
@@ -129,15 +139,16 @@ describe("payout batch actions", () => {
       status: "reserved",
     });
     const form = new FormData();
+    form.set("reason", "Staff payment review");
     form.set("batch_id", "11111111-1111-4111-8111-111111111111");
     form.set("intent", "retry_failed");
     const result = await batchTransitionAction({}, form);
-    expect(result.done).toMatch(/replacement.*independent approval/i);
+    expect(result.done).toMatch(/replacement.*approve/i);
     expect(result.done).not.toMatch(/same.key|frozen idempotency/i);
     expect(result.batchId).toBe("44444444-4444-4444-8444-444444444444");
     expect(mocks.batchApi).toHaveBeenCalledWith(
       "/11111111-1111-4111-8111-111111111111/retry-failed",
-      { method: "POST" },
+      { method: "POST", body: JSON.stringify({ reason: "Staff payment review" }) },
     );
   });
 
@@ -149,6 +160,7 @@ describe("payout batch actions", () => {
       }),
     );
     const form = new FormData();
+    form.set("reason", "Staff payment review");
     form.set("batch_id", "11111111-1111-4111-8111-111111111111");
     form.set("intent", "retry_failed");
     expect((await batchTransitionAction({}, form)).error).toMatch(/newer verified bank/);
@@ -157,25 +169,13 @@ describe("payout batch actions", () => {
   it("polls only the selected provider line", async () => {
     mocks.batchApi.mockResolvedValueOnce({ status: "completed" });
     const form = new FormData();
+    form.set("reason", "Staff payment review");
     form.set("line_id", "22222222-2222-4222-8222-222222222222");
     const result = await pollLineAction({}, form);
     expect(result.done).toMatch(/provider result/i);
     expect(mocks.batchApi).toHaveBeenCalledWith(
       "/lines/22222222-2222-4222-8222-222222222222/poll",
-      { method: "POST" },
-    );
-  });
-
-  it("allocates debt for one driver and currency before batching", async () => {
-    mocks.batchApi.mockResolvedValueOnce({ settlement_ids: [] });
-    const form = new FormData();
-    form.set("driver_profile_id", "22222222-2222-4222-8222-222222222222");
-    form.set("currency", "ngn");
-    const result = await allocateDebtAction({}, form);
-    expect(result.done).toMatch(/carry-forward debt/i);
-    expect(mocks.batchApi).toHaveBeenCalledWith(
-      "/debt-balances/22222222-2222-4222-8222-222222222222/allocate",
-      { method: "POST", body: JSON.stringify({ currency: "NGN" }) },
+      { method: "POST", body: JSON.stringify({ reason: "Staff payment review" }) },
     );
   });
 });

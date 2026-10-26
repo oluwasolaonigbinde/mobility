@@ -14,7 +14,7 @@ from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status
 
-from app.core.config import Settings, get_settings
+from app.core.config import LOCAL_ENVIRONMENTS, Settings, get_settings
 from app.core.errors import AppError
 from app.core.security import hash_password, verify_password
 from app.db.session import get_engine
@@ -36,8 +36,6 @@ from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.impression import (
     ImpressionEstimate,
-    TrafficDensityProfile,
-    TrafficDensityProfileStatus,
 )
 from app.models.organization import (
     AdvertiserOrganization,
@@ -63,7 +61,6 @@ from app.models.trip import (
 from app.models.trip_analytics import TripAnalytics
 from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle, VehicleStatus, VehicleType
-from app.schemas.impressions import TrafficDensityProfileCreate
 from app.schemas.trips import (
     LocationPingBatchCreate,
     LocationPingCreate,
@@ -72,7 +69,7 @@ from app.schemas.trips import (
 from app.seeds.driver_story import workday_processing_time
 from app.seeds.rich import F7_DRIVER_PASSWORDS, F7_SEED_VERSION, RichSeedResult, build_rich_seed
 from app.services.campaign_zones import geometry_expression, validate_geometry_with_postgis
-from app.services.impressions import create_traffic_density_profile, estimate_trip_impressions
+from app.services.impressions import estimate_trip_impressions
 from app.services.payouts.engine import calculate_trip_payout
 from app.services.trip_analytics import recompute_trip_analytics
 from app.services.trip_evidence import (
@@ -93,7 +90,6 @@ DEMO_PASSWORDS = {
     "viewer@demo.mobility.local": "DemoViewer12345!",
     "driver@demo.mobility.local": "DemoDriver12345!",
 }
-LOCAL_ENVIRONMENTS = {"local", "dev", "development", "test", "testing"}
 DEMO_DRIVER_PHONE_NUMBERS = {
     "damilola.akinwale@demo.mobility.local": "+2340000000114",
     "driver@demo.mobility.local": "+2340000000100",
@@ -123,7 +119,6 @@ class DemoGraph:
     creative: CampaignCreative
     assignment: CampaignAssignment
     trips: list[TripSession]
-    traffic_profile: TrafficDensityProfile
     rich: RichSeedResult
 
 
@@ -428,7 +423,7 @@ async def upsert_creative(session: AsyncSession, *, campaign: Campaign) -> Campa
         "height_px": 900,
         "duration_seconds": None,
         "checksum": None,
-        "status": CreativeStatus.READY.value,
+        "status": CreativeStatus.DRAFT.value,
         "creative_metadata": demo_metadata(),
     }
     if creative is None:
@@ -459,22 +454,6 @@ def zone_geometries() -> list[tuple[str, str, dict[str, Any]]]:
                         [7.5238, 9.0748],
                         [7.4438, 9.0748],
                         [7.4438, 8.9848],
-                    ]
-                ],
-            },
-        ),
-        (
-            "Ahmadu Bello Way offices",
-            CampaignZoneType.BONUS.value,
-            {
-                "type": "Polygon",
-                "coordinates": [
-                    [
-                        [7.4638, 9.0048],
-                        [7.5038, 9.0048],
-                        [7.5038, 9.0548],
-                        [7.4638, 9.0548],
-                        [7.4638, 9.0048],
                     ]
                 ],
             },
@@ -609,7 +588,6 @@ async def upsert_assignment(
         )
         assignment.activated_at = assignment.activated_at or campaign.start_at + timedelta(days=2)
         assignment.cancelled_at = None
-        assignment.completed_at = None
         assignment.notes = "Deliver lunch orders around Garki and the Central Business District."
         assignment.assignment_metadata = demo_metadata()
         await session.flush()
@@ -857,22 +835,6 @@ def palmpay_zone_specs() -> list[tuple[str, str, dict[str, Any]]]:
                 ],
             },
         ),
-        (
-            "Aminu Kano Crescent",
-            CampaignZoneType.BONUS.value,
-            {
-                "type": "Polygon",
-                "coordinates": [
-                    [
-                        [7.455, 9.05],
-                        [7.49, 9.05],
-                        [7.49, 9.09],
-                        [7.455, 9.09],
-                        [7.455, 9.05],
-                    ]
-                ],
-            },
-        ),
     ]
 
 
@@ -890,22 +852,6 @@ def palmpay_market_zone_specs() -> list[tuple[str, str, dict[str, Any]]]:
                         [7.5188, 9.1498],
                         [7.4238, 9.1498],
                         [7.4238, 8.9998],
-                    ]
-                ],
-            },
-        ),
-        (
-            "Wuse Market shops",
-            CampaignZoneType.BONUS.value,
-            {
-                "type": "Polygon",
-                "coordinates": [
-                    [
-                        [7.4538, 9.0298],
-                        [7.4988, 9.0298],
-                        [7.4988, 9.1198],
-                        [7.4538, 9.1198],
-                        [7.4538, 9.0298],
                     ]
                 ],
             },
@@ -996,7 +942,6 @@ async def upsert_driver_story_campaigns(
     driver: User,
     profile: DriverProfile,
     vehicle: Vehicle,
-    traffic_profile: TrafficDensityProfile,
 ) -> None:
     """Add truthful lifecycle breadth to the primary driver demo persona."""
     now = utc_now()
@@ -1004,8 +949,8 @@ async def upsert_driver_story_campaigns(
         {
             "name": "Linden Harbour Clothing — Abuja Commute",
             "description": "Visibility along commuter routes into the Central Business District.",
-            "campaign_status": CampaignStatus.COMPLETED,
-            "assignment_status": CampaignAssignmentStatus.COMPLETED,
+            "campaign_status": CampaignStatus.ACTIVE,
+            "assignment_status": CampaignAssignmentStatus.ACTIVE,
             "start_at": now - timedelta(days=120),
             "end_at": now - timedelta(days=45),
             "activity": "airtel",
@@ -1014,7 +959,7 @@ async def upsert_driver_story_campaigns(
             "name": "Beryl Lane Grocers — Market Routes",
             "description": "Visibility around Abuja markets and neighbourhood shops.",
             "campaign_status": CampaignStatus.ACTIVE,
-            "assignment_status": CampaignAssignmentStatus.COMPLETED,
+            "assignment_status": CampaignAssignmentStatus.ACTIVE,
             "start_at": now - timedelta(days=30),
             "end_at": now + timedelta(days=60),
             "activity": "palmpay_market",
@@ -1051,7 +996,7 @@ async def upsert_driver_story_campaigns(
             "end_at": spec["end_at"],
             "budget_amount": (
                 Decimal("3000000.00")
-                if spec["campaign_status"] in (CampaignStatus.COMPLETED, CampaignStatus.ACTIVE)
+                if spec["campaign_status"] == CampaignStatus.ACTIVE
                 else Decimal("1800000.00")
             ),
             "daily_budget_amount": Decimal("90000.00"),
@@ -1085,7 +1030,11 @@ async def upsert_driver_story_campaigns(
                 CampaignAssignment.vehicle_id == vehicle.id,
             )
         )
-        assignment_status = spec["assignment_status"]
+        assignment_status = (
+            CampaignAssignmentStatus.CANCELLED
+            if spec["end_at"] > now
+            else spec["assignment_status"]
+        )
         from app.seeds.demo_authority import prepare_daily_offer
 
         if campaign.start_at is None:
@@ -1106,16 +1055,17 @@ async def upsert_driver_story_campaigns(
             "status": assignment_status.value,
             "offered_at": spec["start_at"] - timedelta(days=5),
             "accepted_at": spec["start_at"] - timedelta(days=4)
-            if assignment_status == CampaignAssignmentStatus.COMPLETED
+            if assignment_status
+            in (CampaignAssignmentStatus.ACTIVE, CampaignAssignmentStatus.CANCELLED)
             else None,
             "activated_at": spec["start_at"]
-            if assignment_status == CampaignAssignmentStatus.COMPLETED
+            if assignment_status
+            in (CampaignAssignmentStatus.ACTIVE, CampaignAssignmentStatus.CANCELLED)
             else None,
             "deactivated_at": None,
-            "cancelled_at": None,
-            "completed_at": (
-                spec["end_at"] if spec["activity"] == "airtel" else now - timedelta(days=1)
-            ),
+            "cancelled_at": now - timedelta(days=1)
+            if assignment_status == CampaignAssignmentStatus.CANCELLED
+            else None,
             "notes": (
                 "All agreed routes completed by Friday."
                 if spec["activity"] == "airtel"
@@ -1141,7 +1091,10 @@ async def upsert_driver_story_campaigns(
                 value = assignment_values[field]
                 setattr(assignment, field, value)
         await session.flush()
-        if assignment_status != CampaignAssignmentStatus.COMPLETED:
+        if assignment_status not in (
+            CampaignAssignmentStatus.ACTIVE,
+            CampaignAssignmentStatus.CANCELLED,
+        ):
             continue
         story_trip_specs = (
             commute_story_trip_specs(now)
@@ -1187,7 +1140,6 @@ async def upsert_driver_story_campaigns(
             await estimate_trip_impressions(
                 session,
                 trip_id=trip.id,
-                traffic_density_profile_id=traffic_profile.id,
                 metadata=demo_metadata(seed_step="impressions", driver_story=True),
                 settings=settings,
                 now=workday_processing_time(trip),
@@ -1350,63 +1302,6 @@ async def ensure_ping_batch(
     await session.flush()
 
 
-async def upsert_traffic_profile(
-    session: AsyncSession,
-) -> TrafficDensityProfile:
-    profile = await session.scalar(
-        select(TrafficDensityProfile).where(TrafficDensityProfile.name == "Abuja weekday traffic")
-    )
-    if profile is None:
-        await session.execute(
-            select(TrafficDensityProfile)
-            .where(
-                TrafficDensityProfile.status == TrafficDensityProfileStatus.ACTIVE.value,
-                TrafficDensityProfile.is_default.is_(True),
-            )
-            .with_for_update()
-        )
-        profile = await create_traffic_density_profile(
-            session,
-            TrafficDensityProfileCreate(
-                name="Abuja weekday traffic",
-                description="Weekday traffic around Abuja offices and markets.",
-                profile_type="urban",
-                traffic_density_per_km=Decimal("240.0"),
-                dwell_impressions_per_minute=Decimal("5.0"),
-                road_category_weight=Decimal("1.15"),
-                morning_weight=Decimal("1.20"),
-                midday_weight=Decimal("1.00"),
-                evening_weight=Decimal("1.30"),
-                night_weight=Decimal("0.70"),
-                target_zone_weight=Decimal("1.20"),
-                bonus_zone_weight=Decimal("1.35"),
-                exclusion_zone_weight=Decimal("0.0"),
-                is_default=True,
-                status=TrafficDensityProfileStatus.ACTIVE,
-                metadata=demo_metadata(),
-            ),
-        )
-    else:
-        profile.description = "Weekday traffic around Abuja offices and markets."
-        profile.profile_type = "urban"
-        profile.traffic_density_per_km = Decimal("240.0")
-        profile.dwell_impressions_per_minute = Decimal("5.0")
-        profile.road_category_weight = Decimal("1.15")
-        profile.morning_weight = Decimal("1.20")
-        profile.midday_weight = Decimal("1.00")
-        profile.evening_weight = Decimal("1.30")
-        profile.night_weight = Decimal("0.70")
-        profile.target_zone_weight = Decimal("1.20")
-        profile.bonus_zone_weight = Decimal("1.35")
-        profile.exclusion_zone_weight = Decimal("0.0")
-        profile.is_default = True
-        profile.status = TrafficDensityProfileStatus.ACTIVE.value
-        profile.profile_metadata = demo_metadata()
-        await session.flush()
-        await session.refresh(profile)
-    return profile
-
-
 async def upsert_payout_rule(
     session: AsyncSession,
     *,
@@ -1457,7 +1352,6 @@ async def upsert_palmpay_graph(  # noqa: C901
     organization: AdvertiserOrganization,
     advertiser: User,
     admin: User,
-    traffic_profile: TrafficDensityProfile,
 ) -> None:
     now = utc_now()
     campaign = await session.scalar(
@@ -1504,7 +1398,7 @@ async def upsert_palmpay_graph(  # noqa: C901
         "height_px": 900,
         "duration_seconds": None,
         "checksum": None,
-        "status": CreativeStatus.READY.value,
+        "status": CreativeStatus.DRAFT.value,
         "creative_metadata": demo_metadata(showcase="palmpay_wuse"),
     }
     if creative is None:
@@ -1617,7 +1511,6 @@ async def upsert_palmpay_graph(  # noqa: C901
         await estimate_trip_impressions(
             session,
             trip_id=trip.id,
-            traffic_density_profile_id=traffic_profile.id,
             metadata=demo_metadata(seed_step="impressions", showcase="palmpay_wuse"),
             settings=settings,
         )
@@ -1685,13 +1578,13 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
         session,
         organization=organization,
         user=advertiser,
-        role=MembershipRole.OWNER,
+        role=MembershipRole.ADVERTISER,
     )
     await upsert_membership(
         session,
         organization=organization,
         user=viewer,
-        role=MembershipRole.VIEWER,
+        role=MembershipRole.ADVERTISER,
     )
     driver_profile = await upsert_driver_profile(session, driver=driver)
     vehicle = await upsert_vehicle(session, profile=driver_profile)
@@ -1717,7 +1610,6 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
         settings=settings,
         full_workday=True,
     )
-    traffic_profile = await upsert_traffic_profile(session)
     await upsert_payout_rule(session, campaign=campaign, admin=admin)
     await session.flush()
     for trip in trips:
@@ -1731,7 +1623,6 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
         await estimate_trip_impressions(
             session,
             trip_id=trip.id,
-            traffic_density_profile_id=traffic_profile.id,
             metadata=demo_metadata(seed_step="impressions"),
             settings=settings,
             now=workday_processing_time(trip),
@@ -1757,7 +1648,6 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
         driver=driver,
         profile=driver_profile,
         vehicle=vehicle,
-        traffic_profile=traffic_profile,
     )
     await upsert_palmpay_graph(
         session,
@@ -1765,7 +1655,6 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
         organization=organization,
         advertiser=advertiser,
         admin=admin,
-        traffic_profile=traffic_profile,
     )
     rich = await build_rich_seed(
         session,
@@ -1773,7 +1662,6 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
         admin=admin,
         advertiser=advertiser,
         organization=organization,
-        traffic_profile=traffic_profile,
     )
     graph = DemoGraph(
         admin=admin,
@@ -1787,7 +1675,6 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
         creative=creative,
         assignment=assignment,
         trips=trips,
-        traffic_profile=traffic_profile,
         rich=rich,
     )
     from app.seeds.demo_authority import ensure_demo_start_authority
@@ -1816,14 +1703,11 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
     await ensure_trip_review_work(session, graph=graph, staff=staff, settings=settings)
     await ensure_completed_report_contributors(session, graph=graph, settings=settings)
     await ensure_portal_reports(session, graph=graph, settings=settings)
+    from app.seeds.driver_story import settle_demo_driver_history
     from app.seeds.rich import (
-        ensure_portal_audiences,
         ensure_portal_payouts,
         settle_seed_driver_notifications,
     )
-
-    await ensure_portal_audiences(session, graph=graph, settings=settings)
-    from app.seeds.driver_story import settle_demo_driver_history
 
     await settle_demo_driver_history(session, graph=graph, staff=staff, settings=settings)
     await ensure_portal_payouts(session, graph=graph, staff=staff, settings=settings)
@@ -1950,15 +1834,18 @@ async def run_seed(settings: Settings | None = None) -> DemoGraph:
         summary_counts = await counts(session, graph)
         await session.commit()
         from app.adapters.storage import build_storage_provider
-        from app.services.report_issuances import sweep_report_issuances
+        from app.models.campaign_report import CampaignReport
+        from app.services.campaign_report_delivery import publish_campaign_report
 
-        await sweep_report_issuances(
-            {
-                "sessionmaker": sessionmaker,
-                "settings": settings,
-                "storage": build_storage_provider(settings),
-            }
+        report_ids = list(
+            await session.scalars(
+                select(CampaignReport.id).where(CampaignReport.status == "queued")
+            )
         )
+        for report_id in report_ids:
+            await publish_campaign_report(
+                sessionmaker, report_id=report_id, storage=build_storage_provider(settings)
+            )
         print_summary(graph, summary_counts)
         return graph
 

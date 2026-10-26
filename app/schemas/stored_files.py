@@ -12,7 +12,7 @@ _DOCUMENTS = _IMAGES | {"application/pdf"}
 # Per-purpose upload policy: the developer recommendation adopted under client
 # answer #12 ("file types and sizes as recommended", 24 Sep 2026).
 UPLOAD_POLICY: dict[FilePurpose, tuple[int, frozenset[str]]] = {
-    FilePurpose.CREATIVE: (25 * MB, _DOCUMENTS | {"video/mp4"}),
+    FilePurpose.CREATIVE: (25 * MB, _DOCUMENTS),
     FilePurpose.DRIVER_KYC: (10 * MB, _DOCUMENTS),
     # Registration and insurance papers as well as vehicle photos.
     FilePurpose.VEHICLE_EVIDENCE: (20 * MB, _DOCUMENTS),

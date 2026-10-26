@@ -1,53 +1,62 @@
 import { describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api/errors";
 import { loadDailyEarnings } from "./load-daily-earnings";
 import type { ApiClient } from "@/lib/api/client";
 
-const row = (id: number) => ({
-  id: String(id),
-  amount: "1.00",
-  currency: "NGN",
-  work_days: [{ day: "2026-10-10", amount: "1.00" }],
-  status: "available",
-  entry_type: "trip_payout",
-});
-function client(pages: unknown[]) {
-  const get = vi.fn(async (path: string) =>
-    path.endsWith("fraud-holds") ? { data: { items: [] } } : pages.shift(),
-  );
+function client(response: () => Promise<unknown>) {
+  const get = vi.fn(response);
   return { api: { GET: get } as unknown as ApiClient, get };
 }
-describe("complete daily ledger loading", () => {
-  it("joins a day split across two pages", async () => {
-    const { api, get } = client([
-      { data: { items: Array.from({ length: 100 }, (_, id) => row(id)), total: 101 } },
-      { data: { items: [row(100)], total: 101 } },
-    ]);
-    expect(await loadDailyEarnings(api)).toMatchObject({
+const totals = [
+  { currency: "NGN", today: "0.00", this_week: "5.00", total: "9.00", on_hold: "0.00" },
+];
+
+describe("daily earnings loading", () => {
+  it("reads every day and the totals in one request", async () => {
+    const { api, get } = client(async () => ({
+      data: {
+        totals,
+        days: [
+          {
+            day: "2026-10-10",
+            currency: "NGN",
+            amount: "5.00",
+            status: "paying_tonight",
+            paid_at: null,
+            trip_ids: [],
+          },
+        ],
+      },
+    }));
+    expect(await loadDailyEarnings(api)).toEqual({
       state: "ready",
-      data: [{ amount: "101.00" }],
+      data: {
+        totals,
+        days: [
+          {
+            day: "2026-10-10",
+            currency: "NGN",
+            amount: "5.00",
+            status: "Paying tonight",
+            paidAt: null,
+            tripIds: [],
+          },
+        ],
+      },
     });
-    expect(get.mock.calls.at(-1)?.[0]).toBe("/api/v1/driver/earnings/ledger");
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledWith("/api/v1/driver/earnings/days");
   });
-  it("withholds day totals when the later page fails", async () => {
-    const { api } = client([
-      { data: { items: Array.from({ length: 100 }, (_, id) => row(id)), total: 101 } },
-      {},
-    ]);
+  it("withholds every figure when the history cannot be verified", async () => {
+    const { api } = client(async () => {
+      throw new ApiError(409, { code: "EARNINGS_DAYS_UNAVAILABLE", message: "x" });
+    });
     expect(await loadDailyEarnings(api)).toEqual({ state: "unavailable" });
   });
-  it("withholds totals when a later correction changes history size", async () => {
-    const { api } = client([
-      { data: { items: Array.from({ length: 100 }, (_, id) => row(id)), total: 101 } },
-      { data: { items: [row(100)], total: 102 } },
-    ]);
-    expect(await loadDailyEarnings(api)).toEqual({ state: "unavailable" });
-  });
-  it("does not treat missing allocations as an empty ledger", async () => {
-    const { api } = client([{ data: { items: [{ ...row(0), work_days: [] }], total: 1 } }]);
-    expect(await loadDailyEarnings(api)).toEqual({ state: "unavailable" });
-  });
-  it("accepts an authoritative empty history", async () => {
-    const { api } = client([{ data: { items: [], total: 0 } }]);
-    expect(await loadDailyEarnings(api)).toEqual({ state: "ready", data: [] });
+  it("sends an expired session to sign in", async () => {
+    const { api } = client(async () => {
+      throw new ApiError(401, { code: "UNAUTHORIZED", message: "x" });
+    });
+    expect(await loadDailyEarnings(api)).toEqual({ state: "auth" });
   });
 });

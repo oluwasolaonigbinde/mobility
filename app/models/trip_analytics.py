@@ -31,17 +31,11 @@ class TripAnalyticsStatus(StrEnum):
 
 
 class FraudFlagType(StrEnum):
-    INSUFFICIENT_PINGS = "insufficient_pings"
     IMPOSSIBLE_SPEED = "impossible_speed"
-    POOR_ACCURACY = "poor_accuracy"
     STATIONARY_TRIP = "stationary_trip"
     EXCESSIVE_PING_GAP = "excessive_ping_gap"
-    FUTURE_TIMESTAMP = "future_timestamp"
-    ROUTE_LOOPING = "route_looping"
     ROUTE_REPLAY = "route_replay"
     EXCLUSION_ZONE_PRESENCE = "exclusion_zone_presence"
-    MISSED_DISPLAY_CHALLENGE = "missed_display_challenge"
-    CONCURRENT_SESSION_DAY = "concurrent_session_day"
     PHYSICAL_SPOT_CHECK_FAILED = "physical_spot_check_failed"
 
 
@@ -53,7 +47,6 @@ class FraudFlagSeverity(StrEnum):
 
 class FraudFlagStatus(StrEnum):
     OPEN = "open"
-    ACKNOWLEDGED = "acknowledged"
     CONFIRMED = "confirmed"
     DISMISSED = "dismissed"
 
@@ -249,10 +242,9 @@ class FraudFlag(Base):
     __tablename__ = "fraud_flags"
     __table_args__ = (
         CheckConstraint(
-            "flag_type IN ('insufficient_pings', 'impossible_speed', 'poor_accuracy', "
-            "'stationary_trip', 'excessive_ping_gap', 'future_timestamp', 'route_looping', "
-            "'route_replay', 'exclusion_zone_presence', 'missed_display_challenge', "
-            "'concurrent_session_day', 'physical_spot_check_failed')",
+            "flag_type IN ('impossible_speed', 'stationary_trip', 'excessive_ping_gap', "
+            "'route_replay', 'exclusion_zone_presence', "
+            "'physical_spot_check_failed')",
             name="ck_fraud_flags_flag_type",
         ),
         CheckConstraint(
@@ -260,15 +252,12 @@ class FraudFlag(Base):
             name="ck_fraud_flags_severity",
         ),
         CheckConstraint(
-            "status IN ('open', 'acknowledged', 'confirmed', 'dismissed')",
+            "status IN ('open', 'confirmed', 'dismissed')",
             name="ck_fraud_flags_status",
         ),
         CheckConstraint(
             "(status = 'open' AND reviewed_by_user_id IS NULL "
             "AND reviewed_at IS NULL AND resolution_note IS NULL) OR "
-            "(status = 'acknowledged' AND reviewed_by_user_id IS NOT NULL "
-            "AND reviewed_at IS NOT NULL "
-            "AND resolution_note IS NULL) OR "
             "(status IN ('confirmed', 'dismissed') "
             "AND reviewed_by_user_id IS NOT NULL AND reviewed_at IS NOT NULL "
             "AND resolution_note IS NOT NULL "
@@ -288,14 +277,14 @@ class FraudFlag(Base):
             "ix_fraud_flags_unresolved_sla",
             "detected_at",
             "id",
-            postgresql_where=text("status IN ('open', 'acknowledged') AND escalated_at IS NULL"),
+            postgresql_where=text("status = 'open' AND escalated_at IS NULL"),
         ),
         Index(
             "uq_fraud_flags_trip_nonterminal_flag_type",
             "trip_session_id",
             "flag_type",
             unique=True,
-            postgresql_where=text("status IN ('open', 'acknowledged', 'confirmed')"),
+            postgresql_where=text("status IN ('open', 'confirmed')"),
         ),
     )
 

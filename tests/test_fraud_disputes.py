@@ -11,7 +11,7 @@ from app.models.fraud_dispute import FraudDispute
 from app.models.notification import Notification
 from app.models.trip_analytics import FraudFlag
 from app.services.fraud_disputes import create_driver_dispute, reply_to_dispute
-from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
+from app.services.fraud_holds import resolve_fraud_flag
 from app.services.notifications import create_fraud_hold_raised_notice
 from app.services.route_replay import _write_replay_flag, detect_route_replay
 from app.services.trip_analytics import AnalyticsMetrics, replace_open_fraud_flags
@@ -154,13 +154,6 @@ def test_owner_mismatch_is_404_and_dismissed_resolution_remains_visible(
     )
     assert trip_mismatch.status_code == 404
 
-    assert (
-        db_client.post(
-            f"/api/v1/admin/fraud-flags/{flag.id}/review/acknowledge",
-            headers=admin_headers,
-        ).status_code
-        == 200
-    )
     resolved = db_client.post(
         f"/api/v1/admin/fraud-flags/{flag.id}/review/resolve",
         headers=admin_headers,
@@ -184,7 +177,6 @@ def test_confirmed_resolution_is_visible_but_flag_stays_hold_active(
     graph, flag = seed_hold(db_sessionmaker, "confirmed-visible")
     driver_headers = auth_headers(db_client, graph.driver.email, PASSWORD)
     admin_headers = auth_headers(db_client, "admin-confirmed-visible@example.com", PASSWORD)
-    db_client.post(f"/api/v1/admin/fraud-flags/{flag.id}/review/acknowledge", headers=admin_headers)
     db_client.post(
         f"/api/v1/admin/fraud-flags/{flag.id}/review/resolve",
         headers=admin_headers,
@@ -294,11 +286,7 @@ def test_postgres_concurrent_exact_resolution_retry_creates_one_notice_and_audit
 
     async def run() -> tuple[list[bool], int, int, str]:
         async with postgis_db_sessionmaker() as session:
-            await acknowledge_fraud_flag(
-                session,
-                flag_id=flag.id,
-                actor_user_id=actor_id,
-            )
+            pass
             await session.commit()
 
         async def resolve() -> bool:
@@ -423,9 +411,7 @@ def test_disputed_route_replay_flag_cannot_be_removed_or_rewritten(
                 settings=settings,
                 now=NOW,
             )
-            remaining_id = await session.scalar(
-                select(FraudFlag.id).where(FraudFlag.id == flag.id)
-            )
+            remaining_id = await session.scalar(select(FraudFlag.id).where(FraudFlag.id == flag.id))
             removed = remaining_id is None
             preserved, changed = await _write_replay_flag(
                 session,

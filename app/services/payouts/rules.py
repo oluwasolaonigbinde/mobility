@@ -1,6 +1,7 @@
 """Payouts: rules domain operations."""
 
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -8,7 +9,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.campaign import Campaign
 from app.models.payout import (
@@ -30,7 +30,6 @@ from app.services.payouts.common import (
     PAYOUT_V4,
     RULE_REVISION_UNIQUE_CONSTRAINTS,
     invalid_rule_revision,
-    payout_v4_policy_unavailable,
     rule_not_found,
     rule_revision_conflict,
     validate_currency_code,
@@ -118,22 +117,17 @@ async def publish_payout_v4_revision(
     campaign_id: UUID,
     payload: CampaignPayoutV4RevisionCreate,
     actor_user_id: UUID,
-    settings: Settings,
 ) -> tuple[
     CampaignPayoutRuleRevision, CampaignPayoutRuleRevision | None, CampaignPayoutRule | None
 ]:
     """Append one audited daily-rate (payout_v4, D39) revision.
 
-    Fails closed before any lock or write while PAYOUT_V4_PUBLISHING_ENABLED is
-    off. A campaign without an active rule gets a rate-less payout_v4 rule in
+    A campaign without an active rule gets a rate-less payout_v4 rule in
     the same transaction. Revisions serialize with acceptance under the campaign
     terms lock. The stop rule is fixed by the server.
     Returns (revision, previous, created_rule).
     """
-    # An unknown campaign is 404 whether or not publishing is on.
     await get_campaign(session, campaign_id)
-    if not settings.payout_v4_publishing_enabled:
-        raise payout_v4_policy_unavailable()
     await acquire_campaign_terms_lock(session, campaign_id)
     db_now = await database_clock(session)
     campaign = await get_campaign(session, campaign_id)
@@ -179,10 +173,10 @@ async def publish_payout_v4_revision(
         effective_from=payload.effective_from,
         daily_rate_naira=payload.daily_rate_naira,
         daily_target_miles=payload.daily_target_miles,
-        shortfall_strategy=payload.shortfall_strategy,
-        deduction_per_mile_naira=payload.deduction_per_mile_naira,
-        minimum_miles=payload.minimum_miles,
-        outside_area_weight=payload.outside_area_weight,
+        shortfall_strategy="proportional",
+        deduction_per_mile_naira=None,
+        minimum_miles=Decimal("0"),
+        outside_area_weight=Decimal("0"),
         currency=rule.currency,
         eligibility_params=dict(D39_STOP_OVERLAY),
         formula_version=PAYOUT_V4,

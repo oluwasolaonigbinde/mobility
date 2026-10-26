@@ -135,7 +135,13 @@ async def _disable_first(
 
     service_name, _ = call_site.rsplit(".", maxsplit=1)
     with monkeypatch.context() as patch:
-        patch.setattr(_module(service_name), "require_active_admin", require_active_admin)
+        patch.setattr(
+            _module(service_name),
+            "require_report_operator"
+            if service_name == "report_scheduling"
+            else "require_active_admin",
+            require_active_admin,
+        )
         disable_task = asyncio.create_task(disable())
         await asyncio.wait_for(disable_locked.wait(), timeout=2)
         write_task = asyncio.create_task(write())
@@ -189,7 +195,13 @@ async def _write_first(sessionmaker, *, admin: User, call_site: str, settings, m
 
     service_name, _ = call_site.rsplit(".", maxsplit=1)
     with monkeypatch.context() as patch:
-        patch.setattr(_module(service_name), "require_active_admin", probed_authority)
+        patch.setattr(
+            _module(service_name),
+            "require_report_operator"
+            if service_name == "report_scheduling"
+            else "require_active_admin",
+            probed_authority,
+        )
         write_task = asyncio.create_task(write())
         await asyncio.wait_for(write_locked.wait(), timeout=2)
         disable_task = asyncio.create_task(disable())
@@ -248,7 +260,13 @@ async def _rollback_releases_lock(
 
     service_name, _ = call_site.rsplit(".", maxsplit=1)
     with monkeypatch.context() as patch:
-        patch.setattr(_module(service_name), "require_active_admin", probed_authority)
+        patch.setattr(
+            _module(service_name),
+            "require_report_operator"
+            if service_name == "report_scheduling"
+            else "require_active_admin",
+            probed_authority,
+        )
         write_task = asyncio.create_task(write())
         await asyncio.wait_for(write_locked.wait(), timeout=2)
         disable_task = asyncio.create_task(disable())
@@ -289,7 +307,7 @@ def test_every_migrated_call_site_has_bounded_disable_write_serialization(
                 monkeypatch=monkeypatch,
             )
 
-    assert len(CALL_SITE_IDS) == 44
+    assert len(CALL_SITE_IDS) == 37
     asyncio.run(asyncio.wait_for(scenario(), timeout=120))
 
 

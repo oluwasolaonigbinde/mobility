@@ -1,5 +1,8 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
@@ -9,6 +12,7 @@ import { getSessionToken } from "@/lib/auth/session";
 export interface CampaignReviewActionState {
   error?: string;
   done?: string;
+  notice?: string;
 }
 
 const campaignChangeReviewSchema = z.object({
@@ -33,18 +37,22 @@ export async function reviewCampaignChangeAction(
     parsed.data.intent === "approve"
       ? "/api/v1/admin/campaign-change-requests/{request_id}/approve"
       : "/api/v1/admin/campaign-change-requests/{request_id}/reject";
+  let waitingForFunding = false;
   try {
     const api = createApiClient(await getSessionToken());
-    await api.POST(endpoint, {
+    const { data } = await api.POST(endpoint, {
       params: { path: { request_id: parsed.data.request_id } },
       body: { reason: parsed.data.reason },
     });
+    waitingForFunding = parsed.data.intent === "approve" && data?.status === "pending_funding";
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the server." };
   }
   revalidatePath("/admin/campaigns");
   revalidatePath("/admin/campaigns/[campaignId]", "page");
+  if (waitingForFunding) return { notice: "Approval kept. Still waiting for enough funding." };
   return { done: parsed.data.intent === "approve" ? "Change approved" : "Change rejected" };
 }
 
@@ -82,7 +90,13 @@ export async function reviewCampaignAction(
       });
     }
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError)
+      return {
+        error: publicActionError(error, {
+          CAMPAIGN_REVIEW_STATE_CONFLICT: "Campaign review state changed. Refresh and try again.",
+        }),
+      };
     return { error: "Could not reach the server." };
   }
 
@@ -125,7 +139,8 @@ export async function reviewCreativeAction(
       });
     }
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the server." };
   }
 
@@ -157,12 +172,21 @@ export async function reviewInstallationEvidenceAction(
   }
   const api = createApiClient(await getSessionToken());
   const path = { params: { path: { submission_id: parsed.data.submission_id } } };
+  let done = "Installation rejected";
   try {
     if (parsed.data.intent === "approve") {
-      await api.POST("/api/v1/admin/installation-evidence/{submission_id}/approve", {
-        ...path,
-        body: {},
-      });
+      const { data } = await api.POST(
+        "/api/v1/admin/installation-evidence/{submission_id}/approve",
+        {
+          ...path,
+          body: {},
+        },
+      );
+      if (!data)
+        return { error: "Approval could not be confirmed. Reload to check the photos and job." };
+      done = data.activation?.ready
+        ? "Installation approved and job started."
+        : `Installation approved. Job has not started: ${data.activation?.message ?? "Check the job's prerequisites."}`;
     } else {
       await api.POST("/api/v1/admin/installation-evidence/{submission_id}/reject", {
         ...path,
@@ -170,12 +194,13 @@ export async function reviewInstallationEvidenceAction(
       });
     }
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the server." };
   }
   revalidatePath("/admin/campaigns");
   revalidatePath("/admin/campaigns/[campaignId]", "page");
-  return {
-    done: parsed.data.intent === "approve" ? "Installation approved" : "Installation rejected",
-  };
+  revalidatePath("/admin/approvals");
+  revalidatePath("/admin");
+  return { done };
 }

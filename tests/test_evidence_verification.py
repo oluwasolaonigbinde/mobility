@@ -1,19 +1,15 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-import pytest
-from conftest import auth_headers, create_test_display_proof, sign_test_trip_manifest
+from conftest import auth_headers
 from sqlalchemy import func, select
 from test_fraud_assessments import build_graph
 
-from app.core.errors import AppError
-from app.jobs.evidence_verification import sweep_evidence_verifications
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.evidence_verification import (
     EvidenceVerification,
-    EvidenceVerificationStatus,
 )
 from app.models.payout import (
     EarningsLedgerEntry,
@@ -21,30 +17,10 @@ from app.models.payout import (
     EarningsLedgerEntryType,
 )
 from app.models.trip import TripSession
-from app.models.trip_analytics import FraudFlag
-from app.services.evidence_verification import (
-    VerificationSweepResult,
-    evaluate_assignment_verification,
-    list_driver_pending_verifications,
-    parse_evidence_renewal_policy,
-    queue_physical_spot_check,
-    resolve_physical_spot_check,
-    satisfy_pending_evidence_challenges,
-)
-from app.services.fraud_holds import acknowledge_fraud_flag, fraud_hold_counts, resolve_fraud_flag
+from app.services.fraud_holds import fraud_hold_counts, resolve_fraud_flag
 
 NOW = datetime(2026, 8, 26, 12, 0, tzinfo=UTC)
 PASSWORD = "long-secure-password"
-
-
-def configured(settings):
-    return settings.model_copy(
-        update={
-            "evidence_high_earner_threshold_ngn": "1000.00",
-            "evidence_renewal_lookback_days": 30,
-            "evidence_challenge_response_hours": 24,
-        }
-    )
 
 
 def activate_and_add_earning(
@@ -80,458 +56,64 @@ def activate_and_add_earning(
     asyncio.run(run())
 
 
-def test_policy_has_no_invented_default_and_rejects_invalid_values(settings) -> None:
-    policy, error = parse_evidence_renewal_policy(settings)
-    assert policy is None
-    assert error == "missing_configuration"
-
-    blank = settings.model_copy(
-        update={
-            "evidence_high_earner_threshold_ngn": "",
-            "evidence_renewal_lookback_days": 30,
-            "evidence_challenge_response_hours": 24,
-        }
-    )
-    policy, error = parse_evidence_renewal_policy(blank)
-    assert policy is None
-    assert error == "missing_configuration"
-
-    invalid = settings.model_copy(
-        update={
-            "evidence_high_earner_threshold_ngn": "NaN",
-            "evidence_renewal_lookback_days": 30,
-            "evidence_challenge_response_hours": 24,
-        }
-    )
-    policy, error = parse_evidence_renewal_policy(invalid)
-    assert policy is None
-    assert error == "invalid_configuration"
-
-
-def test_high_earner_challenge_is_idempotent_then_missed_challenge_holds_money(
-    db_sessionmaker, settings
-) -> None:
-    graph = build_graph(db_sessionmaker, "high-earner")
-    activate_and_add_earning(db_sessionmaker, graph)
-
-    async def run():
-        async with db_sessionmaker() as session:
-            first = await evaluate_assignment_verification(
-                session,
-                assignment_id=graph.assignment.id,
-                settings=configured(settings),
-                now=NOW,
-            )
-            await session.commit()
-        async with db_sessionmaker() as session:
-            retry = await evaluate_assignment_verification(
-                session,
-                assignment_id=graph.assignment.id,
-                settings=configured(settings),
-                now=NOW,
-            )
-            await session.commit()
-        async with db_sessionmaker() as session:
-            missed = await evaluate_assignment_verification(
-                session,
-                assignment_id=graph.assignment.id,
-                settings=configured(settings),
-                now=NOW + timedelta(hours=25),
-            )
-            await session.commit()
-        async with db_sessionmaker() as session:
-            verification = await session.scalar(select(EvidenceVerification))
-            flag = await session.get(FraudFlag, verification.fraud_flag_id)
-            count = await session.scalar(select(func.count(EvidenceVerification.id)))
-            return first, retry, missed, verification, flag, count
-
-    first, retry, missed, verification, flag, count = asyncio.run(run())
-    assert first.high_earner_issued == 1
-    assert retry.high_earner_issued == 0
-    assert missed.missed_challenges == 1
-    assert count == 1
-    assert verification.status == EvidenceVerificationStatus.MISSED.value
-    assert flag.flag_type == "missed_display_challenge"
-    assert flag.status == "open"
-    assert verification.verification_metadata["gps_claim"] == "none"
-
-
-def test_concurrent_sessions_create_one_authoritative_day_hold(db_sessionmaker, settings) -> None:
-    graph = build_graph(db_sessionmaker, "concurrent")
-    activate_and_add_earning(db_sessionmaker, graph, amount="1.00")
-
-    async def run():
-        async with db_sessionmaker() as session:
-            source = await session.get(TripSession, graph.trip.id)
-            overlap = TripSession(
-                assignment_id=source.assignment_id,
-                campaign_id=source.campaign_id,
-                driver_profile_id=source.driver_profile_id,
-                vehicle_id=source.vehicle_id,
-                started_by_user_id=source.started_by_user_id,
-                status="sealed",
-                started_at=source.started_at + timedelta(minutes=30),
-                ended_at=source.ended_at + timedelta(minutes=30),
-                sealed_at=source.ended_at + timedelta(minutes=40),
-                seal_reason="client_complete",
-                trip_metadata={"synthetic_overlap": True},
-            )
-            sign_test_trip_manifest(overlap)
-            session.add(overlap)
-            await session.commit()
-        async with db_sessionmaker() as session:
-            first = await evaluate_assignment_verification(
-                session,
-                assignment_id=graph.assignment.id,
-                settings=configured(settings),
-                now=NOW,
-            )
-            await session.commit()
-        async with db_sessionmaker() as session:
-            second = await evaluate_assignment_verification(
-                session,
-                assignment_id=graph.assignment.id,
-                settings=configured(settings),
-                now=NOW,
-            )
-            await session.commit()
-        async with db_sessionmaker() as session:
-            flags = list(
-                (
-                    await session.scalars(
-                        select(FraudFlag).where(FraudFlag.flag_type == "concurrent_session_day")
-                    )
-                ).all()
-            )
-            return first, second, flags
-
-    first, second, flags = asyncio.run(run())
-    assert first.concurrent_holds >= 1
-    assert second.concurrent_holds == 0
-    assert len(flags) >= 1
-    assert all(flag.status == "open" for flag in flags)
-
-
-def test_physical_spot_check_exact_retry_failure_and_dismissal_release(
-    db_sessionmaker, settings
-) -> None:
+def test_spot_result_retry_hold_and_explicit_dismissal(db_client, db_sessionmaker):
     graph = build_graph(db_sessionmaker, "spot-check")
     activate_and_add_earning(db_sessionmaker, graph, amount="1.00")
-    request_id = uuid4()
+    headers = auth_headers(db_client, "admin-spot-check@example.com", PASSWORD)
+    path = "/api/v1/admin/evidence-verifications/physical-spot-checks"
+    payload = {
+        "assignment_id": str(graph.assignment.id),
+        "trip_session_id": str(graph.trip.id),
+        "client_request_id": str(uuid4()),
+        "outcome": "failed",
+        "note": "Branding was absent during the physical inspection.",
+    }
+    failed = db_client.post(path, headers=headers, json=payload)
+    assert failed.status_code == 201, failed.text
+    assert failed.json()["status"] == "failed"
+    flag_id = failed.json()["fraud_flag_id"]
+    assert flag_id is not None
+    retry = db_client.post(path, headers=headers, json=payload)
+    assert retry.status_code == 201
+    assert retry.json()["id"] == failed.json()["id"]
+    conflict = db_client.post(path, headers=headers, json={**payload, "outcome": "passed"})
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "EVIDENCE_VERIFICATION_REPLAY_CONFLICT"
+    passed = db_client.post(
+        path,
+        headers=headers,
+        json={
+            **payload,
+            "client_request_id": str(uuid4()),
+            "outcome": "passed",
+            "note": "Branding is present on a later inspection.",
+        },
+    )
+    assert passed.status_code == 201, passed.text
+    assert passed.json()["fraud_flag_id"] is None
 
-    async def run():
+    async def inspect_and_dismiss():
         async with db_sessionmaker() as session:
-            first = await queue_physical_spot_check(
-                session,
-                actor_user_id=graph.assignment.assigned_by_user_id,
-                assignment_id=graph.assignment.id,
-                trip_session_id=graph.trip.id,
-                client_request_id=request_id,
-                note="Inspect the installed display.",
-                metadata={"fixture": "synthetic"},
-                now=NOW,
-            )
-            await session.commit()
-            verification_id = first.id
-        async with db_sessionmaker() as session:
-            retry = await queue_physical_spot_check(
-                session,
-                actor_user_id=graph.assignment.assigned_by_user_id,
-                assignment_id=graph.assignment.id,
-                trip_session_id=graph.trip.id,
-                client_request_id=request_id,
-                note="Inspect the installed display.",
-                metadata={"fixture": "synthetic"},
-                now=NOW,
-            )
-            assert retry.id == verification_id
-            with pytest.raises(AppError, match="spot-check retry"):
-                await queue_physical_spot_check(
-                    session,
-                    actor_user_id=graph.assignment.assigned_by_user_id,
-                    assignment_id=graph.assignment.id,
-                    trip_session_id=graph.trip.id,
-                    client_request_id=request_id,
-                    note="Changed request.",
-                    metadata={"fixture": "synthetic"},
-                    now=NOW,
-                )
-            await session.rollback()
-        async with db_sessionmaker() as session:
-            failed = await resolve_physical_spot_check(
-                session,
-                verification_id=verification_id,
-                actor_user_id=graph.assignment.assigned_by_user_id,
-                outcome="failed",
-                note="Branding was not present.",
-                evidence={"observation": "physical inspection"},
-                now=NOW,
-            )
-            await session.commit()
-            flag_id = failed.fraud_flag_id
-        async with db_sessionmaker() as session:
-            exact = await resolve_physical_spot_check(
-                session,
-                verification_id=verification_id,
-                actor_user_id=graph.assignment.assigned_by_user_id,
-                outcome="failed",
-                note="Branding was not present.",
-                evidence={"observation": "physical inspection"},
-                now=NOW,
-            )
-            assert exact.fraud_flag_id == flag_id
-            second = await queue_physical_spot_check(
-                session,
-                actor_user_id=graph.assignment.assigned_by_user_id,
-                assignment_id=graph.assignment.id,
-                trip_session_id=graph.trip.id,
-                client_request_id=uuid4(),
-                note="Repeat physical inspection.",
-                metadata={"fixture": "synthetic-repeat"},
-                now=NOW,
-            )
-            second_failed = await resolve_physical_spot_check(
-                session,
-                verification_id=second.id,
-                actor_user_id=graph.assignment.assigned_by_user_id,
-                outcome="failed",
-                note="The repeat inspection also failed.",
-                evidence={"observation": "second physical inspection"},
-                now=NOW,
-            )
-            assert second_failed.fraud_flag_id == flag_id
-            await acknowledge_fraud_flag(
-                session,
-                flag_id=flag_id,
-                actor_user_id=graph.assignment.assigned_by_user_id,
-                now=NOW,
-            )
+            assert (await fraud_hold_counts(session, graph.trip.id))["high"] == 1
+            assert await session.scalar(select(func.count()).select_from(EvidenceVerification)) == 2
+            pass
             await resolve_fraud_flag(
                 session,
-                flag_id=flag_id,
+                flag_id=UUID(flag_id),
                 actor_user_id=graph.assignment.assigned_by_user_id,
                 outcome="dismissed",
-                resolution_note="False positive after evidence review.",
+                resolution_note="Staff reviewed the failed observation.",
                 now=NOW + timedelta(seconds=1),
             )
             await session.commit()
-        async with db_sessionmaker() as session:
-            return await fraud_hold_counts(session, graph.trip.id)
+            assert (await fraud_hold_counts(session, graph.trip.id))["high"] == 0
 
-    assert asyncio.run(run()) == {"low": 0, "medium": 0, "high": 0}
-
-
-def test_driver_pending_list_is_tenant_scoped(db_sessionmaker, settings) -> None:
-    first = build_graph(db_sessionmaker, "driver-scope-a")
-    second = build_graph(db_sessionmaker, "driver-scope-b")
-    activate_and_add_earning(db_sessionmaker, first)
-    activate_and_add_earning(db_sessionmaker, second)
-
-    async def run():
-        for graph in (first, second):
-            async with db_sessionmaker() as session:
-                await evaluate_assignment_verification(
-                    session,
-                    assignment_id=graph.assignment.id,
-                    settings=configured(settings),
-                    now=NOW,
-                )
-                await session.commit()
-        async with db_sessionmaker() as session:
-            first_rows = await list_driver_pending_verifications(session, user_id=first.driver.id)
-            second_rows = await list_driver_pending_verifications(session, user_id=second.driver.id)
-            return first_rows, second_rows
-
-    first_rows, second_rows = asyncio.run(run())
-    assert {row.assignment_id for row in first_rows} == {first.assignment.id}
-    assert {row.assignment_id for row in second_rows} == {second.assignment.id}
-
-
-def test_postgres_worker_and_spot_check_retries_serialize(
-    postgis_db_sessionmaker, settings
-) -> None:
-    graph = build_graph(postgis_db_sessionmaker, "verification-race")
-    activate_and_add_earning(postgis_db_sessionmaker, graph)
-    request_id = uuid4()
-
-    async def evaluate_once():
-        async with postgis_db_sessionmaker() as session:
-            result = await evaluate_assignment_verification(
-                session,
-                assignment_id=graph.assignment.id,
-                settings=configured(settings),
-                now=NOW,
-            )
-            await session.commit()
-            return result.high_earner_issued
-
-    async def queue_once():
-        async with postgis_db_sessionmaker() as session:
-            row = await queue_physical_spot_check(
-                session,
-                actor_user_id=graph.assignment.assigned_by_user_id,
-                assignment_id=graph.assignment.id,
-                trip_session_id=graph.trip.id,
-                client_request_id=request_id,
-                note="Concurrent exact retry.",
-                metadata={"fixture": "race"},
-                now=NOW,
-            )
-            await session.commit()
-            return row.id
-
-    async def run():
-        issued = await asyncio.gather(evaluate_once(), evaluate_once())
-        queued = await asyncio.gather(queue_once(), queue_once())
-        async with postgis_db_sessionmaker() as session:
-            automatic_count = await session.scalar(
-                select(func.count(EvidenceVerification.id)).where(
-                    EvidenceVerification.verification_type == "high_earner_renewal"
-                )
-            )
-            spot_count = await session.scalar(
-                select(func.count(EvidenceVerification.id)).where(
-                    EvidenceVerification.verification_type == "physical_spot_check"
-                )
-            )
-        return issued, queued, automatic_count, spot_count
-
-    issued, queued, automatic_count, spot_count = asyncio.run(run())
-    assert sorted(issued) == [0, 1]
-    assert queued[0] == queued[1]
-    assert automatic_count == 1
-    assert spot_count == 1
-
-
-def test_admin_spot_check_api_and_driver_pending_api_are_role_scoped(
-    db_client, db_sessionmaker, settings
-) -> None:
-    graph = build_graph(db_sessionmaker, "verification-api")
-    activate_and_add_earning(db_sessionmaker, graph)
-    admin_headers = auth_headers(db_client, "admin-verification-api@example.com", PASSWORD)
+    asyncio.run(inspect_and_dismiss())
     driver_headers = auth_headers(db_client, graph.driver.email, PASSWORD)
-    request_id = uuid4()
-
-    queued = db_client.post(
-        "/api/v1/admin/evidence-verifications/physical-spot-checks",
-        headers=admin_headers,
-        json={
-            "assignment_id": str(graph.assignment.id),
-            "trip_session_id": str(graph.trip.id),
-            "client_request_id": str(request_id),
-            "note": "Synthetic operations check.",
-            "metadata": {"source": "test"},
-        },
-    )
-    assert queued.status_code == 201
-    assert queued.json()["status"] == "pending"
-
-    driver_forbidden = db_client.get("/api/v1/admin/evidence-verifications", headers=driver_headers)
-    assert driver_forbidden.status_code == 403
-
-    async def issue_high_earner() -> None:
-        async with db_sessionmaker() as session:
-            await evaluate_assignment_verification(
-                session,
-                assignment_id=graph.assignment.id,
-                settings=configured(settings),
-                now=NOW,
-            )
-            await session.commit()
-
-    asyncio.run(issue_high_earner())
-    pending = db_client.get("/api/v1/driver/evidence-verifications/pending", headers=driver_headers)
-    assert pending.status_code == 200
-    assert {item["assignment_id"] for item in pending.json()["items"]} == {str(graph.assignment.id)}
-    assert {item["verification_type"] for item in pending.json()["items"]} == {
-        "high_earner_renewal"
-    }
-
-    resolved = db_client.post(
-        f"/api/v1/admin/evidence-verifications/{queued.json()['id']}/physical-spot-check-result",
-        headers=admin_headers,
-        json={
-            "outcome": "passed",
-            "note": "Display confirmed by physical inspection.",
-            "evidence": {"method": "in_person"},
-        },
-    )
-    assert resolved.status_code == 200
-    assert resolved.json()["status"] == "passed"
-
-
-def test_admin_can_list_physical_checks_behind_a_backlog_of_newer_renewals(
-    db_client, db_sessionmaker
-) -> None:
-    graph = build_graph(db_sessionmaker, "verification-backlog")
-    activate_and_add_earning(db_sessionmaker, graph)
-    admin_headers = auth_headers(db_client, "admin-verification-backlog@example.com", PASSWORD)
-    queued = db_client.post(
-        "/api/v1/admin/evidence-verifications/physical-spot-checks",
-        headers=admin_headers,
-        json={
-            "assignment_id": str(graph.assignment.id),
-            "trip_session_id": str(graph.trip.id),
-            "client_request_id": str(uuid4()),
-            "note": "Queued before a renewal backlog.",
-            "metadata": {},
-        },
-    )
-    assert queued.status_code == 201
-
-    async def add_newer_renewals() -> None:
-        # Each renewal references a distinct existing trip, as PostgreSQL requires.
-        async with db_sessionmaker() as session:
-            later = datetime.now(UTC) + timedelta(minutes=5)
-            source_ids = [uuid4() for _ in range(101)]
-            session.add_all(
-                TripSession(
-                    id=trip_id,
-                    assignment_id=graph.assignment.id,
-                    campaign_id=graph.campaign.id,
-                    driver_profile_id=graph.profile.id,
-                    vehicle_id=graph.vehicle.id,
-                    started_by_user_id=graph.trip.started_by_user_id,
-                    status="ended",
-                    started_at=later,
-                    ended_at=later,
-                    evidence_protocol_version=2,
-                    trip_metadata={},
-                )
-                for trip_id in source_ids
-            )
-            await session.flush()
-            session.add_all(
-                EvidenceVerification(
-                    assignment_id=graph.assignment.id,
-                    campaign_id=graph.campaign.id,
-                    driver_profile_id=graph.profile.id,
-                    vehicle_id=graph.vehicle.id,
-                    source_trip_session_id=source_ids[index],
-                    verification_type="high_earner_renewal",
-                    status=EvidenceVerificationStatus.PENDING.value,
-                    due_at=later + timedelta(hours=24),
-                    issued_at=later + timedelta(seconds=index),
-                )
-                for index in range(101)
-            )
-            await session.commit()
-
-    asyncio.run(add_newer_renewals())
-
-    mixed = db_client.get(
-        "/api/v1/admin/evidence-verifications",
-        headers=admin_headers,
-        params={"status": "pending"},
-    )
-    assert {item["verification_type"] for item in mixed.json()["items"]} == {"high_earner_renewal"}
-    physical = db_client.get(
-        "/api/v1/admin/evidence-verifications",
-        headers=admin_headers,
-        params={"status": "pending", "verification_type": "physical_spot_check"},
-    )
-    assert physical.status_code == 200
-    assert [item["id"] for item in physical.json()["items"]] == [queued.json()["id"]]
+    assert db_client.post(path, headers=driver_headers, json=payload).status_code == 403
+    assert db_client.post(path, json=payload).status_code == 401
+    for change in ({"note": " "}, {"outcome": "pending"}):
+        assert db_client.post(path, headers=headers, json={**payload, **change}).status_code == 422
 
 
 def test_admin_physical_checks_have_complete_filtered_paging(db_client, db_sessionmaker) -> None:
@@ -550,7 +132,9 @@ def test_admin_physical_checks_have_complete_filtered_paging(db_client, db_sessi
                     vehicle_id=graph.vehicle.id,
                     source_trip_session_id=graph.trip.id,
                     verification_type="physical_spot_check",
-                    status="pending",
+                    status="passed",
+                    resolved_by_user_id=graph.assignment.assigned_by_user_id,
+                    resolved_at=NOW,
                     issued_by_user_id=graph.assignment.assigned_by_user_id,
                     client_request_id=uuid4(),
                     request_fingerprint="a" * 64,
@@ -562,7 +146,7 @@ def test_admin_physical_checks_have_complete_filtered_paging(db_client, db_sessi
 
     asyncio.run(add_checks())
     path = "/api/v1/admin/evidence-verifications"
-    filters = {"status": "pending", "verification_type": "physical_spot_check"}
+    filters = {"status": "passed", "verification_type": "physical_spot_check"}
     first = db_client.get(path, headers=headers, params=filters)
     assert first.status_code == 200
     assert first.json()["total"] == 103
@@ -573,7 +157,7 @@ def test_admin_physical_checks_have_complete_filtered_paging(db_client, db_sessi
     assert tail.status_code == 200
     assert tail.json()["total"] == 103
     assert [row["id"] for row in tail.json()["items"]] == [str(i) for i in identifiers[100:]]
-    empty = db_client.get(path, headers=headers, params={**filters, "status": "passed"})
+    empty = db_client.get(path, headers=headers, params={**filters, "status": "failed"})
     assert empty.json()["total"] == 0
     assert empty.json()["items"] == []
     for invalid in ({"limit": 0}, {"limit": 101}, {"offset": -1}):
@@ -581,207 +165,3 @@ def test_admin_physical_checks_have_complete_filtered_paging(db_client, db_sessi
     driver_headers = auth_headers(db_client, graph.driver.email, PASSWORD)
     assert db_client.get(path, headers=driver_headers).status_code == 403
     assert db_client.get(path).status_code == 401
-
-
-def test_worker_reports_unconfigured_high_earner_policy_without_inventing_work(
-    db_sessionmaker, settings
-) -> None:
-    graph = build_graph(db_sessionmaker, "worker-unconfigured")
-    activate_and_add_earning(db_sessionmaker, graph)
-
-    async def run():
-        result = await sweep_evidence_verifications(
-            {"settings": settings, "sessionmaker": db_sessionmaker}
-        )
-        async with db_sessionmaker() as session:
-            count = await session.scalar(select(func.count(EvidenceVerification.id)))
-        return result, count
-
-    result, count = asyncio.run(run())
-    assert result["processed"] == 1
-    assert result["policy_unconfigured"] == 1
-    assert result["high_earner_issued"] == 0
-    assert count == 0
-
-
-@pytest.mark.parametrize(
-    "terminal_status",
-    [CampaignAssignmentStatus.CANCELLED, CampaignAssignmentStatus.COMPLETED],
-)
-def test_due_challenge_is_final_without_changing_terminal_assignment(
-    db_sessionmaker,
-    settings,
-    terminal_status,
-) -> None:
-    graph = build_graph(db_sessionmaker, f"final-{terminal_status.value}")
-    activate_and_add_earning(db_sessionmaker, graph)
-
-    async def run():
-        async with db_sessionmaker() as session:
-            issued = await evaluate_assignment_verification(
-                session,
-                assignment_id=graph.assignment.id,
-                settings=configured(settings),
-                now=NOW,
-            )
-            assert issued.high_earner_issued == 1
-            assignment = await session.get(CampaignAssignment, graph.assignment.id)
-            assignment.status = terminal_status.value
-            await session.commit()
-        async with db_sessionmaker() as session:
-            result = await evaluate_assignment_verification(
-                session,
-                assignment_id=graph.assignment.id,
-                settings=configured(settings),
-                now=NOW + timedelta(hours=25),
-            )
-            await session.commit()
-        async with db_sessionmaker() as session:
-            assignment = await session.get(CampaignAssignment, graph.assignment.id)
-            verification = await session.scalar(select(EvidenceVerification))
-            return result, assignment.status, verification.status
-
-    result, assignment_status, verification_status = asyncio.run(run())
-    assert result.missed_challenges == 1
-    assert assignment_status == terminal_status.value
-    assert verification_status == EvidenceVerificationStatus.MISSED.value
-
-
-def test_satisfied_challenge_stays_satisfied_after_assignment_cancellation(
-    db_sessionmaker,
-    settings,
-) -> None:
-    graph = build_graph(db_sessionmaker, "satisfied-final")
-    # Real time: the display proof helper stamps real time too.
-    issued_at = datetime.now(UTC)
-    activate_and_add_earning(db_sessionmaker, graph, now=issued_at)
-
-    async def issue() -> None:
-        async with db_sessionmaker() as session:
-            result = await evaluate_assignment_verification(
-                session,
-                assignment_id=graph.assignment.id,
-                settings=configured(settings),
-                now=issued_at,
-            )
-            assert result.high_earner_issued == 1
-            await session.commit()
-
-    asyncio.run(issue())
-    proof = create_test_display_proof(
-        db_sessionmaker,
-        assignment_id=graph.assignment.id,
-        reviewed_by_user_id=graph.assignment.assigned_by_user_id,
-    )
-
-    async def satisfy_cancel_and_sweep():
-        async with db_sessionmaker() as session:
-            attached_proof = await session.get(type(proof), proof.id)
-            satisfied = await satisfy_pending_evidence_challenges(
-                session,
-                assignment_id=graph.assignment.id,
-                proof=attached_proof,
-                actor_user_id=graph.assignment.assigned_by_user_id,
-            )
-            assert satisfied == 1
-            assignment = await session.get(CampaignAssignment, graph.assignment.id)
-            assignment.status = CampaignAssignmentStatus.CANCELLED.value
-            await session.commit()
-        async with db_sessionmaker() as session:
-            result = await evaluate_assignment_verification(
-                session,
-                assignment_id=graph.assignment.id,
-                settings=configured(settings),
-                now=issued_at + timedelta(hours=25),
-            )
-            await session.commit()
-        async with db_sessionmaker() as session:
-            verification = await session.scalar(select(EvidenceVerification))
-            return result, verification.status
-
-    result, verification_status = asyncio.run(satisfy_cancel_and_sweep())
-    assert result.missed_challenges == 0
-    assert verification_status == EvidenceVerificationStatus.SATISFIED.value
-
-
-def test_worker_cursor_keeps_evidence_sweeps_bounded(db_sessionmaker, settings) -> None:
-    for tag in ("bounded-a", "bounded-b", "bounded-c"):
-        graph = build_graph(db_sessionmaker, tag)
-        activate_and_add_earning(db_sessionmaker, graph, amount="1.00")
-    ctx = {
-        "settings": settings.model_copy(update={"worker_sweep_batch_size": 2}),
-        "sessionmaker": db_sessionmaker,
-    }
-
-    async def run():
-        first = await sweep_evidence_verifications(ctx)
-        second = await sweep_evidence_verifications(ctx)
-        return first, second
-
-    first, second = asyncio.run(run())
-    assert first["processed"] == 2
-    assert first["cursor"] is not None
-    assert second["processed"] == 1
-    assert second["cursor"] is None
-
-
-def test_worker_reuses_one_database_instant_for_selection_and_evaluation(
-    db_sessionmaker,
-    settings,
-    monkeypatch,
-) -> None:
-    graph = build_graph(db_sessionmaker, "single-instant")
-    activate_and_add_earning(db_sessionmaker, graph, amount="1.00")
-    clock_calls = 0
-    observed: list[datetime] = []
-
-    async def fixed_clock(_session):
-        nonlocal clock_calls
-        clock_calls += 1
-        return NOW
-
-    async def capture_evaluation(_session, *, assignment_id, settings, now):
-        assert assignment_id == graph.assignment.id
-        observed.append(now)
-        return VerificationSweepResult()
-
-    monkeypatch.setattr("app.jobs.evidence_verification.database_clock", fixed_clock)
-    monkeypatch.setattr(
-        "app.jobs.evidence_verification.evaluate_assignment_verification",
-        capture_evaluation,
-    )
-
-    result = asyncio.run(
-        sweep_evidence_verifications({"settings": settings, "sessionmaker": db_sessionmaker})
-    )
-
-    assert result["processed"] == 1
-    assert clock_calls == 1
-    assert observed == [NOW]
-
-
-def test_non_active_assignment_never_receives_a_new_challenge(
-    db_sessionmaker,
-    settings,
-) -> None:
-    graph = build_graph(db_sessionmaker, "inactive-no-issue")
-    activate_and_add_earning(db_sessionmaker, graph)
-
-    async def run() -> tuple[int, int]:
-        async with db_sessionmaker() as session:
-            assignment = await session.get(CampaignAssignment, graph.assignment.id)
-            assignment.status = CampaignAssignmentStatus.DEACTIVATED.value
-            await session.commit()
-        async with db_sessionmaker() as session:
-            result = await evaluate_assignment_verification(
-                session,
-                assignment_id=graph.assignment.id,
-                settings=configured(settings),
-                now=NOW,
-            )
-            await session.commit()
-        async with db_sessionmaker() as session:
-            count = await session.scalar(select(func.count(EvidenceVerification.id)))
-            return result.high_earner_issued, count
-
-    assert asyncio.run(run()) == (0, 0)

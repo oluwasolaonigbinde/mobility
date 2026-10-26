@@ -10,8 +10,9 @@ import pytest
 import sentry_sdk
 from arq.connections import RedisSettings, create_pool
 from arq.cron import CronJob
-from arq.worker import Function, Worker
-from sqlalchemy import func, select
+from arq.worker import FailedJobs, Function, Worker
+from conftest import create_test_campaign_zone
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from test_trip_processing import (
     BASE_TIME,
@@ -24,7 +25,6 @@ from test_trip_processing import (
 )
 from worker_recovery_harness import RECOVERY_JOB_REGISTRATIONS, registered_recovery_jobs
 
-from app.adapters.messaging import EmailMessage, EmailSubmission
 from app.core.config import get_settings
 from app.core.trip_enqueue import RedisTripProcessingEnqueuer
 from app.jobs import assignment_activity as assignment_activity_jobs
@@ -34,11 +34,8 @@ from app.jobs import business_health as business_health_jobs
 from app.jobs import campaign_assignments as campaign_assignment_jobs
 from app.jobs import data_lifecycle as data_lifecycle_jobs
 from app.jobs import disbursements as disbursement_jobs
-from app.jobs import disclosure_retention as disclosure_retention_jobs
 from app.jobs import earnings_release as earnings_release_jobs
 from app.jobs import email_delivery as email_delivery_jobs
-from app.jobs import evidence_verification as evidence_verification_jobs
-from app.jobs import exposure_segments as exposure_segment_jobs
 from app.jobs import file_lifecycle as file_lifecycle_jobs
 from app.jobs import file_scanning as file_scanning_jobs
 from app.jobs import payment_gateway as payment_gateway_jobs
@@ -46,23 +43,14 @@ from app.jobs import trip_processing as jobs
 from app.jobs import vehicle_approvals as vehicle_approval_jobs
 from app.jobs.worker import WorkerSettings, sweep_cron_minutes
 from app.models.assignment_activity import AssignmentActivityFlag, AssignmentActivityFlagEvent
-from app.models.audit import AuditEvent
 from app.models.notification import (
     Notification,
     NotificationChannel,
     NotificationStatus,
     NotificationType,
 )
-from app.models.organization import (
-    AdvertiserOrganization,
-    AdvertiserOrganizationNotificationPreference,
-    MembershipRole,
-    MembershipStatus,
-    OrganizationMembership,
-    OrganizationStatus,
-)
 from app.models.user import User, UserRole, UserStatus
-from app.services import report_issuances as report_issuance_jobs
+from app.services import report_scheduling as report_scheduling_jobs
 from app.services.trip_processing import DueTrip, process_ended_trip
 
 
@@ -80,43 +68,36 @@ def make_ctx(sessionmaker, settings) -> dict:
 
 
 def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
-    assert len(WorkerSettings.functions) == 5
-    registered = WorkerSettings.functions[0]
+    assert len(WorkerSettings.functions) == 7
+    for index, name, coroutine in (
+        (0, "scan_file", file_scanning_jobs.scan_file),
+        (1, "deliver_email", email_delivery_jobs.deliver_email),
+    ):
+        task = WorkerSettings.functions[index]
+        assert task.name == name
+        assert task.coroutine is coroutine
+        assert task.keep_result_s == 0
+    registered = WorkerSettings.functions[3]
     assert isinstance(registered, Function)
     assert registered.name == "process_trip"
     assert registered.keep_result_s == 0
     assert registered.coroutine is jobs.process_trip
-    segment = WorkerSettings.functions[1]
-    assert isinstance(segment, Function)
-    assert segment.name == "materialize_exposure_segment"
-    assert segment.coroutine is exposure_segment_jobs.materialize_exposure_segment_job
-    gateway = WorkerSettings.functions[2]
+    gateway = WorkerSettings.functions[4]
     assert isinstance(gateway, Function)
     assert gateway.name == "process_payment_gateway_event"
     assert gateway.keep_result_s == 0
-    disbursement = WorkerSettings.functions[3]
+    disbursement = WorkerSettings.functions[5]
     assert isinstance(disbursement, Function)
     assert disbursement.name == "process_disbursement_intent"
     assert disbursement.coroutine is disbursement_jobs.process_disbursement_intent_job
     assert disbursement.keep_result_s == 0
-    payout_event = WorkerSettings.functions[4]
+    payout_event = WorkerSettings.functions[6]
     assert isinstance(payout_event, Function)
     assert payout_event.name == "process_payout_provider_event"
     assert payout_event.coroutine is disbursement_jobs.process_payout_provider_event_job
     assert payout_event.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 24
-    audience_crons = [
-        job
-        for job in WorkerSettings.cron_jobs
-        if inspect.unwrap(job.coroutine) is exposure_segment_jobs.sweep_exposure_segments
-    ]
-    assert len(audience_crons) == 1
-    assert audience_crons[0].coroutine is not exposure_segment_jobs.sweep_exposure_segments
-    assert audience_crons[0].unique is True
-    assert audience_crons[0].minute == sweep_cron_minutes(
-        get_settings().worker_sweep_interval_minutes
-    )
+    assert len(WorkerSettings.cron_jobs) == 21
     health_crons = [
         job
         for job in WorkerSettings.cron_jobs
@@ -125,10 +106,8 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert len(health_crons) == 1
     assert health_crons[0].minute == set(range(0, 60, 5))
     assert health_crons[0].unique is True
-    existing_crons = [
-        job for job in WorkerSettings.cron_jobs if job not in health_crons + audience_crons
-    ]
-    assert len(existing_crons) == 22
+    existing_crons = [job for job in WorkerSettings.cron_jobs if job not in health_crons]
+    assert len(existing_crons) == 20
     cron_job = existing_crons[0]
     assert isinstance(cron_job, CronJob)
     assert inspect.unwrap(cron_job.coroutine) is jobs.process_unprocessed_trips
@@ -185,40 +164,33 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert activity_sweep.unique is True
     assert activity_sweep.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
-    evidence_sweep = existing_crons[7]
-    assert (
-        inspect.unwrap(evidence_sweep.coroutine)
-        is evidence_verification_jobs.sweep_evidence_verifications
-    )
-    email_sweep = existing_crons[8]
-    assert inspect.unwrap(email_sweep.coroutine) is email_delivery_jobs.sweep_email_notifications
+    email_sweep = existing_crons[7]
+    assert inspect.unwrap(email_sweep.coroutine) is email_delivery_jobs.enqueue_pending_email
 
-    budget_sweep = existing_crons[9]
+    budget_sweep = existing_crons[8]
     assert (
         inspect.unwrap(budget_sweep.coroutine)
         is budget_enforcement_jobs.sweep_campaign_budget_enforcement
     )
     assert budget_sweep.unique is True
 
-    scan_sweep = existing_crons[10]
+    scan_sweep = existing_crons[9]
     assert isinstance(scan_sweep, CronJob)
     assert inspect.unwrap(scan_sweep.coroutine) is file_scanning_jobs.scan_pending_files
     assert scan_sweep.unique is True
     assert scan_sweep.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
-    report_sweep = existing_crons[11]
-    assert isinstance(report_sweep, CronJob)
-    assert inspect.unwrap(report_sweep.coroutine) is report_issuance_jobs.sweep_report_issuances
-    assert report_sweep.unique is True
+    scheduled = existing_crons[10]
+    assert inspect.unwrap(scheduled.coroutine) is report_scheduling_jobs.sweep_scheduled_reports
+    assert scheduled.unique is True
 
     lifecycle_crons = {
-        inspect.unwrap(cron_job.coroutine): cron_job for cron_job in existing_crons[12:-3]
+        inspect.unwrap(cron_job.coroutine): cron_job for cron_job in existing_crons[11:-3]
     }
     assert set(lifecycle_crons) == {
         data_lifecycle_jobs.premake_ping_partitions,
         data_lifecycle_jobs.check_ping_partition_coverage,
         data_lifecycle_jobs.purge_expired_ping_partitions,
-        disclosure_retention_jobs.purge_expired_disclosure_query_history,
         file_lifecycle_jobs.recover_stored_object_deletions,
         file_lifecycle_jobs.purge_orphaned_file_uploads,
         file_lifecycle_jobs.purge_expired_file_kyc,
@@ -230,7 +202,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
         assert cron_job.unique is True
         # Daily, staggered hours so lifecycle DDL never stacks.
         assert len(cron_job.hour) == 1
-    assert len({next(iter(job.hour)) for job in lifecycle_crons.values()}) == 6
+    assert len({next(iter(job.hour)) for job in lifecycle_crons.values()}) == 5
     disbursement_sweep = existing_crons[-3]
     assert (
         inspect.unwrap(disbursement_sweep.coroutine) is disbursement_jobs.sweep_disbursement_intents
@@ -264,7 +236,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     } == {registration.name: registration.max_tries for registration in RECOVERY_JOB_REGISTRATIONS}
 
 
-def test_email_sweep_selects_bounded_due_ids_and_delegates_once_each(
+def test_email_recovery_queues_only_bounded_due_rows(
     db_sessionmaker, settings, monkeypatch
 ) -> None:
     async def run() -> None:
@@ -339,226 +311,39 @@ def test_email_sweep_selects_bounded_due_ids_and_delegates_once_each(
             )
             await session.commit()
 
-        composed_adapter = object()
-        built_with = []
         calls = []
 
-        def fake_build_email_adapter(composed_settings):
-            built_with.append(composed_settings)
-            return composed_adapter
+        async def enqueue(configured, jobs):
+            calls.append((configured, jobs))
 
-        async def fake_process_email_notification(
-            composed_sessionmaker,
-            *,
-            notification_id,
-            settings: object,
-            email_adapter,
-            now: datetime,
-        ) -> str:
-            calls.append(
-                (
-                    composed_sessionmaker,
-                    notification_id,
-                    settings,
-                    email_adapter,
-                    now,
-                )
-            )
-            return "sent" if len(calls) == 1 else "retry_scheduled"
+        def forbidden_adapter(*args):
+            raise AssertionError("Outbox recovery must never send SMTP")
 
-        monkeypatch.setattr(email_delivery_jobs, "build_email_adapter", fake_build_email_adapter)
-        monkeypatch.setattr(
-            email_delivery_jobs,
-            "process_email_notification",
-            fake_process_email_notification,
-        )
-        composed_settings = settings.model_copy(update={"worker_sweep_batch_size": 2})
-
-        result = await email_delivery_jobs.sweep_email_notifications(
-            {"sessionmaker": db_sessionmaker, "settings": composed_settings},
+        monkeypatch.setattr(email_delivery_jobs, "enqueue_outbox_jobs", enqueue)
+        monkeypatch.setattr(email_delivery_jobs, "build_email_adapter", forbidden_adapter)
+        configured = settings.model_copy(update={"worker_sweep_batch_size": 2})
+        result = await email_delivery_jobs.enqueue_pending_email(
+            {"sessionmaker": db_sessionmaker, "settings": configured},
             now=now,
         )
-
-        assert result == {"sent": 1, "retry_scheduled": 1}
-        assert built_with == [composed_settings]
-        assert [call[1] for call in calls] == [first.id, second.id]
-        assert all(
-            call
-            == (
-                db_sessionmaker,
-                call[1],
-                composed_settings,
-                composed_adapter,
-                now,
-            )
-            for call in calls
-        )
+        assert result == {"selected": 2}
+        assert calls == [(configured, {("deliver_email", first.id), ("deliver_email", second.id)})]
 
     asyncio.run(run())
 
 
-def test_email_sweep_isolates_unexpected_failure_and_preserves_claim_recovery(
-    postgis_db_sessionmaker, settings
-) -> None:
-    async def run() -> None:
-        now = datetime(2026, 9, 1, 12, tzinfo=UTC)
-        user = User(
-            email=f"worker-email-crash-{uuid4()}@example.test",
-            password_hash="hash",
-            full_name="Email worker crash",
-            role=UserRole.ADVERTISER,
-            status=UserStatus.ACTIVE,
-        )
-        organization = AdvertiserOrganization(
-            name="Worker email crash",
-            status=OrganizationStatus.ACTIVE,
-            currency="NGN",
-        )
+def test_file_kyc_worker_runs_with_fixed_policy(db_sessionmaker, settings, monkeypatch):
+    from test_stored_files import FakeStorageProvider
 
-        async with postgis_db_sessionmaker() as session:
-            session.add_all([user, organization])
-            await session.flush()
-            session.add_all(
-                [
-                    OrganizationMembership(
-                        organization_id=organization.id,
-                        user_id=user.id,
-                        role=MembershipRole.OWNER,
-                        status=MembershipStatus.ACTIVE,
-                    ),
-                    AdvertiserOrganizationNotificationPreference(
-                        advertiser_organization_id=organization.id,
-                        transactional_email_enabled=True,
-                    ),
-                ]
-            )
-
-            notices = [
-                Notification(
-                    recipient_user_id=user.id,
-                    type_key=NotificationType.FRAUD_HOLD_RAISED.value,
-                    template_version="v1",
-                    payload={"advertiser_organization_id": str(organization.id)},
-                    dedupe_key=f"worker-email-crash:{index}",
-                    dedupe_fingerprint=uuid4().hex,
-                    channel=NotificationChannel.TRANSACTIONAL_EMAIL.value,
-                    status=NotificationStatus.PENDING.value,
-                    created_at=now - timedelta(minutes=3 - index),
-                )
-                for index in range(3)
-            ]
-            session.add_all(notices)
-            await session.commit()
-            first_id, second_id, third_id = (notice.id for notice in notices)
-
-        class CrashOnceOnSecondAdapter:
-            def __init__(self) -> None:
-                self.notification_ids = []
-                self.second_crashed = False
-
-            async def send(self, message: EmailMessage) -> EmailSubmission:
-                notification_id = message.idempotency_key
-                self.notification_ids.append(notification_id)
-                if notification_id == str(second_id) and not self.second_crashed:
-                    self.second_crashed = True
-                    raise RuntimeError("unexpected email provider crash")
-                return EmailSubmission(provider_message_id=f"provider-{notification_id}")
-
-        adapter = CrashOnceOnSecondAdapter()
-        sweep_settings = settings.model_copy(
-            update={
-                "email_delivery_claim_seconds": 30,
-                "worker_sweep_batch_size": 3,
-            }
-        )
-        ctx = {
-            "sessionmaker": postgis_db_sessionmaker,
-            "settings": sweep_settings,
-            "email_adapter": adapter,
-        }
-
-        assert await email_delivery_jobs.sweep_email_notifications(ctx, now=now) == {
-            "sent": 2,
-            "unexpected_failure": 1,
-        }
-
-        assert adapter.notification_ids == [str(first_id), str(second_id), str(third_id)]
-        claim_expires_at = now + timedelta(seconds=sweep_settings.email_delivery_claim_seconds)
-        async with postgis_db_sessionmaker() as session:
-            first = await session.get(Notification, first_id)
-            second = await session.get(Notification, second_id)
-            third = await session.get(Notification, third_id)
-            assert first is not None
-            assert first.status == NotificationStatus.SENT.value
-            assert first.attempt_count == 1
-            assert first.provider_message_id == f"provider-{first_id}"
-            assert first.delivery_claim_token is None
-            assert first.delivery_claim_expires_at is None
-            assert second is not None
-            assert second.status == NotificationStatus.PENDING.value
-            assert second.attempt_count == 1
-            assert second.provider_message_id is None
-            assert second.delivery_claim_token is not None
-            assert second.delivery_claim_expires_at == claim_expires_at
-            assert third is not None
-            assert third.status == NotificationStatus.SENT.value
-            assert third.attempt_count == 1
-            assert third.provider_message_id == f"provider-{third_id}"
-            assert third.delivery_claim_token is None
-            assert third.delivery_claim_expires_at is None
-
-            failures = list(
-                await session.scalars(
-                    select(AuditEvent).where(AuditEvent.action == "worker.email_delivery.failed")
-                )
-            )
-            assert len(failures) == 1
-            assert failures[0].entity_id == str(second_id)
-            assert failures[0].event_metadata == {"error_code": "RuntimeError"}
-
-        retry_ctx = {
-            **ctx,
-            "settings": sweep_settings.model_copy(update={"worker_sweep_batch_size": 1}),
-        }
-        assert await email_delivery_jobs.sweep_email_notifications(
-            retry_ctx, now=claim_expires_at
-        ) == {"sent": 1}
-        assert adapter.notification_ids == [
-            str(first_id),
-            str(second_id),
-            str(third_id),
-            str(second_id),
-        ]
-
-        async with postgis_db_sessionmaker() as session:
-            second = await session.get(Notification, second_id)
-            third = await session.get(Notification, third_id)
-            assert second is not None
-            assert second.status == NotificationStatus.SENT.value
-            assert second.attempt_count == 2
-            assert second.provider_message_id == f"provider-{second_id}"
-            assert second.delivery_claim_token is None
-            assert second.delivery_claim_expires_at is None
-            assert third is not None
-            assert third.status == NotificationStatus.SENT.value
-            assert third.attempt_count == 1
-            assert third.provider_message_id == f"provider-{third_id}"
-            assert third.delivery_claim_token is None
-            assert third.delivery_claim_expires_at is None
-
-    asyncio.run(run())
-
-
-def test_file_kyc_worker_stays_disabled_without_approved_policy(settings) -> None:
-    result = asyncio.run(
-        file_lifecycle_jobs.purge_expired_file_kyc(
-            {"settings": settings.model_copy(update={"file_kyc_retention_days": None})}
-        )
+    monkeypatch.setattr(
+        file_lifecycle_jobs, "build_storage_provider", lambda _: FakeStorageProvider()
     )
-
+    result = asyncio.run(
+        file_lifecycle_jobs.purge_expired_file_kyc(make_ctx(db_sessionmaker, settings))
+    )
     assert result == {
-        "policy_configured": False,
-        "lock_acquired": False,
+        "policy_configured": True,
+        "lock_acquired": True,
         "eligible_submissions": 0,
         "purged_submissions": 0,
         "purged_files": 0,
@@ -598,7 +383,6 @@ def test_activity_worker_cursor_reaches_tail_across_bounded_runs(db_sessionmaker
     batch_settings = settings.model_copy(
         update={
             "worker_sweep_batch_size": 2,
-            "verified_hours_floor_per_week": None,
         }
     )
     ctx = make_ctx(db_sessionmaker, batch_settings)
@@ -649,15 +433,15 @@ def test_activity_worker_set_failure_retries_without_duplicate_events_or_notices
     settings,
     monkeypatch,
 ) -> None:
-    for index in range(3):
+    graphs = [
         build_graph(
             db_sessionmaker,
             f"setretry{index}",
             started_at=datetime(2026, 1, 1, 12, tzinfo=UTC),
         )
-    batch_settings = settings.model_copy(
-        update={"worker_sweep_batch_size": 2, "verified_hours_floor_per_week": None}
-    )
+        for index in range(3)
+    ]
+    batch_settings = settings.model_copy(update={"worker_sweep_batch_size": 2})
     failure = RuntimeError("cursor set failed")
     captured: list[Exception] = []
 
@@ -690,17 +474,25 @@ def test_activity_worker_set_failure_retries_without_duplicate_events_or_notices
 
     async def counts():
         async with db_sessionmaker() as session:
+            flags = list((await session.scalars(select(AssignmentActivityFlag))).all())
+            notices = list((await session.scalars(select(Notification))).all())
             return (
-                await session.scalar(select(func.count()).select_from(AssignmentActivityFlag)),
+                flags,
                 await session.scalar(select(func.count()).select_from(AssignmentActivityFlagEvent)),
-                await session.scalar(select(func.count()).select_from(Notification)),
+                notices,
             )
 
-    flag_count, event_count, notice_count = asyncio.run(counts())
+    flags, event_count, notices = asyncio.run(counts())
     assert captured == [failure]
     assert second["cursor"] == "advanced"
     assert third["cursor"] == "wrapped"
-    assert (flag_count, event_count, notice_count) == (3, 3, 3)
+    assert len(flags) == event_count == 3
+    expected = {(graph.admin.id, str(flag.id)) for graph in graphs for flag in flags}
+    assert len(notices) == len(expected)
+    assert {
+        (notice.recipient_user_id, notice.payload["activity_flag_id"]) for notice in notices
+    } == expected
+    assert all(notice.type_key == NotificationType.ASSIGNMENT_INACTIVE.value for notice in notices)
 
 
 def test_activity_worker_delete_failure_retries_wrap_idempotently(
@@ -713,9 +505,7 @@ def test_activity_worker_delete_failure_retries_wrap_idempotently(
         "cursor-delete-retry",
         started_at=datetime(2026, 1, 1, 12, tzinfo=UTC),
     )
-    batch_settings = settings.model_copy(
-        update={"worker_sweep_batch_size": 2, "verified_hours_floor_per_week": None}
-    )
+    batch_settings = settings.model_copy(update={"worker_sweep_batch_size": 2})
     failure = RuntimeError("cursor delete failed")
     captured: list[Exception] = []
 
@@ -773,12 +563,11 @@ def test_activity_worker_uses_one_database_clock_for_the_claimed_batch(
             "selected": len(assignment_ids),
             "evaluated": len(assignment_ids),
             "flags_opened": 0,
-            "flags_recovered": 0,
+            "flags_closed": 0,
             "notices_created": 0,
             "skipped": 0,
             "errors": 0,
             "config": "applied",
-            "config_reason": None,
         }
 
     monkeypatch.setattr(assignment_activity_jobs, "database_clock", fake_clock)
@@ -889,10 +678,17 @@ def test_process_trip_unexpected_integrity_error_is_captured_and_reraised(
 
 def test_process_trip_logs_outcome_and_never_secrets(db_sessionmaker, settings, caplog) -> None:
     graph = build_graph(db_sessionmaker, "job-log")
+    # Freeze a target area before the terms binding: outside miles never pay.
+    target_zone = create_test_campaign_zone(
+        db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        created_by_user_id=graph.admin.id,
+    )
     create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
+        zone_ids=[target_zone.id],
     )
     seed_analytics(db_sessionmaker, graph)
 
@@ -917,10 +713,17 @@ def test_sweep_recovers_lost_queue_and_second_pass_is_empty(
     caplog,
 ) -> None:
     graph = build_graph(postgis_db_sessionmaker, "sweep")
+    # Freeze a target area before the terms binding: outside miles never pay.
+    target_zone = create_test_campaign_zone(
+        postgis_db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        created_by_user_id=graph.admin.id,
+    )
     create_test_daily_payout_authority(
         postgis_db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
+        zone_ids=[target_zone.id],
     )
     add_pings(postgis_db_sessionmaker, trip_id=graph.trip.id, points=moving_points())
 
@@ -964,10 +767,17 @@ def test_sweep_isolates_per_trip_failures_and_continues(
         "iso-good",
         ended_at=BASE_TIME + timedelta(minutes=40),
     )
+    # Freeze a target area before the terms binding: outside miles never pay.
+    target_zone = create_test_campaign_zone(
+        db_sessionmaker,
+        campaign_id=graph_good.campaign.id,
+        created_by_user_id=graph_good.admin.id,
+    )
     create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph_good.campaign.id,
         created_by_user_id=graph_good.admin.id,
+        zone_ids=[target_zone.id],
     )
     add_pings(db_sessionmaker, trip_id=graph_good.trip.id, points=moving_points())
     seed_analytics(db_sessionmaker, graph_good)
@@ -1084,22 +894,60 @@ def test_sweep_cursor_resumes_next_occurrence_and_reaches_healthy_tail(
     assert jobs.SWEEP_CURSOR_KEY not in redis.values
 
 
-def test_burst_worker_runs_enqueued_trip_end_to_end(postgis_db_sessionmaker, settings) -> None:
+@pytest.mark.parametrize("abort_count", [0, 1, 6])
+def test_burst_worker_runs_enqueued_trip_end_to_end(
+    postgis_db_sessionmaker, settings, monkeypatch, abort_count
+) -> None:
     redis_url = os.environ.get("ARQ_TEST_REDIS_URL")
     if not redis_url:
         if os.environ.get("CI"):
             pytest.fail("ARQ_TEST_REDIS_URL missing in CI")
         pytest.skip("ARQ test Redis URL is not configured")
 
-    graph = build_graph(postgis_db_sessionmaker, "burst")
-    create_test_daily_payout_authority(
+    graph = build_graph(postgis_db_sessionmaker, f"burst-{abort_count}")
+    # Freeze a target area before the terms binding: outside miles never pay.
+    target_zone = create_test_campaign_zone(
         postgis_db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
     )
+    create_test_daily_payout_authority(
+        postgis_db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        created_by_user_id=graph.admin.id,
+        zone_ids=[target_zone.id],
+    )
     add_pings(postgis_db_sessionmaker, trip_id=graph.trip.id, points=moving_points())
+    original = jobs.process_ended_trip
+    attempts = 0
+
+    async def transaction_with_concurrent_update(session, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        abort = attempts <= abort_count
+        if abort:
+            await session.execute(text("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"))
+            await session.execute(text("SELECT value FROM broker_abort_guard WHERE id=1"))
+            async with postgis_db_sessionmaker() as updater:
+                await updater.execute(
+                    text("UPDATE broker_abort_guard SET value=value+1 WHERE id=1")
+                )
+                await updater.commit()
+        result = await original(session, **kwargs)
+        if abort:
+            # PostgreSQL, not a fabricated exception, rejects this stale snapshot.
+            await session.execute(text("UPDATE broker_abort_guard SET value=value+1 WHERE id=1"))
+        return result
+
+    monkeypatch.setattr(jobs, "process_ended_trip", transaction_with_concurrent_update)
 
     async def exercise() -> None:
+        async with postgis_db_sessionmaker() as setup:
+            await setup.execute(
+                text("CREATE TABLE broker_abort_guard (id int PRIMARY KEY, value int)")
+            )
+            await setup.execute(text("INSERT INTO broker_abort_guard VALUES (1, 0)"))
+            await setup.commit()
         pool = await create_pool(RedisSettings.from_dsn(redis_url))
         await pool.flushdb()
 
@@ -1111,25 +959,43 @@ def test_burst_worker_runs_enqueued_trip_end_to_end(postgis_db_sessionmaker, set
             ctx["settings"] = settings
             ctx["sessionmaker"] = postgis_db_sessionmaker
 
+        job_ids = []
+
+        async def started(ctx: dict) -> None:
+            job_ids.append(ctx["job_id"])
+
         worker = Worker(
             functions=WorkerSettings.functions,
             redis_settings=RedisSettings.from_dsn(redis_url),
             burst=True,
             poll_delay=0,
             on_startup=startup,
+            on_job_start=started,
         )
-        assert await worker.run_check() == 1
-        await worker.close()
-
-        await pool.flushdb()
-        if enqueuer._pool is not None:
-            await enqueuer._pool.aclose()
-        await pool.aclose()
+        try:
+            assert worker.max_tries == 5
+            if abort_count >= worker.max_tries:
+                with pytest.raises(FailedJobs):
+                    await worker.run_check()
+                assert worker.jobs_failed == 1
+                assert attempts == 5
+            else:
+                assert await worker.run_check() == 1
+                assert attempts == abort_count + 1
+            assert job_ids == [f"trip-process:{graph.trip.id}"] * attempts
+            assert await pool.zcard("arq:queue") == 0
+        finally:
+            await worker.close()
+            await pool.flushdb()
+            if enqueuer._pool is not None:
+                await enqueuer._pool.aclose()
+            await pool.aclose()
 
     asyncio.run(exercise())
 
     counts = table_counts(postgis_db_sessionmaker)
-    assert counts["analytics"] == 1
-    assert counts["estimates"] == 1
-    assert counts["calculations"] == 1
-    assert counts["ledger"] == 1
+    expected = 0 if abort_count >= 5 else 1
+    assert counts["analytics"] == expected
+    assert counts["estimates"] == expected
+    assert counts["calculations"] == expected
+    assert counts["ledger"] == expected

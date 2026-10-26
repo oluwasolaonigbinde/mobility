@@ -1,11 +1,15 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import type { components } from "@/lib/api/schema";
 import { getSessionToken } from "@/lib/auth/session";
+import { lagosLocalToApi } from "@/lib/campaigns/schema";
 
 export interface PersonPayeeDecisionState {
   error?: string;
@@ -22,6 +26,8 @@ export interface PersonPayeeEvidenceState {
 export interface VehicleDecisionState {
   error?: string;
   done?: string;
+  /** The date staff entered, returned on failure so the form never reverts to the prefill. */
+  validUntil?: string;
 }
 
 export interface VehicleEvidenceState {
@@ -63,7 +69,7 @@ export async function reviewPersonPayeeEvidenceAction(
         params: { path: { submission_id: parsed.data.submission_id } },
         body: { purpose: "person_payee_approval" },
       });
-      return { done: "NIN access logged.", sensitiveValue: data?.nin };
+      return { done: "NIN ready to view.", sensitiveValue: data?.nin };
     }
     if (parsed.data.kind === "account") {
       const { data } = await api.POST(
@@ -74,7 +80,7 @@ export async function reviewPersonPayeeEvidenceAction(
         },
       );
       return {
-        done: "Bank details access logged.",
+        done: "Bank details ready to view.",
         sensitiveValue: data
           ? `${data.account_name} · ${data.bank_code} · ${data.account_number}`
           : undefined,
@@ -87,16 +93,25 @@ export async function reviewPersonPayeeEvidenceAction(
         reason: `person_payee_approval:${parsed.data.submission_id}`,
       },
     });
-    return { done: "Document access logged.", downloadUrl: data?.url };
+    return { done: "Document ready to view.", downloadUrl: data?.url };
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the protected evidence service." };
   }
 }
 
 const payoutVerificationSchema = z.object({
   bank_account_version_id: z.string().uuid(),
-  verification_reference: z.string().min(16).max(512),
+  verification_reference: z
+    .string()
+    .trim()
+    .min(1)
+    .max(512)
+    .refine(
+      (value) => !/[\u0000-\u001f\u007f-\u009f]/u.test(value),
+      "Use the reference from your bank without control characters",
+    ),
 });
 
 export async function verifyPersonPayeeAccountAction(
@@ -108,7 +123,7 @@ export async function verifyPersonPayeeAccountAction(
     verification_reference: String(formData.get("verification_reference") ?? ""),
   });
   if (!parsed.success)
-    return { error: "Enter the authorized exact-account verification reference." };
+    return { error: "Enter the test-transfer reference from your bank (1–512 characters)." };
   try {
     await createApiClient(await getSessionToken()).POST(
       "/api/v1/admin/payees/bank-account-versions/{version_id}/payout-verification",
@@ -118,7 +133,8 @@ export async function verifyPersonPayeeAccountAction(
       },
     );
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the payout-authority service." };
   }
   revalidatePath("/admin/drivers");
@@ -237,7 +253,8 @@ export async function reviewPersonPayeeAction(
       });
     }
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the onboarding service." };
   }
   revalidatePath("/admin/drivers");
@@ -273,9 +290,10 @@ export async function reviewVehicleEvidenceAction(
         },
       },
     );
-    return { done: "Car document access logged.", downloadUrl: data?.url };
+    return { done: "Car document ready to view.", downloadUrl: data?.url };
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the protected evidence service." };
   }
 }
@@ -308,6 +326,16 @@ const vehicleDecisionSchema = z.object({
 });
 
 export async function reviewVehicleAction(
+  previous: VehicleDecisionState,
+  formData: FormData,
+): Promise<VehicleDecisionState> {
+  const result = await decideVehicle(previous, formData);
+  return result.error
+    ? { ...result, validUntil: String(formData.get("valid_until") ?? "") }
+    : result;
+}
+
+async function decideVehicle(
   _previous: VehicleDecisionState,
   formData: FormData,
 ): Promise<VehicleDecisionState> {
@@ -345,9 +373,9 @@ export async function reviewVehicleAction(
   }
   let validUntil: string | null = null;
   if (intent === "approve") {
-    const date = new Date(parsed.data.valid_until ?? "");
-    if (Number.isNaN(date.valueOf())) return { error: "Enter the vehicle approval expiry." };
-    validUntil = date.toISOString();
+    validUntil = lagosLocalToApi(parsed.data.valid_until ?? "");
+    if (!validUntil)
+      return { error: "Enter a real date and time for the car approval, in Nigeria time." };
   }
   const decision = intent === "approve" ? "approved" : intent === "expire" ? "expired" : "rejected";
   const reasonCode =
@@ -425,7 +453,8 @@ export async function reviewVehicleAction(
       );
     }
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the vehicle approval service." };
   }
   revalidatePath("/admin/drivers");
@@ -457,13 +486,14 @@ export async function initiateDriverAccountSetupAction(
       },
     );
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the driver account setup service." };
   }
   revalidatePath(`/admin/drivers/applicant/${parsed.data.application_id}`);
   revalidatePath("/admin/drivers/[driverId]", "page");
   revalidatePath("/admin/drivers/applicant/[applicationId]", "page");
   return {
-    done: "A one-use setup link was created and queued for delivery to the applicant's stored email. Delivery is not confirmed.",
+    done: "Password setup email requested.",
   };
 }

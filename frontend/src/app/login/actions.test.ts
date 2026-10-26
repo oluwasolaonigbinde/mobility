@@ -9,7 +9,10 @@ const mocks = vi.hoisted(() => ({
   }),
 }));
 
-vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  redirect: mocks.redirect,
+}));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 vi.mock("@/lib/env", () => ({ env: mocks.env }));
 vi.mock("@/lib/auth/session", () => ({ setSessionCookie: mocks.setSessionCookie }));

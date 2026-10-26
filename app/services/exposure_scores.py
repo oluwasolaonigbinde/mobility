@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import hashlib
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
-from uuid import UUID
 
-from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
@@ -18,7 +15,7 @@ from app.schemas.exposure_scores import (
     ExposureScoreRead,
     ExposureScoreResultRead,
 )
-from app.services.measurement import canonical_sha256, measurement_run_reproducible
+from app.services.report_integrity import canonical_sha256, frozen_measurement_is_intact
 
 EXPOSURE_V1_FORMULA_VERSION = "exposure_v1"
 EXPOSURE_FORMULA_VERSION = EXPOSURE_V1_FORMULA_VERSION
@@ -236,81 +233,9 @@ async def exposure_score_is_stale(session: AsyncSession, score: ExposureScore) -
         or run.input_manifest_sha256 != score.measurement_input_sha256
         or run.result_manifest_sha256 != score.measurement_result_sha256
         or run.proof_manifest_sha256 != score.measurement_proof_sha256
-        or not measurement_run_reproducible(run)
+        or not frozen_measurement_is_intact(run)
         or not exposure_score_reproducible(score)
     )
-
-
-async def _score_lock(
-    session: AsyncSession, measurement_run_id: UUID, formula_version: str
-) -> None:
-    digest = hashlib.sha256(
-        f"exposure-score:{measurement_run_id}:{formula_version}".encode()
-    ).digest()[:8]
-    await session.execute(
-        text("SELECT pg_advisory_xact_lock(:key)"),
-        {"key": int.from_bytes(digest, "big", signed=True)},
-    )
-
-
-async def issue_exposure_score_for_run(session: AsyncSession, run: MeasurementRun) -> ExposureScore:
-    await _score_lock(session, run.id, EXPOSURE_FORMULA_VERSION)
-    existing = await session.scalar(
-        select(ExposureScore).where(
-            ExposureScore.measurement_run_id == run.id,
-            ExposureScore.formula_version == EXPOSURE_FORMULA_VERSION,
-        )
-    )
-    if existing is not None:
-        if await exposure_score_is_stale(session, existing):
-            raise AppError(
-                "EXPOSURE_SCORE_INTEGRITY_FAILURE",
-                "The issued exposure score no longer matches its immutable measurement run",
-                status_code=status.HTTP_409_CONFLICT,
-            )
-        return existing
-    if not measurement_run_reproducible(run):
-        raise AppError(
-            "EXPOSURE_SCORE_MEASUREMENT_RUN_INVALID",
-            "The immutable measurement run did not reproduce",
-            status_code=status.HTTP_409_CONFLICT,
-        )
-    input_snapshot = build_exposure_score_input(run)
-    result_snapshot = calculate_exposure_score_v1(
-        input_snapshot, formula_version=EXPOSURE_FORMULA_VERSION
-    )
-    latest = await session.scalar(
-        select(ExposureScore)
-        .where(
-            ExposureScore.campaign_id == run.campaign_id,
-            ~ExposureScore.id.in_(
-                select(ExposureScore.reissue_of_score_id).where(
-                    ExposureScore.reissue_of_score_id.is_not(None)
-                )
-            ),
-        )
-        .order_by(ExposureScore.created_at.desc(), ExposureScore.id.desc())
-        .limit(1)
-    )
-    score = ExposureScore(
-        organization_id=run.organization_id,
-        campaign_id=run.campaign_id,
-        measurement_run_id=run.id,
-        issued_by_user_id=run.created_by_user_id,
-        formula_version=EXPOSURE_FORMULA_VERSION,
-        formula_fingerprint=result_snapshot["formula_fingerprint"],
-        input_snapshot=input_snapshot,
-        input_fingerprint=result_snapshot["input_fingerprint"],
-        result_snapshot=result_snapshot,
-        result_fingerprint=canonical_sha256(result_snapshot),
-        measurement_input_sha256=run.input_manifest_sha256,
-        measurement_result_sha256=run.result_manifest_sha256,
-        measurement_proof_sha256=run.proof_manifest_sha256,
-        reissue_of_score_id=latest.id if latest is not None else None,
-    )
-    session.add(score)
-    await session.flush()
-    return score
 
 
 async def exposure_score_read(session: AsyncSession, score: ExposureScore) -> ExposureScoreRead:

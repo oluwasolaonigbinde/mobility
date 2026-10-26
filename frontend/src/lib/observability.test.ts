@@ -27,4 +27,24 @@ describe("scrubSentryEvent", () => {
     expect(JSON.stringify(scrubbed)).not.toContain("objects.example");
     expect(JSON.stringify(scrubbed)).not.toContain("9.0765");
   });
+
+  it("redacts link tokens in relative navigation breadcrumbs", () => {
+    const scrubbed = scrubSentryEvent({
+      breadcrumbs: [
+        {
+          category: "navigation",
+          data: {
+            from: "/apply#application_access_token=live-secret",
+            to: "/reset-password?token=reset-secret&next=1",
+          },
+        },
+      ],
+    });
+
+    expect(JSON.stringify(scrubbed)).not.toMatch(/live-secret|reset-secret/);
+    expect(scrubbed.breadcrumbs[0]!.data).toEqual({
+      from: "/apply#application_access_token=[REDACTED_TOKEN]",
+      to: "/reset-password?token=[REDACTED_TOKEN]&next=1",
+    });
+  });
 });

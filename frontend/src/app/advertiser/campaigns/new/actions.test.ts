@@ -8,7 +8,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
-vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  redirect: mocks.redirect,
+}));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ POST: mocks.post }) }));
 
@@ -21,6 +24,29 @@ describe("createCampaignAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.post.mockResolvedValue({ data: { id: CAMPAIGN_ID } });
+  });
+  it("saves the draft for the Areas step without attaching designs or submitting review", async () => {
+    const result = await createCampaignAction(
+      {
+        basics: {
+          name: "Area first",
+          description: "",
+          start_at: "",
+          end_at: "",
+          budget_amount: "100000.00",
+          daily_budget_amount: "",
+        },
+        creatives: [],
+      },
+      undefined,
+      REQUEST_ID,
+      true,
+    );
+    expect(result).toEqual({ createdCampaignId: CAMPAIGN_ID });
+    expect(mocks.post).toHaveBeenCalledTimes(1);
+    expect(mocks.post.mock.calls[0]![0]).toBe("/api/v1/advertiser/campaigns");
+    expect(mocks.post.mock.calls[0]![1].body.status).toBe("draft");
+    expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
   it("always creates campaigns as drafts", async () => {
@@ -56,7 +82,7 @@ describe("createCampaignAction", () => {
     expect(mocks.redirect).toHaveBeenCalledWith(`/advertiser/campaigns/${CAMPAIGN_ID}`);
   });
 
-  it("tells a viewer they lack permission instead of offering an uncertain retry", async () => {
+  it("explains unavailable write access instead of offering an uncertain retry", async () => {
     mocks.post.mockRejectedValueOnce(
       new ApiError(403, {
         code: "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN",
@@ -81,8 +107,7 @@ describe("createCampaignAction", () => {
     );
 
     expect(state).toEqual({
-      error:
-        "Only company owners and managers can create campaigns. Ask one of them to create it or to change your access.",
+      error: "Your advertiser access is unavailable. Ask Terrax to check your account.",
     });
     expect(mocks.redirect).not.toHaveBeenCalled();
   });

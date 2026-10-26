@@ -239,6 +239,8 @@ export function TripTracker({
   const reconciledTripRef = useRef<string | null>(null);
   const terminalLeftoversRef = useRef(new Set<string>());
   const mountedRef = useRef(true);
+  const lifetimeRef = useRef(0);
+  const startingRef = useRef(false);
 
   const patchRuntime = useCallback((patch: Partial<CapabilitySnapshot>) => {
     runtimeRef.current = { ...runtimeRef.current, ...patch };
@@ -273,12 +275,16 @@ export function TripTracker({
     keepaliveRef.current = null;
   }, []);
 
-  const releaseWake = useCallback(async () => {
-    const sentinel = wakeRef.current;
-    wakeRef.current = null;
-    if (sentinel && !sentinel.released) await sentinel.release().catch(() => undefined);
-    patchRuntime({ wakeLock: "released" });
-  }, [patchRuntime]);
+  const releaseWake = useCallback(
+    async (expected?: WakeSentinel) => {
+      const sentinel = wakeRef.current;
+      if (expected && sentinel !== expected) return;
+      wakeRef.current = null;
+      patchRuntime({ wakeLock: "released" });
+      if (sentinel && !sentinel.released) await sentinel.release().catch(() => undefined);
+    },
+    [patchRuntime],
+  );
 
   const releaseWriter = useCallback(() => {
     releaseWriterRef.current?.();
@@ -302,6 +308,8 @@ export function TripTracker({
   );
 
   const validateSession = useCallback(async () => {
+    const lifetime = lifetimeRef.current;
+    if (!mountedRef.current || !identityValidRef.current) return "invalid" as const;
     if (!navigator.onLine) {
       patchRuntime({ online: false, session: "offline" });
       return "offline" as const;
@@ -312,8 +320,12 @@ export function TripTracker({
         credentials: "same-origin",
         redirect: "manual",
       });
+      if (lifetime !== lifetimeRef.current || !mountedRef.current || !identityValidRef.current)
+        return "invalid" as const;
       if (response.ok) {
         const body = (await response.json()) as { status?: string; driverId?: string };
+        if (lifetime !== lifetimeRef.current || !mountedRef.current || !identityValidRef.current)
+          return "invalid" as const;
         if (body.status === "valid" && body.driverId === driverId) {
           identityValidRef.current = true;
           patchRuntime({ online: true, session: "valid" });
@@ -331,6 +343,8 @@ export function TripTracker({
       patchRuntime({ online: true, session: "unavailable" });
       return "unavailable" as const;
     } catch {
+      if (lifetime !== lifetimeRef.current || !mountedRef.current || !identityValidRef.current)
+        return "invalid" as const;
       patchRuntime({
         online: navigator.onLine,
         session: navigator.onLine ? "unavailable" : "offline",
@@ -362,6 +376,8 @@ export function TripTracker({
   }, [patchRuntime]);
 
   const acquireWriter = useCallback(async (): Promise<boolean> => {
+    const lifetime = lifetimeRef.current;
+    if (!mountedRef.current || !identityValidRef.current) return false;
     if (releaseWriterRef.current) return true;
     if (writerAcquireRef.current) return writerAcquireRef.current;
     if (!("locks" in navigator)) {
@@ -385,7 +401,7 @@ export function TripTracker({
           resolveAcquisition(false);
           return;
         }
-        if (!identityValidRef.current) {
+        if (lifetime !== lifetimeRef.current || !mountedRef.current || !identityValidRef.current) {
           resolved = true;
           resolveAcquisition(false);
           return;
@@ -398,28 +414,42 @@ export function TripTracker({
         });
       })
       .catch(() => {
-        writerAcquireRef.current = null;
-        patchRuntime({ webLocks: "denied" });
-        setError(
-          "Cardvert couldn't keep this trip's tracking in one tab. Close other Cardvert tabs and try again.",
-        );
+        if (lifetime === lifetimeRef.current && mountedRef.current && identityValidRef.current) {
+          writerAcquireRef.current = null;
+          patchRuntime({ webLocks: "denied" });
+          setError(
+            "Cardvert couldn't keep this trip's tracking in one tab. Close other Cardvert tabs and try again.",
+          );
+        }
         if (!resolved) resolveAcquisition(false);
       });
     return acquisition;
   }, [patchRuntime]);
 
-  const acquireWake = useCallback(async (): Promise<boolean> => {
+  const acquireWake = useCallback(async (): Promise<WakeSentinel | null> => {
+    const lifetime = lifetimeRef.current;
+    const generation = captureGenerationRef.current;
+    if (!mountedRef.current || !identityValidRef.current) return null;
     if (wakeRef.current && !wakeRef.current.released) {
       patchRuntime({ wakeLock: "pass" });
-      return true;
+      return wakeRef.current;
     }
     const wake = (navigator as NavigatorWithRuntime).wakeLock;
     if (!wake) {
       patchRuntime({ wakeLock: "unavailable" });
-      return false;
+      return null;
     }
     try {
       const sentinel = await wake.request("screen");
+      if (
+        lifetime !== lifetimeRef.current ||
+        generation !== captureGenerationRef.current ||
+        !mountedRef.current ||
+        !identityValidRef.current
+      ) {
+        await sentinel.release().catch(() => undefined);
+        return null;
+      }
       wakeRef.current = sentinel;
       sentinel.addEventListener(
         "release",
@@ -437,14 +467,23 @@ export function TripTracker({
         { once: true },
       );
       patchRuntime({ wakeLock: "pass" });
-      return true;
+      return sentinel;
     } catch {
+      if (
+        lifetime !== lifetimeRef.current ||
+        generation !== captureGenerationRef.current ||
+        !mountedRef.current ||
+        !identityValidRef.current
+      )
+        return null;
       patchRuntime({ wakeLock: "denied" });
-      return false;
+      return null;
     }
   }, [patchRuntime, stopWatch]);
 
   const probeLocation = useCallback(async (): Promise<boolean> => {
+    const lifetime = lifetimeRef.current;
+    const generation = captureGenerationRef.current;
     if (!("geolocation" in navigator)) {
       setGps("unavailable");
       patchRuntime({ location: "unavailable" });
@@ -453,11 +492,29 @@ export function TripTracker({
     return new Promise<boolean>((resolve) => {
       navigator.geolocation.getCurrentPosition(
         () => {
+          if (
+            lifetime !== lifetimeRef.current ||
+            generation !== captureGenerationRef.current ||
+            !mountedRef.current ||
+            !identityValidRef.current
+          ) {
+            resolve(false);
+            return;
+          }
           setGps("granted");
           patchRuntime({ location: "granted" });
           resolve(true);
         },
         (positionError) => {
+          if (
+            lifetime !== lifetimeRef.current ||
+            generation !== captureGenerationRef.current ||
+            !mountedRef.current ||
+            !identityValidRef.current
+          ) {
+            resolve(false);
+            return;
+          }
           const denied = positionError.code === positionError.PERMISSION_DENIED;
           setGps(denied ? "denied" : "unavailable");
           patchRuntime({ location: denied ? "denied" : "unavailable" });
@@ -617,6 +674,10 @@ export function TripTracker({
   const beginWatch = useCallback(
     (tripId: string) => {
       if (
+        !mountedRef.current ||
+        !identityValidRef.current ||
+        !releaseWriterRef.current ||
+        reconciledTripRef.current !== tripId ||
         endPhaseRef.current !== "capturing" ||
         watchRef.current !== null ||
         !assessPilotPwa(runtimeRef.current).actions.capture
@@ -720,13 +781,14 @@ export function TripTracker({
         patchRuntime({ visibility: document.visibilityState === "hidden" ? "hidden" : "unknown" });
         return false;
       }
-      const [locationReady, wakeReady] = await Promise.all([probeLocation(), acquireWake()]);
-      if (validate) await validateSession();
+      const [locationReady, wake] = await Promise.all([probeLocation(), acquireWake()]);
+      if (validate && generation === captureGenerationRef.current) await validateSession();
       if (generation !== captureGenerationRef.current || endPhaseRef.current !== "capturing") {
-        await releaseWake();
+        // A newer preparation may already own a different wake sentinel.
+        if (wake) await releaseWake(wake);
         return false;
       }
-      return locationReady && wakeReady && assessPilotPwa(runtimeRef.current).actions.capture;
+      return locationReady && wake !== null && assessPilotPwa(runtimeRef.current).actions.capture;
     },
     [acquireWake, observeInstallability, patchRuntime, probeLocation, releaseWake, validateSession],
   );
@@ -837,7 +899,10 @@ export function TripTracker({
   }, [acquireWriter, drainLeftovers, releaseWriter]);
 
   useEffect(() => {
+    lifetimeRef.current += 1;
     mountedRef.current = true;
+    identityValidRef.current = true;
+    startingRef.current = false;
     let cancelled = false;
     const currentTripId = initialTrip?.id ?? null;
     const recover = () => void recoverWithWriter().catch(reportRecoveryFault);
@@ -851,10 +916,12 @@ export function TripTracker({
         // The queue opened; a recovery fault must not be reported as an open failure
         // nor prevent later retries from being scheduled.
         await recoverWithWriter().catch(reportRecoveryFault);
+        if (cancelled || !identityValidRef.current) return;
         recoveryRef.current = setInterval(recover, RECOVERY_INTERVAL_MS);
         window.addEventListener("online", recover);
       })
       .catch((openError: unknown) => {
+        if (cancelled) return;
         setStorageReady(false);
         patchRuntime({ indexedDb: "failed", durableQueue: "failed" });
         setError(
@@ -865,6 +932,7 @@ export function TripTracker({
       });
     return () => {
       cancelled = true;
+      lifetimeRef.current += 1;
       mountedRef.current = false;
       if (recoveryRef.current) clearInterval(recoveryRef.current);
       recoveryRef.current = null;
@@ -994,19 +1062,24 @@ export function TripTracker({
   ]);
 
   function start() {
-    if (!assignment || storageReady !== true || busy) return;
+    if (!assignment || storageReady !== true || startingRef.current || !identityValidRef.current)
+      return;
+    startingRef.current = true;
+    const lifetime = lifetimeRef.current;
+    const current = () =>
+      lifetime === lifetimeRef.current && mountedRef.current && identityValidRef.current;
     setError(undefined);
     setBlockers([]);
     setBusy(true);
     void (async () => {
       if (!(await acquireWriter())) return;
-      let result;
+      let result: Awaited<ReturnType<typeof getCurrentTripAction>>;
       let captureReady = false;
       if (startUncertainRef.current) {
-        result = await getCurrentTripAction();
+        result = await getCurrentTripAction().catch(() => ({ outcome: "unknown" as const }));
       } else {
         captureReady = await prepareCapture(true);
-        if (!mountedRef.current || !identityValidRef.current || !releaseWriterRef.current) return;
+        if (!current() || !releaseWriterRef.current) return;
         if (!captureReady) {
           console.warn(
             `TRACKING_START_BLOCKED=${JSON.stringify(assessPilotPwa(runtimeRef.current))}`,
@@ -1018,11 +1091,23 @@ export function TripTracker({
           setError(START_BLOCKED);
           return;
         }
-        result = await startTripAction(assignment.id);
-        if (result.outcome === "unknown") result = await getCurrentTripAction();
+        // A rejected browser-to-action request can have created a trip. Mark
+        // uncertainty before reconciliation, so no subsequent click sends Start.
+        result = await startTripAction(assignment.id).catch(() => ({
+          outcome: "unknown" as const,
+        }));
+        if (!current() || !releaseWriterRef.current) return;
+        if (result.outcome === "unknown") {
+          startUncertainRef.current = true;
+          setStartUncertain(true);
+          result = await getCurrentTripAction().catch(() => ({ outcome: "unknown" as const }));
+        }
       }
-      if (!mountedRef.current || !identityValidRef.current || !releaseWriterRef.current) return;
+      if (!current() || !releaseWriterRef.current) return;
       if (!result.trip) {
+        stopWatch();
+        await releaseWake();
+        if (!current()) return;
         setError(
           result.error ??
             "Cardvert couldn't confirm whether your trip started. Check its status before trying again.",
@@ -1030,7 +1115,6 @@ export function TripTracker({
         if (result.outcome === "failed") {
           startUncertainRef.current = false;
           setStartUncertain(false);
-          await releaseWake();
           releaseWriter();
         } else {
           startUncertainRef.current = true;
@@ -1055,10 +1139,21 @@ export function TripTracker({
       setRejectedSampleCount(0);
       setQuarantinedSampleCount(0);
       setRejectionCodes([]);
-      if (captureReady || (await prepareCapture(true))) beginWatch(result.trip.id);
-    })().finally(() => {
-      if (mountedRef.current) setBusy(false);
-    });
+      if ((captureReady || (await prepareCapture(true))) && current()) beginWatch(result.trip.id);
+    })()
+      .catch(async () => {
+        stopWatch();
+        await releaseWake();
+        if (!current()) return;
+        if (!startUncertainRef.current && !tripRef.current) releaseWriter();
+        setError("Cardvert couldn't confirm your trip status. Check again before continuing.");
+      })
+      .finally(() => {
+        if (current()) {
+          startingRef.current = false;
+          setBusy(false);
+        }
+      });
   }
 
   const finishEndedTrip = useCallback(
@@ -1117,7 +1212,9 @@ export function TripTracker({
         setServerTripVerified(true);
         setTrip(current.trip);
         patchRuntime({ activeTrip: true });
+        const generation = captureGenerationRef.current;
         const ready = await prepareCapture(true);
+        if (generation !== captureGenerationRef.current) return;
         if (ready && mountedRef.current && identityValidRef.current && tripRef.current) {
           beginWatch(tripRef.current.id);
         } else if (mountedRef.current) {

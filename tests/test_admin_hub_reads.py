@@ -61,7 +61,7 @@ def test_members_are_scoped_paged_stably_and_sanitized(db_client, db_sessionmake
             session.add_all(
                 [
                     OrganizationMembership(
-                        organization_id=org.id, user_id=user.id, role="owner", status=state
+                        organization_id=org.id, user_id=user.id, role="advertiser", status=state
                     )
                     for user, state in zip(users[:2], ["active", "disabled"], strict=True)
                 ]

@@ -18,11 +18,44 @@ def test_openapi_schema_generates(client) -> None:
 
     assert response.status_code == 200
     schema = response.json()
-    assert schema["info"]["title"] == "mobility-adtech-api"
     assert "/health" in schema["paths"]
     assert "/api/v1/health" in schema["paths"]
     assert "/api/v1/health/ready" in schema["paths"]
     components = schema["components"]["schemas"]
+    assert "/api/v1/admin/badge-summary" in schema["paths"]
+    assert "/api/v1/driver/current-job" in schema["paths"]
+    assert "/api/v1/admin/campaigns/{campaign_id}/budget-policy-evaluation" not in schema["paths"]
+    assert "/api/v1/advertiser/campaigns/{campaign_id}/cancel" not in schema["paths"]
+    assert "campaign_cancellation" in components["ComplaintCategory"]["enum"]
+    assert "/api/v1/admin/campaigns/{campaign_id}/reports/re-run" in schema["paths"]
+    assert "/api/v1/admin/campaign-enquiries/{enquiry_id}/create-advertiser" in schema["paths"]
+    assert "/api/v1/auth/driver-onboarding/continue" in schema["paths"]
+    artwork = schema["paths"][
+        "/api/v1/driver/campaign-assignments/{assignment_id}/artwork/download"
+    ]["post"]
+    assert "requestBody" not in artwork
+    assert artwork["responses"]["200"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/FileDownloadRead"
+    }
+    assert set(components["CampaignPerformanceTotals"]["properties"]) == {
+        "distance_m",
+        "trip_count",
+        "driving_days",
+        "estimated_views",
+    }
+    assert set(components["CampaignPerformanceArea"]["properties"]) == {
+        "area_id",
+        "name",
+        "trip_count",
+        "modelled_potential_contacts",
+    }
+    assert "service_city" in components["DriverApplicationCreate"]["required"]
+    assert (
+        components["BankAccountPayoutVerificationCreate"]["properties"]["verification_reference"][
+            "maxLength"
+        ]
+        == 512
+    )
     user_update = components["UserUpdate"]
     assert "current_password" in user_update["properties"]
     assert user_update["properties"]["current_password"]["writeOnly"] is True
@@ -51,11 +84,6 @@ def test_openapi_schema_generates(client) -> None:
     } == set(campaign_trips)
     trip_operation = schema["paths"]["/api/v1/advertiser/campaigns/{campaign_id}/trips"]["get"]
     assert {parameter["name"] for parameter in trip_operation["parameters"]} == {"campaign_id"}
-    assert trip_operation["summary"] == "Read advertiser campaign trip aggregate"
-    assert (
-        trip_operation["operationId"] == "advertiser_get_campaign_trip_aggregate_api_v1_advertiser_"
-        "campaigns__campaign_id__trips_get"
-    )
 
 
 def test_openapi_matches_committed_json_artifacts(client) -> None:

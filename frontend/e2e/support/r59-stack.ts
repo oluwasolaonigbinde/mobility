@@ -120,6 +120,20 @@ export type TripSnapshot = {
   };
 };
 
+export function r59DriverTripCount(): number {
+  const count = queryJson(`
+    SELECT to_json(count(*))
+    FROM trip_sessions t
+    JOIN driver_profiles d ON d.id=t.driver_profile_id
+    JOIN users u ON u.id=d.user_id
+    WHERE u.email='driver@demo.mobility.local'
+  `);
+  if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) {
+    throw new Error("R59 driver trip count was invalid");
+  }
+  return count;
+}
+
 export function latestR59Trip(): TripSnapshot {
   return queryJson(`
     SELECT json_build_object(

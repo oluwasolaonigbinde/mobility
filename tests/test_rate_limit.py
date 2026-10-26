@@ -133,9 +133,7 @@ def test_registration_in_memory_limits_stop_at_each_exact_boundary() -> None:
         distributed = InMemoryRegistrationRateLimiter(ip_limit=2, email_limit=2)
         for index in range(25):
             assert (
-                await distributed.reserve(
-                    f"10.0.0.{index + 1}", f"applicant-{index}@example.com"
-                )
+                await distributed.reserve(f"10.0.0.{index + 1}", f"applicant-{index}@example.com")
             ).allowed
 
     asyncio.run(exercise())
@@ -344,25 +342,19 @@ def test_redis_reservations_are_atomic_ttl_bound_and_refundable() -> None:
         await redis.flushdb()
         settings = Settings(
             redis_url=redis_url,
-            login_rate_limit_ip_max_failures=20,
-            login_rate_limit_account_max_failures=3,
-            login_rate_limit_global_max_failures=30,
-            login_rate_limit_ip_window_seconds=30,
-            login_rate_limit_account_window_seconds=30,
-            login_rate_limit_global_window_seconds=30,
         )
         limiter = RedisLoginRateLimiter(redis, settings)
         decisions = await asyncio.gather(
             *(limiter.reserve("203.0.113.10", "target@example.com") for _ in range(10))
         )
-        assert sum(decision.allowed for decision in decisions) == 3
+        assert sum(decision.allowed for decision in decisions) == 5
         blocked = [decision for decision in decisions if not decision.allowed]
         assert blocked
         assert sum(decision.newly_blocked for decision in blocked) == 1
         assert all(decision.bucket == "account" for decision in blocked)
 
         keys = limiter.keys("203.0.113.10", "target@example.com")
-        for _ in range(3):
+        for _ in range(5):
             await limiter.record_failure("203.0.113.10", "target@example.com")
         ttls = await asyncio.gather(*(redis.ttl(key) for key in keys))
         assert all(ttl > 0 for ttl in ttls)
@@ -377,16 +369,11 @@ def test_redis_reservations_are_atomic_ttl_bound_and_refundable() -> None:
             redis,
             Settings(
                 redis_url=redis_url,
-                login_rate_limit_ip_max_failures=1,
-                login_rate_limit_account_max_failures=20,
-                login_rate_limit_global_max_failures=30,
-                login_rate_limit_ip_window_seconds=30,
-                login_rate_limit_account_window_seconds=30,
-                login_rate_limit_global_window_seconds=30,
             ),
         )
         await redis.flushdb()
-        assert (await per_ip.reserve("198.51.100.1", "one@example.com")).allowed
+        for index in range(150):
+            assert (await per_ip.reserve("198.51.100.1", f"person-{index}@example.com")).allowed
         same_ip = await per_ip.reserve("198.51.100.1", "two@example.com")
         assert not same_ip.allowed and same_ip.bucket == "ip"
         assert (await per_ip.reserve("198.51.100.2", "two@example.com")).allowed
@@ -408,31 +395,25 @@ def test_redis_global_bucket_alerts_once_and_never_blocks(caplog) -> None:
             redis,
             Settings(
                 redis_url=redis_url,
-                login_rate_limit_ip_max_failures=20,
-                login_rate_limit_account_max_failures=3,
-                login_rate_limit_global_max_failures=3,
-                login_rate_limit_ip_window_seconds=30,
-                login_rate_limit_account_window_seconds=30,
-                login_rate_limit_global_window_seconds=30,
             ),
         )
         decisions = []
-        for index in range(10):
-            ip, email = f"198.51.100.{index}", f"spread-{index}@example.com"
+        for index in range(260):
+            ip, email = f"198.51.100.{index % 200}", f"spread-{index}@example.com"
             decisions.append(await limiter.reserve(ip, email))
             await limiter.record_failure(ip, email)
         global_key = limiter.keys("198.51.100.0", "spread-0@example.com")[2]
-        assert int(await redis.get(global_key)) == 10
+        assert int(await redis.get(global_key)) == 260
         assert await redis.ttl(f"ratelimit:login:notify:{global_key}") > 0
         # A missing TTL on the global key is repaired before the alert marker is set.
         await redis.flushdb()
-        await redis.set(global_key, 5)
+        await redis.set(global_key, 251)
         assert (await limiter.reserve("198.51.100.99", "late@example.com")).allowed
         await limiter.record_failure("198.51.100.99", "late@example.com")
         assert await redis.ttl(global_key) > 0
         # With the global bucket over its limit, the account bucket still refuses on
         # its own limit and the alert does not repeat within the window.
-        for _ in range(3):
+        for _ in range(5):
             assert (await limiter.reserve("198.51.100.50", "same@example.com")).allowed
             await limiter.record_failure("198.51.100.50", "same@example.com")
         account_block = await limiter.reserve("198.51.100.51", "same@example.com")
@@ -449,7 +430,7 @@ def test_redis_global_bucket_alerts_once_and_never_blocks(caplog) -> None:
         for record in caplog.records
         if record.levelno == logging.ERROR and "global alert threshold" in record.getMessage()
     ]
-    # Once at the third failure of the first window, once after the flush that
+    # Once at the 250th failure of the first window, once after the flush that
     # cleared the marker for the TTL-repair case.
     assert len(alerts) == 2
 
@@ -506,10 +487,6 @@ def test_registration_redis_reservations_are_atomic_ttl_bound_and_notify_once() 
         await redis.flushdb()
         settings = Settings(
             redis_url=redis_url,
-            driver_registration_rate_limit_ip_max_attempts=20,
-            driver_registration_rate_limit_email_max_attempts=3,
-            driver_registration_rate_limit_ip_window_seconds=30,
-            driver_registration_rate_limit_email_window_seconds=30,
         )
         limiter = RedisRegistrationRateLimiter(redis, settings)
         decisions = await asyncio.gather(
@@ -524,9 +501,7 @@ def test_registration_redis_reservations_are_atomic_ttl_bound_and_notify_once() 
         assert all(ttl > 0 for ttl in await asyncio.gather(*(redis.ttl(key) for key in keys)))
         for index in range(25):
             assert (
-                await limiter.reserve(
-                    f"10.0.0.{index + 1}", f"distributed-{index}@example.com"
-                )
+                await limiter.reserve(f"10.0.0.{index + 1}", f"distributed-{index}@example.com")
             ).allowed
 
         await redis.flushdb()
@@ -534,13 +509,12 @@ def test_registration_redis_reservations_are_atomic_ttl_bound_and_notify_once() 
             redis,
             Settings(
                 redis_url=redis_url,
-                driver_registration_rate_limit_ip_max_attempts=20,
-                driver_registration_rate_limit_email_max_attempts=1,
-                driver_registration_rate_limit_ip_window_seconds=30,
-                driver_registration_rate_limit_email_window_seconds=30,
             ),
         )
-        assert (await alias.reserve("198.51.100.3", "  Alias@Example.COM  ")).allowed
+        for number in range(3):
+            assert (
+                await alias.reserve(f"198.51.100.{number + 1}", "  Alias@Example.COM  ")
+            ).allowed
         alias_block = await alias.reserve("198.51.100.4", "alias@example.com")
         assert not alias_block.allowed
         assert alias_block.bucket == "email"

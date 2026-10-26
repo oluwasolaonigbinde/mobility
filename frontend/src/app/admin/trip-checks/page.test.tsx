@@ -17,10 +17,8 @@ vi.mock("../fraud/dispute-actions", () => ({
   DisputeReplyActions: () => <button>Reply to driver</button>,
 }));
 vi.mock("../fraud/spot-check-actions", () => ({
-  SpotCheckQueueForm: () => <button>Request in-person check</button>,
-  SpotCheckResultForm: () => <button>Record check</button>,
+  SpotCheckForm: () => <button>Record check</button>,
 }));
-vi.mock("../operation-form", () => ({ OperationForm: () => <button>Add to trip</button> }));
 import TripChecks from "./page";
 const date = "2026-09-03T07:15:00Z";
 const flag = {
@@ -46,23 +44,7 @@ const flag = {
     held_currency: "NGN",
     available_net: "90.00",
     currency: "NGN",
-    reversal_recommended: false,
-    reversal_entry_id: null,
   },
-};
-const late = {
-  id: "late",
-  driver_profile_id: "driver",
-  campaign_id: "campaign",
-  assignment_id: "job",
-  driver_name: "Ada Driver",
-  vehicle_plate: "ABJ-101",
-  campaign_name: "PalmPay Wuse",
-  trip_started_at: date,
-  trip_session_id: "trip",
-  status: "quarantined",
-  received_at: "2026-09-20T00:00:00Z",
-  ping_count: 42,
 };
 function defaultRead(
   path: string,
@@ -99,7 +81,6 @@ function defaultRead(
       },
     };
   if (path.endsWith("/fraud-flags")) return { data: { items: [flag], total: 1 } };
-  if (path.endsWith("/quarantined-batches")) return { data: { items: [late], total: 1 } };
   return { data: { items: [], total: 0 } };
 }
 const page = (query: Record<string, string> = {}) =>
@@ -124,14 +105,6 @@ describe("Trip check work lists", () => {
     const statuses = screen.getByRole("navigation", { name: "Status" });
     expect(within(statuses).getByRole("link", { current: "page" })).toHaveTextContent("All");
     expect(within(statuses).queryByRole("link", { name: /Quarantined/i })).toBeNull();
-    cleanup();
-    render(await page({ tab: "late" }));
-    const lateStatuses = screen.getByRole("navigation", { name: "Status" });
-    expect(within(lateStatuses).getAllByRole("link")).toHaveLength(3);
-    expect(within(lateStatuses).getByRole("link", { current: "page" })).toHaveAttribute(
-      "href",
-      expect.stringContaining("status=quarantined"),
-    );
     cleanup();
     render(await page({ tab: "in-person" }));
     expect(screen.queryByRole("navigation", { name: "Status" })).toBeNull();
@@ -249,18 +222,20 @@ describe("Trip check work lists", () => {
     expect(screen.getByText("Driver explanation 100")).toBeVisible();
     expect(screen.getByRole("button", { name: "Reply to driver" })).toBeVisible();
   });
-  it("opens an existing pending check instead of asking for another", async () => {
+  it("allows another observation after an earlier inspection result", async () => {
     get.mockImplementation(async (path, options) =>
       path.endsWith("/evidence-verifications")
-        ? { data: { items: [{ id: "existing", source_trip_session_id: "trip" }], total: 1 } }
+        ? {
+            data: {
+              items: [{ id: "existing", source_trip_session_id: "trip", status: "passed" }],
+              total: 1,
+            },
+          }
         : defaultRead(path, options),
     );
     render(await page({ flag: "flag" }));
-    expect(screen.getByRole("link", { name: /In-person check waiting/ })).toHaveAttribute(
-      "href",
-      "/admin/trip-checks?tab=in-person&check=existing",
-    );
-    expect(screen.queryByRole("button", { name: "Request in-person check" })).toBeNull();
+    expect(screen.getByText("Record an in-person check")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /In-person check waiting/ })).toBeNull();
   });
   it("shows a final decision without describing pay as still held or requesting a check", async () => {
     get.mockImplementation(async (path, options) =>
@@ -289,29 +264,17 @@ describe("Trip check work lists", () => {
     expect(screen.getByText("Decision: Driver evidence accepted")).toBeVisible();
     expect(screen.getByText("The review deadline passed before this decision.")).toBeVisible();
     expect(screen.queryByText(/pay stays held/)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Request in-person check" })).toBeNull();
+    expect(screen.queryByText("Record an in-person check")).toBeNull();
   });
-  it("uses the actual trip date for late uploads and only opens scoped decisions", async () => {
-    render(await page({ tab: "late", late: "late", driver_profile_id: "driver" }));
-    expect(screen.getAllByText(/Trip 3 Sept 2026/)).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "Add to trip" })).toBeVisible();
-    expect(get).toHaveBeenCalledWith("/api/v1/admin/trips/{trip_id}/analytics", {
-      params: { path: { trip_id: "trip" } },
-    });
-  });
-  it("hides a selected late upload outside the driver filter", async () => {
-    render(await page({ tab: "late", late: "late", driver_profile_id: "other" }));
-    expect(screen.getByText("Late upload not found for these filters.")).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Add to trip" })).toBeNull();
-  });
-  it("includes an in-person check beyond the first hundred and opens it", async () => {
+  it("opens an inspection result beyond the first hundred", async () => {
     const rows = Array.from({ length: 101 }, (_, index) => ({
       id: `check-${index}`,
       source_trip_session_id: "trip",
       assignment_id: "job",
       driver_profile_id: "driver",
       campaign_id: "campaign",
-      status: "pending",
+      status: "passed",
+      result_note: "All panels were secure during inspection.",
       verification_type: "physical_spot_check",
       issued_at: date,
       driver_name: "Ada Driver",
@@ -335,7 +298,8 @@ describe("Trip check work lists", () => {
         : defaultRead(path, options),
     );
     render(await page({ tab: "in-person", check: "check-100", offset: "100" }));
-    expect(screen.getByRole("button", { name: "Record check" })).toBeVisible();
+    expect(screen.getByText(/Passed · All panels were secure during inspection\./)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Record check" })).toBeNull();
     expect(get).toHaveBeenCalledWith("/api/v1/admin/evidence-verifications", {
       params: {
         query: {
@@ -345,7 +309,6 @@ describe("Trip check work lists", () => {
           trip_session_id: undefined,
           driver_profile_id: undefined,
           campaign_id: undefined,
-          status: "pending",
           verification_type: "physical_spot_check",
         },
       },
@@ -356,7 +319,7 @@ describe("Trip check work lists", () => {
       if (path.endsWith("/analytics")) throw new Error("offline");
       return defaultRead(path, options);
     });
-    render(await page({ tab: "late" }));
+    render(await page());
     expect(screen.queryByRole("alert")).toBeNull();
     expect(get.mock.calls.some(([path]) => path.endsWith("/analytics"))).toBe(false);
   });

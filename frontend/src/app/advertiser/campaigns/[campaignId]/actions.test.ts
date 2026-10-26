@@ -9,7 +9,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
-vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  redirect: mocks.redirect,
+}));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 vi.mock("@/lib/api/client", () => ({
   createApiClient: () => ({ PATCH: mocks.patch, POST: mocks.post }),
@@ -19,7 +22,6 @@ import {
   confirmCampaignChangeAction,
   previewCampaignChangeAction,
   replaceCreativeAndSubmitAction,
-  requestCampaignCancellationAction,
   submitCampaignForReviewAction,
   submitCreativeForReviewAction,
   updateCampaignDetailsAction,
@@ -28,7 +30,6 @@ import {
 const CAMPAIGN_ID = "00000000-0000-4000-8000-00000000000a";
 const CREATIVE_ID = "00000000-0000-4000-8000-00000000000b";
 const CHANGE_REQUEST_ID = "00000000-0000-4000-8000-00000000000c";
-const CANCELLATION_REQUEST_ID = "00000000-0000-4000-8000-00000000000d";
 
 function submitForm(campaignId = CAMPAIGN_ID): FormData {
   const form = new FormData();
@@ -353,45 +354,6 @@ describe("campaign change preview and confirmation", () => {
   });
 });
 
-describe("requestCampaignCancellationAction", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.post.mockResolvedValue({ data: {} });
-  });
-
-  function cancellationForm({ confirmed = true } = {}): FormData {
-    const form = submitForm();
-    form.set("client_request_id", CANCELLATION_REQUEST_ID);
-    form.set("reason", "  Advertiser ended the campaign  ");
-    if (confirmed) form.set("confirmed", "on");
-    return form;
-  }
-
-  it("uses one exact retry identity and refreshes advertiser campaign views", async () => {
-    await expect(requestCampaignCancellationAction({}, cancellationForm())).resolves.toEqual({
-      done: "Campaign cancelled at the recorded financial cutoff.",
-    });
-    expect(mocks.post).toHaveBeenCalledWith("/api/v1/advertiser/campaigns/{campaign_id}/cancel", {
-      params: { path: { campaign_id: CAMPAIGN_ID } },
-      body: {
-        client_request_id: CANCELLATION_REQUEST_ID,
-        reason: "Advertiser ended the campaign",
-      },
-    });
-    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/advertiser/campaigns/${CAMPAIGN_ID}`);
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/advertiser/campaigns");
-  });
-
-  it("fails before the API when permanent cancellation is not confirmed", async () => {
-    await expect(
-      requestCampaignCancellationAction({}, cancellationForm({ confirmed: false })),
-    ).resolves.toEqual({
-      error: "Confirm that you understand cancellation is permanent",
-    });
-    expect(mocks.post).not.toHaveBeenCalled();
-  });
-});
-
 describe("campaign action failure and partial-input paths", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -405,21 +367,6 @@ describe("campaign action failure and partial-input paths", () => {
     for (const [name, value] of Object.entries(fields)) form.set(name, value);
     return form;
   }
-
-  it("maps a failed cancellation without refreshing views or exposing backend text", async () => {
-    mocks.post.mockRejectedValueOnce(
-      new ApiError(500, { code: "INTERNAL", message: "ledger host secret.internal" }),
-    );
-    const form = submitForm();
-    form.set("client_request_id", CANCELLATION_REQUEST_ID);
-    form.set("reason", "Stop");
-    form.set("confirmed", "on");
-
-    await expect(requestCampaignCancellationAction({}, form)).resolves.toEqual({
-      error: "Could not cancel the campaign. Try again.",
-    });
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
-  });
 
   it("previews only the changed daily budget and Lagos start time", async () => {
     mocks.post.mockResolvedValueOnce({ data: { preview_sha256: "c".repeat(64) } });
@@ -568,7 +515,7 @@ describe("campaign action failure and partial-input paths", () => {
     );
     const form = creativeSubmitForm();
     form.set("stored_file_id", "00000000-0000-4000-8000-000000000099");
-    form.set("creative_type", "video");
+    form.set("creative_type", "pdf");
 
     await expect(replaceCreativeAndSubmitAction({}, form)).resolves.toEqual({
       error: "The creative file is not ready for review.",

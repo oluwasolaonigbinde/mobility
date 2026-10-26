@@ -55,7 +55,6 @@ SECRET_NAMES = (
     "JWT_SECRET_KEY",
     "OBJECT_STORAGE_SECRET_ACCESS_KEY",
     "EMAIL_SMTP_PASSWORD",
-    "EMAIL_RECEIPT_SIGNING_SECRET",
     "RELEASE_EVIDENCE_SIGNING_SECRET",
 )
 TLS_FILE_NAMES = (
@@ -179,7 +178,13 @@ def settings_environment_names(config_file: Path | None = None) -> frozenset[str
     names = {
         node.target.id.upper()
         for node in settings.body
-        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+        if isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+        and not (
+            isinstance(node.annotation, ast.Subscript)
+            and isinstance(node.annotation.value, ast.Name)
+            and node.annotation.value.id == "ClassVar"
+        )
     }
     if not names:
         raise ContractError("The live Settings contract is empty")
@@ -473,7 +478,6 @@ def validate_release_evidence_configuration(
         environment.get(name, "").strip()
         for name in (
             "JWT_SECRET_KEY",
-            "EMAIL_RECEIPT_SIGNING_SECRET",
             "POSTGRES_PASSWORD",
             "REDIS_PASSWORD",
             "OBJECT_STORAGE_SECRET_ACCESS_KEY",
@@ -534,13 +538,6 @@ def _validate_live_adapters(environment: Mapping[str, str]) -> None:
     scanner_host = _require(environment, "MALWARE_SCANNER_HOST")
     if not _deployable_runtime_host(scanner_host):
         raise ContractError("MALWARE_SCANNER_HOST must be a deployable hostname")
-    for name in ("MALWARE_SCANNER_PORT", "MALWARE_SCANNER_TIMEOUT_SECONDS"):
-        try:
-            value = int(_require(environment, name))
-        except ValueError as exc:
-            raise ContractError(f"{name} must be an integer") from exc
-        if value <= 0 or name.endswith("PORT") and value > 65535:
-            raise ContractError(f"{name} is outside its accepted range")
 
     if _require(environment, "EMAIL_PROVIDER").lower() != "smtp":
         raise ContractError("EMAIL_PROVIDER must select the accepted smtp adapter")
@@ -553,8 +550,6 @@ def _validate_live_adapters(environment: Mapping[str, str]) -> None:
         "EMAIL_SENDER_ADDRESS",
         "EMAIL_SMTP_USERNAME",
         "EMAIL_SMTP_PASSWORD",
-        "EMAIL_RECEIPT_SIGNING_SECRET",
-        "EMAIL_RECEIPT_KEY_ID",
     ):
         _require(environment, name)
     try:
@@ -586,16 +581,8 @@ def _validate_live_adapters(environment: Mapping[str, str]) -> None:
         map_style = parsed_style._replace(query="").geturl()
     _validate_https_authority("NEXT_PUBLIC_MAP_STYLE_URL", map_style)
     for name in (
-        "FILE_KYC_RETENTION_DAYS",
-        "INSTALLATION_EVIDENCE_UPLOADER_ROLES",
-        "INSTALLATION_EVIDENCE_REQUIRED_VIEWS",
-        "INSTALLATION_EVIDENCE_VALIDITY_HOURS",
-        "DISPLAY_PROOF_CHALLENGE_TTL_SECONDS",
-        "DISPLAY_PROOF_VALIDITY_SECONDS",
-        "EVIDENCE_HIGH_EARNER_THRESHOLD_NGN",
-        "EVIDENCE_RENEWAL_LOOKBACK_DAYS",
-        "EVIDENCE_CHALLENGE_RESPONSE_HOURS",
-        "VERIFIED_HOURS_FLOOR_PER_WEEK",
+        # Approved applicants get their set-up link only when this is set.
+        "DRIVER_ACCOUNT_SETUP_PUBLIC_URL",
     ):
         _require(environment, name)
 
@@ -1389,7 +1376,6 @@ def validate_compose_model(model: Mapping[str, Any]) -> None:
     for name in ("api", "worker"):
         if (
             services[name].get("environment", {}).get("MALWARE_SCANNER_HOST") != "clamav"
-            or str(services[name].get("environment", {}).get("MALWARE_SCANNER_PORT")) != "3310"
             or services[name].get("depends_on", {}).get("clamav", {}).get("condition")
             != "service_healthy"
         ):

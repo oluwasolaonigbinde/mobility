@@ -355,6 +355,25 @@ const server = createServer(async (request, response) => {
       document_file_ids: {},
     });
   }
+  if (request.method === "GET" && url.pathname === "/api/v1/driver/current-job") {
+    return send(response, 200, {
+      assignment: assignment(),
+      photo_status: "ready",
+      counts: {
+        offered: 0,
+        accepted: 0,
+        active: 1,
+        declined: 0,
+        expired: 0,
+        cancelled: 0,
+        // S23 / D118 replaces stored Completed with the date-derived Finished read.
+        finished: 0,
+      },
+    });
+  }
+  if (request.method === "GET" && url.pathname === "/api/v1/driver/earnings/days") {
+    return send(response, 200, { days: [], totals: [] });
+  }
   if (request.method === "GET" && url.pathname === "/api/v1/driver/campaign-assignments/active") {
     return send(response, 200, { assignment: assignment(), photo_status: "ready" });
   }

@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.installation_evidence import InstallationEvidenceStatus
+from app.schemas.campaign_assignments import AssignmentReadinessRead
 from app.schemas.campaigns import ensure_timezone_aware
 from app.schemas.drivers import normalize_optional_text
 
@@ -53,6 +54,7 @@ class InstallationEvidencePhotoRead(BaseModel):
 
 
 class InstallationEvidenceRead(BaseModel):
+    activation: AssignmentReadinessRead | None = None
     driver_name: str | None = None
     campaign_name: str | None = None
     id: UUID
@@ -82,46 +84,5 @@ class InstallationEvidenceList(BaseModel):
 
 
 class InstallationEvidencePolicyRead(BaseModel):
-    configured: bool
-    can_upload: bool
     required_views: list[str]
-    evidence_validity_hours: int | None
-    display_proof_challenge_ttl_seconds: int | None
-    display_proof_validity_seconds: int | None
-
-
-class DisplayProofChallengeCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    device_id: UUID
-
-
-class DisplayProofChallengeRead(BaseModel):
-    challenge_id: UUID
-    nonce: str
-    evidence_submission_id: UUID
-    expires_at: datetime
-
-
-class DisplayProofCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    challenge_id: UUID
-    nonce: str = Field(min_length=32, max_length=256)
-    device_id: UUID
-    stored_file_id: UUID
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class DisplayProofRead(BaseModel):
-    id: UUID
-    challenge_id: UUID
-    assignment_id: UUID
-    evidence_submission_id: UUID
-    driver_profile_id: UUID
-    vehicle_id: UUID
-    device_id: UUID
-    stored_file_id: UUID
-    verified_at: datetime
-    valid_until: datetime
-    metadata: dict[str, Any]
+    evidence_validity_hours: int

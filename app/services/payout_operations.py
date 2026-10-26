@@ -13,7 +13,6 @@ from app.models.campaign import Campaign
 from app.models.disbursement import (
     PayoutBatch,
     PayoutBatchLine,
-    PayoutDebtSettlement,
     PayoutLineReconciliationEvent,
     PayoutSubmissionIntent,
     PayoutSubmissionObservation,
@@ -26,7 +25,7 @@ from app.services.billing.queries import campaign_settlement_position
 from app.services.disbursements import _frozen_payee_authority
 from app.services.fraud_assessments import load_current_successful_assessment
 from app.services.fraud_holds import fraud_hold_active_clause
-from app.services.payout_debt import driver_money_balance
+from app.services.payout_balances import driver_money_balance, trip_money_position
 
 
 def _page(limit: int, offset: int) -> None:
@@ -75,6 +74,7 @@ async def eligible_payment_entries(  # noqa: C901
         )
     ).all()
     balances = {}
+    remaining_by_trip = {}
     items = []
     totals: dict[str, Decimal] = {}
     for entry, driver_name, campaign_name in rows:
@@ -83,11 +83,22 @@ async def eligible_payment_entries(  # noqa: C901
             balances[scope] = await driver_money_balance(
                 session, driver_profile_id=entry.driver_profile_id, currency=entry.currency
             )
-        balance = balances[scope]
         reasons = []
+        amount = Decimal("0.00")
         if entry.trip_session_id is None:
             reasons.append("A trip source is required")
         else:
+            trip_scope = (entry.trip_session_id, entry.currency)
+            if trip_scope not in remaining_by_trip:
+                position = await trip_money_position(
+                    session,
+                    trip_session_id=entry.trip_session_id,
+                    currency=entry.currency,
+                )
+                remaining_by_trip[trip_scope] = position.batch_payable
+            amount = min(entry.amount, remaining_by_trip[trip_scope])
+            if amount <= 0:
+                reasons.append("This trip has no unpaid cash authority")
             assessment = await load_current_successful_assessment(
                 session, trip_id=entry.trip_session_id, settings=get_settings()
             )
@@ -99,8 +110,6 @@ async def eligible_payment_entries(  # noqa: C901
             .limit(1)
         ):
             reasons.append("Active review hold")
-        if balance.carry_forward_debt > 0:
-            reasons.append("Allocate carry-forward debt before selecting credits")
         if await session.scalar(
             select(PayoutBatchLine.id)
             .where(
@@ -137,9 +146,6 @@ async def eligible_payment_entries(  # noqa: C901
                 account_version_id = account.id
             except AppError as error:
                 reasons.append(error.message)
-        settlement = await session.scalar(
-            select(PayoutDebtSettlement).where(PayoutDebtSettlement.remainder_entry_id == entry.id)
-        )
         items.append(
             {
                 "ledger_entry_id": entry.id,
@@ -148,10 +154,8 @@ async def eligible_payment_entries(  # noqa: C901
                 "payee_name": driver_name if payee else None,
                 "campaign_name": campaign_name,
                 "occurred_at": entry.occurred_at,
-                "amount": entry.amount,
+                "amount": amount,
                 "currency": entry.currency,
-                "debt_deducted": settlement.allocated_amount if settlement else Decimal("0.00"),
-                "carry_forward_debt": balance.carry_forward_debt,
                 "destination_verified": destination_verified,
                 "bank_account_version_id": account_version_id,
                 "eligible": not reasons,
@@ -159,7 +163,8 @@ async def eligible_payment_entries(  # noqa: C901
             }
         )
         if not reasons:
-            totals[entry.currency] = totals.get(entry.currency, Decimal("0.00")) + entry.amount
+            remaining_by_trip[trip_scope] -= amount
+            totals[entry.currency] = totals.get(entry.currency, Decimal("0.00")) + amount
     return {
         "items": items,
         "total": total,
@@ -275,7 +280,7 @@ async def payout_batch_summaries(
             or_(
                 and_(
                     PayoutBatch.status == "reserved",
-                    PayoutBatch.approval_mode == "maker_checker",
+                    PayoutBatch.approval_mode == "manual",
                     PayoutBatch.approved_at.is_(None),
                 ),
                 failed_line,
@@ -488,7 +493,6 @@ async def campaign_money_position(
                 "terminal_failed": balance.terminal_failed,
                 "cash_paid": balance.cash_paid,
                 "provider_verified_paid": provider_verified_paid,
-                "driver_wide_debt": balance.carry_forward_debt,
             }
         )
     return {

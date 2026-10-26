@@ -61,8 +61,6 @@ class FraudFlagRead(BaseModel):
 class FraudFlagMoneyEffectRead(BaseModel):
     available_net: Decimal
     currency: str | None
-    reversal_entry_id: UUID | None
-    reversal_recommended: bool
 
     @field_serializer("available_net")
     def serialize_available_net(self, value: Decimal) -> str:

@@ -9,19 +9,18 @@ import { cx } from "@/lib/cx";
 const initialState: AdminActionState = {};
 
 const ROLES = [
-  { value: "advertiser", label: "Advertiser", hint: "Runs campaigns; gets a company" },
   { value: "driver", label: "Driver", hint: "Drives, tracks trips, earns" },
   { value: "admin", label: "Terrax staff", hint: "Terrax Media operations" },
 ] as const;
 
-export function CreateUserForm({ fixedRole }: { fixedRole?: "admin" | "driver" | "advertiser" }) {
+export function CreateUserForm({ fixedRole }: { fixedRole?: "admin" | "driver" }) {
   const [state, formAction, pending] = useActionState(createUserAction, initialState);
-  const [role, setRole] = useState<string>(fixedRole ?? "advertiser");
+  const [role, setRole] = useState<string>(fixedRole ?? "driver");
 
   return (
     <form action={formAction} className="flex flex-col gap-5" noValidate>
-      {fixedRole || state.createdUserId ? (
-        <input type="hidden" name="role" value={state.createdUserId ? "advertiser" : fixedRole} />
+      {fixedRole ? (
+        <input type="hidden" name="role" value={fixedRole} />
       ) : (
         <fieldset>
           <legend className="micro text-muted mb-2">Role</legend>
@@ -53,43 +52,22 @@ export function CreateUserForm({ fixedRole }: { fixedRole?: "admin" | "driver" |
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          key={`name-${state.createdUserId ?? "new"}`}
-          label="Full name"
-          name="full_name"
-          required
-          placeholder="e.g. Amina Yusuf"
-          defaultValue={state.createdFullName}
-          readOnly={Boolean(state.createdUserId)}
-        />
-        <Field
-          key={`phone-${state.createdUserId ?? "new"}`}
-          label="Phone"
-          name="phone"
-          placeholder="+234 …"
-          autoComplete="off"
-          defaultValue={state.createdPhone ?? undefined}
-          readOnly={Boolean(state.createdUserId)}
-        />
+        <Field label="Full name" name="full_name" required placeholder="e.g. Amina Yusuf" />
+        <Field label="Phone" name="phone" placeholder="+234 …" autoComplete="off" />
       </div>
       <Field
-        key={`email-${state.createdUserId ?? "new"}`}
         label="Email"
         name="email"
         type="email"
         required
         placeholder="them@company.com"
         autoComplete="off"
-        defaultValue={state.createdEmail}
-        readOnly={Boolean(state.createdUserId)}
       />
       <Field
-        key={`password-${state.createdUserId ?? "new"}`}
         label="Temporary password"
         name="password"
         type="text"
-        required={!state.createdUserId}
-        disabled={Boolean(state.createdUserId)}
+        required
         placeholder="min 12 characters — share it with them securely"
         autoComplete="off"
         className="font-mono"
@@ -105,20 +83,6 @@ export function CreateUserForm({ fixedRole }: { fixedRole?: "admin" | "driver" |
         />
       ) : null}
 
-      {role === "advertiser" ? (
-        <div className="border-edge flex flex-col gap-4 rounded-xl border border-dashed p-4">
-          <p className="micro text-muted">Company and its login</p>
-          <Field label="Company name" name="org_name" required placeholder="e.g. MTN Nigeria" />
-          <Field
-            label="Currency"
-            name="org_currency"
-            placeholder="NGN"
-            maxLength={3}
-            className="font-mono uppercase"
-          />
-        </div>
-      ) : null}
-
       {state.error ? (
         <p
           role="alert"
@@ -129,7 +93,7 @@ export function CreateUserForm({ fixedRole }: { fixedRole?: "admin" | "driver" |
       ) : null}
 
       <Button type="submit" disabled={pending} className="w-full">
-        {pending ? "Creating…" : state.createdUserId ? "Retry company creation" : "Create account"}
+        {pending ? "Creating…" : "Create account"}
       </Button>
     </form>
   );

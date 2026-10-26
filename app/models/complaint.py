@@ -87,7 +87,6 @@ class Complaint(Base):
         Index("ix_complaints_status_last_message", "status", "last_message_at"),
         Index("ix_complaints_driver_profile_id", "driver_profile_id"),
         Index("ix_complaints_advertiser_organization_id", "advertiser_organization_id"),
-        Index("ix_complaints_assigned_to_user_id", "assigned_to_user_id"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -119,9 +118,6 @@ class Complaint(Base):
         default=ComplaintStatus.OPEN.value,
         server_default=text("'open'"),
         nullable=False,
-    )
-    assigned_to_user_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("users.id", ondelete="RESTRICT")
     )
     revision: Mapped[int] = mapped_column(
         Integer, default=1, server_default=text("1"), nullable=False

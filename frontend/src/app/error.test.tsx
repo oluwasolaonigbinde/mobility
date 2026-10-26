@@ -5,8 +5,8 @@ import RootError from "./error";
 
 const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
 
-vi.mock("@sentry/nextjs", () => ({
-  captureException,
+vi.mock("@/lib/client-monitoring", () => ({
+  captureClientError: captureException,
 }));
 
 describe("root error boundary", () => {
@@ -19,19 +19,19 @@ describe("root error boundary", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const error = Object.assign(new Error("render failed"), { digest: "digest-123" });
 
-    render(<RootError error={error} reset={vi.fn()} />);
+    render(<RootError error={error} retry={vi.fn()} />);
 
     await waitFor(() => expect(captureException).toHaveBeenCalledWith(error));
     expect(screen.queryByText(/digest-123/)).not.toBeInTheDocument();
-    expect(screen.getByText(/contact Cardvert support/i)).toBeInTheDocument();
+    expect(screen.getByText(/contact Terrax Media/i)).toBeInTheDocument();
   });
 
   it("retries from the recovery action", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const retry = vi.fn();
-    render(<RootError error={new Error("render failed")} reset={retry} />);
+    render(<RootError error={new Error("render failed")} retry={retry} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reload page" }));
 
     expect(retry).toHaveBeenCalledOnce();
   });

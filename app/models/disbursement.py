@@ -67,17 +67,6 @@ class PayoutSubmissionObservationOutcome(StrEnum):
     UNKNOWN = "unknown"
 
 
-class PayoutRecoveryIncidentKind(StrEnum):
-    CONFIRMED_FRAUD = "confirmed_fraud"
-    DUPLICATE_CASH = "duplicate_cash"
-
-
-class PayoutRecoveryIncidentStatus(StrEnum):
-    CONTINGENT = "contingent"
-    DEBT_ACTIVATED = "debt_activated"
-    CLOSED = "closed"
-
-
 # D39(c) Batch C: the one non-human identity that prepares and approves
 # automatic payout batches. Seeded by baseline 0106 as a disabled admin with an
 # unusable password, so it can never sign in or pass require_active_admin; the
@@ -90,7 +79,7 @@ CARDVERT_AUTOMATIC_PAYOUT_ACTOR_NAME = "Cardvert (automatic payouts)"
 # PostgreSQL compares this literal against the automatic actor UUID.
 _ACTOR_SQL = f"'{CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID}'"
 _APPROVAL_MODE_CHECK = (
-    f"(approval_mode = 'maker_checker' AND automatic_run_id IS NULL "
+    f"(approval_mode = 'manual' AND automatic_run_id IS NULL "
     f"AND created_by_user_id <> {_ACTOR_SQL}) OR "
     f"(approval_mode = 'automatic' AND automatic_run_id IS NOT NULL "
     f"AND created_by_user_id = {_ACTOR_SQL} "
@@ -100,7 +89,7 @@ _APPROVAL_MODE_CHECK = (
 
 
 class PayoutBatchApprovalMode(StrEnum):
-    MAKER_CHECKER = "maker_checker"
+    MANUAL = "manual"
     AUTOMATIC = "automatic"
 
 
@@ -108,7 +97,6 @@ class PayoutAutomaticAlertKind(StrEnum):
     FAILED_PAYMENT = "failed_payment"
     DUPLICATE_PAYMENT = "duplicate_payment"
     DAILY_LIMIT = "daily_limit"
-    BATCH_LIMIT = "batch_limit"
     RUN_FAILED = "run_failed"
     SUBMISSION_BLOCKED = "submission_blocked"
     BUSINESS_HEALTH = "business_health"
@@ -130,10 +118,6 @@ class PayoutBatch(Base):
             name="ck_payout_batches_reserved_fingerprint",
         ),
         CheckConstraint(
-            "approved_by_user_id IS NULL OR approved_by_user_id <> created_by_user_id",
-            name="ck_payout_batches_maker_checker",
-        ),
-        CheckConstraint(
             _APPROVAL_MODE_CHECK,
             name="ck_payout_batches_approval_mode",
         ),
@@ -147,7 +131,7 @@ class PayoutBatch(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     total_amount: Mapped[Decimal] = mapped_column(
-        Numeric(14, 2), default=Decimal("0"), server_default=text("0"), nullable=False
+        Numeric(18, 2), default=Decimal("0"), server_default=text("0"), nullable=False
     )
     instruction_set_fingerprint: Mapped[str | None] = mapped_column(String(64))
     provider_submission_reference: Mapped[str | None] = mapped_column(Text)
@@ -161,8 +145,8 @@ class PayoutBatch(Base):
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     approval_mode: Mapped[str] = mapped_column(
         String(16),
-        default=PayoutBatchApprovalMode.MAKER_CHECKER.value,
-        server_default=text("'maker_checker'"),
+        default=PayoutBatchApprovalMode.MANUAL.value,
+        server_default=text("'manual'"),
         nullable=False,
     )
     automatic_run_id: Mapped[UUID | None] = mapped_column(
@@ -670,287 +654,6 @@ class PayoutProviderEventProcessingAttempt(Base):
     processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
-class PayoutRecoveryIncident(Base):
-    __tablename__ = "payout_recovery_incidents"
-    __table_args__ = (
-        CheckConstraint(
-            "kind IN ('confirmed_fraud', 'duplicate_cash')",
-            name="ck_payout_recovery_incidents_kind",
-        ),
-        CheckConstraint(
-            "status IN ('contingent', 'debt_activated', 'closed')",
-            name="ck_payout_recovery_incidents_status",
-        ),
-        CheckConstraint("amount > 0", name="ck_payout_recovery_incidents_amount_positive"),
-        CheckConstraint("length(currency) = 3", name="ck_payout_recovery_incidents_currency"),
-        CheckConstraint("length(dedupe_key) = 64", name="ck_payout_recovery_incidents_dedupe_key"),
-        CheckConstraint(
-            "(kind = 'confirmed_fraud' AND source_fraud_flag_id IS NOT NULL "
-            "AND source_reversal_entry_id IS NOT NULL) OR "
-            "(kind = 'duplicate_cash' AND source_fraud_flag_id IS NULL "
-            "AND source_reversal_entry_id IS NULL)",
-            name="ck_payout_recovery_incidents_source",
-        ),
-        CheckConstraint(
-            "(status = 'contingent' AND exposure_line_id IS NOT NULL "
-            "AND resolved_at IS NULL) OR "
-            "(status IN ('debt_activated', 'closed') AND resolved_at IS NOT NULL)",
-            name="ck_payout_recovery_incidents_resolution",
-        ),
-        Index("ix_payout_recovery_incidents_ledger", "ledger_entry_id", "created_at"),
-        Index("ix_payout_recovery_incidents_exposure", "exposure_line_id", "status"),
-    )
-
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
-    )
-    ledger_entry_id: Mapped[UUID] = mapped_column(
-        ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT"), nullable=False
-    )
-    chain_root_line_id: Mapped[UUID] = mapped_column(
-        ForeignKey("payout_batch_lines.id", ondelete="RESTRICT"), nullable=False
-    )
-    exposure_line_id: Mapped[UUID] = mapped_column(
-        ForeignKey("payout_batch_lines.id", ondelete="RESTRICT"), nullable=False
-    )
-    source_fraud_flag_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("fraud_flags.id", ondelete="RESTRICT")
-    )
-    source_reversal_entry_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT")
-    )
-    created_by_user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
-    )
-    kind: Mapped[str] = mapped_column(String(24), nullable=False)
-    status: Mapped[str] = mapped_column(String(24), nullable=False)
-    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    dedupe_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
-    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-
-_RECOVERY_INCIDENT_IDENTITY_FIELDS = frozenset(
-    {
-        "ledger_entry_id",
-        "chain_root_line_id",
-        "exposure_line_id",
-        "source_fraud_flag_id",
-        "source_reversal_entry_id",
-        "created_by_user_id",
-        "kind",
-        "amount",
-        "currency",
-        "dedupe_key",
-        "created_at",
-    }
-)
-
-
-@event.listens_for(PayoutRecoveryIncident, "before_update")
-def validate_payout_recovery_incident_update(_mapper, _connection, target) -> None:
-    state = inspect(target)
-    if any(
-        state.attrs[field].history.has_changes() for field in _RECOVERY_INCIDENT_IDENTITY_FIELDS
-    ):
-        raise ValueError("payout recovery incident identity is immutable")
-    status_history = state.attrs.status.history
-    before = status_history.deleted[0] if status_history.deleted else target.status
-    after = status_history.added[0] if status_history.added else target.status
-    if status_history.has_changes() and (before, after) not in {
-        (
-            PayoutRecoveryIncidentStatus.CONTINGENT.value,
-            PayoutRecoveryIncidentStatus.DEBT_ACTIVATED.value,
-        ),
-        (
-            PayoutRecoveryIncidentStatus.CONTINGENT.value,
-            PayoutRecoveryIncidentStatus.CLOSED.value,
-        ),
-        (
-            PayoutRecoveryIncidentStatus.DEBT_ACTIVATED.value,
-            PayoutRecoveryIncidentStatus.CLOSED.value,
-        ),
-        (
-            PayoutRecoveryIncidentStatus.CLOSED.value,
-            PayoutRecoveryIncidentStatus.DEBT_ACTIVATED.value,
-        ),
-    }:
-        raise ValueError("payout recovery incident state transition is invalid")
-
-
-@event.listens_for(PayoutRecoveryIncident, "before_delete")
-def reject_payout_recovery_incident_delete(_mapper, _connection, _target) -> None:
-    raise ValueError("payout recovery incidents are append-only")
-
-
-class DriverCurrencyDebtAccount(Base):
-    __tablename__ = "driver_currency_debt_accounts"
-    __table_args__ = (
-        CheckConstraint("length(currency) = 3", name="ck_driver_debt_accounts_currency"),
-        CheckConstraint(
-            "outstanding_amount >= 0 AND lifetime_incurred_amount >= 0 "
-            "AND lifetime_allocated_amount >= 0",
-            name="ck_driver_debt_accounts_amounts_non_negative",
-        ),
-        CheckConstraint(
-            "lifetime_incurred_amount = outstanding_amount + lifetime_allocated_amount",
-            name="ck_driver_debt_accounts_conservation",
-        ),
-        UniqueConstraint(
-            "driver_profile_id", "currency", name="uq_driver_debt_accounts_driver_currency"
-        ),
-    )
-
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    driver_profile_id: Mapped[UUID] = mapped_column(
-        ForeignKey("driver_profiles.id", ondelete="RESTRICT"), nullable=False
-    )
-    driver_user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
-    )
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    outstanding_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    lifetime_incurred_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    lifetime_allocated_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
-    )
-
-
-class PayoutDebtObligation(Base):
-    __tablename__ = "payout_debt_obligations"
-    __table_args__ = (
-        CheckConstraint("length(currency) = 3", name="ck_payout_debt_obligations_currency"),
-        CheckConstraint(
-            "original_amount > 0 AND outstanding_amount >= 0 "
-            "AND outstanding_amount <= original_amount",
-            name="ck_payout_debt_obligations_amounts",
-        ),
-        CheckConstraint(
-            "source_reversal_entry_id IS NOT NULL OR recovery_incident_id IS NOT NULL",
-            name="ck_payout_debt_obligations_source",
-        ),
-        Index("ix_payout_debt_obligations_account", "debt_account_id", "created_at"),
-        UniqueConstraint(
-            "recovery_incident_id",
-            name="uq_payout_debt_obligations_recovery_incident",
-        ),
-        Index(
-            "uq_payout_debt_obligations_direct_reversal",
-            "source_reversal_entry_id",
-            unique=True,
-            postgresql_where=text("recovery_incident_id IS NULL"),
-        ),
-    )
-
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    debt_account_id: Mapped[UUID] = mapped_column(
-        ForeignKey("driver_currency_debt_accounts.id", ondelete="RESTRICT"), nullable=False
-    )
-    source_reversal_entry_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT"),
-    )
-    recovery_incident_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("payout_recovery_incidents.id", ondelete="RESTRICT")
-    )
-    correction_order_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("payout_correction_orders.id", ondelete="RESTRICT")
-    )
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    original_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    outstanding_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-
-class PayoutDebtPaidSource(Base):
-    __tablename__ = "payout_debt_paid_sources"
-    __table_args__ = (
-        UniqueConstraint(
-            "debt_obligation_id",
-            "paid_ledger_entry_id",
-            name="uq_payout_debt_paid_sources_obligation_entry",
-        ),
-    )
-
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    debt_obligation_id: Mapped[UUID] = mapped_column(
-        ForeignKey("payout_debt_obligations.id", ondelete="RESTRICT"), nullable=False
-    )
-    paid_ledger_entry_id: Mapped[UUID] = mapped_column(
-        ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT"), nullable=False
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-
-class PayoutDebtSettlement(Base):
-    __tablename__ = "payout_debt_settlements"
-    __table_args__ = (
-        CheckConstraint(
-            "original_credit_amount > 0 AND allocated_amount > 0 "
-            "AND allocated_amount <= original_credit_amount",
-            name="ck_payout_debt_settlements_amounts",
-        ),
-        CheckConstraint(
-            "(allocated_amount = original_credit_amount AND remainder_entry_id IS NULL) OR "
-            "(allocated_amount < original_credit_amount AND remainder_entry_id IS NOT NULL)",
-            name="ck_payout_debt_settlements_remainder",
-        ),
-    )
-
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    source_credit_entry_id: Mapped[UUID] = mapped_column(
-        ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT"),
-        nullable=False,
-        unique=True,
-    )
-    remainder_entry_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT"), unique=True
-    )
-    original_credit_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    allocated_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
-    created_by_user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-
-class PayoutDebtAllocation(Base):
-    __tablename__ = "payout_debt_allocations"
-    __table_args__ = (
-        CheckConstraint("amount > 0", name="ck_payout_debt_allocations_amount_positive"),
-        UniqueConstraint(
-            "settlement_id",
-            "debt_obligation_id",
-            name="uq_payout_debt_allocations_settlement_obligation",
-        ),
-    )
-
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    settlement_id: Mapped[UUID] = mapped_column(
-        ForeignKey("payout_debt_settlements.id", ondelete="RESTRICT"), nullable=False
-    )
-    debt_obligation_id: Mapped[UUID] = mapped_column(
-        ForeignKey("payout_debt_obligations.id", ondelete="RESTRICT"), nullable=False
-    )
-    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-
 class PayoutAutomaticRun(Base):
     """One completed automatic payout run per payout period (D39(c), Batch C).
 
@@ -960,12 +663,10 @@ class PayoutAutomaticRun(Base):
 
     __tablename__ = "payout_automatic_runs"
     __table_args__ = (
-        CheckConstraint("frequency IN ('daily', 'weekly')", name="ck_payout_automatic_runs_freq"),
         CheckConstraint("length(currency) = 3", name="ck_payout_automatic_runs_currency"),
-        CheckConstraint("batch_limit > 0", name="ck_payout_automatic_runs_limit_positive"),
         CheckConstraint(
-            "total_amount >= 0 AND total_amount <= batch_limit",
-            name="ck_payout_automatic_runs_total_within_limit",
+            "total_amount >= 0",
+            name="ck_payout_automatic_runs_total_nonnegative",
         ),
         CheckConstraint(
             "batch_count >= 0 AND line_count >= batch_count",
@@ -978,13 +679,11 @@ class PayoutAutomaticRun(Base):
         primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
     )
     period_key: Mapped[str] = mapped_column(String(16), nullable=False)
-    frequency: Mapped[str] = mapped_column(String(8), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    batch_limit: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    total_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    total_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     batch_count: Mapped[int] = mapped_column(Integer, nullable=False)
     line_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    # Entries kept on the maker-checker path, by reason: {"reason": {"count", "amount"}}.
+    # Entries kept on the reasoned manual path, by reason: {"reason": {"count", "amount"}}.
     exclusions: Mapped[dict[str, Any]] = mapped_column(
         JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
     )
@@ -1034,7 +733,7 @@ class PayoutAutomaticAlert(Base):
     __table_args__ = (
         CheckConstraint(
             "kind IN ('failed_payment', 'duplicate_payment', 'daily_limit', "
-            "'batch_limit', 'run_failed', 'submission_blocked', 'business_health')",
+            "'run_failed', 'submission_blocked', 'business_health')",
             name="ck_payout_automatic_alerts_kind",
         ),
         CheckConstraint(

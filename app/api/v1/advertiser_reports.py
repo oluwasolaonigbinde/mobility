@@ -10,7 +10,7 @@ from app.core.errors import AppError
 from app.schemas.campaigns import ensure_timezone_aware
 from app.schemas.reports import (
     AdvertiserDashboardSummary,
-    CampaignReportResponse,
+    CampaignPerformanceRead,
     CampaignSummary,
     CampaignTripsResponse,
     DailyMetricsResponse,
@@ -108,7 +108,10 @@ async def advertiser_get_campaign_summary(
     "/advertiser/campaigns/{campaign_id}/daily-metrics",
     response_model=DailyMetricsResponse,
     summary="List advertiser campaign daily metrics",
-    description="Return UTC daily reporting rows from stored demo or production data.",
+    description=(
+        "Return Nigeria calendar days (WAT); default to seven days including partial today. "
+        "Empty days are zero; days below three cars are withheld."
+    ),
 )
 async def advertiser_get_campaign_daily_metrics(
     campaign_id: UUID,
@@ -158,9 +161,12 @@ async def advertiser_get_campaign_trip_aggregate(
 
 @router.get(
     "/advertiser/campaigns/{campaign_id}/report",
-    response_model=CampaignReportResponse,
-    summary="Read bundled advertiser campaign report",
-    description="Return compact dashboard, daily, creative, zone, assignment, and cost sections.",
+    response_model=CampaignPerformanceRead,
+    summary="Read campaign results",
+    description=(
+        "Return campaign-wide distance, trips, Nigeria driving days, "
+        "estimated views and privacy-safe areas."
+    ),
 )
 async def advertiser_get_campaign_report(
     campaign_id: UUID,
@@ -169,7 +175,7 @@ async def advertiser_get_campaign_report(
     settings: SettingsDependency,
     start_at: datetime | None = None,
     end_at: datetime | None = None,
-) -> CampaignReportResponse:
+) -> CampaignPerformanceRead:
     start_at, end_at = ensure_report_date_range(start_at, end_at)
     return await advertiser_campaign_report(
         session,

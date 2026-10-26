@@ -12,7 +12,10 @@ const { get, requireRole, notFound } = vi.hoisted(() => ({
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("@/lib/auth/current-user", () => ({ requireRole }));
-vi.mock("next/navigation", () => ({ notFound }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  notFound,
+}));
 vi.mock("@/lib/billing/invoice-document", () => ({
   InvoiceDocument: ({
     invoice,

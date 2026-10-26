@@ -5,7 +5,7 @@ import GlobalError from "./global-error";
 
 const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
 
-vi.mock("@sentry/nextjs", () => ({ captureException }));
+vi.mock("@/lib/client-monitoring", () => ({ captureClientError: captureException }));
 
 describe("global error boundary", () => {
   afterEach(() => captureException.mockReset());
@@ -18,8 +18,8 @@ describe("global error boundary", () => {
 
     await waitFor(() => expect(captureException).toHaveBeenCalledWith(error));
     expect(screen.queryByText(/digest-456/)).not.toBeInTheDocument();
-    expect(screen.getByText(/contact Cardvert support/i)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(screen.getByText(/contact Terrax Media/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Reload page" }));
     expect(retry).toHaveBeenCalledOnce();
   });
 });

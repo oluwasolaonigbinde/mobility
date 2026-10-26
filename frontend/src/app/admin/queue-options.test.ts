@@ -59,13 +59,13 @@ describe("searchOperatorOptions", () => {
     expect(mocks.GET).not.toHaveBeenCalled();
   });
 
-  it("lists campaigns and marks only approved, scheduled or active campaigns selectable", async () => {
+  it("lists campaigns and marks only approved or active campaigns selectable", async () => {
     mocks.GET.mockResolvedValue({
       data: {
         total: 60,
         items: [
           { id: "aaaaaaaa-0000-4000-8000-000000000001", name: "Approved", status: "approved" },
-          { id: "bbbbbbbb-0000-4000-8000-000000000002", name: "Scheduled", status: "scheduled" },
+          { id: "bbbbbbbb-0000-4000-8000-000000000002", name: "Paused", status: "paused" },
           { id: "cccccccc-0000-4000-8000-000000000003", name: "Live", status: "active" },
           { id: "dddddddd-0000-4000-8000-000000000004", name: "Draft", status: "draft" },
         ],
@@ -79,8 +79,8 @@ describe("searchOperatorOptions", () => {
     expect(result.total).toBe(60);
     expect(result.items.map((i) => [i.label, i.detail, i.unavailable])).toEqual([
       ["Approved", "Approved", undefined],
-      ["Scheduled", "Scheduled", undefined],
-      ["Live", "Live", undefined],
+      ["Paused", "Paused", "Campaign approval required"],
+      ["Live", "Running", undefined],
       ["Draft", "Draft", "Campaign approval required"],
     ]);
   });

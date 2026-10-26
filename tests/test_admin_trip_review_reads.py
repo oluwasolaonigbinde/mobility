@@ -20,7 +20,7 @@ from test_trip_analytics import add_pings
 
 from app.api.v1.trip_analytics import router
 from app.models.payout import EarningsLedgerEntry
-from app.models.trip import LocationPing, LocationPingBatch, QuarantinedPingBatch
+from app.models.trip import LocationPing, LocationPingBatch
 from app.models.trip_analytics import FraudFlag
 from app.models.user import UserRole, UserStatus
 from app.services.admin_trip_review import read_held_trip_pay
@@ -39,7 +39,7 @@ def db_sessionmaker(postgis_db_sessionmaker):
 def test_held_money_is_trip_level_pending_net_without_writes(db_client, db_sessionmaker):
     graph = build_review_graph(db_sessionmaker, "held-read")
     first = create_flag(db_sessionmaker, graph)
-    second = create_flag(db_sessionmaker, graph, flag_type="poor_accuracy")
+    second = create_flag(db_sessionmaker, graph, flag_type="excessive_ping_gap")
     create_ledger(db_sessionmaker, graph, amount="100.00")
     create_ledger(db_sessionmaker, graph, status="available", amount="50.00")
     create_ledger(db_sessionmaker, graph, status="paid", amount="40.00")
@@ -136,16 +136,6 @@ def test_route_is_paged_ordered_trip_bound_and_audited(db_client, db_sessionmake
                     latitude=80.0,
                     longitude=60.0,
                     geom=point_value(session, lon=60.0, lat=80.0),
-                )
-            )
-            session.add(
-                QuarantinedPingBatch(
-                    trip_session_id=graph.trip.id,
-                    idempotency_key="not-applied",
-                    payload_hash="a" * 64,
-                    payload={"pings": [{"latitude": 75, "longitude": 55}]},
-                    ping_count=1,
-                    received_at=NOW,
                 )
             )
             await session.commit()
@@ -253,7 +243,7 @@ def test_route_commit_failure_never_returns_coordinates(db_client, db_sessionmak
     ]
 
 
-@pytest.mark.parametrize("state", ["acknowledged", "confirmed"])
+@pytest.mark.parametrize("state", ["open", "confirmed"])
 @pytest.mark.parametrize(
     "reversal_amount,expected", [("20.00", "80.00"), ("100.00", "0"), ("120.00", "0")]
 )
@@ -267,8 +257,8 @@ def test_active_review_holds_and_nonpositive_net(db_sessionmaker, state, reversa
         async with db_sessionmaker() as session:
             current = await session.get(FraudFlag, flag.id)
             current.status = state
-            current.reviewed_by_user_id = graph.admin.id
-            current.reviewed_at = NOW
+            current.reviewed_by_user_id = graph.admin.id if state == "confirmed" else None
+            current.reviewed_at = NOW if state == "confirmed" else None
             current.resolution_note = "Problem confirmed" if state == "confirmed" else None
             entry = await session.get(EarningsLedgerEntry, reversal.id)
             entry.entry_type = "reversal"
@@ -290,9 +280,6 @@ def test_review_commands_do_not_use_held_read(db_client, db_sessionmaker, monkey
 
     monkeypatch.setattr("app.services.admin_worklist_reads.flag_list_money", fail)
     base = f"/api/v1/admin/fraud-flags/{flag.id}/review"
-    ack = db_client.post(base + "/acknowledge", headers=headers)
-    assert ack.status_code == 200
-    assert "held_pending_net" not in ack.json()["money_effect"]
     clear = db_client.post(
         base + "/resolve", headers=headers, json={"outcome": "dismissed", "note": "Verified review"}
     )

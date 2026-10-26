@@ -11,15 +11,13 @@ const common: Record<string, string> = {
   rejected: "Not approved",
   scheduled: "Scheduled",
   paused: "Paused",
-  completed: "Ended",
+  finished: "Finished",
   cancelled: "Cancelled",
   open: "Needs attention",
-  acknowledged: "Looking into it",
   confirmed: "Problem confirmed",
   dismissed: "Cleared",
   clean: "Clear",
   flagged: "On hold",
-  quarantined: "Late upload",
   applied: "Added to trip",
   discarded: "Ignored",
   offered: "Offered",
@@ -27,7 +25,7 @@ const common: Record<string, string> = {
   declined: "Declined",
   expired: "Expired",
   reserved: "Waiting for approval",
-  maker_checker: "Needs a second approval",
+  manual: "Manual approval",
   pending: "Waiting",
   processing: "Being checked",
   available: "Ready for payout",
@@ -35,6 +33,7 @@ const common: Record<string, string> = {
   paid: "Paid",
   reversal: "Taken back",
   failed: "Failed",
+  passed: "Passed",
   not_submitted: "Not submitted",
   not_started: "Not started",
   verified: "Verified",
@@ -68,6 +67,12 @@ const common: Record<string, string> = {
   approved_for_execution: "Ready to run",
 };
 const contexts: Record<string, Record<string, string>> = {
+  report_kind: {
+    weekly: "Weekly report",
+    final: "Final report",
+    custom: "Custom report",
+    issued: "Issued report",
+  },
   payment_outcome: {
     reserved: "Waiting for approval",
     queued: "Queued — not submitted",
@@ -87,8 +92,6 @@ const contexts: Record<string, Record<string, string>> = {
   correction: {
     stale: "Needs a new preview",
     executed: "Completed",
-    approved: "Ready to run",
-    pending_approval: "Needs a second approval",
   },
   invoice: { paid: "Paid", part_paid: "Part-paid", unpaid: "Unpaid", void: "Voided" },
   audience: {
@@ -98,9 +101,10 @@ const contexts: Record<string, Record<string, string>> = {
     empty: "No matching audience",
   },
   driver: { pending: "Applicant", rejected: "Not approved" },
-  campaign: { active: "Live", pending_review: "For review", completed: "Ended" },
-  job: { active: "Live", accepted: "Accepted" },
+  campaign: { active: "Running", pending_review: "For review", finished: "Finished" },
+  job: { active: "Running", accepted: "Accepted" },
   review: { pending: "Needs review", pending_review: "Needs review" },
+  report: { queued: "Being prepared", processing: "Being prepared", ready: "Ready" },
   complaint: { open: "Needs a reply", answered: "Waiting on them", resolved: "Resolved" },
   contact: { open: "Needs contact", completed: "Completed" },
   payment_class: {
@@ -151,6 +155,9 @@ export function adminTone(value: string): "green" | "amber" | "coral" | "default
   return "default";
 }
 const actions: Record<string, string> = {
+  "auth.login.succeeded": "Signed in",
+  "auth.login.failed": "Sign-in unsuccessful",
+  "auth.login.rate_limited": "Sign-in temporarily limited",
   "admin.campaign.resumed": "Campaign resumed",
   "admin.campaign.paused": "Campaign paused",
   "driver.profile.updated": "Driver updated their details",
@@ -164,6 +171,10 @@ const actions: Record<string, string> = {
   "admin.campaign.scheduled": "Campaign scheduled",
   "admin.campaign.activated": "Campaign started",
 };
+export const activityFilterOptions = Object.entries(actions).map(([value, label]) => ({
+  value,
+  label,
+}));
 export function adminActivity(action: string): string {
   if (actions[action]) return actions[action];
   const words = action.replace(/^(admin|advertiser|driver)\./, "").replaceAll(/[._]/g, " ");

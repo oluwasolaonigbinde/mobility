@@ -564,7 +564,9 @@ def test_paystack_verification_rejects_amount_outside_saved_checkout(
     asyncio.run(assert_rejected())
 
 
-@pytest.mark.parametrize("crash", ["before_dispatch", "after_acceptance"])
+@pytest.mark.parametrize(
+    "crash", ["before_dispatch", "after_acceptance", "cancelled_after_acceptance"]
+)
 def test_interrupted_checkout_recovers_the_same_saved_reference(
     db_sessionmaker, settings, monkeypatch, crash
 ) -> None:
@@ -637,6 +639,8 @@ def test_interrupted_checkout_recovers_the_same_saved_reference(
             )
 
             async def local_save_failed(_session):
+                if crash == "cancelled_after_acceptance":
+                    raise asyncio.CancelledError("synthetic cancellation after provider acceptance")
                 raise RuntimeError("synthetic local persistence failure")
 
             from app.services.billing import checkout as checkout_service
@@ -649,7 +653,17 @@ def test_interrupted_checkout_recovers_the_same_saved_reference(
                     failure.setattr(adapter, "create_checkout", process_died)
                 else:
                     failure.setattr(checkout_service, "database_clock", local_save_failed)
-                with pytest.raises(RuntimeError, match="local persistence failure"):
+                failure_type = (
+                    asyncio.CancelledError
+                    if crash == "cancelled_after_acceptance"
+                    else RuntimeError
+                )
+                failure_message = (
+                    "cancellation after provider acceptance"
+                    if crash == "cancelled_after_acceptance"
+                    else "local persistence failure"
+                )
+                with pytest.raises(failure_type, match=failure_message):
                     await initialize_invoice_payment_checkout(
                         session,
                         checkout_id=checkout_id,

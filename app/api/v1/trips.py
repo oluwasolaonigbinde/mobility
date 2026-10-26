@@ -1,9 +1,9 @@
+from typing import Literal, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, status
 
 from app.api.v1.dependencies import (
-    AdminUserDependency,
     DriverUserDependency,
     SessionDependency,
     SettingsDependency,
@@ -15,10 +15,6 @@ from app.schemas.trips import (
     LocationPingBatchCreate,
     LocationPingBatchResponse,
     PingSampleResult,
-    QuarantineApplyResponse,
-    QuarantinedPingBatchListResponse,
-    QuarantinedPingBatchRead,
-    QuarantineResolveRequest,
     TripEndRequest,
     TripEvidenceReconcileResponse,
     TripRead,
@@ -28,20 +24,16 @@ from app.services.audit import create_audit_event
 from app.services.trip_evidence import manifest_sample_results
 from app.services.trips import (
     TripSummary,
-    apply_quarantined_ping_batch,
-    discard_quarantined_ping_batch,
     end_driver_trip,
     get_current_driver_trip,
     get_driver_trip,
     ingest_location_ping_batch,
-    list_quarantined_ping_batches,
     reconcile_trip_evidence,
     start_driver_trip,
     summarize_trip,
 )
 
 router = APIRouter(prefix="/driver/trips", tags=["Trips"])
-admin_router = APIRouter(prefix="/admin/trips", tags=["Trips Admin"])
 
 
 def trip_response(summary: TripSummary) -> TripRead:
@@ -52,7 +44,6 @@ def trip_response(summary: TripSummary) -> TripRead:
         campaign_id=trip.campaign_id,
         driver_profile_id=trip.driver_profile_id,
         vehicle_id=trip.vehicle_id,
-        display_proof_id=trip.display_proof_id,
         status=trip.status,
         started_at=trip.started_at,
         ended_at=trip.ended_at,
@@ -142,38 +133,10 @@ async def driver_ingest_location_pings(
         )
     finally:
         await record_gps_attempt(settings, telemetry)
-    if result.quarantine is not None and not result.duplicate:
-        await create_audit_event(
-            session,
-            actor_user_id=current_user.id,
-            action="trip.ping_batch.quarantined",
-            entity_type="quarantined_ping_batch",
-            entity_id=str(result.quarantine.id),
-            metadata={
-                "trip_session_id": str(trip_id),
-                "ping_count": result.quarantine.ping_count,
-            },
-        )
     await session.commit()
-    if result.quarantine is not None:
-        row = result.quarantine
-        return LocationPingBatchResponse(
-            batch_id=row.id,
-            trip_id=row.trip_session_id,
-            accepted_count=0,
-            submitted_count=row.pings_submitted,
-            rejected_count=row.pings_rejected,
-            batch_sequence=row.batch_sequence,
-            payload_hash_version=row.payload_hash_version,
-            payload_hash=row.payload_hash,
-            outcome=row.receipt_outcome,
-            receipt_format_version=row.receipt_format_version,
-            receipt_key_version=row.receipt_key_version,
-            receipt_signature=row.receipt_signature,
-            duplicate=result.duplicate,
-            quarantined=True,
-        )
     row = result.batch
+    if not result.duplicate and row.evidence_scope == "late" and row.pings_accepted:
+        await enqueuer.enqueue_trip_processing(trip_id)
     return LocationPingBatchResponse(
         batch_id=row.id,
         trip_id=row.trip_session_id,
@@ -184,6 +147,7 @@ async def driver_ingest_location_pings(
         payload_hash_version=row.payload_hash_version,
         payload_hash=row.payload_hash,
         outcome=row.receipt_outcome,
+        evidence_scope=cast(Literal["manifest", "late", "late_dropped"], row.evidence_scope),
         receipt_format_version=row.receipt_format_version,
         receipt_key_version=row.receipt_key_version,
         receipt_signature=row.receipt_signature,
@@ -315,118 +279,3 @@ async def driver_get_trip(
 ) -> TripRead:
     trip = await get_driver_trip(session, user_id=current_user.id, trip_id=trip_id)
     return trip_response(await summarize_trip(session, trip))
-
-
-# --- admin: post-seal quarantine review (RM3 controlled reopen) ---------------
-
-
-def quarantine_response(row) -> QuarantinedPingBatchRead:
-    return QuarantinedPingBatchRead(
-        id=row.id,
-        trip_session_id=row.trip_session_id,
-        idempotency_key=row.idempotency_key,
-        ping_count=row.ping_count,
-        received_at=row.received_at,
-        status=row.status,
-        resolved_at=row.resolved_at,
-        resolved_by_user_id=row.resolved_by_user_id,
-        resolution_note=row.resolution_note,
-        applied_batch_id=row.applied_batch_id,
-        created_at=row.created_at,
-    )
-
-
-@admin_router.get(
-    "/quarantined-batches",
-    response_model=QuarantinedPingBatchListResponse,
-    summary="List quarantined ping batches",
-)
-async def admin_list_quarantined_batches(
-    current_user: AdminUserDependency,
-    session: SessionDependency,
-    trip_id: UUID | None = None,
-    status_filter: str | None = Query(default=None, alias="status"),
-    limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
-    quarantine_id: UUID | None = None,
-    driver_profile_id: UUID | None = None,
-    campaign_id: UUID | None = None,
-) -> QuarantinedPingBatchListResponse:
-    items, total = await list_quarantined_ping_batches(
-        session,
-        quarantine_id=quarantine_id,
-        driver_profile_id=driver_profile_id,
-        campaign_id=campaign_id,
-        trip_id=trip_id,
-        batch_status=status_filter,
-        limit=limit,
-        offset=offset,
-    )
-    from app.services.admin_worklist_reads import trip_contexts
-
-    context = await trip_contexts(session, {row.trip_session_id for row in items})
-    projected = []
-    for row in items:
-        projected.append(
-            quarantine_response(row).model_copy(update=context.get(row.trip_session_id, {}))
-        )
-    return QuarantinedPingBatchListResponse(
-        items=projected,
-        total=total,
-        limit=limit,
-        offset=offset,
-    )
-
-
-@admin_router.post(
-    "/{trip_id}/quarantined-batches/{quarantine_id}/apply",
-    response_model=QuarantineApplyResponse,
-    summary="Apply a quarantined ping batch as live trip evidence",
-)
-async def admin_apply_quarantined_batch(
-    trip_id: UUID,
-    quarantine_id: UUID,
-    payload: QuarantineResolveRequest,
-    current_user: AdminUserDependency,
-    session: SessionDependency,
-    settings: SettingsDependency,
-) -> QuarantineApplyResponse:
-    result = await apply_quarantined_ping_batch(
-        session,
-        trip_id=trip_id,
-        quarantine_id=quarantine_id,
-        admin_user_id=current_user.id,
-        note=payload.note,
-        settings=settings,
-    )
-    await session.commit()
-    return QuarantineApplyResponse(
-        quarantine_id=result.quarantine.id,
-        trip_id=trip_id,
-        applied_batch_id=result.batch.id,
-        accepted_count=result.batch.pings_accepted,
-        affected_lagos_days=result.affected_lagos_days,
-    )
-
-
-@admin_router.post(
-    "/{trip_id}/quarantined-batches/{quarantine_id}/discard",
-    response_model=QuarantinedPingBatchRead,
-    summary="Discard a quarantined ping batch",
-)
-async def admin_discard_quarantined_batch(
-    trip_id: UUID,
-    quarantine_id: UUID,
-    payload: QuarantineResolveRequest,
-    current_user: AdminUserDependency,
-    session: SessionDependency,
-) -> QuarantinedPingBatchRead:
-    quarantine = await discard_quarantined_ping_batch(
-        session,
-        trip_id=trip_id,
-        quarantine_id=quarantine_id,
-        admin_user_id=current_user.id,
-        note=payload.note,
-    )
-    await session.commit()
-    return quarantine_response(quarantine)

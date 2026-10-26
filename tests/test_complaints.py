@@ -114,7 +114,7 @@ def build_graph(sm) -> Graph:
         sm, email="cs-adv2@example.com", role=UserRole.ADVERTISER, full_name="Other Owner"
     )
     org, _ = create_test_organization(sm, name="Acme Ads", owner_user_id=advertiser.id)
-    _add_member(sm, org_id=org.id, user_id=viewer.id, role=MembershipRole.VIEWER)
+    _add_member(sm, org_id=org.id, user_id=viewer.id, role=MembershipRole.ADVERTISER)
     other_org, _ = create_test_organization(sm, name="Other Ads", owner_user_id=other_advertiser.id)
     profile = create_test_driver_profile(sm, user_id=driver.id)
     other_profile = create_test_driver_profile(sm, user_id=other_driver.id)
@@ -663,22 +663,12 @@ def test_email_preference_off_keeps_in_app_only(world) -> None:
     assert channels == {"in_app"}
 
 
-def test_driver_reply_is_in_app_only_and_driver_follow_up_goes_to_assignee(world) -> None:
+def test_driver_reply_is_in_app_only_and_follow_up_notifies_staff(world) -> None:
     client, sm, settings, g = world
     complaint_id = client.post(
         "/api/v1/driver/complaints", json=body(), headers=headers(g.driver, settings)
     ).json()["id"]
     staff = headers(g.admin, settings)
-
-    assigned = client.patch(
-        f"/api/v1/admin/complaints/{complaint_id}",
-        json={"assigned_to_user_id": str(g.admin2.id)},
-        headers=staff,
-    )
-    assert assigned.status_code == 200, assigned.text
-    assert assigned.json()["assigned_to_name"] == "Bola Staff"
-    assigned_notices = [n for n in rows(sm, Notification) if n.type_key == "complaint_assigned"]
-    assert [n.recipient_user_id for n in assigned_notices] == [g.admin2.id]
 
     client.post(
         f"/api/v1/admin/complaints/{complaint_id}/messages",
@@ -695,21 +685,18 @@ def test_driver_reply_is_in_app_only_and_driver_follow_up_goes_to_assignee(world
         headers=headers(g.driver, settings),
     )
     received = [n for n in rows(sm, Notification) if n.type_key == "complaint_received"]
-    assert len(received) == before + 1
-    assert received[-1].recipient_user_id == g.admin2.id or any(
-        n.recipient_user_id == g.admin2.id for n in received[before:]
-    )
-    assert {n.recipient_user_id for n in received[before:]} == {g.admin2.id}
+    assert len(received) == before + 2
+    assert {n.recipient_user_id for n in received[before:]} == {g.admin.id, g.admin2.id}
 
     mine = client.get(
         "/api/v1/admin/complaints",
-        params={"assigned_to_me": "true", "party": "driver"},
+        params={"party": "driver"},
         headers=headers(g.admin2, settings),
     )
     assert mine.json()["total"] == 1
 
 
-def test_staff_patch_status_assignment_noop_and_invalid_assignee(world) -> None:
+def test_staff_status_update_noop_and_audit(world) -> None:
     client, sm, settings, g = world
     complaint_id = client.post(
         "/api/v1/driver/complaints", json=body(), headers=headers(g.driver, settings)
@@ -725,24 +712,6 @@ def test_staff_patch_status_assignment_noop_and_invalid_assignee(world) -> None:
     )
     assert same.status_code == 200 and audits() == base
 
-    for bad in (g.driver.id, uuid4()):
-        invalid = client.patch(
-            f"/api/v1/admin/complaints/{complaint_id}",
-            json={"assigned_to_user_id": str(bad)},
-            headers=staff,
-        )
-        assert invalid.status_code == 422
-        assert invalid.json()["error"]["code"] == "COMPLAINT_ASSIGNEE_INVALID"
-
-    # Self-assignment writes an audit but no assignment notice to the actor.
-    mine = client.patch(
-        f"/api/v1/admin/complaints/{complaint_id}",
-        json={"assigned_to_user_id": str(g.admin.id)},
-        headers=staff,
-    )
-    assert mine.json()["assigned_to_user_id"] == str(g.admin.id)
-    assert not [n for n in rows(sm, Notification) if n.type_key == "complaint_assigned"]
-
     resolved = client.patch(
         f"/api/v1/admin/complaints/{complaint_id}", json={"status": "resolved"}, headers=staff
     )
@@ -752,14 +721,14 @@ def test_staff_patch_status_assignment_noop_and_invalid_assignee(world) -> None:
     ] == [g.driver.id]
     cleared = client.patch(
         f"/api/v1/admin/complaints/{complaint_id}",
-        json={"status": "open", "assigned_to_user_id": None},
+        json={"status": "open"},
         headers=staff,
     )
     assert cleared.json()["status"] == "open"
-    assert cleared.json()["assigned_to_user_id"] is None
+    assert "assigned_to_user_id" not in cleared.json()
     assert cleared.json()["resolved_at"] is None
     updated = [e for e in rows(sm, AuditEvent) if e.action == "admin.complaint.updated"]
-    assert len(updated) == 3
+    assert len(updated) == 2
     assert all("body" not in json.dumps(e.event_metadata) for e in updated)
 
 
@@ -771,7 +740,7 @@ def test_unknown_complaint_ids_are_404_everywhere(world) -> None:
         client.patch(f"/api/v1/admin/complaints/{missing}", json={}, headers=staff),
         client.patch(
             f"/api/v1/admin/complaints/{missing}",
-            json={"assigned_to_user_id": str(uuid4())},
+            json={"status": "resolved"},
             headers=staff,
         ),
         client.get(f"/api/v1/admin/complaints/{missing}", headers=staff),
@@ -904,29 +873,3 @@ def test_feed_renders_complaint_notices_in_plain_words(world) -> None:
     ]
     staff_feed = client.get("/api/v1/notifications", headers=headers(g.admin, settings)).json()
     assert staff_feed["items"][0]["title"] == "Complaint waiting"
-
-
-def test_data_subject_inventory_counts_complaints_and_messages(world) -> None:
-    from sqlalchemy import text
-
-    from app.services.data_subject_inventory import ADDITIONAL_SUBJECT_LINK_RULES
-
-    client, sm, settings, g = world
-    complaint_id = client.post(
-        "/api/v1/driver/complaints", json=body(), headers=headers(g.driver, settings)
-    ).json()["id"]
-    client.post(
-        f"/api/v1/admin/complaints/{complaint_id}/messages",
-        json={"message": "Reply", "client_request_id": str(uuid4())},
-        headers=headers(g.admin, settings),
-    )
-    [rule] = [
-        r for r in ADDITIONAL_SUBJECT_LINK_RULES if r.data_class == "customer_service_complaints"
-    ]
-
-    async def counted(user_id) -> int:
-        async with sm() as session:
-            return int(await session.scalar(text(rule.count_query), {"subject_user_id": user_id}))
-
-    assert asyncio.run(counted(g.driver.id)) == 2  # the complaint and its first message
-    assert asyncio.run(counted(g.admin.id)) == 1  # the reply the staff member wrote

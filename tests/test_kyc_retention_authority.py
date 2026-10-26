@@ -101,7 +101,7 @@ def test_kyc_review_identity_and_durable_payload_purge_precede_every_provider_de
                 )
                 submission = view.submission
                 submission.status = "rejected"
-                submission.created_at = now - timedelta(days=31)
+                submission.created_at = now - timedelta(days=200)
                 facts = dict(
                     sequence=1,
                     owner_match_confirmed=False,
@@ -182,7 +182,6 @@ def test_kyc_review_identity_and_durable_payload_purge_precede_every_provider_de
             result = await purge_terminal_file_kyc(
                 session,
                 storage=storage,
-                retention_days=30,
                 limit=10,
                 dry_run=False,
                 actor_user_id=admin.id,
@@ -288,7 +287,6 @@ def test_failed_retirement_commit_cannot_delete_and_legacy_intent_waits_for_auth
                 await purge_terminal_file_kyc(
                     session,
                     storage=storage,
-                    retention_days=30,
                     limit=10,
                     dry_run=False,
                     actor_user_id=admin.id,
@@ -305,7 +303,6 @@ def test_failed_retirement_commit_cannot_delete_and_legacy_intent_waits_for_auth
             await purge_terminal_file_kyc(
                 session,
                 storage=storage,
-                retention_days=30,
                 limit=10,
                 dry_run=False,
                 actor_user_id=admin.id,
@@ -391,7 +388,6 @@ def test_document_binding_waits_on_parent_before_file_and_rejects_retired_payloa
                 await purge_terminal_file_kyc(
                     retirement,
                     storage=FakeStorageProvider(),
-                    retention_days=30,
                     limit=10,
                     dry_run=False,
                     actor_user_id=admin.id,

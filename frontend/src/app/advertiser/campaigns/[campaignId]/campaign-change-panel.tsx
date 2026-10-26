@@ -46,7 +46,7 @@ export function CampaignChangePanel({
   clientRequestId: string;
   currency: string;
   requests: ChangeRequest[];
-  /** False outside scheduled/active/paused, where the server refuses new changes. */
+  /** False outside approved/active/paused, where the server refuses new changes. */
   editable?: boolean;
 }) {
   const [commandId, setCommandId] = useState(clientRequestId);
@@ -102,7 +102,7 @@ export function CampaignChangePanel({
         <p className="text-muted mt-1 text-sm">
           {editable
             ? "Ask to change the budget or dates. You'll see the effect before anything changes, and drivers' agreed pay stays the same."
-            : "Changes can only be requested while a campaign is scheduled, live or paused. Earlier requests are listed below."}
+            : "Changes can only be requested while a campaign is approved, live or paused. Earlier requests are listed below."}
         </p>
       </div>
       {editable ? (

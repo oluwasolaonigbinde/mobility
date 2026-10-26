@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
@@ -143,6 +144,12 @@ export default async function DriverProfilePage() {
 
               <Panel className="p-5">
                 <h2 className="font-display mb-4 text-lg font-semibold">Your details</h2>
+                <Link
+                  href="/driver/change-password"
+                  className="text-green mb-4 inline-block text-sm underline"
+                >
+                  Change password
+                </Link>
                 <ProfileForm
                   defaults={{
                     license_number: p.license_number ?? "",

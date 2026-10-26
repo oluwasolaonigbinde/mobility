@@ -52,14 +52,26 @@ class PasswordResetToken(Base):
         CheckConstraint("length(token_hash) = 64", name="ck_password_reset_tokens_hash"),
         CheckConstraint("expires_at > created_at", name="ck_password_reset_tokens_expiry"),
         CheckConstraint("session_version > 0", name="ck_password_reset_tokens_session_version"),
+        CheckConstraint(
+            "(purpose = 'password_reset' AND attempt_id IS NOT NULL AND organization_id IS NULL) "
+            "OR (purpose = 'advertiser_invite' AND attempt_id IS NULL "
+            "AND organization_id IS NOT NULL)",
+            name="ck_password_reset_tokens_purpose",
+        ),
         UniqueConstraint("attempt_id", name="uq_password_reset_tokens_attempt"),
         UniqueConstraint("token_hash", name="uq_password_reset_tokens_hash"),
         Index("ix_password_reset_tokens_user", "user_id", "created_at"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    attempt_id: Mapped[UUID] = mapped_column(
-        ForeignKey("password_reset_attempts.id", ondelete="RESTRICT"), nullable=False
+    attempt_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("password_reset_attempts.id", ondelete="RESTRICT")
+    )
+    purpose: Mapped[str] = mapped_column(
+        String(32), default="password_reset", server_default="password_reset"
+    )
+    organization_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("advertiser_organizations.id", ondelete="RESTRICT")
     )
     user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False

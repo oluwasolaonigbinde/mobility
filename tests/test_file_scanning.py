@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import AsyncIterable
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from conftest import auth_headers, create_test_organization, create_test_user
@@ -16,6 +16,23 @@ from app.models.organization import MembershipRole
 from app.models.stored_file import FileScanStatus, StoredFile
 from app.models.user import UserRole
 from app.services.stored_files import scan_stored_file
+
+
+def test_queued_scan_for_missing_file_does_not_call_scanner(db_sessionmaker, settings, monkeypatch):
+    scanner = FakeScanner()
+    monkeypatch.setattr(
+        file_scanning_jobs, "build_storage_provider", lambda _settings: FakeStorageProvider()
+    )
+    monkeypatch.setattr(file_scanning_jobs, "build_malware_scanner", lambda _settings: scanner)
+    assert (
+        asyncio.run(
+            file_scanning_jobs.scan_file(
+                {"settings": settings, "sessionmaker": db_sessionmaker}, str(uuid4())
+            )
+        )
+        is None
+    )
+    assert scanner.calls == 0
 
 
 class FakeScanner:
@@ -54,7 +71,7 @@ def advertiser_with_org(db_sessionmaker, email: str):
     organization, _ = create_test_organization(
         db_sessionmaker,
         owner_user_id=user.id,
-        membership_role=MembershipRole.OWNER,
+        membership_role=MembershipRole.ADVERTISER,
     )
     return user, organization
 

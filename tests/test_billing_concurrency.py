@@ -30,7 +30,6 @@ from app.services.billing.invoices import (
 from app.services.billing.receipts import (
     allocate_payment_receipt,
     confirm_payment_receipt,
-    reconcile_payment_receipt,
     record_payment_receipt,
     reverse_payment_receipt,
 )
@@ -111,15 +110,12 @@ def test_invoice_credit_and_allocation_overlap_respects_corrected_obligation(
                 evidence_reference="correction-allocation-overlap",
                 observed_at=datetime.now(UTC),
             )
-            await reconcile_payment_receipt(
+            await confirm_payment_receipt(
                 session,
                 receipt_id=receipt.id,
                 actor_user_id=allocation_admin.id,
                 expected_amount="100.00",
                 expected_currency="NGN",
-            )
-            await confirm_payment_receipt(
-                session, receipt_id=receipt.id, actor_user_id=allocation_admin.id
             )
             await session.commit()
             return terms.id, invoice.id, receipt.id
@@ -344,14 +340,13 @@ def test_forced_overlap_receipt_allocation_reversal_and_numbering(
                 evidence_reference=external_id,
                 observed_at=datetime.now(UTC),
             )
-            await reconcile_payment_receipt(
+            await confirm_payment_receipt(
                 session,
                 receipt_id=receipt.id,
                 actor_user_id=admin.id,
                 expected_amount=amount,
                 expected_currency="NGN",
             )
-            await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
             await session.commit()
             return receipt.id
 
@@ -473,15 +468,12 @@ def test_concurrent_refund_reference_conflict_is_stable_across_campaigns(
                     evidence_reference=f"refund-reference-race-{index}",
                     observed_at=datetime.now(UTC),
                 )
-                await reconcile_payment_receipt(
+                await confirm_payment_receipt(
                     session,
                     receipt_id=receipt.id,
                     actor_user_id=admin.id,
                     expected_amount="100.00",
                     expected_currency="NGN",
-                )
-                await confirm_payment_receipt(
-                    session, receipt_id=receipt.id, actor_user_id=admin.id
                 )
                 await allocate_payment_receipt(
                     session,
@@ -494,7 +486,8 @@ def test_concurrent_refund_reference_conflict_is_stable_across_campaigns(
                 current.status = CampaignStatus.ACTIVE.value
                 cancellation = await request_campaign_cancellation(
                     session,
-                    actor_user_id=owner.id,
+                    actor_user_id=admin.id,
+                    actor_session_version=admin.session_version,
                     campaign_id=campaign.id,
                     payload=CampaignCancellationCreate(
                         client_request_id=uuid4(),

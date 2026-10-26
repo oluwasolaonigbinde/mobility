@@ -1,7 +1,6 @@
 import asyncio
 import json
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
@@ -15,7 +14,6 @@ from app.adapters.disbursement import (
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
 from app.models.disbursement import (
-    DriverCurrencyDebtAccount,
     PayoutBatch,
     PayoutBatchLine,
     PayoutSubmissionAttempt,
@@ -34,11 +32,7 @@ from app.services.disbursements import (
     reserve_payout_batch,
     submit_payout_batch,
 )
-from app.services.fraud_holds import (
-    acknowledge_fraud_flag,
-    lock_fraud_hold_scope,
-    resolve_fraud_flag,
-)
+from app.services.fraud_holds import lock_fraud_hold_scope, resolve_fraud_flag
 from tests.test_disbursement_worker import _prepare_batch
 from tests.test_mny03a_earnings_release import (
     NOW,
@@ -92,17 +86,20 @@ async def _prepare_cross_trip_batch(
             await session.flush()
         batch = await create_payout_batch_draft(
             session,
+            reason="Focused staff payout action",
             currency="NGN",
             actor_user_id=graphs[0].admin.id,
         )
         _, lines = await reserve_payout_batch(
             session,
+            reason="Focused staff payout action",
             batch_id=batch.id,
             ledger_entry_ids=tuple(entry.id for entry in entries),
             actor_user_id=graphs[0].admin.id,
         )
         await approve_payout_batch(
             session,
+            reason="Focused staff payout action",
             batch_id=batch.id,
             actor_user_id=checker.id,
         )
@@ -345,7 +342,6 @@ def test_multi_trip_claim_takes_trip_locks_in_stable_order(
         "replay_config",
         "dismissed_flag",
         "ledger_state",
-        "debt",
         "instruction",
     ),
 )
@@ -366,7 +362,7 @@ def test_any_final_authority_drift_blocks_before_adapter(
             postgis_db_sessionmaker,
             graph,
             adapter,
-            line_count=2 if drift == "debt" else 1,
+            line_count=1,
         )
         async with postgis_db_sessionmaker() as session:
             assessment = await session.scalar(
@@ -402,31 +398,6 @@ def test_any_final_authority_drift_blocks_before_adapter(
                 )
                 assert entry is not None
                 entry.status = "pending"
-            elif drift == "debt":
-                entry = await session.scalar(
-                    select(EarningsLedgerEntry)
-                    .join(
-                        PayoutBatchLine,
-                        PayoutBatchLine.ledger_entry_id == EarningsLedgerEntry.id,
-                    )
-                    .join(
-                        PayoutSubmissionIntent,
-                        PayoutSubmissionIntent.payout_batch_line_id == PayoutBatchLine.id,
-                    )
-                    .where(PayoutSubmissionIntent.id == intent_ids[0])
-                    .limit(1)
-                )
-                assert entry is not None
-                session.add(
-                    DriverCurrencyDebtAccount(
-                        driver_profile_id=entry.driver_profile_id,
-                        driver_user_id=entry.driver_user_id,
-                        currency=entry.currency,
-                        outstanding_amount=Decimal("10.00"),
-                        lifetime_incurred_amount=Decimal("10.00"),
-                        lifetime_allocated_amount=Decimal("0.00"),
-                    )
-                )
             elif drift == "instruction":
                 line = await session.scalar(
                     select(PayoutBatchLine)
@@ -455,12 +426,7 @@ def test_any_final_authority_drift_blocks_before_adapter(
                 )
                 session.add(flag)
                 await session.flush()
-                await acknowledge_fraud_flag(
-                    session,
-                    flag_id=flag.id,
-                    actor_user_id=graph.admin.id,
-                    now=NOW + timedelta(seconds=3),
-                )
+                pass
                 await resolve_fraud_flag(
                     session,
                     flag_id=flag.id,
@@ -491,7 +457,6 @@ def test_any_final_authority_drift_blocks_before_adapter(
     assert code in {
         "PAYOUT_ASSESSMENT_NOT_CURRENT",
         "PAYOUT_LEDGER_NOT_AVAILABLE",
-        "PAYOUT_DEBT_ALLOCATION_REQUIRED",
         "PAYOUT_INSTRUCTION_CHANGED",
     }
     assert attempts == 0
@@ -776,7 +741,7 @@ def test_query_only_lookup_survives_inactive_batch_authority(
     assert adapter.lookup_calls == 1
 
 
-def test_expired_pre_invocation_claim_repeats_gate_before_lookup(
+def test_expired_claim_queries_despite_hold_but_new_submit_rechecks_hold(
     postgis_db_sessionmaker,
     settings,
 ) -> None:
@@ -832,17 +797,19 @@ def test_expired_pre_invocation_claim_repeats_gate_before_lookup(
                 )
             )
             await session.commit()
+        outcome = await process_payout_submission_intent(
+            postgis_db_sessionmaker, intent_id=intent_ids[0], adapter=adapter
+        )
+        assert outcome == "pending"
         with pytest.raises(AppError) as blocked:
             await process_payout_submission_intent(
-                postgis_db_sessionmaker,
-                intent_id=intent_ids[0],
-                adapter=adapter,
+                postgis_db_sessionmaker, intent_id=intent_ids[0], adapter=adapter
             )
         return blocked.value.code
 
     assert asyncio.run(exercise()) == "PAYOUT_ENTRY_HELD"
     assert adapter.calls == []
-    assert adapter.lookup_calls == 0
+    assert adapter.lookup_calls == 1
 
 
 def test_clean_claim_persists_complete_final_authority(

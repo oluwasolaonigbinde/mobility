@@ -12,11 +12,14 @@ from starlette import status
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.security import hash_password_async, verify_password_async
+from app.models.audit import AuditEvent
+from app.models.contact import PasswordResetToken
 from app.models.disbursement import CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID
 from app.models.driver_application import DriverAccountSetupToken, DriverApplication
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.users import UserCreate, UserUpdate
 from app.services.operator_search import operator_search
+from app.services.report_authorization import REPORT_ACTOR_ID
 
 if TYPE_CHECKING:
     from app.core.rate_limit import LoginRateLimiter
@@ -184,7 +187,7 @@ async def list_users(
     user_status: str | None,
     q: str | None = None,
 ) -> tuple[list[User], int]:
-    human_account = User.id != CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID
+    human_account = User.id.not_in([CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID, REPORT_ACTOR_ID])
     statement: Select[tuple[User]] = select(User).where(human_account)
     count_statement = select(func.count()).select_from(User).where(human_account)
     if q and q.strip():
@@ -228,6 +231,45 @@ async def _driver_setup_outstanding(session: AsyncSession, user_id: UUID) -> boo
     return not completed
 
 
+async def _guard_advertiser_invite_transition(
+    session: AsyncSession, user: User, changes: dict
+) -> None:
+    role_changed = "role" in changes and changes["role"] != user.role
+    activates = changes.get("status") == UserStatus.ACTIVE and user.status != UserStatus.ACTIVE
+    outstanding = False
+    if activates or role_changed:
+        # Token consumption also covers resend/replacement, so only the durable
+        # completion audit proves that this advertiser chose their first password.
+        outstanding = bool(
+            await session.scalar(
+                select(
+                    exists().where(
+                        PasswordResetToken.user_id == user.id,
+                        PasswordResetToken.purpose == "advertiser_invite",
+                    )
+                )
+            )
+        ) and not bool(
+            await session.scalar(
+                select(
+                    exists().where(
+                        AuditEvent.entity_type == "user",
+                        AuditEvent.entity_id == str(user.id),
+                        AuditEvent.action == "advertiser.login_invite.completed",
+                    )
+                )
+            )
+        )
+    if (role_changed and changes["role"] == UserRole.ADVERTISER) or (
+        outstanding and (role_changed or activates)
+    ):
+        raise AppError(
+            "ADVERTISER_ACTIVATION_REQUIRES_INVITE",
+            "Advertiser logins are created and activated through a company login invite.",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+
 async def update_user(
     session: AsyncSession,
     user_id: UUID,
@@ -249,11 +291,11 @@ async def update_user(
     actor = None
     if actor_user_id is not None:
         actor = _require_admin_actor(locked.get(actor_user_id), actor_session_version)
-    if user.id == CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID:
-        # Any edit would only halt automatic payouts (actor_integrity_problem).
+    if user.id in {CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID, REPORT_ACTOR_ID}:
+        # Reserved automation identities cannot be activated or repurposed.
         raise AppError(
             "SYSTEM_ACCOUNT_READ_ONLY",
-            "Cardvert's automatic payouts account can't be edited",
+            "Cardvert's automatic account can't be edited",
             status_code=status.HTTP_409_CONFLICT,
         )
 
@@ -284,6 +326,7 @@ async def update_user(
             "their application is approved; its status and role can't be changed here",
             status_code=status.HTTP_409_CONFLICT,
         )
+    await _guard_advertiser_invite_transition(session, user, update_values)
     if enters_admin_role or activates_admin:
         actor = _require_admin_actor(actor, actor_session_version)
         await _reauthenticate_admin(

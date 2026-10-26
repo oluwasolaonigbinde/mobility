@@ -16,7 +16,6 @@ from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.trip import (
     LocationPingBatch,
-    QuarantinedPingBatch,
     TripEvidenceManifestEntry,
     TripSession,
 )
@@ -47,6 +46,7 @@ PING_REJECTION_CODES = (
     "INVALID_ASSIGNMENT_AUTHORITY",
     "INVALID_ACCURACY",
     "INVALID_SPEED",
+    "PAY_ALREADY_CALCULATED",
 )
 
 # OFF-006: the closed set of final evidence adjudications. An adjudication is
@@ -301,40 +301,17 @@ def batch_receipt_value(batch: LocationPingBatch) -> dict[str, Any]:
     return value
 
 
-def sign_batch_receipt(batch: LocationPingBatch, settings: Settings) -> SignedReceipt:
+def sign_batch_receipt(
+    batch: LocationPingBatch, settings: Settings, *, outcome: str = "accepted"
+) -> SignedReceipt:
     key_version, key = signing_key(settings)
-    outcome = "accepted"
+    if outcome not in {"accepted", "dropped"}:
+        raise ValueError("Unknown batch outcome")
     batch.receipt_format_version = RECEIPT_FORMAT_VERSION
     batch.receipt_key_version = key_version
     batch.receipt_outcome = outcome
     batch.receipt_signature = _signature(BATCH_RECEIPT_DOMAIN, batch_receipt_value(batch), key)
     return SignedReceipt(RECEIPT_FORMAT_VERSION, key_version, batch.receipt_signature, outcome)
-
-
-def sign_quarantine_receipt(batch: QuarantinedPingBatch, settings: Settings) -> SignedReceipt:
-    key_version, key = signing_key(settings)
-    outcome = "quarantined"
-    batch.receipt_format_version = RECEIPT_FORMAT_VERSION
-    batch.receipt_key_version = key_version
-    batch.receipt_outcome = outcome
-    batch.receipt_signature = _signature(BATCH_RECEIPT_DOMAIN, quarantine_receipt_value(batch), key)
-    return SignedReceipt(RECEIPT_FORMAT_VERSION, key_version, batch.receipt_signature, outcome)
-
-
-def quarantine_receipt_value(batch: QuarantinedPingBatch) -> dict[str, Any]:
-    return {
-        "format_version": RECEIPT_FORMAT_VERSION,
-        "trip_id": str(batch.trip_session_id),
-        "batch_sequence": batch.batch_sequence,
-        "idempotency_key": batch.idempotency_key,
-        "payload_hash_version": batch.payload_hash_version,
-        "payload_hash": batch.payload_hash,
-        "submitted_count": batch.pings_submitted,
-        "accepted_count": 0,
-        "rejected_count": batch.pings_rejected,
-        "outcome": batch.receipt_outcome,
-        "evidence_scope": "quarantine",
-    }
 
 
 def verify_batch_receipt(batch: LocationPingBatch, settings: Settings) -> bool:
@@ -348,22 +325,6 @@ def verify_batch_receipt(batch: LocationPingBatch, settings: Settings) -> bool:
     return verify_signature(
         BATCH_RECEIPT_DOMAIN,
         batch_receipt_value(batch),
-        key,
-        batch.receipt_signature,
-    )
-
-
-def verify_quarantine_receipt(batch: QuarantinedPingBatch, settings: Settings) -> bool:
-    if (
-        batch.receipt_format_version != RECEIPT_FORMAT_VERSION
-        or batch.receipt_key_version is None
-        or batch.receipt_signature is None
-    ):
-        return False
-    _, key = signing_key(settings, batch.receipt_key_version)
-    return verify_signature(
-        BATCH_RECEIPT_DOMAIN,
-        quarantine_receipt_value(batch),
         key,
         batch.receipt_signature,
     )

@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault(
     "PAYOUT_CRYPTO_KEYRING_B64",
     '{"1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}',
@@ -41,10 +42,8 @@ from app.models.campaign_assignment import (
 )
 from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.driver import DriverOnboardingStatus, DriverProfile
-from app.models.impression import ImpressionEstimate, TrafficDensityProfile
+from app.models.impression import ImpressionEstimate
 from app.models.installation_evidence import (
-    DisplayProof,
-    DisplayProofChallenge,
     InstallationEvidencePhoto,
     InstallationEvidenceStatus,
     InstallationEvidenceSubmission,
@@ -96,15 +95,7 @@ def settings() -> Settings:
         jwt_secret_key="test-secret-key-at-least-32-bytes",
         access_token_expire_minutes=60,
         privacy_min_vehicles_per_cell=1,
-        privacy_min_trips_per_cell=1,
-        privacy_min_days_per_cell=1,
-        privacy_max_contributor_share=1.0,
         privacy_min_resolution_m=50,
-        installation_evidence_uploader_roles="driver,admin",
-        installation_evidence_required_views="front,close_up",
-        installation_evidence_validity_hours=24,
-        display_proof_challenge_ttl_seconds=120,
-        display_proof_validity_seconds=3600,
         paystack_secret_key=None,
         paystack_checkout_return_url="",
     )
@@ -292,7 +283,7 @@ def create_test_organization(
     currency: str = "NGN",
     organization_status: OrganizationStatus = OrganizationStatus.ACTIVE,
     owner_user_id: UUID | None = None,
-    membership_role: MembershipRole = MembershipRole.OWNER,
+    membership_role: MembershipRole = MembershipRole.ADVERTISER,
     membership_status: MembershipStatus = MembershipStatus.ACTIVE,
     legacy_schema: bool = False,
 ) -> tuple[AdvertiserOrganization, OrganizationMembership | None]:
@@ -332,7 +323,7 @@ def create_test_organization(
                             "id": membership_id,
                             "organization_id": organization_id,
                             "user_id": owner_user_id,
-                            "role": membership_role.value,
+                            "role": "owner",  # The actual pre-0114 storage value.
                             "status": membership_status.value,
                         },
                     )
@@ -340,7 +331,7 @@ def create_test_organization(
                         id=membership_id,
                         organization_id=organization_id,
                         user_id=owner_user_id,
-                        role=membership_role,
+                        role="owner",
                         status=membership_status,
                     )
                 await session.commit()
@@ -557,7 +548,6 @@ def create_test_campaign_assignment(
                 activated_at=activated_at,
                 deactivated_at=deactivated_at,
                 cancelled_at=cancelled_at,
-                completed_at=completed_at,
                 notes=notes,
                 assignment_metadata=metadata or {},
             )
@@ -639,15 +629,15 @@ def create_test_activation_snapshot(
     return asyncio.run(create())
 
 
-def create_test_display_proof(
+def create_test_installation_evidence(
     db_sessionmaker: async_sessionmaker[AsyncSession],
     *,
     assignment_id: UUID,
     reviewed_by_user_id: UUID,
-) -> DisplayProof:
+) -> InstallationEvidenceSubmission:
     """Seed explicit synthetic W2-03C authority for tests outside that boundary."""
 
-    async def create() -> DisplayProof:
+    async def create() -> InstallationEvidenceSubmission:
         async with db_sessionmaker() as session:
             assignment = await session.get(CampaignAssignment, assignment_id)
             assert assignment is not None
@@ -694,8 +684,6 @@ def create_test_display_proof(
                 await session.flush()
                 return stored
 
-            evidence_file = await managed_image("installation")
-            proof_file = await managed_image("display-proof")
             device_id = uuid4()
             evidence = InstallationEvidenceSubmission(
                 assignment_id=assignment.id,
@@ -709,59 +697,35 @@ def create_test_display_proof(
                 request_fingerprint="e" * 64,
                 device_id=device_id,
                 captured_at=now,
-                required_views=["front"],
+                required_views=["front", "back", "left", "right", "close_up"],
                 status=InstallationEvidenceStatus.APPROVED.value,
                 reviewed_at=now,
-                approved_until=now + timedelta(days=1),
+                approved_until=now + timedelta(days=7),
                 evidence_metadata={"synthetic_test": True},
                 submitted_at=now,
             )
             session.add(evidence)
             await session.flush()
-            session.add(
-                InstallationEvidencePhoto(
-                    submission_id=evidence.id,
-                    view_code="front",
-                    stored_file_id=evidence_file.id,
+            for view in evidence.required_views:
+                evidence_file = await managed_image(view)
+                session.add(
+                    InstallationEvidencePhoto(
+                        submission_id=evidence.id,
+                        view_code=view,
+                        stored_file_id=evidence_file.id,
+                    )
                 )
-            )
-            challenge = DisplayProofChallenge(
-                assignment_id=assignment.id,
-                evidence_submission_id=evidence.id,
-                driver_profile_id=assignment.driver_profile_id,
-                vehicle_id=assignment.vehicle_id,
-                device_id=device_id,
-                nonce_sha256=uuid4().hex * 2,
-                expires_at=now + timedelta(minutes=5),
-                consumed_at=now,
-                created_at=now,
-            )
-            session.add(challenge)
-            await session.flush()
-            proof = DisplayProof(
-                challenge_id=challenge.id,
-                assignment_id=assignment.id,
-                evidence_submission_id=evidence.id,
-                driver_profile_id=assignment.driver_profile_id,
-                vehicle_id=assignment.vehicle_id,
-                device_id=device_id,
-                stored_file_id=proof_file.id,
-                verified_at=now,
-                valid_until=now + timedelta(hours=1),
-                proof_metadata={"synthetic_test": True},
-            )
-            session.add(proof)
             await session.commit()
-            await session.refresh(proof)
-            return proof
+            await session.refresh(evidence)
+            return evidence
 
-    proof = asyncio.run(create())
+    evidence = asyncio.run(create())
     create_test_activation_snapshot(
         db_sessionmaker,
         assignment_id=assignment_id,
         actor_user_id=reviewed_by_user_id,
     )
-    return proof
+    return evidence
 
 
 def sign_test_trip_manifest(trip: TripSession) -> None:
@@ -852,6 +816,7 @@ def create_test_trip_analytics(
     distance_m=0,
     active_tracking_seconds: int = 0,
     stationary_seconds: int = 0,
+    moving_seconds: int = 0,
     target_zone_distance_m=0,
     bonus_zone_distance_m=0,
     exclusion_zone_distance_m=0,
@@ -878,7 +843,7 @@ def create_test_trip_analytics(
                 last_ping_at=last_ping_at,
                 duration_seconds=0,
                 active_tracking_seconds=active_tracking_seconds,
-                moving_seconds=0,
+                moving_seconds=moving_seconds,
                 stationary_seconds=stationary_seconds,
                 distance_m=distance_m,
                 avg_speed_mps=None,
@@ -920,7 +885,7 @@ def create_test_impression_estimate(
     campaign_id: UUID,
     driver_profile_id: UUID,
     vehicle_id: UUID,
-    traffic_density_profile_id: UUID,
+    traffic_density_profile_id: UUID | None = None,
     formula_version: str = "impressions_v1",
     status: str = "estimated",
     estimated_impressions=0,
@@ -992,7 +957,9 @@ def create_test_payout_rule(
     return asyncio.run(create())
 
 
-def create_test_daily_payout_authority(db_sessionmaker, *, campaign_id, created_by_user_id):
+def create_test_daily_payout_authority(
+    db_sessionmaker, *, campaign_id, created_by_user_id, zone_ids=()
+):
     """Seed complete current terms for worker fixtures' existing assignments."""
     from payout_fixtures import create_v4_revision, insert_v4_binding
 
@@ -1024,6 +991,7 @@ def create_test_daily_payout_authority(db_sessionmaker, *, campaign_id, created_
             Settings(environment="test"),
             assignment_id=assignment_id,
             revision=revision,
+            zone_ids=zone_ids,
         )
     return rule
 
@@ -1054,7 +1022,7 @@ def create_test_campaign_payout_revision(
                 daily_target_miles=daily_target_miles,
                 shortfall_strategy="proportional",
                 minimum_miles=0,
-                outside_area_weight=1,
+                outside_area_weight=0,
                 currency="NGN",
                 eligibility_params={},
                 formula_version="payout_v4",
@@ -1185,51 +1153,22 @@ def make_test_campaign_reviewable(
     )
 
 
-def create_test_traffic_density_profile(
-    db_sessionmaker: async_sessionmaker[AsyncSession],
-    *,
-    name: str = "Default Urban",
-    profile_type: str = "default",
-    traffic_density_per_km=120,
-    dwell_impressions_per_minute=3,
-    road_category_weight=1,
-    morning_weight=1,
-    midday_weight=1,
-    evening_weight=1,
-    night_weight=0.7,
-    target_zone_weight=1,
-    bonus_zone_weight=1.25,
-    exclusion_zone_weight=1,
-    is_default: bool = False,
-    status: str = "active",
-    metadata: dict | None = None,
-) -> TrafficDensityProfile:
-    async def create() -> TrafficDensityProfile:
-        async with db_sessionmaker() as session:
-            profile = TrafficDensityProfile(
-                name=name,
-                description=None,
-                profile_type=profile_type,
-                traffic_density_per_km=traffic_density_per_km,
-                dwell_impressions_per_minute=dwell_impressions_per_minute,
-                road_category_weight=road_category_weight,
-                morning_weight=morning_weight,
-                midday_weight=midday_weight,
-                evening_weight=evening_weight,
-                night_weight=night_weight,
-                target_zone_weight=target_zone_weight,
-                bonus_zone_weight=bonus_zone_weight,
-                exclusion_zone_weight=exclusion_zone_weight,
-                is_default=is_default,
-                status=status,
-                profile_metadata=metadata or {},
-            )
-            session.add(profile)
-            await session.commit()
-            await session.refresh(profile)
-            return profile
+def create_test_estimate_source(_db_sessionmaker, **values):
+    """Historical estimate-source facts, not a current profile registry (S10/D118)."""
+    from types import SimpleNamespace
 
-    return asyncio.run(create())
+    from app.services.impressions import FIXED_ESTIMATE_FACTORS
+
+    facts = dict(vars(FIXED_ESTIMATE_FACTORS))
+    facts.update(values)
+    facts.update(
+        id=uuid4(),
+        lineage_id=uuid4(),
+        revision=1,
+        effective_from=datetime.now(UTC),
+        value_fingerprint="a" * 64,
+    )
+    return SimpleNamespace(**facts)
 
 
 def create_test_campaign_creative(
@@ -1253,7 +1192,7 @@ def create_test_campaign_creative(
             managed_file = None
             persisted_checksum = checksum
             persisted_asset_url = asset_url
-            if creative_status in {CreativeStatus.READY, CreativeStatus.APPROVED}:
+            if creative_status == CreativeStatus.APPROVED:
                 campaign = await session.get(Campaign, campaign_id)
                 assert campaign is not None
                 file_id = uuid4()

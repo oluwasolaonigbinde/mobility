@@ -1,8 +1,6 @@
 import json
 from pathlib import Path
 
-from alembic.config import Config
-from alembic.script import ScriptDirectory
 from conftest import (
     auth_headers,
     create_test_campaign,
@@ -14,8 +12,6 @@ from app.main import create_app
 from app.models.user import UserRole
 
 SNAPSHOT_PATH = Path("docs/api/openapi.snapshot.json")
-EXPECTED_ALEMBIC_HEAD = "0107_audience_sweep_cursor"
-EXPECTED_MIGRATIONS = {"0106_development_baseline.py", "0107_audience_sweep_cursor.py"}
 MAJOR_CONTRACT_PATHS = {
     "health": "/api/v1/health",
     "auth": "/api/v1/auth/login",
@@ -37,10 +33,8 @@ MAJOR_CONTRACT_PATHS = {
     "earnings": "/api/v1/driver/earnings/ledger",
     "advertiser reports": "/api/v1/advertiser/campaigns/{campaign_id}/report",
     "heatmaps": "/api/v1/advertiser/campaigns/{campaign_id}/heatmap",
-    "planning sources": "/api/v1/advertiser/retargeting-sources",
-    "planning source links": "/api/v1/advertiser/retargeting-source-links",
     "protected KYC": "/api/v1/driver/kyc/submissions",
-    "advertiser report issuance": "/api/v1/advertiser/measurement-runs/{run_id}/report-issuances",
+    "advertiser report request (S9/D118)": "/api/v1/advertiser/reports",
     "advertiser report artifact download": "/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/{artifact_format}/download",  # noqa: E501
 }
 PROTECTED_GET_PATHS = [
@@ -73,7 +67,6 @@ def test_openapi_snapshot_exists_and_contains_mvp_contract_paths() -> None:
     assert SNAPSHOT_PATH.exists()
 
     snapshot = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
-    assert snapshot["info"]["title"] == "mobility-adtech-api"
     assert snapshot["paths"]["/api/v1/health"]
 
     missing = [
@@ -133,17 +126,6 @@ def test_no_public_delete_routes_for_payout_ledger_critical_parents(settings) ->
     }
 
     assert delete_paths == {"/api/v1/advertiser/campaigns/{campaign_id}/zones/{zone_id}"}
-
-
-def test_migration_chain_matches_authorized_head() -> None:
-    migration_names = {
-        path.name for path in Path("alembic/versions").glob("*.py") if path.name != "__init__.py"
-    }
-
-    assert migration_names == EXPECTED_MIGRATIONS
-
-    script = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert script.get_heads() == [EXPECTED_ALEMBIC_HEAD]
 
 
 def test_cost_summary_invalid_date_range_uses_standard_error_envelope(

@@ -27,17 +27,4 @@ describe("Cardvert driver install/update contract", () => {
     expect(png.readUInt32BE(16)).toBe(expectedSize);
     expect(png.readUInt32BE(20)).toBe(expectedSize);
   });
-
-  it("keeps authenticated traffic network-only and deletes only Cardvert-prefixed caches", () => {
-    const source = readFileSync(join(process.cwd(), "public/driver-sw.js"), "utf8");
-    expect(source).toContain('const CACHE_PREFIX = "cardvert-driver-"');
-    expect(source).toContain("key.startsWith(CACHE_PREFIX)");
-    expect(source).not.toMatch(/filter\(\(k\) => k !== STATIC_CACHE/);
-    expect(source).toContain('event.request.mode === "navigate"');
-    expect(source).not.toMatch(/caches\.open\([^)]*\).*\/api\//s);
-    expect(source).toContain("This offline page is not tracking your location");
-    expect(source).toContain("Fresh earnings and review details are unavailable");
-    expect(source).toContain('"cache-control": "no-store"');
-    expect(source).toContain("status: 503");
-  });
 });

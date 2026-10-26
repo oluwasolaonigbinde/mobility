@@ -50,10 +50,12 @@ from app.services.billing.authority import (
     assert_new_work_authorized,
     reserve_assignment_liability,
 )
+from app.services.campaign_lifecycle import assignment_status_expression, assignment_window_open
 from app.services.campaigns import comparable_campaign_datetime
 from app.services.drivers import get_driver_profile_by_user_id
 from app.services.installation_evidence import ensure_current_approved_installation_evidence
 from app.services.payout_eligibility import (
+    ELIGIBILITY_DEFAULTS,
     STATIONARY_POLICY_D39,
 )
 from app.services.payout_rule_serialization import (
@@ -86,7 +88,6 @@ NON_TERMINAL_ASSIGNMENT_STATUSES = {
     CampaignAssignmentStatus.OFFERED.value,
     CampaignAssignmentStatus.ACCEPTED.value,
     CampaignAssignmentStatus.ACTIVE.value,
-    CampaignAssignmentStatus.DEACTIVATED.value,
 }
 
 TERMINAL_DECISION_STATUSES = {
@@ -137,10 +138,10 @@ def as_aware_utc(value: datetime) -> datetime:
 
 
 def ensure_not_expired(campaign: Campaign, now: datetime, *, code: str) -> None:
-    if campaign.end_at is not None and as_aware_utc(campaign.end_at) < now:
+    if campaign.end_at is not None and as_aware_utc(campaign.end_at) <= now:
         raise AppError(
             code,
-            "Campaign end_at is in the past",
+            "This campaign has already ended",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -209,6 +210,7 @@ async def ensure_no_other_active_assignment_for_vehicle(
         select(CampaignAssignment.id).where(
             CampaignAssignment.vehicle_id == vehicle_id,
             CampaignAssignment.status == CampaignAssignmentStatus.ACTIVE.value,
+            assignment_window_open(),
             CampaignAssignment.id != assignment_id,
         )
     )
@@ -230,6 +232,7 @@ async def ensure_no_other_active_assignment_for_driver(
         select(CampaignAssignment.id).where(
             CampaignAssignment.driver_profile_id == driver_profile_id,
             CampaignAssignment.status == CampaignAssignmentStatus.ACTIVE.value,
+            assignment_window_open(),
             CampaignAssignment.id != assignment_id,
         )
     )
@@ -253,14 +256,17 @@ async def flush_translating_exclusivity_conflict(session: AsyncSession) -> None:
         envelope = ASSIGNMENT_CONFLICT_ENVELOPES.get(integrity_constraint_name(exc) or "")
         if envelope is None:
             raise
-        await session.rollback()
+        # A photo approval may isolate activation in a savepoint. Let that
+        # savepoint unwind without discarding the already approved evidence.
+        if not session.in_nested_transaction():
+            await session.rollback()
         code, message = envelope
         raise AppError(code, message, status_code=status.HTTP_409_CONFLICT) from exc
 
 
 def ensure_campaign_assignable(campaign: Campaign, now: datetime) -> None:
     if campaign.status not in {
-        CampaignStatus.SCHEDULED.value,
+        CampaignStatus.APPROVED.value,
         CampaignStatus.ACTIVE.value,
         CampaignStatus.PAUSED.value,
     }:
@@ -273,7 +279,7 @@ def ensure_campaign_assignable(campaign: Campaign, now: datetime) -> None:
 
 
 def ensure_campaign_acceptable(campaign: Campaign, now: datetime) -> None:
-    if campaign.status in {CampaignStatus.COMPLETED.value, CampaignStatus.CANCELLED.value}:
+    if campaign.status in {CampaignStatus.CANCELLED.value}:
         raise AppError(
             "CAMPAIGN_NOT_ACCEPTABLE",
             "Campaign can no longer be accepted",
@@ -385,7 +391,7 @@ async def activation_production_start(
 
 
 def ensure_campaign_activatable(campaign: Campaign, now: datetime) -> None:
-    if campaign.status not in {CampaignStatus.SCHEDULED.value, CampaignStatus.ACTIVE.value}:
+    if campaign.status not in {CampaignStatus.APPROVED.value, CampaignStatus.ACTIVE.value}:
         raise AppError(
             "CAMPAIGN_NOT_ACTIVE",
             "Campaign must be active before activation",
@@ -394,7 +400,7 @@ def ensure_campaign_activatable(campaign: Campaign, now: datetime) -> None:
     if campaign.start_at is not None and as_aware_utc(campaign.start_at) > now:
         raise AppError(
             "CAMPAIGN_NOT_STARTED",
-            "Campaign start_at is in the future",
+            "This campaign has not started yet",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     ensure_not_expired(campaign, now, code="CAMPAIGN_EXPIRED")
@@ -511,9 +517,7 @@ async def create_campaign_assignment(
             "Vehicle was not found",
             status_code=status.HTTP_404_NOT_FOUND,
         )
-    schedule_campaign = campaign.status == CampaignStatus.APPROVED.value
-    if not schedule_campaign:
-        ensure_campaign_assignable(campaign, now)
+    ensure_campaign_assignable(campaign, now)
     if campaign.start_at is None or campaign.end_at is None:
         raise AppError(
             "COMPLETE_CAMPAIGN_WINDOW_REQUIRED",
@@ -566,20 +570,6 @@ async def create_campaign_assignment(
     )
     session.add(assignment)
     await flush_translating_exclusivity_conflict(session)
-    if schedule_campaign:
-        campaign.status = CampaignStatus.SCHEDULED.value
-        await create_audit_event(
-            session,
-            actor_user_id=admin_user_id,
-            action="admin.campaign.scheduled",
-            entity_type="campaign",
-            entity_id=str(campaign.id),
-            metadata={
-                "status_before": CampaignStatus.APPROVED.value,
-                "status_after": campaign.status,
-                "assignment_id": str(assignment.id),
-            },
-        )
     await create_activation_event(
         session,
         assignment=assignment,
@@ -666,7 +656,10 @@ async def list_assignment_recommendations(
             CampaignAssignment.vehicle_id.label("vehicle_id"),
             func.count().label("vehicle_load"),
         )
-        .where(CampaignAssignment.status.in_(NON_TERMINAL_ASSIGNMENT_STATUSES))
+        .where(
+            CampaignAssignment.status.in_(NON_TERMINAL_ASSIGNMENT_STATUSES),
+            assignment_window_open(),
+        )
         .group_by(CampaignAssignment.vehicle_id)
         .subquery()
     )
@@ -675,7 +668,10 @@ async def list_assignment_recommendations(
             CampaignAssignment.driver_profile_id.label("driver_profile_id"),
             func.count().label("driver_load"),
         )
-        .where(CampaignAssignment.status.in_(NON_TERMINAL_ASSIGNMENT_STATUSES))
+        .where(
+            CampaignAssignment.status.in_(NON_TERMINAL_ASSIGNMENT_STATUSES),
+            assignment_window_open(),
+        )
         .group_by(CampaignAssignment.driver_profile_id)
         .subquery()
     )
@@ -704,7 +700,7 @@ async def list_assignment_recommendations(
         Campaign.id == campaign_id,
         Campaign.status.in_(
             {
-                CampaignStatus.SCHEDULED.value,
+                CampaignStatus.APPROVED.value,
                 CampaignStatus.ACTIVE.value,
                 CampaignStatus.PAUSED.value,
             }
@@ -950,7 +946,7 @@ async def list_admin_assignments(
             )
         )
     if assignment_status is not None:
-        filters.append(CampaignAssignment.status == assignment_status)
+        filters.append(assignment_status_expression() == assignment_status)
     if campaign_id is not None:
         filters.append(CampaignAssignment.campaign_id == campaign_id)
     if driver_profile_id is not None:
@@ -995,7 +991,7 @@ async def list_driver_assignments(
     )
     filters = [CampaignAssignment.driver_profile_id == driver_profile.id, ~due_offer]
     if assignment_status is not None:
-        filters.append(CampaignAssignment.status == assignment_status)
+        filters.append(assignment_status_expression() == assignment_status)
 
     statement = select(CampaignAssignment)
     count_statement = select(func.count()).select_from(CampaignAssignment)
@@ -1307,15 +1303,12 @@ def _daily_rate_offer_terms(payout: dict) -> dict[str, Decimal | str | None] | N
         or not all(number.is_finite() for number in numbers)
         or values["daily_rate_naira"] <= 0
         or values["daily_target_miles"] <= 0
-        or not 0 <= values["minimum_miles"] <= values["daily_target_miles"]
-        or not 0 <= values["outside_area_weight"] <= 1
+        or values["minimum_miles"] != 0
+        or values["outside_area_weight"] != 0
     ):
         return None
     strategy, deduction = values["shortfall_strategy"], values["deduction_per_mile_naira"]
-    if not (
-        (strategy == "proportional" and deduction is None)
-        or (strategy == "per_mile_deduction" and deduction is not None and deduction > 0)
-    ):
+    if strategy != "proportional" or deduction is not None:
         return None
     return values
 
@@ -1367,8 +1360,8 @@ async def build_offer_terms(
         normalized_city = normalized_service_city(driver_profile.service_city or "")
     except ValueError as exc:
         raise AppError(
-            "SERVICE_AREA_REQUIRED",
-            "A normalized driver service area is required before offering",
+            "DRIVER_SERVICE_AREA_REQUIRED",
+            "Add the driver's city before sending a job offer",
             status_code=status.HTTP_409_CONFLICT,
         ) from exc
     creative_snapshot = _creative_snapshot(creative)
@@ -1466,17 +1459,12 @@ async def build_offer_terms(
             "target": target_rows,
             "premium": target_rows,
             "exclusion": exclusion_rows,
-            "bonus": [
-                {"id": str(row[0]), "name": row[2], "wkt": str(row[3])}
-                for row in rows
-                if row[1] == CampaignZoneType.BONUS.value
-            ],
         },
         # The detector policy marker is part of the offer evidence, while the
         # numeric classifier snapshot records the complete daily-rate binding
         # shape.  The binding carries the same marker in its dedicated column.
         "eligibility": {
-            **resolved_eligibility_snapshot(settings, revision.eligibility_params),
+            **resolved_eligibility_snapshot(revision.eligibility_params),
             "stationary_policy_marker": STOP_POLICY_BY_FORMULA[revision.formula_version],
         },
     }
@@ -1489,10 +1477,10 @@ async def build_offer_terms(
     return terms, canonical_offer_terms_sha256(terms)
 
 
-def resolved_eligibility_snapshot(settings: Settings, overlay: dict | None) -> dict:
+def resolved_eligibility_snapshot(overlay: dict | None) -> dict:
     """Freeze every classifier value effective at acceptance.
 
-    Values retain their configured fallbacks; the daily-rate revision fixes
+    Values retain the former fixed defaults; the daily-rate revision fixes
     the D39 stop window and zero grace for later acceptances.
     """
     overlay = overlay or {}
@@ -1502,28 +1490,28 @@ def resolved_eligibility_snapshot(settings: Settings, overlay: dict | None) -> d
 
     return {
         "stationary_radius_m": value(
-            "stationary_radius_m", settings.payout_eligibility_stationary_radius_m
+            "stationary_radius_m", ELIGIBILITY_DEFAULTS["stationary_radius_m"]
         ),
         "stationary_window_seconds": int(
             value(
                 "stationary_window_min",
-                settings.payout_eligibility_stationary_window_min,
+                ELIGIBILITY_DEFAULTS["stationary_window_min"],
             )
             * 60
         ),
         "stationary_grace_seconds": int(
             value(
                 "stationary_grace_min",
-                settings.payout_eligibility_stationary_grace_min,
+                ELIGIBILITY_DEFAULTS["stationary_grace_min"],
             )
             * 60
         ),
-        "max_accuracy_m": value("max_accuracy_m", settings.payout_eligibility_max_accuracy_m),
-        "teleport_kmh": value("teleport_kmh", settings.payout_eligibility_teleport_kmh),
+        "max_accuracy_m": value("max_accuracy_m", ELIGIBILITY_DEFAULTS["max_accuracy_m"]),
+        "teleport_kmh": value("teleport_kmh", ELIGIBILITY_DEFAULTS["teleport_kmh"]),
         "max_ping_gap_seconds": int(
             value(
                 "max_ping_gap_seconds",
-                settings.payout_eligibility_max_ping_gap_seconds,
+                ELIGIBILITY_DEFAULTS["max_ping_gap_seconds"],
             )
         ),
     }
@@ -1891,11 +1879,10 @@ async def activate_admin_assignment(  # noqa: C901
     if assignment.status not in {
         CampaignAssignmentStatus.ACCEPTED.value,
         CampaignAssignmentStatus.ACTIVE.value,
-        CampaignAssignmentStatus.DEACTIVATED.value,
     }:
         raise AppError(
             "INVALID_ASSIGNMENT_TRANSITION",
-            "Only accepted, active or deactivated assignments can be activated",
+            "Only accepted or active assignments can be activated",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     if advisory_only and assignment.status == CampaignAssignmentStatus.ACTIVE.value:
@@ -2080,7 +2067,7 @@ async def activate_admin_assignment(  # noqa: C901
         campaign_id=campaign.id,
     )
     previous_status = assignment.status
-    activate_campaign = campaign.status == CampaignStatus.SCHEDULED.value
+    activate_campaign = campaign.status == CampaignStatus.APPROVED.value
     assignment.status = CampaignAssignmentStatus.ACTIVE.value
     assignment.activated_at = now
     if activate_campaign:
@@ -2141,7 +2128,7 @@ async def activate_admin_assignment(  # noqa: C901
             entity_type="campaign",
             entity_id=str(campaign.id),
             metadata={
-                "status_before": CampaignStatus.SCHEDULED.value,
+                "status_before": CampaignStatus.APPROVED.value,
                 "status_after": campaign.status,
                 "assignment_id": str(assignment.id),
                 "activation_snapshot_sha256": event_metadata["activation_snapshot_sha256"],
@@ -2200,9 +2187,11 @@ async def deactivate_driver_assignment(
             "Only active assignments can be deactivated",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+    ensure_not_expired(campaign, now, code="ASSIGNMENT_FINISHED")
     previous_status = assignment.status
-    assignment.status = CampaignAssignmentStatus.DEACTIVATED.value
+    assignment.status = CampaignAssignmentStatus.CANCELLED.value
     assignment.deactivated_at = now
+    assignment.cancelled_at = now
     await session.flush()
     await create_activation_event(
         session,
@@ -2264,6 +2253,7 @@ async def cancel_admin_assignment(
     if locked_driver_profile is None or locked_vehicle is None:
         raise assignment_not_found()
     now = await database_clock(session)
+    ensure_not_expired(campaign, now, code="ASSIGNMENT_FINISHED")
     if await expire_assignment_if_due(session, assignment, now=now):
         raise OfferExpiredError("The assignment offer expired before it could be cancelled")
     if assignment.status == CampaignAssignmentStatus.OFFERED.value and _offer_terms_complete(
@@ -2276,7 +2266,6 @@ async def cancel_admin_assignment(
         )
     if assignment.status in {
         CampaignAssignmentStatus.CANCELLED.value,
-        CampaignAssignmentStatus.COMPLETED.value,
         CampaignAssignmentStatus.DECLINED.value,
         CampaignAssignmentStatus.EXPIRED.value,
     }:
@@ -2315,6 +2304,7 @@ async def get_current_active_driver_assignment(
         select(CampaignAssignment).where(
             CampaignAssignment.driver_profile_id == driver_profile.id,
             CampaignAssignment.status == CampaignAssignmentStatus.ACTIVE.value,
+            assignment_window_open(),
         )
     )
     assignments = list(result.scalars().all())

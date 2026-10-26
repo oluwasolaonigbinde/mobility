@@ -1,8 +1,7 @@
 """payout_v4 (D39): daily rate for reaching a daily distance target (Batch B).
 
-Every pay value here is an explicit SYNTHETIC test value. The client's real
-answers (Q1 shortfall formula and minimum, Q2 which miles count, Q3 cap and
-the full-day amount) are still open and are never assumed by the code.
+Day rates and target miles here are explicit SYNTHETIC test values. The fixed
+D43 formula is proportional, in-area only and capped at one day rate.
 """
 
 import asyncio
@@ -40,7 +39,7 @@ from payout_fixtures import (
     moving_points,
     run_recompute,
 )
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, select, update
 from test_trip_processing import add_pings, build_graph, run_pipeline
 
 from app.core.errors import AppError
@@ -50,8 +49,6 @@ from app.models.campaign import Campaign
 from app.models.campaign_assignment import CampaignAssignment
 from app.models.payout import (
     AssignmentRuleBinding,
-    CampaignPayoutRule,
-    CampaignPayoutRuleRevision,
     EarningsLedgerEntry,
     EarningsLedgerEntryStatus,
     EarningsLedgerEntryType,
@@ -108,100 +105,41 @@ def metres_along(points, *, max_gap_seconds: int = 120) -> int:
     return math.floor(total)
 
 
-def expected_pay(metres: int, *, rate, target, strategy, deduction=None, minimum="0") -> Decimal:
-    if metres <= 0:
-        return Decimal("0.00")
-    miles = Decimal(metres) / Decimal("1609.344")
-    rate, target = Decimal(rate), Decimal(target)
-    if miles < Decimal(minimum):
-        value = Decimal(0)
-    elif miles >= target:
-        value = rate
-    elif strategy == "proportional":
-        value = rate * miles / target
-    else:
-        value = max(Decimal(0), rate - Decimal(deduction) * (target - miles))
-    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+def expected_pay(metres: int, *, rate, target) -> Decimal:
+    miles = Decimal(max(0, metres)) / Decimal("1609.344")
+    return min(Decimal(rate), Decimal(rate) * miles / Decimal(target)).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
 
 
 def terms(**overrides) -> DailyRateTerms:
-    values = {
-        "daily_rate_naira": Decimal("10000.00"),
-        "daily_target_miles": Decimal("70"),
-        "shortfall_strategy": "per_mile_deduction",
-        "deduction_per_mile_naira": Decimal("140.00"),
-        "minimum_miles": Decimal("0"),
-        "outside_area_weight": Decimal("1"),
-    }
-    values.update(overrides)
-    return DailyRateTerms(**values)
+    return DailyRateTerms(
+        **{
+            "daily_rate_naira": Decimal("10000.00"),
+            "daily_target_miles": Decimal("70"),
+            **overrides,
+        }
+    )
 
 
 def miles_m(miles: str) -> int:
     return math.floor(Fraction(miles) * MILE)
 
 
-# --- D(d): pure day-pay tables (synthetic ₦10,000 / 70 mi / ₦140) -------------
+@pytest.mark.parametrize("metres", [0, 1, 1609, miles_m("35"), miles_m("70"), miles_m("300")])
+def test_proportional_pay_has_no_minimum_and_is_capped(metres) -> None:
+    assert day_pay_naira(metres, terms()) == expected_pay(metres, rate="10000", target="70")
+    assert day_pay_naira(1, terms()) == Decimal("0.09")
 
 
-def test_per_mile_deduction_table_including_zero_and_the_jump() -> None:
-    per_mile = terms()
-    assert day_pay_naira(0, per_mile) == Decimal("0.00")
-    # Just above zero the per-mile form jumps to rate - 140 x 70 = ₦200 (plus
-    # 1 m of credit). Whether that jump is intended is the client's Q1 answer.
-    assert day_pay_naira(1, per_mile) == Decimal("200.09")
-    assert day_pay_naira(miles_m("35"), per_mile) == expected_pay(
-        miles_m("35"), rate="10000", target="70", strategy="per_mile", deduction="140"
-    )
-    assert day_pay_naira(miles_m("69.5"), per_mile) == expected_pay(
-        miles_m("69.5"), rate="10000", target="70", strategy="per_mile", deduction="140"
-    )
-    # At and beyond the target: exactly one day rate, never more (cap).
-    assert day_pay_naira(math.ceil(Fraction(70) * MILE), per_mile) == Decimal("10000.00")
-    assert day_pay_naira(miles_m("300"), per_mile) == Decimal("10000.00")
-    # A deduction larger than the rate floors at ₦0, never negative.
-    steep = terms(deduction_per_mile_naira=Decimal("500.00"))
-    assert day_pay_naira(miles_m("10"), steep) == Decimal("0.00")
-
-
-def test_proportional_table_and_minimum_distance() -> None:
-    proportional = terms(shortfall_strategy="proportional", deduction_per_mile_naira=None)
-    assert day_pay_naira(0, proportional) == Decimal("0.00")
-    assert day_pay_naira(miles_m("35"), proportional) == expected_pay(
-        miles_m("35"), rate="10000", target="70", strategy="proportional"
-    )
-    assert day_pay_naira(miles_m("70"), proportional) == expected_pay(
-        miles_m("70"), rate="10000", target="70", strategy="proportional"
-    )
-    assert day_pay_naira(miles_m("71"), proportional) == Decimal("10000.00")
-    with_minimum = terms(
-        shortfall_strategy="proportional",
-        deduction_per_mile_naira=None,
-        minimum_miles=Decimal("20"),
-    )
-    assert day_pay_naira(miles_m("19.99"), with_minimum) == Decimal("0.00")
-    at_minimum = math.ceil(Fraction(20) * MILE)
-    assert day_pay_naira(at_minimum, with_minimum) == expected_pay(
-        at_minimum, rate="10000", target="70", strategy="proportional", minimum="20"
-    )
-
-
-@pytest.mark.parametrize("strategy", ["proportional", "per_mile_deduction"])
-def test_day_pay_is_monotone_and_trip_increments_sum_to_the_day(strategy) -> None:
-    day_terms = terms(
-        shortfall_strategy=strategy,
-        deduction_per_mile_naira=None if strategy == "proportional" else Decimal("140.00"),
-        minimum_miles=Decimal("5"),
-    )
+def test_day_pay_is_monotone_and_trip_increments_sum_to_the_day() -> None:
+    day_terms = terms()
     rng = random.Random(39)
     previous = Decimal("0.00")
     for metres in sorted(rng.randrange(0, 150_000) for _ in range(400)):
         value = day_pay_naira(metres, day_terms)
         assert value >= previous
         previous = value
-    # Three trips in a day: increments are never negative and telescope to
-    # exactly D(day total) — including when the day crosses the minimum and
-    # the target.
     for trips in ([miles_m("4"), miles_m("30"), miles_m("50")], [1, 2, miles_m("80")]):
         credited, increments = 0, []
         for added in trips:
@@ -289,16 +227,14 @@ def test_250s_stop_counts_under_daily_rate_policy() -> None:
 def test_distance_prorates_by_eligible_time_and_skips_every_exclusion() -> None:
     pings = [ping(t, BASE_LAT + (t // 30) * 0.00081) for t in range(0, 601, 30)]
     straight = [(p.recorded_at, p.latitude, p.longitude) for p in pings]
-    full = credited_distance_m_by_day(
-        pings=pings, breakdown=classify(pings), outside_area_weight=Decimal("1")
-    )
+    full = credited_distance_m_by_day(pings=pings, breakdown=classify(pings))
     assert full == {"2026-07-20": metres_along(straight)}
 
     # A GPS gap (> 120 s) credits nothing for that interval.
     gapped = pings[:6] + pings[11:]
-    assert credited_distance_m_by_day(
-        pings=gapped, breakdown=classify(gapped), outside_area_weight=Decimal("1")
-    ) == {"2026-07-20": metres_along([(p.recorded_at, p.latitude, p.longitude) for p in gapped])}
+    assert credited_distance_m_by_day(pings=gapped, breakdown=classify(gapped)) == {
+        "2026-07-20": metres_along([(p.recorded_at, p.latitude, p.longitude) for p in gapped])
+    }
 
     # Low accuracy removes both intervals touching the bad ping.
     blurred = list(pings)
@@ -313,26 +249,22 @@ def test_distance_prorates_by_eligible_time_and_skips_every_exclusion() -> None:
             Fraction(0),
         )
     )
-    assert credited_distance_m_by_day(
-        pings=blurred, breakdown=classify(blurred), outside_area_weight=Decimal("1")
-    ) == {"2026-07-20": expected}
+    assert credited_distance_m_by_day(pings=blurred, breakdown=classify(blurred)) == {
+        "2026-07-20": expected
+    }
 
     # A teleport (10 km in 30 s) credits nothing for its interval.
     jumped = list(pings)
     jumped[10] = ping(300, BASE_LAT + 0.09)
     breakdown = classify(jumped)
     assert breakdown.excluded_seconds_by_reason["teleport"] == 60
-    credited = credited_distance_m_by_day(
-        pings=jumped, breakdown=breakdown, outside_area_weight=Decimal("1")
-    )
+    credited = credited_distance_m_by_day(pings=jumped, breakdown=breakdown)
     assert credited["2026-07-20"] < full["2026-07-20"]
 
     # The campaign window cuts an interval: only the eligible share counts
     # (15 of the 300-330 s interval's 30 seconds).
     window = classify(pings, window_end=T0 + timedelta(seconds=315))
-    prorated = credited_distance_m_by_day(
-        pings=pings, breakdown=window, outside_area_weight=Decimal("1")
-    )
+    prorated = credited_distance_m_by_day(pings=pings, breakdown=window)
     first_ten = sum(
         (
             Fraction(haversine(a[1], a[2], b[1], b[2]))
@@ -344,8 +276,7 @@ def test_distance_prorates_by_eligible_time_and_skips_every_exclusion() -> None:
     assert prorated == {"2026-07-20": math.floor(first_ten + half_interval)}
 
 
-@pytest.mark.parametrize(("weight", "factor"), [("0", 0), ("0.5", Fraction(1, 2)), ("1", 1)])
-def test_outside_area_weight_and_whole_metre_rounding(weight, factor) -> None:
+def test_outside_area_miles_count_zero_with_whole_metre_rounding() -> None:
     # First half inside the target zone, second half outside it.
     pings = [ping(t, BASE_LAT + (t // 30) * 0.00081, premium=t <= 300) for t in range(0, 601, 30)]
     points = [(p.recorded_at, p.latitude, p.longitude) for p in pings]
@@ -356,18 +287,9 @@ def test_outside_area_weight_and_whole_metre_rounding(weight, factor) -> None:
         ),
         Fraction(0),
     )
-    outside = sum(
-        (
-            Fraction(haversine(a[1], a[2], b[1], b[2]))
-            for a, b in zip(points[10:], points[11:], strict=False)
-        ),
-        Fraction(0),
-    )
-    credited = credited_distance_m_by_day(
-        pings=pings, breakdown=classify(pings), outside_area_weight=Decimal(weight)
-    )
+    credited = credited_distance_m_by_day(pings=pings, breakdown=classify(pings))
     # Exact fraction first, one floor to whole metres per day.
-    assert credited == {"2026-07-20": math.floor(inside + outside * factor)}
+    assert credited == {"2026-07-20": math.floor(inside)}
 
 
 def test_midnight_split_and_sub_second_intervals() -> None:
@@ -375,9 +297,7 @@ def test_midnight_split_and_sub_second_intervals() -> None:
     start = datetime(2026, 7, 20, 22, 50, tzinfo=UTC)
     pings = [ping(t, BASE_LAT + (t // 30) * 0.00081, start=start) for t in range(0, 1201, 30)]
     points = [(p.recorded_at, p.latitude, p.longitude) for p in pings]
-    credited = credited_distance_m_by_day(
-        pings=pings, breakdown=classify(pings), outside_area_weight=Decimal("1")
-    )
+    credited = credited_distance_m_by_day(pings=pings, breakdown=classify(pings))
     assert credited == {
         "2026-07-20": metres_along(points[:21]),
         "2026-07-21": metres_along(points[20:]),
@@ -391,9 +311,9 @@ def test_midnight_split_and_sub_second_intervals() -> None:
         ping(60, BASE_LAT + 0.00162),
     ]
     twin_points = [(p.recorded_at, p.latitude, p.longitude) for p in twin]
-    assert credited_distance_m_by_day(
-        pings=twin, breakdown=classify(twin), outside_area_weight=Decimal("1")
-    ) == {"2026-07-20": metres_along(twin_points)}
+    assert credited_distance_m_by_day(pings=twin, breakdown=classify(twin)) == {
+        "2026-07-20": metres_along(twin_points)
+    }
 
 
 def test_noisy_stationary_trace_jitter_is_bounded_and_long_stops_add_nothing() -> None:
@@ -412,19 +332,12 @@ def test_noisy_stationary_trace_jitter_is_bounded_and_long_stops_add_nothing() -
         ]
 
     short = parked(240)
-    short_credit = credited_distance_m_by_day(
-        pings=short, breakdown=classify(short), outside_area_weight=Decimal("1")
-    )["2026-07-20"]
+    short_credit = credited_distance_m_by_day(pings=short, breakdown=classify(short))["2026-07-20"]
     assert 0 < short_credit <= 24 * 15  # at most ~15 m per 10 s interval
     long = parked(600)
     long_breakdown = classify(long)
     assert long_breakdown.eligible_seconds == 0
-    assert (
-        credited_distance_m_by_day(
-            pings=long, breakdown=long_breakdown, outside_area_weight=Decimal("1")
-        )
-        == {}
-    )
+    assert credited_distance_m_by_day(pings=long, breakdown=long_breakdown) == {}
 
 
 # --- PostGIS graph helpers ----------------------------------------------------
@@ -436,9 +349,6 @@ def pay(graph, metres) -> Decimal:
         metres,
         rate=t["daily_rate_naira"],
         target=t["daily_target_miles"],
-        strategy=t["shortfall_strategy"],
-        deduction=t["deduction_per_mile_naira"],
-        minimum=t["minimum_miles"],
     )
 
 
@@ -495,32 +405,6 @@ def test_three_same_day_trips_earn_increments_that_sum_to_the_capped_day(
     assert driver_view.daily_rate_days == [
         (date(2026, 7, 20), metres[2], calcs[trips[2].id].final_payout)
     ]
-
-
-def test_minimum_distance_pays_nothing_until_the_day_crosses_it(
-    postgis_db_sessionmaker, settings
-) -> None:
-    db = postgis_db_sessionmaker
-    graph = build_v4_graph(
-        db,
-        settings,
-        "v4-minimum",
-        daily_rate_naira="3000.00",
-        daily_target_miles="4.000",
-        shortfall_strategy="per_mile_deduction",
-        deduction_per_mile_naira="500.00",
-        minimum_miles="3.500",
-    )
-    trip2 = add_trip(db, settings, graph, started_at=TRIP_START + timedelta(hours=1))
-    first = metres_along(drive(db, settings, graph.trip))
-    second = metres_along(drive(db, settings, trip2))
-    calcs = calculations_by_trip(db)
-    assert first < 3.5 * 1609.344 < first + second
-    assert calcs[graph.trip.id].final_payout == Decimal("0.00")
-    assert calcs[graph.trip.id].distance_m_by_day == {"2026-07-20": first}
-    assert calcs[trip2.id].final_payout == pay(graph, first + second) == Decimal("3000.00")
-    # No ledger entry for a ₦0 day share; the credited distance still counts.
-    assert [entry.trip_session_id for entry in fetch_earnings_ledger_entries(db)] == [trip2.id]
 
 
 def test_cross_midnight_trip_prices_each_lagos_day_separately(
@@ -821,9 +705,6 @@ def test_v4_offer_freezes_daily_terms_and_acceptance_binds_them_verbatim(
         campaign_id=graph.campaign.id,
         rule_id=rule.id,
         admin_id=graph.admin.id,
-        shortfall_strategy="per_mile_deduction",
-        deduction_per_mile_naira="140.00",
-        outside_area_weight="0.5000",
     )
     materialize_offer(db, settings, graph)
 
@@ -837,10 +718,10 @@ def test_v4_offer_freezes_daily_terms_and_acceptance_binds_them_verbatim(
     assert {k: payout[k] for k in DEFAULT_TERMS} == {
         "daily_rate_naira": "8000.00",
         "daily_target_miles": "8.000",
-        "shortfall_strategy": "per_mile_deduction",
-        "deduction_per_mile_naira": "140.00",
+        "shortfall_strategy": "proportional",
+        "deduction_per_mile_naira": None,
         "minimum_miles": "0.000",
-        "outside_area_weight": "0.5000",
+        "outside_area_weight": "0.0000",
     }
     assert not any("hourly" in key or key == "daily_payable_hours_cap" for key in payout)
     assert terms_["eligibility"]["stationary_policy_marker"] == STATIONARY_POLICY_D39
@@ -867,14 +748,12 @@ def test_v4_offer_freezes_daily_terms_and_acceptance_binds_them_verbatim(
         binding.outside_area_weight,
     ) == (
         Decimal("8000.00"),
-        Decimal("140.00"),
-        Decimal("0.5000"),
+        None,
+        Decimal("0.0000"),
     )
 
-    # A later revision (published with the switch on) and switching
-    # publishing off again change nothing for the accepted assignment.
-    enabled = settings.model_copy(update={"payout_v4_publishing_enabled": True})
-    publish(db, enabled, graph.campaign.id, graph.admin.id, daily_rate_naira=Decimal("9800.00"))
+    # A later revision changes nothing for the accepted assignment.
+    publish(db, graph.campaign.id, graph.admin.id, daily_rate_naira=Decimal("9800.00"))
     after = asyncio.run(bound())
     assert (after.id, after.daily_rate_naira, after.revision_id) == (
         binding.id,
@@ -884,33 +763,22 @@ def test_v4_offer_freezes_daily_terms_and_acceptance_binds_them_verbatim(
 
 
 def v4_payload(**overrides) -> dict:
-    values = {
+    return {
         "effective_from": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
         "daily_rate_naira": "10000.00",
         "daily_target_miles": "70",
-        "shortfall_strategy": "per_mile_deduction",
-        "deduction_per_mile_naira": "140.00",
-        "minimum_miles": "0",
-        "outside_area_weight": "0.5",
         "reason": "synthetic publication",
+        **overrides,
     }
-    values.update(overrides)
-    return {key: value for key, value in values.items() if value is not None}
 
 
-def publish(db, settings, campaign_id, admin_id, **overrides):
-    payload = CampaignPayoutV4RevisionCreate(
-        **v4_payload(**{k: None if v is None else str(v) for k, v in overrides.items()})
-    )
+def publish(db, campaign_id, admin_id, **overrides):
+    payload = CampaignPayoutV4RevisionCreate(**v4_payload(**overrides))
 
     async def run():
         async with db() as session:
             result = await publish_payout_v4_revision(
-                session,
-                campaign_id=campaign_id,
-                payload=payload,
-                actor_user_id=admin_id,
-                settings=settings,
+                session, campaign_id=campaign_id, payload=payload, actor_user_id=admin_id
             )
             await session.commit()
             return result
@@ -920,114 +788,95 @@ def publish(db, settings, campaign_id, admin_id, **overrides):
 
 @pytest.fixture
 def v4_client(settings, postgis_db_sessionmaker):
-    def make(enabled: bool) -> TestClient:
-        app = create_app(settings.model_copy(update={"payout_v4_publishing_enabled": enabled}))
+    app = create_app(settings)
 
-        async def session_override():
-            async with postgis_db_sessionmaker() as session:
-                yield session
+    async def session_override():
+        async with postgis_db_sessionmaker() as session:
+            yield session
 
-        app.dependency_overrides[get_session] = session_override
-        return TestClient(app)
-
-    return make
+    app.dependency_overrides[get_session] = session_override
+    with TestClient(app) as client:
+        yield client
 
 
-def test_publishing_is_switched_off_by_default_validated_and_audited(
+def test_publishing_works_by_default_with_validation_and_audit(
     postgis_db_sessionmaker, v4_client
 ) -> None:
     db = postgis_db_sessionmaker
     graph = build_offered_graph(db, "v4-publish")
     url = f"/api/v1/admin/campaigns/{graph.campaign.id}/payout-v4-revisions"
-
-    with v4_client(False) as client:
-        headers = auth_headers(client, graph.admin.email, PASSWORD)
-        assert client.get("/api/v1/admin/payout-v4/status", headers=headers).json() == {
-            "publishing_enabled": False
-        }
-        refused = client.post(url, headers=headers, json=v4_payload())
-        assert refused.status_code == 503
-        assert refused.json()["error"]["code"] == "PAYOUT_V4_POLICY_UNAVAILABLE"
-
-    async def counts():
-        async with db() as session:
-            rules = await session.scalar(
-                select(func.count())
-                .select_from(CampaignPayoutRule)
-                .where(CampaignPayoutRule.campaign_id == graph.campaign.id)
-            )
-            revisions = await session.scalar(
-                select(func.count())
-                .select_from(CampaignPayoutRuleRevision)
-                .where(CampaignPayoutRuleRevision.campaign_id == graph.campaign.id)
-            )
-            return rules, revisions
-
-    assert asyncio.run(counts()) == (0, 0)
-
-    with v4_client(True) as client:
-        headers = auth_headers(client, graph.admin.email, PASSWORD)
-        assert client.get("/api/v1/admin/payout-v4/status", headers=headers).json() == {
-            "publishing_enabled": True
-        }
-        invalid = (
-            {"deduction_per_mile_naira": None},  # per-mile needs a deduction
-            {"shortfall_strategy": "proportional"},  # ...and proportional must not have one
-            {"outside_area_weight": "1.5"},
-            {"minimum_miles": "71"},
-            {"daily_rate_naira": "0"},
-            {"shortfall_strategy": "pro_rata"},
-            {"reason": " "},
-        )
-        for override in invalid:
-            response = client.post(url, headers=headers, json=v4_payload(**override))
-            assert response.status_code == 422, override
-        missing_minimum = v4_payload()
-        missing_minimum.pop("minimum_miles")
-        assert client.post(url, headers=headers, json=missing_minimum).status_code == 422
-        with_params = {**v4_payload(), "eligibility_params": {"stationary_window_min": 9}}
-        assert client.post(url, headers=headers, json=with_params).status_code == 422
-        assert asyncio.run(counts()) == (0, 0)
-
-        created = client.post(url, headers=headers, json=v4_payload())
-        assert created.status_code == 201, created.text
-        body = created.json()
-        assert body["formula_version"] == PAYOUT_V4
-        assert "hourly_rate_naira" not in body
-        assert body["daily_rate_naira"] == "10000.00"
-        assert body["deduction_per_mile_naira"] == "140.00"
-        assert body["eligibility_params"] == D39_STOP_OVERLAY
-        # Chain guard: a second revision must start strictly later.
-        again = client.post(
-            url, headers=headers, json=v4_payload(effective_from=body["effective_from"])
-        )
-        assert again.status_code == 400
-        listing = client.get(
-            f"/api/v1/admin/campaigns/{graph.campaign.id}/payout-rules/{body['payout_rule_id']}/revisions",
-            headers=headers,
-        )
-        assert [item["daily_target_miles"] for item in listing.json()["items"]] == ["70.000"]
-
-    assert asyncio.run(counts()) == (1, 1)
+    client = v4_client
+    headers = auth_headers(client, graph.admin.email, PASSWORD)
+    assert client.get("/api/v1/admin/payout-v4/status", headers=headers).status_code == 404
+    for override in (
+        {"deduction_per_mile_naira": "140"},
+        {"shortfall_strategy": "proportional"},
+        {"outside_area_weight": "0"},
+        {"minimum_miles": "0"},
+        {"daily_rate_naira": "0"},
+        {"daily_target_miles": "0"},
+        {"effective_from": "2020-01-01T00:00:00Z"},
+        {"reason": " "},
+        {"eligibility_params": {"stationary_window_min": 9}},
+    ):
+        response = client.post(url, headers=headers, json=v4_payload(**override))
+        expected_status = 400 if override.get("effective_from") else 422
+        assert response.status_code == expected_status, (override, response.text)
+    missing = v4_payload()
+    missing.pop("daily_target_miles")
+    assert client.post(url, headers=headers, json=missing).status_code == 422
+    created = client.post(url, headers=headers, json=v4_payload())
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["daily_rate_naira"] == "10000.00"
+    assert body["shortfall_strategy"] == "proportional"
+    assert body["deduction_per_mile_naira"] is None
+    assert Decimal(body["minimum_miles"]) == Decimal(body["outside_area_weight"]) == 0
+    assert body["eligibility_params"] == D39_STOP_OVERLAY
+    again = client.post(
+        url, headers=headers, json=v4_payload(effective_from=body["effective_from"])
+    )
+    assert again.status_code == 400
+    listing = client.get(
+        f"/api/v1/admin/campaigns/{graph.campaign.id}/payout-rules/{body['payout_rule_id']}/revisions",
+        headers=headers,
+    )
+    assert [item["daily_target_miles"] for item in listing.json()["items"]] == ["70.000"]
     events = {event.action: event for event in fetch_audit_events(db)}
     assert (
         events["admin.campaign_payout_rule.created"].event_metadata["formula_version"] == PAYOUT_V4
     )
-    after = events["admin.payout_rule_revision.created"].event_metadata["after"]
-    assert (
-        after["daily_rate_naira"] == "10000.00"
-        and after["shortfall_strategy"] == "per_mile_deduction"
-    )
-    assert events["admin.payout_rule_revision.created"].event_metadata["before"] is None
+    event = events["admin.payout_rule_revision.created"].event_metadata
+    assert event["after"]["daily_rate_naira"] == "10000.00"
+    assert event["after"]["shortfall_strategy"] == "proportional"
+    assert event["before"] is None
 
 
-def test_publishing_defaults_off_and_configuration_holds_no_pay_value(settings) -> None:
-    assert settings.payout_v4_publishing_enabled is False
+def test_configuration_contains_no_pay_policy_or_amount(settings) -> None:
     assert not any(
-        word in name
+        name.startswith(("payout_v4_publishing", "payout_automatic_", "payout_eligibility_"))
+        or any(
+            word in name
+            for word in ("daily_rate", "target_miles", "shortfall", "per_mile", "minimum_miles")
+        )
         for name in type(settings).model_fields
-        for word in ("daily_rate", "target_miles", "shortfall", "per_mile", "minimum_miles")
     )
+
+
+@pytest.mark.parametrize("zero", ["0", "0.000", "0.0000"])
+def test_fixed_rules_preserve_frozen_decimal_scale_for_replay(zero) -> None:
+    from app.services.payouts.daily import daily_rate_terms
+
+    binding = SimpleNamespace(
+        daily_rate_naira=Decimal("10000.00"),
+        daily_target_miles=Decimal("70.000"),
+        shortfall_strategy="proportional",
+        deduction_per_mile_naira=None,
+        minimum_miles=Decimal(zero),
+        outside_area_weight=Decimal(zero),
+    )
+    metadata = daily_rate_terms(binding).as_metadata()
+    assert metadata["minimum_miles"] == metadata["outside_area_weight"] == zero
 
 
 def test_pings_recorded_before_the_trip_start_add_no_distance() -> None:
@@ -1035,9 +884,7 @@ def test_pings_recorded_before_the_trip_start_add_no_distance() -> None:
     # driving they record is not part of the trip.
     pre = [ping(t, BASE_LAT + (t // 30) * 0.00081) for t in range(-600, 0, 30)]
     trip = [ping(t, BASE_LAT + (t // 30) * 0.00081) for t in range(0, 601, 30)]
-    in_trip_only = credited_distance_m_by_day(
-        pings=trip, breakdown=classify(trip), outside_area_weight=Decimal("1")
-    )
+    in_trip_only = credited_distance_m_by_day(pings=trip, breakdown=classify(trip))
     started = classify_session(
         session_started_at=T0,
         session_ended_at=T0 + timedelta(seconds=600),
@@ -1047,9 +894,7 @@ def test_pings_recorded_before_the_trip_start_add_no_distance() -> None:
         params=D39_PARAMS,
         stationary_policy_marker=STATIONARY_POLICY_D39,
     )
-    with_buffered = credited_distance_m_by_day(
-        pings=pre + trip, breakdown=started, outside_area_weight=Decimal("1")
-    )
+    with_buffered = credited_distance_m_by_day(pings=pre + trip, breakdown=started)
     assert with_buffered == in_trip_only
 
     # An interval that straddles the start credits only its in-trip share.
@@ -1065,9 +910,9 @@ def test_pings_recorded_before_the_trip_start_add_no_distance() -> None:
     )
     first_half = Fraction(haversine(BASE_LAT, BASE_LON, BASE_LAT + 0.00162, BASE_LON)) / 2
     last = Fraction(haversine(BASE_LAT + 0.00162, BASE_LON, BASE_LAT + 0.00243, BASE_LON))
-    assert credited_distance_m_by_day(
-        pings=straddle, breakdown=breakdown, outside_area_weight=Decimal("1")
-    ) == {"2026-07-20": math.floor(first_half + last)}
+    assert credited_distance_m_by_day(pings=straddle, breakdown=breakdown) == {
+        "2026-07-20": math.floor(first_half + last)
+    }
 
 
 def test_fractional_ping_timestamps_credit_their_full_distance() -> None:
@@ -1089,26 +934,25 @@ def test_fractional_ping_timestamps_credit_their_full_distance() -> None:
         stationary_policy_marker=STATIONARY_POLICY_D39,
     )
     points = [(p.recorded_at, p.latitude, p.longitude) for p in pings]
-    assert credited_distance_m_by_day(
-        pings=pings, breakdown=breakdown, outside_area_weight=Decimal("1")
-    ) == {"2026-07-20": metres_along(points)}
+    assert credited_distance_m_by_day(pings=pings, breakdown=breakdown) == {
+        "2026-07-20": metres_along(points)
+    }
 
 
 def test_zero_delta_correction_still_records_the_new_distance_for_later_trips(
     postgis_db_sessionmaker, settings
 ) -> None:
-    from payout_correction_fixtures import approve, create_order, execute, second_admin, submit
+    from payout_correction_fixtures import create_order, execute, second_admin
 
     db = postgis_db_sessionmaker
-    # Synthetic minimum above one trip: the first trip is paid ₦0 before and
-    # after its correction, so the correction moves no money.
+    # A very small rate rounds this short trip to zero both before and after
+    # correction, while its revised distance must still govern later trips.
     graph = build_v4_graph(
         db,
         settings,
         "v4-zero-delta",
-        daily_rate_naira="3000.00",
-        daily_target_miles="6.000",
-        minimum_miles="5.000",
+        daily_rate_naira="0.01",
+        daily_target_miles="1000.000",
     )
     first = drive(db, settings, graph.trip)
     assert fetch_payout_calculations(db)[0].final_payout == Decimal("0.00")
@@ -1129,9 +973,7 @@ def test_zero_delta_correction_still_records_the_new_distance_for_later_trips(
     corrected = metres_along([p for p in first if p[0] not in lost])
     assert corrected < metres_along(first)
     order = create_order(db, settings, graph)
-    submit(db, order.id, graph.admin.id)
     approver = second_admin(db, "v4-zero-delta")
-    approve(db, settings, order.id, approver.id)
     executed = execute(db, settings, order.id, approver.id)
     executed_order = executed[0] if isinstance(executed, tuple) else executed
     recorded = executed_order.execution_result["drivers"][0]["trips"][0]
@@ -1153,17 +995,18 @@ def test_incomplete_or_malformed_daily_rate_data_fails_closed() -> None:
     complete = {
         "daily_rate_naira": Decimal("10000.00"),
         "daily_target_miles": Decimal("70"),
-        "shortfall_strategy": "per_mile_deduction",
-        "deduction_per_mile_naira": Decimal("140.00"),
+        "shortfall_strategy": "proportional",
+        "deduction_per_mile_naira": None,
         "minimum_miles": Decimal("0"),
-        "outside_area_weight": Decimal("1"),
+        "outside_area_weight": Decimal("0"),
     }
     assert daily_rate_terms(SimpleNamespace(**complete)).daily_target_miles == Decimal("70")
     for broken in (
         {"daily_rate_naira": None},
         {"shortfall_strategy": "pro_rata"},
-        {"deduction_per_mile_naira": None},
-        {"shortfall_strategy": "proportional"},
+        {"deduction_per_mile_naira": Decimal("1")},
+        {"minimum_miles": Decimal("1")},
+        {"outside_area_weight": Decimal("1")},
     ):
         with pytest.raises(AppError) as exc_info:
             daily_rate_terms(SimpleNamespace(**{**complete, **broken}))
@@ -1176,7 +1019,7 @@ def test_incomplete_or_malformed_daily_rate_data_fails_closed() -> None:
     assert _daily_rate_days({"2026-07-20": -1}, {}) is None
     assert _daily_rate_days({"not-a-day": 1}, {}) is None
 
-    offer = {key: str(value) for key, value in complete.items()}
+    offer = {key: (str(value) if value is not None else None) for key, value in complete.items()}
     assert _daily_rate_offer_terms(offer) is not None
     for broken in (
         {"daily_rate_naira": "x"},
@@ -1185,8 +1028,9 @@ def test_incomplete_or_malformed_daily_rate_data_fails_closed() -> None:
         {"minimum_miles": "71"},
         {"outside_area_weight": "1.5"},
         {"daily_target_miles": "NaN"},
-        {"deduction_per_mile_naira": None},
-        {"shortfall_strategy": "proportional"},
+        {"deduction_per_mile_naira": Decimal("1")},
+        {"minimum_miles": Decimal("1")},
+        {"outside_area_weight": Decimal("1")},
     ):
         assert _daily_rate_offer_terms({**offer, **broken}) is None, broken
 

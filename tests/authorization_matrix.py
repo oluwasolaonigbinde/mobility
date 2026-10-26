@@ -29,7 +29,6 @@ class Action(StrEnum):
     DELETE = "delete"
     TRANSITION = "transition"
     DOWNLOAD = "download"
-    EXPORT = "export"
     JOB = "job"
     CALLBACK = "callback"
 
@@ -55,10 +54,12 @@ PUBLIC_ROUTES = frozenset(
         ("GET", "/api/v1/health"),
         ("GET", "/api/v1/health/ready"),
         ("GET", "/api/v1/health/partitions"),
+        ("GET", "/api/v1/qr/{code}"),
         ("POST", "/api/v1/campaign-enquiries"),
         ("POST", "/api/v1/auth/login"),
         ("POST", "/api/v1/auth/password-reset/request"),
         ("POST", "/api/v1/auth/password-reset/complete"),
+        ("POST", "/api/v1/auth/advertiser-invite/complete"),
         ("POST", "/api/v1/auth/driver-onboarding-access/request"),
         ("POST", "/api/v1/auth/driver-account-setup/complete"),
         ("POST", "/api/v1/auth/register-driver"),
@@ -69,6 +70,7 @@ PUBLIC_ROUTES = frozenset(
 
 APPLICANT_ROUTES = frozenset(
     {
+        ("POST", "/api/v1/auth/driver-onboarding/continue"),
         ("POST", "/api/v1/auth/driver-onboarding/files/uploads"),
         ("POST", "/api/v1/auth/driver-onboarding/files/uploads/{upload_id}/confirm"),
         ("POST", "/api/v1/auth/driver-onboarding/files/{file_id}/status"),
@@ -83,7 +85,6 @@ MACHINE_ROUTES = frozenset(
     {
         ("POST", "/api/v1/webhooks/payments"),
         ("POST", "/api/v1/webhooks/paystack"),
-        ("POST", "/api/v1/notifications/email/delivery-receipts"),
     }
 )
 
@@ -171,8 +172,6 @@ def _action(method: str, path: str, principal: Principal) -> Action:
     final = path.rstrip("/").rsplit("/", 1)[-1]
     if final == "download":
         return Action.DOWNLOAD
-    if "export" in final:
-        return Action.EXPORT
     if any(term in path for term in ("recompute", "estimate", "evaluation")):
         return Action.JOB
     if final in _TRANSITION_TERMS:
@@ -270,6 +269,7 @@ def _schema_value(schema: dict[str, Any], root: dict[str, Any], *, field_name: s
         "reason_code": "missing_evidence",
         "sha256": "0" * 64,
         "verification_reference": "matrix-verification-reference-0001",
+        "destination": "https://example.com/matrix",
     }
     if field_name in named_values:
         return named_values[field_name]

@@ -4,17 +4,21 @@ import { advertiserStatus } from "./advertiser";
 it("uses context-specific staff words without leaking internal keys", () => {
   expect(adminStatus("pending", "driver")).toBe("Applicant");
   expect(adminStatus("pending_review", "campaign")).toBe("For review");
-  expect(adminStatus("active", "campaign")).toBe("Live");
+  expect(adminStatus("active", "campaign")).toBe("Running");
   expect(adminStatus("reserved")).toBe("Waiting for approval");
-  expect(adminStatus("acknowledged", "review")).toBe("Looking into it");
+  expect(adminStatus("open", "review")).toBe("Needs attention");
   expect(adminStatus("confirmed", "review")).toBe("Problem confirmed");
   expect(adminStatus("dismissed", "review")).toBe("Cleared");
-  expect(adminStatus("quarantined")).toBe("Late upload");
+  expect(adminStatus("manual")).toBe("Manual approval");
   expect(adminStatus("open", "contact")).toBe("Needs contact");
   expect(adminStatus("completed", "contact")).toBe("Completed");
   expect(adminStatus("open", "complaint")).toBe("Needs a reply");
   expect(adminStatus("answered", "complaint")).toBe("Waiting on them");
   expect(adminStatus("resolved", "complaint")).toBe("Resolved");
+  expect(adminStatus("queued", "report")).toBe("Being prepared");
+  expect(adminStatus("processing", "report")).toBe("Being prepared");
+  expect(adminStatus("ready", "report")).toBe("Ready");
+  expect(adminStatus("failed", "report")).toBe("Failed");
   expect(adminStatus("new_internal_state")).toBe("Unknown status");
   expect(adminStatus(undefined)).toBe("Not recorded");
   expect(adminTone("paid")).toBe("green");
@@ -43,7 +47,7 @@ it.each([
 });
 
 it("retains advertiser labels and its fallback outside the two approved change states", () => {
-  expect(advertiserStatus("active")).toBe("Live");
+  expect(advertiserStatus("active")).toBe("Running");
   expect(advertiserStatus("applied")).toBe("Applied");
   expect(advertiserStatus("pending")).toBe("Waiting");
   expect(advertiserStatus("held")).toBe("Status unavailable");

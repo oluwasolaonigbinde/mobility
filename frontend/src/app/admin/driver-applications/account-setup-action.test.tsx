@@ -21,16 +21,14 @@ it("uses the shared accessible dialog and returns focus after cancellation", asy
 
   expect(initiate).not.toHaveBeenCalled();
   const dialog = screen.getByRole("alertdialog", {
-    name: "Start account setup for Ada Applicant?",
+    name: "Email Ada Applicant a link to set their password?",
   });
   expect(dialog.tagName).toBe("DIALOG");
-  expect(dialog).toHaveTextContent(
-    "creates a one-use setup link and queues delivery to the applicant's stored email",
-  );
-  expect(dialog).toHaveTextContent("Delivery is not confirmed");
+  expect(dialog).toHaveTextContent("A new link replaces any earlier unused setup link.");
+  expect(dialog).not.toHaveTextContent(/one-use|queues delivery|Delivery is not confirmed/);
   expect(dialog).toHaveTextContent("replaces any earlier unused setup link");
-  const cancel = within(dialog).getByRole("button", { name: "Keep current setup state" });
-  const confirm = within(dialog).getByRole("button", { name: "Create one-use setup link" });
+  const cancel = within(dialog).getByRole("button", { name: "Cancel" });
+  const confirm = within(dialog).getByRole("button", { name: "Send link" });
   expect(cancel).toHaveFocus();
 
   await user.keyboard("{Shift>}{Tab}{/Shift}");
@@ -43,7 +41,7 @@ it("uses the shared accessible dialog and returns focus after cancellation", asy
   expect(trigger).toHaveFocus();
 
   await user.click(trigger);
-  await user.click(screen.getByRole("button", { name: "Keep current setup state" }));
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
   expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   expect(trigger).toHaveFocus();
 });
@@ -60,10 +58,10 @@ it("keeps pending confirmation modal and shows a refusal inside it", async () =>
   render(<AccountSetupAction applicationId="application-1" applicantName="Ada Applicant" />);
 
   await user.click(screen.getByRole("button", { name: "Start account setup" }));
-  await user.click(screen.getByRole("button", { name: "Create one-use setup link" }));
+  await user.click(screen.getByRole("button", { name: "Send link" }));
 
   const dialog = screen.getByRole("alertdialog");
-  expect(within(dialog).getByRole("button", { name: "Keep current setup state" })).toBeDisabled();
+  expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
   expect(within(dialog).getByRole("button", { name: "Working…" })).toBeDisabled();
   await user.keyboard("{Escape}");
   expect(screen.getByRole("alertdialog")).toBeInTheDocument();
@@ -91,7 +89,7 @@ it("focuses the provider-neutral terminal status after successful confirmation",
   render(<AccountSetupAction applicationId="application-1" applicantName="Ada Applicant" />);
 
   await user.click(screen.getByRole("button", { name: "Start account setup" }));
-  await user.click(screen.getByRole("button", { name: "Create one-use setup link" }));
+  await user.click(screen.getByRole("button", { name: "Send link" }));
 
   const status = await screen.findByRole("status");
   expect(status).toHaveTextContent("created and queued for delivery");

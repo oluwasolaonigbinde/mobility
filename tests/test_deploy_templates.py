@@ -21,7 +21,6 @@ SECRET_NAMES = {
     "OBJECT_STORAGE_SECRET_ACCESS_KEY",
     "EMAIL_SMTP_USERNAME",
     "EMAIL_SMTP_PASSWORD",
-    "EMAIL_RECEIPT_SIGNING_SECRET",
     "PAYSTACK_SECRET_KEY",
     "SENTRY_DSN",
     "NEXT_PUBLIC_SENTRY_DSN",
@@ -34,25 +33,21 @@ SECRET_NAMES = {
 def test_secrets_are_blank_and_unapproved_policies_stay_unset(name: str) -> None:
     environment = read_env_file(ROOT / name)
     assert {key: environment[key] for key in SECRET_NAMES} == dict.fromkeys(SECRET_NAMES, "")
-    for key in (
-        "BUDGET_ALERT_RATIO",
-        "BUDGET_URGENT_RATIO",
-        "BUDGET_PAUSE_RATIO",
-        "BUDGET_RESUME_RATIO",
-        "FILE_KYC_RETENTION_DAYS",
-        "INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE",
-    ):
+    for key in ("INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE",):
         assert environment[key] == ""
+    assert "FILE_KYC_RETENTION_DAYS" not in environment
     for key in (
         "ALLOW_DEMO_SEED",
         "DEMO_LOGIN_ENABLED",
-        "BUDGET_POLICY_EXTERNAL_APPROVED",
-        "PAYOUT_V4_PUBLISHING_ENABLED",
-        "PAYOUT_AUTOMATIC_APPROVAL_ENABLED",
     ):
         assert environment[key] == "false"
     assert environment["MALWARE_SCANNER_HOST"] == "clamav"
     assert environment["WEB_CONCURRENCY"] == "2"
+    assert "DRIVER_ONBOARDING_ACCESS_TTL_SECONDS" not in environment
+    assert not any(
+        key.startswith("BUDGET_POLICY_") or (key.startswith("BUDGET_") and key.endswith("_RATIO"))
+        for key in environment
+    )
     model = production_model(env_file=ROOT / name, profiles=("release",))
     validate_compose_model(model)
 
@@ -115,8 +110,6 @@ def test_scanner_topology_and_configurable_workers() -> None:
         "volume_readonly",
         "api_host",
         "worker_host",
-        "api_port",
-        "worker_port",
         "api_dependency",
         "worker_dependency",
     ],
@@ -150,8 +143,6 @@ def test_release_rejects_unsafe_scanner(fault: str) -> None:
         service = model["services"][name]
         if field == "host":
             service["environment"]["MALWARE_SCANNER_HOST"] = "external.invalid"
-        elif field == "port":
-            service["environment"]["MALWARE_SCANNER_PORT"] = "9999"
         else:
             service["depends_on"]["clamav"]["condition"] = "service_started"
     with pytest.raises(ContractError):

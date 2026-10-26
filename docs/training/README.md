@@ -35,9 +35,7 @@ authority exists; repository examples must remain synthetic.
 | `<TRAINING_FACILITATOR_ROLE>` | Guides the role tasks and records later observations. | A trained facilitator, rehearsal result, or acceptance. |
 | `<OPERATIONS_OWNER_ROLE>` | Receives operational escalation after `EXT-OPERATIONS-OWNER` is resolved. | A named owner or on-call rota. |
 | `<PRIVACY_DECISION_ROLE>` | Makes approved privacy/legal decisions outside the platform-operator role. | Legal advice, notice wording, retention authority, or breach-notification decisions. |
-| `<MONEY_MAKER_ROLE>` | Prepares a frozen synthetic correction, batch, or instruction. | Permission to approve, reconcile, submit, or mark paid. |
-| `<MONEY_CHECKER_ROLE>` | Independently checks money identity, value, authority, and conservation. | Permission to create and self-approve work or manufacture finality. |
-| `<MONEY_RECONCILER_ROLE>` | Reconciles immutable provider-neutral evidence independently of maker and checker. | Permission to manufacture provider or bank evidence or rewrite history. |
+| `<MONEY_OPERATOR_ROLE>` | Prepares, checks, approves/applies and reconciles synthetic money actions; one active admin may do all steps (D112). | Cannot invent provider or bank evidence, release held money or rewrite history. |
 | `<INCIDENT_COMMANDER_ROLE>` | Coordinates incident containment, evidence preservation, and recovery ordering. | Security ownership or authority to close privacy or money impact alone. |
 | `<SECURITY_OWNER_ROLE>` | Governs technical access, containment, rotation, and recovery decisions. | Incident command, credential custody, or authority to declare closure alone. |
 | `<REPORT_METHOD_AUTHORITY_ROLE>` | Reviews reporting methodology, provenance, disclosures, and corrections. | Permission to issue a live report without approved method and privacy authority. |

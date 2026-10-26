@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { adminValueFailure } from "@/lib/api/admin-read";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
@@ -12,7 +13,6 @@ import {
   alertLabel,
   formatWat,
   manualReasonLabel,
-  missingSettingLabel,
   outcomeText,
   reconciliationDay,
   type AutomaticAlert,
@@ -28,26 +28,17 @@ export const metadata: Metadata = { title: "Automatic payouts" };
 async function settle<T>(read: Promise<{ data?: T }>): Promise<T | null> {
   try {
     return (await read).data ?? null;
-  } catch {
+  } catch (error) {
+    adminValueFailure(error);
     return null;
   }
 }
 
 function StatusPanel({ status }: { status: AutomaticStatus }) {
-  const notSetUp = status.missing_settings.length > 0;
   return (
     <Panel className="space-y-3 p-4 sm:p-6">
       <h2 className="font-display text-xl">Status</h2>
-      {notSetUp ? (
-        <div className="space-y-1">
-          <p className="font-medium">Not set up yet — nothing is paid automatically.</p>
-          <ul className="text-muted list-disc pl-5 text-sm">
-            {status.missing_settings.map((name) => (
-              <li key={name}>{missingSettingLabel(name)}</li>
-            ))}
-          </ul>
-        </div>
-      ) : status.paused ? (
+      {status.paused ? (
         <p className="font-medium">Paused — Cardvert is not sending automatic payouts.</p>
       ) : status.runnable ? (
         <p className="font-medium">Running — Cardvert pays clean daily-rate earnings.</p>
@@ -68,15 +59,7 @@ function StatusPanel({ status }: { status: AutomaticStatus }) {
       <dl className="grid gap-2 text-sm sm:grid-cols-2">
         <div>
           <dt className="text-muted">How often</dt>
-          <dd>
-            {status.frequency ? (status.frequency === "daily" ? "Daily" : "Weekly") : "Not set"}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted">Most one run may pay</dt>
-          <dd>
-            {status.batch_limit ? formatMoneyExact(status.batch_limit, status.currency) : "Not set"}
-          </dd>
+          <dd>Daily</dd>
         </div>
         <div>
           <dt className="text-muted">Last run</dt>
@@ -107,7 +90,7 @@ function StatusPanel({ status }: { status: AutomaticStatus }) {
         for a person to prepare and approve.
       </p>
       <PauseSwitchForm paused={status.paused} />
-      {(status.paused || notSetUp) && status.unsent_count > 0 ? (
+      {status.paused && status.unsent_count > 0 ? (
         <ReleaseUnsentForm count={status.unsent_count} />
       ) : null}
     </Panel>

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
@@ -18,13 +18,16 @@ from app.models.campaign import (
 )
 from app.models.organization import AdvertiserOrganization
 from app.schemas.campaigns import (
+    AdminCampaignListItemRead,
     AdminCampaignListResponse,
     AdminCampaignOrganizationSummary,
     AdminCampaignPauseRead,
     AdminCampaignRead,
     AdminCreativeReviewItem,
     AdminCreativeReviewListResponse,
+    AdvertiserCampaignRead,
     CampaignCreate,
+    CampaignListItemRead,
     CampaignListResponse,
     CampaignRead,
     CampaignResumeRequest,
@@ -42,6 +45,7 @@ from app.schemas.campaigns import (
     ensure_timezone_aware,
 )
 from app.services.audit import create_audit_event
+from app.services.billing.budget import campaign_budget_used
 from app.services.campaigns import (
     create_campaign,
     create_campaign_creative,
@@ -63,6 +67,7 @@ from app.services.campaigns import (
     update_advertiser_campaign,
     update_campaign_creative,
 )
+from app.services.payout_rule_serialization import database_clock
 
 router = APIRouter(tags=["Campaigns"])
 
@@ -109,6 +114,25 @@ def campaign_response(campaign: Campaign) -> CampaignRead:
         metadata=campaign.campaign_metadata,
         created_at=campaign.created_at,
         updated_at=campaign.updated_at,
+    )
+
+
+async def advertiser_campaign_response(
+    session, campaign: Campaign, *, now: datetime | None = None
+) -> AdvertiserCampaignRead:
+    if now is None:
+        now = await database_clock(session)
+    pause_kind = None
+    if campaign.status == CampaignStatus.PAUSED:
+        from app.services.campaign_resume import pause_info
+
+        pause_kind = (await pause_info(session, campaign))["kind"]
+    return AdvertiserCampaignRead.model_validate(
+        {
+            **campaign_response(campaign).model_dump(),
+            "budget_used": await campaign_budget_used(session, campaign=campaign, now=now),
+            "pause_kind": pause_kind,
+        }
     )
 
 
@@ -188,7 +212,7 @@ def creative_review_event_response(event: CreativeReviewEvent) -> CreativeReview
 
 @router.post(
     "/advertiser/campaigns",
-    response_model=CampaignRead,
+    response_model=AdvertiserCampaignRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create a campaign",
 )
@@ -196,7 +220,7 @@ async def advertiser_create_campaign(
     payload: CampaignCreate,
     current_user: AdvertiserUserDependency,
     session: SessionDependency,
-) -> CampaignRead:
+) -> AdvertiserCampaignRead:
     campaign, created = await create_campaign(session, user_id=current_user.id, payload=payload)
     if created:
         await create_audit_event(
@@ -208,7 +232,7 @@ async def advertiser_create_campaign(
             metadata={"organization_id": str(campaign.organization_id), "status": campaign.status},
         )
     await session.commit()
-    return campaign_response(campaign)
+    return await advertiser_campaign_response(session, campaign)
 
 
 @router.get(
@@ -221,7 +245,7 @@ async def advertiser_list_campaigns(
     session: SessionDependency,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
-    status: CampaignStatus | None = None,
+    status: CampaignStatus | Literal["finished"] | None = None,
     start_at_from: datetime | None = None,
     start_at_to: datetime | None = None,
 ) -> CampaignListResponse:
@@ -235,8 +259,21 @@ async def advertiser_list_campaigns(
         start_at_from=start_at_from,
         start_at_to=start_at_to,
     )
+    from app.services.list_counts import campaign_list_counts, campaign_preview_files
+
+    identities = [row.id for row in campaigns]
+    counts = await campaign_list_counts(session, identities)
+    previews = await campaign_preview_files(session, identities)
+    now = await database_clock(session)
     return CampaignListResponse(
-        items=[campaign_response(campaign) for campaign in campaigns],
+        items=[
+            CampaignListItemRead(
+                **(await advertiser_campaign_response(session, row, now=now)).model_dump(),
+                **counts[row.id],
+                preview_file_id=previews.get(row.id),
+            )
+            for row in campaigns
+        ],
         total=total,
         limit=limit,
         offset=offset,
@@ -245,25 +282,25 @@ async def advertiser_list_campaigns(
 
 @router.get(
     "/advertiser/campaigns/{campaign_id}",
-    response_model=CampaignRead,
+    response_model=AdvertiserCampaignRead,
     summary="Get current advertiser campaign",
 )
 async def advertiser_get_campaign(
     campaign_id: UUID,
     current_user: AdvertiserUserDependency,
     session: SessionDependency,
-) -> CampaignRead:
+) -> AdvertiserCampaignRead:
     campaign = await get_advertiser_campaign(
         session,
         user_id=current_user.id,
         campaign_id=campaign_id,
     )
-    return campaign_response(campaign)
+    return await advertiser_campaign_response(session, campaign)
 
 
 @router.patch(
     "/advertiser/campaigns/{campaign_id}",
-    response_model=CampaignRead,
+    response_model=AdvertiserCampaignRead,
     summary="Update current advertiser campaign",
 )
 async def advertiser_update_campaign(
@@ -271,7 +308,7 @@ async def advertiser_update_campaign(
     payload: CampaignUpdate,
     current_user: AdvertiserUserDependency,
     session: SessionDependency,
-) -> CampaignRead:
+) -> AdvertiserCampaignRead:
     campaign, changed_fields = await update_advertiser_campaign(
         session,
         user_id=current_user.id,
@@ -288,26 +325,26 @@ async def advertiser_update_campaign(
             metadata={"changed_fields": changed_fields},
         )
     await session.commit()
-    return campaign_response(campaign)
+    return await advertiser_campaign_response(session, campaign)
 
 
 @router.post(
     "/advertiser/campaigns/{campaign_id}/submit",
-    response_model=CampaignRead,
+    response_model=AdvertiserCampaignRead,
     summary="Submit a campaign for admin review",
 )
 async def advertiser_submit_campaign_for_review(
     campaign_id: UUID,
     current_user: AdvertiserUserDependency,
     session: SessionDependency,
-) -> CampaignRead:
+) -> AdvertiserCampaignRead:
     campaign = await submit_campaign_for_review(
         session,
         user_id=current_user.id,
         campaign_id=campaign_id,
     )
     await session.commit()
-    return campaign_response(campaign)
+    return await advertiser_campaign_response(session, campaign)
 
 
 @router.get(
@@ -612,7 +649,7 @@ async def admin_list_campaigns_endpoint(
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     organization_id: UUID | None = None,
-    status: CampaignStatus | None = None,
+    status: CampaignStatus | Literal["finished"] | None = None,
     q: Annotated[str | None, Query(max_length=120)] = None,
     oldest_first: bool = False,
 ) -> AdminCampaignListResponse:
@@ -626,9 +663,15 @@ async def admin_list_campaigns_endpoint(
         campaign_status=status,
         q=q,
     )
+    from app.services.list_counts import campaign_list_counts
+
+    counts = await campaign_list_counts(session, [row.id for row, _org in campaigns])
     return AdminCampaignListResponse(
         items=[
-            admin_campaign_response(campaign, organization) for campaign, organization in campaigns
+            AdminCampaignListItemRead(
+                **admin_campaign_response(row, org).model_dump(), **counts[row.id]
+            )
+            for row, org in campaigns
         ],
         total=total,
         limit=limit,
@@ -684,9 +727,15 @@ async def admin_list_pending_campaign_reviews(
         campaign_status=CampaignStatus.PENDING_REVIEW.value,
         lock_campaigns=True,
     )
+    from app.services.list_counts import campaign_list_counts
+
+    counts = await campaign_list_counts(session, [row.id for row, _org in campaigns])
     return AdminCampaignListResponse(
         items=[
-            admin_campaign_response(campaign, organization) for campaign, organization in campaigns
+            AdminCampaignListItemRead(
+                **admin_campaign_response(row, org).model_dump(), **counts[row.id]
+            )
+            for row, org in campaigns
         ],
         total=total,
         limit=limit,

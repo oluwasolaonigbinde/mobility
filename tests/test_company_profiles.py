@@ -87,7 +87,7 @@ def test_company_profile_enforces_tenant_roles_and_admin_only_fields(db_sessionm
                 OrganizationMembership(
                     organization_id=organization.id,
                     user_id=viewer.id,
-                    role=MembershipRole.VIEWER,
+                    role=MembershipRole.ADVERTISER,
                     status=MembershipStatus.ACTIVE,
                 )
             )
@@ -103,14 +103,13 @@ def test_company_profile_enforces_tenant_roles_and_admin_only_fields(db_sessionm
                     session, actor_user_id=outsider.id, organization_id=organization.id
                 )
             assert read_hidden.value.code == "COMPANY_PROFILE_NOT_FOUND"
-            with pytest.raises(AppError) as viewer_write:
-                await update_company_profile(
-                    session,
-                    actor_user_id=viewer.id,
-                    organization_id=organization.id,
-                    changes={"industry": "Transport"},
-                )
-            assert viewer_write.value.code == "ORGANIZATION_WRITE_FORBIDDEN"
+            updated_advertiser = await update_company_profile(
+                session,
+                actor_user_id=viewer.id,
+                organization_id=organization.id,
+                changes={"industry": "Transport"},
+            )
+            assert updated_advertiser.industry == "Transport"
             with pytest.raises(AppError) as advertiser_admin_field:
                 await update_company_profile(
                     session,

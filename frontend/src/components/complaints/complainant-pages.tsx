@@ -21,6 +21,7 @@ import {
   type ComplaintParty,
 } from "@/lib/complaints/labels";
 import { readComplaintApi } from "@/lib/complaints/read";
+import { readOwnConversation } from "@/lib/complaints/conversation";
 import { ComplaintMessageForm, RaiseComplaintForm } from "./forms";
 
 type Summary = components["schemas"]["ComplaintSummaryRead"];
@@ -94,7 +95,7 @@ export async function ComplaintHelpPage({
     <div className="animate-rise mx-auto flex max-w-3xl flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight">Help</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight">Get help</h1>
           {party !== "driver" ? (
             <p className="text-muted mt-1 text-sm">
               Tell Terrax Media Customer Service about a problem. They reply here and you get a
@@ -107,7 +108,7 @@ export async function ComplaintHelpPage({
             href="#new-complaint"
             className="bg-amber text-accent-ink hover:bg-amber-soft inline-flex h-11 items-center rounded-lg px-5 text-sm font-medium"
           >
-            New complaint
+            Get help
           </a>
         ) : null}
       </div>
@@ -133,18 +134,18 @@ export async function ComplaintHelpPage({
       ) : null}
       <Panel className="overflow-hidden">
         <div className="border-edge border-b px-5 py-3.5">
-          <h2 className="font-display text-lg font-semibold">My complaints</h2>
+          <h2 className="font-display text-lg font-semibold">My messages and requests</h2>
           {waiting.length > 0 ? (
             <p className="text-amber mt-1 text-xs">
               Terrax Media replied to {waiting.length === 1 ? "one" : waiting.length} of your
-              complaints.
+              messages.
             </p>
           ) : null}
         </div>
         {list.state === "ready" ? (
           list.data.items.length === 0 ? (
             <p className="text-muted px-5 py-8 text-center text-sm">
-              You haven&apos;t raised any complaints.
+              You haven&apos;t sent any messages.
             </p>
           ) : (
             <ul className="divide-edge/60 divide-y">
@@ -155,19 +156,19 @@ export async function ComplaintHelpPage({
           )
         ) : list.state === "missing" ? (
           <p className="text-muted px-5 py-6 text-sm">
-            Complaints open once your {party === "driver" ? "driver profile" : "company account"} is
-            set up.
+            Help opens once your {party === "driver" ? "driver profile" : "company account"} is set
+            up.
           </p>
         ) : (
           <div className="p-4">
-            <Unavailable title="Your complaints couldn't be loaded" retryHref={BASE[party]} />
+            <Unavailable title="Your messages couldn't be loaded" retryHref={BASE[party]} />
           </div>
         )}
       </Panel>
 
       {list.state !== "missing" ? (
         <Panel className="scroll-mt-24 p-5" id="new-complaint">
-          <h2 className="font-display mb-4 text-lg font-semibold">New complaint</h2>
+          <h2 className="font-display mb-4 text-lg font-semibold">Get help</h2>
           <RaiseComplaintForm
             party={party}
             action={
@@ -189,21 +190,12 @@ export async function ComplaintConversationPage({
   party: ComplaintParty;
   complaintId: string;
 }) {
-  const api = createApiClient(await getSessionToken());
-  const detail = await readComplaintApi(() =>
-    party === "driver"
-      ? api.GET("/api/v1/driver/complaints/{complaint_id}", {
-          params: { path: { complaint_id: complaintId } },
-        })
-      : api.GET("/api/v1/advertiser/complaints/{complaint_id}", {
-          params: { path: { complaint_id: complaintId } },
-        }),
-  );
+  const detail = await readOwnConversation(party, complaintId);
   if (detail.state === "auth") redirect("/login");
 
   const back = (
     <Link href={BASE[party]} className="text-amber text-sm font-medium">
-      ← My complaints
+      ← My messages and requests
     </Link>
   );
   if (detail.state === "missing") {
@@ -211,8 +203,8 @@ export async function ComplaintConversationPage({
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
         {back}
         <EmptyState
-          title="Complaint not found"
-          body="This complaint doesn't exist or isn't part of your account."
+          title="Conversation not found"
+          body="This conversation doesn't exist or isn't part of your account."
         />
       </div>
     );
@@ -222,7 +214,7 @@ export async function ComplaintConversationPage({
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
         {back}
         <Unavailable
-          title="This complaint couldn't be loaded"
+          title="This conversation couldn't be loaded"
           retryHref={`${BASE[party]}/${complaintId}`}
         />
       </div>

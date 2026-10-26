@@ -129,12 +129,9 @@ async def flag_list_money(
             raise RuntimeError("Trip pay has conflicting currencies")
         amount = net(available)
         held = max(net(pending), Decimal("0"))
-        reversal = next((e for e in available if e.source_fraud_flag_id == flag.id), None)
         result[flag.id] = {
             "available_net": amount,
             "currency": next(iter(currencies), None),
-            "reversal_entry_id": reversal.id if reversal else None,
-            "reversal_recommended": flag.status != "dismissed" and reversal is None and amount > 0,
             "held_pending_net": held,
             "held_currency": next(iter(held_currencies), None) if held else None,
         }

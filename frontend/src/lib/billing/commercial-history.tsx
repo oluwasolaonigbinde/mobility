@@ -4,6 +4,7 @@ import { formatDate, formatMoney } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { startInvoicePayment } from "@/app/advertiser/billing/actions";
+import { moneyMinor } from "@/lib/advertiser/budget-display";
 
 type Invoice = components["schemas"]["InvoiceRead"];
 type Settlement = components["schemas"]["SettlementRead"];
@@ -30,7 +31,15 @@ function words(value: string) {
 
 /** An issued invoice that still has money owing on it. */
 export function isOutstandingInvoice(invoice: Invoice) {
-  return invoice.status === "issued" && invoice.payment_status !== "paid";
+  const obligation = moneyMinor(invoice.effective_obligation_amount);
+  const funded = moneyMinor(invoice.funded_amount);
+  return (
+    invoice.status === "issued" &&
+    invoice.payment_status !== "paid" &&
+    obligation !== null &&
+    funded !== null &&
+    obligation > funded
+  );
 }
 
 export function invoiceStatusLabel(invoice: Invoice) {
@@ -97,7 +106,7 @@ export function CommercialHistory({
   invoices,
   settlements,
   campaign,
-  showPayment = true,
+  showPayment = false,
 }: {
   invoices: Invoice[];
   settlements: Settlement[];
@@ -107,7 +116,10 @@ export function CommercialHistory({
   if (!invoices.length && !settlements.length) return null;
 
   return (
-    <Panel className={campaign ? "mt-4 overflow-hidden" : "mt-6 overflow-hidden"}>
+    <Panel
+      id={campaign ? `campaign-${campaign.id}` : undefined}
+      className={campaign ? "mt-4 scroll-mt-24 overflow-hidden" : "mt-6 overflow-hidden"}
+    >
       <div className="border-edge flex flex-wrap items-start justify-between gap-3 border-b px-6 py-4">
         {campaign ? (
           <Link
@@ -132,7 +144,7 @@ export function CommercialHistory({
                   </p>
                   <InvoiceAmounts invoice={invoice} />
                   <Link
-                    href={`/advertiser/campaigns/${invoice.campaign_id}/invoices/${invoice.id}`}
+                    href={`/advertiser/billing/${invoice.campaign_id}/invoices/${invoice.id}`}
                     className="micro text-amber mt-1 inline-block hover:underline"
                   >
                     View invoice

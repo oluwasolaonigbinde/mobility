@@ -18,10 +18,16 @@ it("marks approval expiry as required while a vehicle awaits review", () => {
       submissionId="submission-1"
       documentFileIds={{}}
       status="pending_review"
+      defaultValidUntil="2027-10-19T09:30"
     />,
   );
 
-  expect(screen.getByLabelText("Approval expiry")).toBeRequired();
+  const validUntil = screen.getByLabelText("Car approval valid until (Nigeria time)");
+  expect(validUntil).toBeRequired();
+  expect(validUntil).toHaveValue("2027-10-19T09:30");
+  fireEvent.change(validUntil, { target: { value: "2027-06-01T08:00" } });
+  expect(validUntil).toHaveValue("2027-06-01T08:00");
+  expect(screen.queryByRole("button", { name: "Mark expired" })).toBeNull();
 });
 
 const props = {
@@ -164,7 +170,7 @@ it("does not read empty collections and preserves the approved-car decision bran
   const { rerender } = render(<VehicleDecisionActions {...props} documentFileIds={{}} />);
   expect(screen.queryByRole("button", { name: "View" })).toBeNull();
   expect(mocks.read).not.toHaveBeenCalled();
-  expect(screen.getByLabelText("Approval expiry")).toBeRequired();
+  expect(screen.getByLabelText("Car approval valid until (Nigeria time)")).toBeRequired();
   for (const name of [
     "Owner matches",
     "Car details match",
@@ -198,4 +204,21 @@ it("times each vehicle document independently", async () => {
   } finally {
     vi.useRealTimers();
   }
+});
+it("keeps the staff-entered approval date after a failed approval instead of the prefill", async () => {
+  const user = userEvent.setup();
+  mocks.decide.mockResolvedValue({
+    error: "Complete every vehicle approval confirmation.",
+    validUntil: "2027-06-01T08:00",
+  });
+  render(<VehicleDecisionActions {...props} defaultValidUntil="2027-10-19T09:30" />);
+  const validUntil = screen.getByLabelText("Car approval valid until (Nigeria time)");
+  fireEvent.change(validUntil, { target: { value: "2027-06-01T08:00" } });
+  await user.click(screen.getByRole("button", { name: "Approve" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Complete every vehicle approval confirmation.",
+  );
+  expect(screen.getByLabelText("Car approval valid until (Nigeria time)")).toHaveValue(
+    "2027-06-01T08:00",
+  );
 });

@@ -1,5 +1,8 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
@@ -38,6 +41,7 @@ export async function submitFraudDisputeAction(
       body: { message },
     });
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof ApiError) {
       if (error.status === 401 || error.status === 403) {
         return { error: "Your session is no longer valid. Sign in again before retrying." };
@@ -45,7 +49,7 @@ export async function submitFraudDisputeAction(
       if (error.status === 409) {
         return { error: "A dispute already exists for this assessment. Refresh to see it." };
       }
-      return { error: error.message };
+      return { error: publicActionError(error) };
     }
     return { error: "Could not reach the server." };
   }

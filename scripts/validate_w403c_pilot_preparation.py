@@ -58,17 +58,17 @@ DOMAIN_FIELDS = {
         "amount",
         "currency",
         "ledger_finality_after",
-        "maker_id",
-        "checker_id",
-        "reconciler_id",
+        "actor_id",
+        "reason",
         "external_provider_actions",
     ),
     "report-replay": (
-        "request_id",
+        "report_id",
+        "client_request_id",
         "request_fingerprint",
-        "measurement_run_id",
-        "issuance_version",
-        "reissue_of_id",
+        "snapshot_sha256",
+        "version",
+        "rerun_of_id",
         "csv_artifact_id",
         "csv_sha256",
         "pdf_artifact_id",
@@ -118,25 +118,23 @@ EXERCISE_NODES = {
         "tests/test_payout_batches.py::test_submission_fails_closed_without_approved_provider",
     ),
     "report-replay": (
-        "tests/test_report_issuances.py::test_lost_response_replay_does_not_recompose_mutable_latest_projection",
-        "tests/test_report_issuances.py::test_partial_storage_failure_exposes_no_artifact_and_retry_recovers_pair",
+        "tests/test_req217_reports.py::test_publication_retries_same_keys_and_ready_files_never_change",
+        "tests/test_req217_report_failures.py::test_expired_publisher_cannot_finalize_and_retry_adopts_exact_keys",
     ),
     "incident-escalation": (
         "tests/test_privacy_operating_model.py::test_privacy_register_is_fail_closed_and_complete",
         "tests/test_privacy_operating_model.py::test_provider_notice_breach_and_dpia_registers_do_not_claim_approval",
     ),
     "evidence-chain": (
-        "tests/test_data_subject_requests.py::test_admin_access_request_inventories_and_closes_all_locations",
-        "tests/test_data_subject_requests.py::test_completion_requires_every_store",
+        "tests/test_file_kyc_lifecycle.py::test_file_kyc_retention_is_dry_run_first_audited_and_removes_terminal_objects",
+        "tests/test_schema_stored_object_deletions.py::test_stored_object_deletion_receipt_identity_is_append_only",
     ),
 }
 ROLE_PLACEHOLDER_RE = re.compile(r"<[A-Z0-9_-]+_ROLE>")
 REQUIRED_SEPARATION_ROLES = {
     "<INCIDENT_COMMANDER_ROLE>",
     "<SECURITY_OWNER_ROLE>",
-    "<MONEY_MAKER_ROLE>",
-    "<MONEY_CHECKER_ROLE>",
-    "<MONEY_RECONCILER_ROLE>",
+    "<MONEY_OPERATOR_ROLE>",
 }
 PROHIBITED_CLAIMS = (
     re.compile(r"\bW4-03C (?:is )?DONE\b", re.IGNORECASE),
@@ -249,9 +247,7 @@ def _canonical_role_errors(root: Path, operations_text: str) -> list[str]:
     if not registry_path.is_file():
         return ["canonical handover role registry is missing"]
     registry_text = registry_path.read_text(encoding="utf-8")
-    canonical = set(
-        ROLE_PLACEHOLDER_RE.findall(_markdown_section(registry_text, "Role registry"))
-    )
+    canonical = set(ROLE_PLACEHOLDER_RE.findall(_markdown_section(registry_text, "Role registry")))
     if not canonical:
         return ["canonical handover role registry is empty"]
     documented = set(ROLE_PLACEHOLDER_RE.findall(operations_text))
@@ -343,12 +339,9 @@ def validate_pack(
     readme = contents.get("README.md", "")
     if (
         "W4-03C remains incomplete and externally blocked. No monitored controlled "
-        "pilot\nhas been performed."
-        not in readme
+        "pilot\nhas been performed." not in readme
     ):
-        errors.append(
-            "README.md: missing truthful W4-03C incomplete/external-block statement"
-        )
+        errors.append("README.md: missing truthful W4-03C incomplete/external-block statement")
     errors.extend(_gate_parity_errors(root, readme, progress_text_override))
 
     operations = contents.get("operations-pack.md", "")

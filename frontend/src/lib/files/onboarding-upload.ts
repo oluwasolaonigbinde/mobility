@@ -15,6 +15,7 @@ export type DocumentUploadProgress = {
   scanStatus?: string;
   running?: Promise<string>;
   cancelled?: boolean;
+  onStatus?: (message: string) => void;
 };
 
 const UNSAFE_FILE =
@@ -38,7 +39,6 @@ const APPLICANT_MESSAGES: Record<string, string> = {
   PERSON_PAYEE_AUTHORITY_INVALID: CODE_NOT_WORKING,
   VEHICLE_ONBOARDING_AUTHORITY_INVALID: CODE_NOT_WORKING,
   FILE_SCOPE_NOT_FOUND: CODE_NOT_WORKING,
-  APPLICATION_UNAVAILABLE: "Applications are closed right now. Please try again later.",
   PERSON_PAYEE_APPROVAL_REQUIRED:
     "Wait until your ID and bank details are approved, then add your car. Check with your application reference on the first step.",
   PERSON_PAYEE_RESUBMISSION_NOT_ALLOWED:
@@ -225,6 +225,7 @@ async function resumeDocumentFile(
     progress.fileId = confirmed.id;
     progress.scanStatus = confirmed.scan_status;
   }
+  progress.onStatus?.("Checking file…");
   await waitForClean(accessToken, progress);
   return progress.fileId!;
 }

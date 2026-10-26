@@ -25,7 +25,11 @@ function setup() {
 }
 it("uses owned upload/confirmation/scan routes and leaves signed-in confirmation bodyless", async () => {
   const { file, fetch } = setup();
-  expect(await uploadDriverDocument(file, "stable-upload-request", "driver_kyc")).toBe("file");
+  const onStatus = vi.fn();
+  expect(
+    await uploadDriverDocument(file, "stable-upload-request", "driver_kyc", { onStatus }),
+  ).toBe("file");
+  expect(onStatus).toHaveBeenCalledWith("Checking file…");
   expect(fetch.mock.calls[0]![0]).toBe("/api/driver/files/uploads");
   expect(JSON.parse(fetch.mock.calls[0]![1].body).client_request_id).toBe("stable-upload-request");
   expect(fetch.mock.calls[2]).toEqual([

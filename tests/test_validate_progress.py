@@ -640,8 +640,8 @@ def test_live_only_inputs_gate_pilot_not_synthetic_build_items() -> None:
     for external_id in (
         "EXT-Q28-COMPANY",
         "EXT-COMMERCIAL-VALUES",
-        "EXT-EVIDENCE-POLICY",
         "EXT-LEGAL-PRIVACY",
+        "EXT-REPORT-METHOD",
         "EXT-DISBURSEMENT-PROVIDER",
         "EXT-PILOT-PERMITS",
     ):
@@ -914,7 +914,7 @@ def test_package_9_preparation_gate_cannot_be_silently_made_build_blocking() -> 
     )
 
 
-@pytest.mark.parametrize("external_id", ["EXT-STORE-ASSETS", "EXT-AD-PLATFORM"])
+@pytest.mark.parametrize("external_id", ["EXT-STORE-ASSETS", "EXT-REPORT-METHOD"])
 def test_rejects_stable_external_id_erasure(external_id: str) -> None:
     text = _progress()
     row = next(line for line in text.splitlines() if line.startswith(f"| **{external_id}**"))

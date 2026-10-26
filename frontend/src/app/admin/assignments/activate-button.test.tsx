@@ -19,7 +19,7 @@ describe("ActivateAssignmentButton", () => {
     mocks.activate.mockResolvedValue({ error: "Approval gates are unavailable" });
     render(<ActivateAssignmentButton assignmentId={ASSIGNMENT_ID} />);
 
-    await user.click(screen.getByRole("button", { name: "Start" }));
+    await user.click(screen.getByRole("button", { name: "Retry start" }));
 
     await waitFor(() => expect(mocks.activate).toHaveBeenCalledWith(ASSIGNMENT_ID));
     expect(await screen.findByRole("alert")).toHaveTextContent("Approval gates are unavailable");

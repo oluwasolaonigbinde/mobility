@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -13,8 +13,8 @@ import {
   type CampaignWizardInput,
 } from "@/lib/campaigns/schema";
 
-const VIEWER_WRITE_MESSAGE =
-  "Only company owners and managers can create campaigns. Ask one of them to create it or to change your access.";
+const WRITE_ACCESS_MESSAGE =
+  "Your advertiser access is unavailable. Ask Terrax to check your account.";
 
 export interface CreateCampaignState {
   error?: string;
@@ -28,6 +28,7 @@ export async function createCampaignAction(
   input: CampaignWizardInput,
   existingCampaignId?: string,
   campaignRequestId?: string,
+  saveDraftOnly = false,
 ): Promise<CreateCampaignState> {
   if (existingCampaignId !== undefined && !z.uuid().safeParse(existingCampaignId).success) {
     return { error: "The campaign recovery reference is invalid." };
@@ -69,9 +70,10 @@ export async function createCampaignAction(
       }
       campaignId = data.id;
     } catch (error) {
+      unstable_rethrow(error);
       // A definite permission refusal created nothing, so there is no request to recheck.
       if (error instanceof ApiError && error.code === "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN") {
-        return { error: VIEWER_WRITE_MESSAGE };
+        return { error: WRITE_ACCESS_MESSAGE };
       }
       return {
         error: publicActionError(
@@ -87,6 +89,10 @@ export async function createCampaignAction(
     }
   }
 
+  if (saveDraftOnly) {
+    revalidatePath("/advertiser/campaigns");
+    return { createdCampaignId: campaignId };
+  }
   for (const [index, creative] of creatives.entries()) {
     try {
       await api.POST("/api/v1/advertiser/campaigns/{campaign_id}/creatives", {
@@ -100,6 +106,7 @@ export async function createCampaignAction(
         },
       });
     } catch (error) {
+      unstable_rethrow(error);
       // Campaign exists; be honest about exactly what failed.
       const reason = publicActionError(
         error,
@@ -107,11 +114,12 @@ export async function createCampaignAction(
           CREATIVE_FILE_ALREADY_BOUND: "that file is already attached elsewhere",
           CREATIVE_FILE_NOT_CLEARED: "that file has not passed its security scan",
           CREATIVE_TYPE_MISMATCH: "that file does not match the selected creative type",
+          CAMPAIGN_ARTWORK_LOCKED: "This campaign's artwork is locked. Ask Terrax to change it.",
         },
         "the attachment result is not yet confirmed",
       );
       return {
-        error: `Campaign created, but creative ${index + 1} ("${creative.name}") failed: ${reason}`,
+        error: `Your draft is saved, but advert design ${index + 1} ("${creative.name}") couldn't be attached: ${reason}`,
         createdCampaignId: campaignId,
       };
     }

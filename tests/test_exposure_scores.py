@@ -1,25 +1,17 @@
-import asyncio
 from datetime import timedelta
-from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
-from conftest import auth_headers, create_test_organization, create_test_user
-from sqlalchemy import func, select, update
-from test_measurement_runs import DAY_1, PASSWORD, create_measurement_graph, issue_payload
+from report_fixtures import DAY_1
 
 from app.core.errors import AppError
 from app.models.exposure_score import ExposureScore
-from app.models.trip_analytics import TripAnalytics
-from app.models.user import UserRole
-from app.schemas.measurement import MeasurementRunCreate
 from app.services.exposure_scores import (
     EXPOSURE_V1_FORMULA_CONTRACT,
     calculate_exposure_score_v1,
-    exposure_score_is_stale,
     exposure_score_reproducible,
 )
-from app.services.measurement import canonical_sha256, issue_measurement_run
+from app.services.report_integrity import canonical_sha256
 
 
 def score_input(routes: list[dict]) -> dict:
@@ -91,213 +83,6 @@ def test_exposure_v1_golden_formula_boundaries_missing_data_and_uncertainty() ->
     assert missing["status"] == "insufficient_data"
     assert missing["score"] is None
     assert missing["route_scores"] == []
-
-
-def test_score_retries_reissue_without_rescoring_history_and_drives_report(
-    db_client, db_sessionmaker
-) -> None:
-    admin, advertiser, campaign = create_measurement_graph(db_sessionmaker)
-    admin_headers = auth_headers(db_client, admin.email, PASSWORD)
-    advertiser_headers = auth_headers(db_client, advertiser.email, PASSWORD)
-    request_id = uuid4()
-
-    first = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        json=issue_payload(campaign.id, request_id),
-        headers=admin_headers,
-    )
-    assert first.status_code == 201, first.text
-    first_score = first.json()["exposure_score"]
-    assert first_score["result"]["score"] == "84.00"
-    assert first_score["reproducible"] is True
-    assert first_score["stale"] is False
-
-    replay = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        json=issue_payload(campaign.id, request_id),
-        headers=admin_headers,
-    )
-    assert replay.status_code == 201
-    assert replay.json()["exposure_score"]["id"] == first_score["id"]
-
-    async def change_frozen_source() -> None:
-        async with db_sessionmaker() as session:
-            analytics = await session.scalar(
-                select(TripAnalytics).where(TripAnalytics.campaign_id == campaign.id)
-            )
-            assert analytics is not None
-            analytics.quality_score = Decimal("0.5000")
-            await session.commit()
-
-    asyncio.run(change_frozen_source())
-    second = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        json=issue_payload(campaign.id),
-        headers=admin_headers,
-    )
-    assert second.status_code == 201, second.text
-    second_score = second.json()["exposure_score"]
-    assert second_score["id"] != first_score["id"]
-    assert second_score["reissue_of_score_id"] == first_score["id"]
-    assert second_score["input_fingerprint"] != first_score["input_fingerprint"]
-    assert second_score["result"]["score"] == "46.67"
-
-    frozen = db_client.get(
-        f"/api/v1/admin/measurement-runs/{first.json()['id']}", headers=admin_headers
-    )
-    assert frozen.status_code == 200
-    assert frozen.json()["exposure_score"]["result"]["score"] == "84.00"
-
-    report = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/report",
-        params={
-            "start_at": DAY_1.isoformat(),
-            "end_at": (DAY_1 + timedelta(days=1)).isoformat(),
-        },
-        headers=advertiser_headers,
-    )
-    assert report.status_code == 200, report.text
-    body = report.json()
-    assert body["exposure_score"]["result"]["label"] == "Exposure score"
-    assert body["exposure_score"]["result"]["score"] == "46.67"
-    assert body["exposure_score"]["result"]["route_count"] == 1
-    assert body["exposure_score"]["result"]["missing_route_count"] == 0
-    assert body["exposure_score"]["reproducible"] is True
-    assert body["measurement_result"]["metrics"][1]["label"] == "Modelled potential contacts"
-    assert body["measurement_result"]["roi"] is None
-
-    def recursive_keys(value):
-        if isinstance(value, dict):
-            for key, child in value.items():
-                yield key
-                yield from recursive_keys(child)
-        elif isinstance(value, list):
-            for child in value:
-                yield from recursive_keys(child)
-
-    forbidden = {
-        "trip_analytics_id",
-        "trip_session_id",
-        "route_scores",
-        "issued_by_user_id",
-    }
-    assert forbidden.isdisjoint(recursive_keys(body["exposure_score"]))
-
-    schema = db_client.get("/openapi.json").json()
-    report_schema = schema["components"]["schemas"]["CampaignReportResponse"]
-    exposure_schema = report_schema["properties"]["exposure_score"]
-    exposure_ref = next(
-        item["$ref"] for item in exposure_schema["anyOf"] if "$ref" in item
-    )
-    assert exposure_ref.endswith("/AdvertiserExposureScoreRead")
-    components = schema["components"]["schemas"]
-
-    def recursive_schema_keys(value, seen=frozenset()):
-        if isinstance(value, dict):
-            reference = value.get("$ref")
-            if reference is not None:
-                name = reference.rsplit("/", 1)[-1]
-                if name not in seen:
-                    yield from recursive_schema_keys(components[name], seen | {name})
-            for key, child in value.items():
-                yield key
-                yield from recursive_schema_keys(child, seen)
-        elif isinstance(value, list):
-            for child in value:
-                yield from recursive_schema_keys(child, seen)
-
-    assert forbidden.isdisjoint(
-        recursive_schema_keys(components["AdvertiserExposureScoreRead"])
-    )
-
-
-def test_score_authorization_tenant_and_stale_parent_fail_closed(
-    db_client, db_sessionmaker
-) -> None:
-    admin, advertiser, campaign = create_measurement_graph(db_sessionmaker)
-    outsider = create_test_user(
-        db_sessionmaker,
-        email="exposure-outsider@example.com",
-        password=PASSWORD,
-        role=UserRole.ADVERTISER,
-    )
-    create_test_organization(db_sessionmaker, owner_user_id=outsider.id)
-    advertiser_headers = auth_headers(db_client, advertiser.email, PASSWORD)
-    outsider_headers = auth_headers(db_client, outsider.email, PASSWORD)
-
-    forbidden = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        json=issue_payload(campaign.id),
-        headers=advertiser_headers,
-    )
-    assert forbidden.status_code == 403
-
-    issued = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        json=issue_payload(campaign.id),
-        headers=auth_headers(db_client, admin.email, PASSWORD),
-    )
-    assert issued.status_code == 201, issued.text
-    score_id = UUID(issued.json()["exposure_score"]["id"])
-
-    isolated = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/report", headers=outsider_headers
-    )
-    assert isolated.status_code == 404
-
-    async def tamper_parent_binding() -> bool:
-        async with db_sessionmaker() as session:
-            score = await session.get(ExposureScore, score_id)
-            assert score is not None
-            await session.execute(
-                update(ExposureScore)
-                .where(ExposureScore.id == score_id)
-                .values(measurement_input_sha256="f" * 64)
-            )
-            await session.commit()
-        async with db_sessionmaker() as session:
-            score = await session.get(ExposureScore, score_id)
-            assert score is not None
-            return await exposure_score_is_stale(session, score)
-
-    assert asyncio.run(tamper_parent_binding()) is True
-    stale_report = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/report", headers=advertiser_headers
-    )
-    assert stale_report.status_code == 409
-    assert stale_report.json()["error"]["code"] == "EXPOSURE_SCORE_INTEGRITY_FAILURE"
-
-
-def test_concurrent_measurement_retry_creates_one_score_on_postgres(
-    postgis_db_sessionmaker, settings
-) -> None:
-    admin, _, campaign = create_measurement_graph(postgis_db_sessionmaker)
-    payload = MeasurementRunCreate.model_validate(issue_payload(campaign.id))
-
-    async def issue_once() -> tuple[UUID, UUID]:
-        async with postgis_db_sessionmaker() as session:
-            run = await issue_measurement_run(
-                session,
-                actor_user_id=admin.id,
-                payload=payload,
-                settings=settings,
-            )
-            await session.commit()
-            score = await session.scalar(
-                select(ExposureScore).where(ExposureScore.measurement_run_id == run.id)
-            )
-            assert score is not None
-            return run.id, score.id
-
-    async def scenario() -> None:
-        first, second = await asyncio.gather(issue_once(), issue_once())
-        assert first == second
-        async with postgis_db_sessionmaker() as session:
-            assert (
-                int(await session.scalar(select(func.count()).select_from(ExposureScore)) or 0) == 1
-            )
-
-    asyncio.run(scenario())
 
 
 def test_unknown_formula_version_conflicts_without_touching_issued_history() -> None:

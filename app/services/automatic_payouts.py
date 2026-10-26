@@ -3,13 +3,12 @@
 Cardvert prepares, approves and queues payouts for provably clean payout_v4
 trip earnings without a person, then the existing submission sweep, provider
 evidence and recovery paths take over unchanged. Anything not provably clean
-stays on the maker-checker path. Nothing runs until the client's settings are
-supplied (payout frequency and run limit) and the switch is on; Finance can
-pause it at any time.
+stays on the manual path. Payouts run daily without a monetary run limit;
+Finance can pause them at any time.
 
 Lock order: control row -> exclusive fraud reconciliation gate -> sorted
 fraud-hold scopes -> batches/lines/
-intents -> driver debt scopes -> ledger rows -> payees. The system actor is read
+intents -> driver money scopes -> ledger rows -> payees. The system actor is read
 without a lock; pause/resume lock the acting admin before the control row.
 """
 
@@ -20,7 +19,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from uuid import UUID, uuid4
 
-from sqlalchemy import exists, func, select, tuple_
+from sqlalchemy import Text, cast, exists, func, select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -45,8 +44,6 @@ from app.models.disbursement import (
     PayoutBatchLineStatus,
     PayoutBatchStatus,
     PayoutLineReconciliationEvent,
-    PayoutRecoveryIncident,
-    PayoutRecoveryIncidentKind,
     PayoutSubmissionAttempt,
     PayoutSubmissionIntent,
     PayoutSubmissionIntentState,
@@ -84,7 +81,7 @@ from app.services.fraud_holds import (
     lock_fraud_reconciliation_gate,
 )
 from app.services.notifications import create_active_admin_notices
-from app.services.payout_debt import lock_driver_currency_debt_scope
+from app.services.payout_balances import lock_driver_money_scope
 from app.services.payout_operations import _outcome
 from app.services.payouts.common import PAYOUT_V4, lagos_day_for, lagos_day_utc_range
 from app.services.payouts.ledger import _day_trip_overlap, latest_daily_rate_position
@@ -103,11 +100,6 @@ _COUNTED_ENTRY_STATUSES = (
     EarningsLedgerEntryStatus.PAID.value,
     EarningsLedgerEntryStatus.REVERSED.value,
 )
-_SETTING_NAMES = {
-    "enabled": "PAYOUT_AUTOMATIC_APPROVAL_ENABLED",
-    "frequency": "PAYOUT_AUTOMATIC_FREQUENCY",
-    "limit": "PAYOUT_AUTOMATIC_BATCH_LIMIT_NGN",
-}
 
 
 def _error(code: str, message: str, http_status: int = status.HTTP_409_CONFLICT) -> AppError:
@@ -125,23 +117,8 @@ def _money(value: object) -> Decimal:
 # --- settings, switch and system actor ---------------------------------------
 
 
-def missing_automatic_settings(settings: Settings) -> list[str]:
-    missing = []
-    if not settings.payout_automatic_approval_enabled:
-        missing.append(_SETTING_NAMES["enabled"])
-    if not settings.payout_automatic_frequency:
-        missing.append(_SETTING_NAMES["frequency"])
-    if settings.payout_automatic_batch_limit_ngn is None:
-        missing.append(_SETTING_NAMES["limit"])
-    return missing
-
-
-def period_key_for(moment: datetime, frequency: str) -> str:
-    day = lagos_day_for(moment)
-    if frequency == "weekly":
-        year, week, _ = day.isocalendar()
-        return f"{year}-W{week:02d}"
-    return day.isoformat()
+def period_key_for(moment: datetime) -> str:
+    return lagos_day_for(moment).isoformat()
 
 
 async def load_control(
@@ -176,26 +153,21 @@ async def actor_integrity_problem(
     return None
 
 
-async def automatic_submission_blocker(
-    session: AsyncSession, settings: Settings, *, lock: bool = True
-) -> str | None:
+async def automatic_submission_blocker(session: AsyncSession, *, lock: bool = True) -> str | None:
     """Why an automatic SUBMIT claim must not happen now (control row FOR SHARE)."""
     control = await load_control(session, lock="share" if lock else None)
     if await actor_integrity_problem(session, control) is not None:
         return "actor_invalid"
-    if missing_automatic_settings(settings):
-        return "not_set_up"
     if control is not None and control.paused:
         return "paused"
     return None
 
 
-def _settings_fingerprint(settings: Settings) -> str:
+def _settings_fingerprint() -> str:
     return hashlib.sha256(
         json.dumps(
             {
-                "frequency": settings.payout_automatic_frequency,
-                "batch_limit_ngn": f"{settings.payout_automatic_batch_limit_ngn:.2f}",
+                "frequency": "daily",
                 "currency": AUTOMATIC_CURRENCY,
                 "clean_rule": "batch-c-clean-v4-v1",
             },
@@ -220,6 +192,7 @@ async def raise_alert(
     driver_profile_id: UUID | None = None,
     lagos_day: date | None = None,
     amount: Decimal | None = None,
+    currency: str = AUTOMATIC_CURRENCY,
 ) -> PayoutAutomaticAlert | None:
     """Create one alert per dedupe key and tell active admins; None if it exists."""
     dedupe_key = _key("cardvert-automatic-payout-alert-v1", kind.value, *dedupe)
@@ -238,7 +211,7 @@ async def raise_alert(
         driver_profile_id=driver_profile_id,
         lagos_day=lagos_day,
         amount=amount,
-        currency=AUTOMATIC_CURRENCY if amount is not None else None,
+        currency=currency if amount is not None else None,
         detail=detail,
     )
     try:
@@ -311,30 +284,60 @@ async def scan_automatic_payout_alerts(session: AsyncSession, *, limit: int = 20
                 amount=line.amount,
             )
         )
-    incidents = (
-        await session.scalars(
-            select(PayoutRecoveryIncident)
-            .where(
-                PayoutRecoveryIncident.kind == PayoutRecoveryIncidentKind.DUPLICATE_CASH.value,
-                (PayoutRecoveryIncident.chain_root_line_id.in_(automatic_line_ids))
-                | (PayoutRecoveryIncident.exposure_line_id.in_(automatic_line_ids)),
-            )
-            # Newest first, so a new duplicate is never hidden behind ones already
-            # alerted (dedupe happens in raise_alert).
-            .order_by(PayoutRecoveryIncident.created_at.desc(), PayoutRecoveryIncident.id)
-            .limit(limit)
+    duplicate_totals = (
+        select(
+            PayoutBatchLine.ledger_entry_id.label("credit_id"),
+            func.sum(PayoutBatchLine.amount).label("cash"),
         )
-    ).all()
-    for incident in incidents:
+        .where(PayoutBatchLine.status == "succeeded")
+        .group_by(PayoutBatchLine.ledger_entry_id)
+        .having(func.count(PayoutBatchLine.id) > 1)
+        .subquery()
+    )
+    duplicate_credits = await session.scalars(
+        select(duplicate_totals.c.credit_id)
+        .where(
+            ~exists().where(
+                PayoutAutomaticAlert.ledger_entry_id == duplicate_totals.c.credit_id,
+                PayoutAutomaticAlert.kind == PayoutAutomaticAlertKind.DUPLICATE_PAYMENT.value,
+                PayoutAutomaticAlert.detail["total_verified_cash"].as_string()
+                == cast(duplicate_totals.c.cash, Text),
+            )
+        )
+        .order_by(duplicate_totals.c.credit_id)
+        .limit(limit)
+    )
+    for credit_id in duplicate_credits:
+        succeeded = list(
+            (
+                await session.scalars(
+                    select(PayoutBatchLine)
+                    .where(
+                        PayoutBatchLine.ledger_entry_id == credit_id,
+                        PayoutBatchLine.status == "succeeded",
+                    )
+                    .order_by(PayoutBatchLine.id)
+                )
+            ).all()
+        )
+        ledger = await session.get(EarningsLedgerEntry, credit_id)
+        assert ledger is not None  # Successful frozen lines retain the credit FK.
         created += bool(
             await raise_alert(
                 session,
                 kind=PayoutAutomaticAlertKind.DUPLICATE_PAYMENT,
-                dedupe=("incident", incident.id),
-                detail={"recovery_incident_id": str(incident.id), "status": incident.status},
-                line_id=incident.exposure_line_id,
-                ledger_entry_id=incident.ledger_entry_id,
-                amount=incident.amount,
+                dedupe=("duplicate_cash", *sorted((line.id for line in succeeded), key=str)),
+                detail={
+                    "succeeded_line_ids": [str(line.id) for line in succeeded],
+                    "total_verified_cash": str(
+                        sum((line.amount for line in succeeded), Decimal("0.00"))
+                    ),
+                },
+                line_id=succeeded[-1].id,
+                ledger_entry_id=credit_id,
+                driver_profile_id=ledger.driver_profile_id,
+                amount=succeeded[-1].amount,
+                currency=ledger.currency,
             )
         )
     observations = (
@@ -718,13 +721,8 @@ async def run_automatic_payouts(  # noqa: C901
     now: datetime | None = None,
 ) -> dict[str, object]:
     """One automatic payout pass. The caller commits."""
-    missing = missing_automatic_settings(settings)
-    if missing:
-        return {"outcome": "not_set_up", "missing_settings": missing}
     now = now or datetime.now(UTC)
-    frequency = str(settings.payout_automatic_frequency)
-    limit = _money(settings.payout_automatic_batch_limit_ngn)
-    period = period_key_for(now, frequency)
+    period = period_key_for(now)
     control = await load_control(session, lock="update")
     problem = await actor_integrity_problem(session, control)
     if problem is not None:
@@ -826,13 +824,10 @@ async def run_automatic_payouts(  # noqa: C901
     next_cursor = (control.candidate_cursor_at, control.candidate_cursor_id)
     if stubs:
         await lock_fraud_hold_scopes(session, (stub.trip_session_id for stub in stubs))
-        indebted: set[UUID] = set()
         for driver_profile_id in sorted({stub.driver_profile_id for stub in stubs}, key=str):
-            _, debt = await lock_driver_currency_debt_scope(
+            await lock_driver_money_scope(
                 session, driver_profile_id=driver_profile_id, currency=AUTOMATIC_CURRENCY
             )
-            if debt is not None and debt.outstanding_amount > 0:
-                indebted.add(driver_profile_id)
         entries = {
             entry.id: entry
             for entry in (
@@ -864,7 +859,6 @@ async def run_automatic_payouts(  # noqa: C901
         for stub in stubs:
             if len(included) >= MAX_CANDIDATES_PER_RUN:
                 break
-            previous_cursor = next_cursor
             next_cursor = (stub.occurred_at, stub.id)
             entry = entries[stub.id]
             if (
@@ -872,9 +866,6 @@ async def run_automatic_payouts(  # noqa: C901
                 or entry.entry_type != EarningsLedgerEntryType.TRIP_PAYOUT.value
                 or entry.amount <= 0
             ):
-                continue
-            if entry.driver_profile_id in indebted:
-                exclusions.add("debt_outstanding", entry.amount)
                 continue
             reason, days, authority = await _clean_reason(
                 session,
@@ -941,35 +932,6 @@ async def run_automatic_payouts(  # noqa: C901
             if reason is not None:
                 exclusions.add(reason, entry.amount)
                 continue
-            if entry.amount > limit:
-                exclusions.add("above_run_limit", entry.amount)
-                await raise_alert(
-                    session,
-                    kind=PayoutAutomaticAlertKind.BATCH_LIMIT,
-                    dedupe=("entry", entry.id),
-                    detail={"reason": "above_run_limit", "limit": f"{limit:.2f}"},
-                    ledger_entry_id=entry.id,
-                    driver_profile_id=entry.driver_profile_id,
-                    amount=entry.amount,
-                )
-                continue
-            if running + entry.amount > limit:
-                # Leave the first deferred entry next in the rotated window.
-                next_cursor = previous_cursor
-                waiting = [stub.id for stub in stubs[stubs.index(stub) :]]
-                await raise_alert(
-                    session,
-                    kind=PayoutAutomaticAlertKind.BATCH_LIMIT,
-                    dedupe=("run", period),
-                    detail={
-                        "reason": "run_limit_reached",
-                        "limit": f"{limit:.2f}",
-                        "waiting_candidates": len(waiting),
-                        "period": period,
-                    },
-                    amount=running,
-                )
-                break
             running += entry.amount
             for day in days:
                 cash[entry.driver_profile_id][day] = (
@@ -983,14 +945,12 @@ async def run_automatic_payouts(  # noqa: C901
     run = PayoutAutomaticRun(
         id=uuid4(),
         period_key=period,
-        frequency=frequency,
         currency=AUTOMATIC_CURRENCY,
-        batch_limit=limit,
         total_amount=running,
         batch_count=len(by_driver),
         line_count=len(included),
         exclusions=exclusions.by_reason,
-        settings_fingerprint=_settings_fingerprint(settings),
+        settings_fingerprint=_settings_fingerprint(),
     )
     batches: list[tuple[PayoutBatch, list[PayoutBatchLine]]] = []
     try:
@@ -1070,7 +1030,6 @@ async def run_automatic_payouts(  # noqa: C901
             "batch_count": run.batch_count,
             "line_count": run.line_count,
             "total_amount": f"{run.total_amount:.2f}",
-            "batch_limit": f"{limit:.2f}",
             "exclusions": exclusions.by_reason,
             "settings_fingerprint": run.settings_fingerprint,
         },
@@ -1221,13 +1180,13 @@ async def _unsent_intent_rows(session: AsyncSession) -> list[tuple[UUID, UUID]]:
 
 
 async def release_unsent_automatic_payments(
-    session: AsyncSession, *, reason: str, actor_user_id: UUID, settings: Settings
+    session: AsyncSession, *, reason: str, actor_user_id: UUID
 ) -> dict[str, object]:
-    """Move never-tried automatic payments back to the maker-checker path (A8/R3)."""
+    """Move never-tried automatic payments back to the reasoned manual path (A8/R3)."""
     await require_active_admin(session, actor_user_id)
     reason = _reason(reason)
     control = await _locked_control(session)
-    if not control.paused and not missing_automatic_settings(settings):
+    if not control.paused:
         raise _error(
             "PAYOUT_AUTOMATIC_RELEASE_REQUIRES_PAUSE",
             "Pause automatic payouts before moving unsent payments to manual review",
@@ -1336,7 +1295,7 @@ def _page(limit: int, offset: int) -> None:
 
 
 async def automatic_payout_status(
-    session: AsyncSession, *, settings: Settings, adapter: DisbursementAdapter
+    session: AsyncSession, *, adapter: DisbursementAdapter
 ) -> dict[str, object]:
     control = await load_control(session)
     problem = await actor_integrity_problem(session, control)
@@ -1353,7 +1312,6 @@ async def automatic_payout_status(
     last_run = await session.scalar(
         select(PayoutAutomaticRun).order_by(PayoutAutomaticRun.created_at.desc()).limit(1)
     )
-    missing = missing_automatic_settings(settings)
     open_alerts = int(
         await session.scalar(
             select(func.count(PayoutAutomaticAlert.id)).where(
@@ -1364,18 +1322,15 @@ async def automatic_payout_status(
     )
     paused = bool(control and control.paused)
     return {
-        "switched_on": settings.payout_automatic_approval_enabled,
-        "frequency": settings.payout_automatic_frequency,
-        "batch_limit": settings.payout_automatic_batch_limit_ngn,
+        "frequency": "daily",
         "currency": AUTOMATIC_CURRENCY,
-        "missing_settings": missing,
         "paused": paused,
         "pause_reason": control.reason if control else None,
         "pause_changed_by_name": changed_by.full_name if changed_by else None,
         "pause_changed_at": control.changed_at if control else None,
         "identity_ready": problem is None,
         "provider_ready": provider_ready,
-        "runnable": not missing and not paused and problem is None and provider_ready,
+        "runnable": not paused and problem is None and provider_ready,
         "last_run": None
         if last_run is None
         else {
@@ -1559,7 +1514,6 @@ async def automatic_reconciliation_day(
                 "batch_count": run.batch_count,
                 "line_count": run.line_count,
                 "total_amount": run.total_amount,
-                "batch_limit": run.batch_limit,
             }
             for run in runs
         ],

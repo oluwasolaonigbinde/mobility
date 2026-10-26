@@ -65,7 +65,7 @@ def test_playwright_separates_ordinary_and_specialist_modes() -> None:
     assert "webServer: r59RealStack" in config
 
 
-def test_r59_spec_is_one_serial_no_mock_browser_journey() -> None:
+def test_r59_journeys_keep_real_backend_authority_and_original_receipt() -> None:
     spec = _read("frontend/e2e/r59-real-stack.spec.ts")
 
     assert 'test.describe.configure({ mode: "serial" })' in spec
@@ -75,20 +75,29 @@ def test_r59_spec_is_one_serial_no_mock_browser_journey() -> None:
     assert "startService" in spec
     assert "waitForService" in spec
     assert "writeReceipt" in spec
+    recovery_title = "R59 uncertain Start preserves offline evidence across bounded cache releases"
+    assert spec.count(f'test("{recovery_title}"') == 1
+    original = spec.split(f'test("{recovery_title}"')[0]
+    assert spec.count("writeReceipt(") == 1
+    for forbidden in ("page.route", "context.route", "page.request", "request.get"):
+        assert forbidden not in original
+    assert "await route.fetch()" in spec
+    assert 'route.abort("failed")' in spec
     for forbidden in (
         "test.skip",
         "test.fixme",
-        "page.route",
         "context.route",
-        "page.request",
-        "request.get",
-        "request.post",
-        "W401C",
-        "W401D",
-        "W403B",
+        "route.fulfill",
+        "W401C_SYNTHETIC",
+        "W401D_SYNTHETIC",
+        "W403B_SYNTHETIC",
         "mock-api",
     ):
         assert forbidden not in spec
+    # The recovery case probes a real static POST without the service worker;
+    # it must not create trip outcomes through direct backend mutations.
+    assert 'const nonGetUrl = new URL(bounded.asset)' in spec
+    assert spec.count("request.post(") == spec.count("page.request.post(nonGetUrl.href)") == 1
 
 
 def test_r59_compose_is_local_isolated_and_uses_production_commands() -> None:
@@ -108,8 +117,8 @@ def test_r59_compose_is_local_isolated_and_uses_production_commands() -> None:
     assert "F7_SEED_MAX_TRIPS_PER_DAY: ${F7_SEED_MAX_TRIPS_PER_DAY:-2}" in _read(
         "docker-compose.yml"
     )
-    assert 'BUDGET_POLICY_EXTERNAL_APPROVED: "false"' in compose
-    assert 'PHONE_OPERATOR_EXTERNAL_APPROVED: "false"' in compose
+    assert "BUDGET_POLICY_" not in compose
+    assert "PHONE_OPERATOR_EXTERNAL_APPROVED" not in compose
 
 
 def test_wrapper_scopes_every_compose_mutation_and_always_tears_down() -> None:
@@ -145,11 +154,33 @@ def test_stack_helper_enforces_project_scope_and_sanitized_receipt() -> None:
     assert "sanitizeReceipt" in helper
     assert "assertNoSensitiveReceiptData" in helper
     assert "R59_REAL_STACK_RECEIPT.json" in helper
-    for live_value in (
-        'BUDGET_POLICY_EXTERNAL_APPROVED: "true"',
-        'PHONE_OPERATOR_EXTERNAL_APPROVED: "true"',
-    ):
+    for live_value in ('BUDGET_POLICY_EXTERNAL_APPROVED: "true"',):
         assert live_value not in helper
+
+
+def test_https_logout_obligation_cannot_silently_skip_or_use_a_mock_outage() -> None:
+    wrapper = _read("scripts/run_r59_real_stack.sh")
+    spec = _read("frontend/e2e/security-boundary.spec.ts")
+    assert "unset R59_REAL_STACK" in wrapper
+    for required in (
+        "R14_SECURITY_LOGIN_EMAIL:?",
+        "R14_SECURITY_LOGIN_PASSWORD:?",
+        "E2E_API_BASE_URL:?",
+    ):
+        assert required in wrapper
+    assert "R59_COOKIE_REVOCATION_OUTAGE=1" in wrapper
+    assert "SESSION_COOKIE_NAME=__Host-cardvert_session" in wrapper
+    assert 'PLAYWRIGHT_BASE_URL="https://localhost:' in wrapper
+    assert "--project=chromium --workers=1 --retries=0" in wrapper
+    assert "test.results.length !== 1" in wrapper
+    assert "report.stats.skipped !== 0" in wrapper
+    assert "HTTPS_LOGOUT_RECEIPT.json" in wrapper
+    assert "r59.stats.expected !== 2" in wrapper
+    assert "r59.stats.skipped !== 0" in wrapper
+    assert 'await import("./support/r59-stack")' in spec
+    assert 'stopService("api")' in spec
+    assert 'startService("api")' in spec
+    assert 'waitForService("api", "ready")' in spec
 
 
 def test_w401_modes_and_documentation_are_explicitly_ui_only() -> None:

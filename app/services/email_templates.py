@@ -13,13 +13,23 @@ class RenderedEmail:
     html_body: str
 
 
+def _linked(subject: str, body: str, action: str | None, label: str) -> RenderedEmail:
+    text = body + (f"\n{label}: {action}" if action else "")
+    html = f"<p>{escape(body)}</p>"
+    if action:
+        from urllib.parse import urlsplit
+
+        if urlsplit(action).scheme not in {"https", "http"}:
+            raise ValueError("email_action_url_invalid")
+        html += f'<p><a href="{escape(action, quote=True)}">{escape(label)}</a></p>'
+    return RenderedEmail(subject=subject, text_body=text, html_body=html)
+
+
 def _static(subject: str, body: str) -> Callable[[dict[str, Any]], RenderedEmail]:
-    def render(_payload: dict[str, Any]) -> RenderedEmail:
-        return RenderedEmail(
-            subject=subject,
-            text_body=body,
-            html_body=f"<p>{body}</p>",
-        )
+    def render(payload: dict[str, Any]) -> RenderedEmail:
+        name = payload.get("campaign_name")
+        content = f"{name}: {body}" if name else body
+        return _linked(subject, content, payload.get("action_url"), "Open Cardvert")
 
     return render
 
@@ -28,43 +38,87 @@ def _password_reset(payload: dict[str, Any]) -> RenderedEmail:
     action = payload.get("reset_action")
     if not isinstance(action, str) or not action:
         raise ValueError("password_reset_action_missing")
-    body = f"Use this single-use password reset action before it expires: {action}"
-    return RenderedEmail(
-        subject="Reset your Cardvert password",
-        text_body=body,
-        html_body=f"<p>{escape(body)}</p>",
+    return _linked(
+        "Reset your Cardvert password",
+        "Choose a new password. This link works once, for 30 minutes.",
+        action,
+        "Choose password",
+    )
+
+
+def _advertiser_login_invite(payload: dict[str, Any]) -> RenderedEmail:
+    action = payload.get("reset_action")
+    if not isinstance(action, str) or not action:
+        raise ValueError("advertiser_invite_action_missing")
+    return _linked(
+        "Your Cardvert login invite",
+        "Terrax Media has invited you to Cardvert. Choose a password, then sign in. "
+        "This link works once, for 24 hours.",
+        action,
+        "Set password",
+    )
+
+
+def _report_ready(payload: dict[str, Any]) -> RenderedEmail:
+    kind = payload.get("report_kind")
+    name = payload.get("campaign_name")
+    if (
+        not isinstance(kind, str)
+        or kind not in {"weekly", "final"}
+        or not isinstance(name, str)
+        or not name
+    ):
+        raise ValueError("report_ready_context_missing")
+    return _linked(
+        "Your Cardvert report is ready",
+        f"Your {kind} report for {name} is ready",
+        payload.get("action_url"),
+        "View report",
     )
 
 
 def _driver_onboarding_access(payload: dict[str, Any]) -> RenderedEmail:
-    access_code = payload.get("access_code")
-    if not isinstance(access_code, str) or not access_code:
-        raise ValueError("driver_onboarding_access_code_missing")
-    body = (
-        "Use this expiring Cardvert driver-onboarding access code to submit protected "
-        f"person and payee evidence: {access_code}"
-    )
-    return RenderedEmail(
-        subject="Continue your Cardvert driver application",
-        text_body=body,
-        html_body=f"<p>{escape(body)}</p>",
+    action = payload.get("action_url")
+    if not isinstance(action, str) or not action:
+        raise ValueError("driver_onboarding_link_missing")
+    return _linked(
+        "Continue your Terrax Media driver application",
+        "Thanks for applying to drive with Terrax Media. Use this link to continue your "
+        "application. It is valid for 24 hours. If it has expired, request a new link on Apply.",
+        action,
+        "Continue your application",
     )
 
 
 def _driver_account_setup(payload: dict[str, Any]) -> RenderedEmail:
     action = payload.get("setup_action")
-    if not isinstance(action, str) or not action:
-        raise ValueError("driver_account_setup_action_missing")
-    body = f"Use this single-use action before it expires to set your Cardvert password: {action}"
-    return RenderedEmail(
-        subject="Set up your Cardvert driver account",
-        text_body=body,
-        html_body=f"<p>{escape(body)}</p>",
+    return _linked(
+        "Set up your Terrax Media driver account",
+        (
+            "Choose a password to finish setting up your driver account. "
+            "This link works once, for 24 hours."
+        )
+        if action
+        else "Ask Terrax Media to resend your account setup link.",
+        action,
+        "Choose password",
     )
 
 
+def _driver_review(payload: dict[str, Any]) -> RenderedEmail:
+    return _linked(payload["title"], payload["body"], payload["action_url"], "Continue")
+
+
 _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = {
+    NotificationType.DRIVER_ID_APPROVED: _driver_review,
+    NotificationType.DRIVER_ID_REJECTED: _driver_review,
+    NotificationType.DRIVER_CAR_APPROVED: _driver_review,
+    NotificationType.DRIVER_CAR_REJECTED: _driver_review,
+    NotificationType.ASSIGNMENT_OFFERED: _static(
+        "A new job offer", "You have a new job offer. Open Jobs to accept or decline."
+    ),
     NotificationType.PASSWORD_RESET_REQUESTED: _password_reset,
+    NotificationType.ADVERTISER_LOGIN_INVITE: _advertiser_login_invite,
     NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED: _driver_onboarding_access,
     NotificationType.DRIVER_ACCOUNT_SETUP_REQUESTED: _driver_account_setup,
     NotificationType.CAMPAIGN_APPROVED: _static(
@@ -84,6 +138,7 @@ _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = 
     NotificationType.QUOTATION_READY: _static(
         "Quotation ready for review", "A quotation is ready for your review. Sign in to review it."
     ),
+    NotificationType.REPORT_READY: _report_ready,
     NotificationType.FUNDING_CONFIRMED: _static(
         "Campaign funding confirmed", "Campaign funding has been confirmed."
     ),
@@ -107,24 +162,12 @@ _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = 
         "Trip payment on hold", "A trip payment is on hold while it is reviewed."
     ),
     NotificationType.FRAUD_REVIEW_RESOLVED: _static(
-        "Fraud review resolved", "Your fraud review has been resolved."
+        "Your trip check is finished",
+        "Terrax Media has finished checking your trip. Open Earnings to see the result.",
     ),
     NotificationType.FRAUD_DISPUTE_REPLIED: _static(
-        "Fraud dispute update", "Your fraud dispute has received a reply."
-    ),
-    NotificationType.ACTIVITY_FLOOR_BREACHED: _static(
-        "Verified activity below floor",
-        "Verified activity was below the configured weekly floor.",
-    ),
-    NotificationType.ACTIVITY_FLOOR_RECOVERED: _static(
-        "Verified activity recovered",
-        "Verified activity recovered to the configured weekly floor.",
-    ),
-    NotificationType.ASSIGNMENT_INACTIVE: _static(
-        "Assignment inactive", "No verified activity was recorded for this assignment."
-    ),
-    NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED: _static(
-        "Assignment activity resumed", "Verified activity resumed for this assignment."
+        "Reply about your trip",
+        "Terrax Media has replied about your trip. Open Earnings to read it.",
     ),
     NotificationType.COMPLAINT_REPLIED: _static(
         "Terrax Media replied to your complaint",

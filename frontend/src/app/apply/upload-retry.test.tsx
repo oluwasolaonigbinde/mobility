@@ -20,18 +20,18 @@ vi.mock("@/components/driver/application-bank-details", () => ({
 afterEach(() => vi.unstubAllGlobals());
 const cases = [
   {
-    Component: PersonPayeeForm,
+    show: () => render(<PersonPayeeForm accessToken="first-access" />),
     files: ["Driver's licence", "Photo of you"],
     field: "driver_license_file_id",
   },
   {
-    Component: VehicleForm,
+    show: () => render(<VehicleForm accessToken="first-access" cars={[]} />),
     files: ["Registration papers", "Insurance certificate", "Photo of the car"],
     field: "registration_file_id",
   },
 ];
 
-describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
+describe.each(cases)("$field upload retry", ({ show, files, field }) => {
   beforeEach(() => {
     vi.mocked(uploadOnboardingFile).mockReset();
     vi.mocked(uploadOnboardingFile).mockImplementation(
@@ -49,10 +49,7 @@ describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
   });
 
   function setup() {
-    render(<Component />);
-    fireEvent.change(screen.getByLabelText("Code from your email"), {
-      target: { value: "first-access" },
-    });
+    show();
     files.forEach((label) =>
       fireEvent.change(screen.getByLabelText(label), {
         target: { files: [new File([label], "same.png", { type: "image/png" })] },
@@ -93,42 +90,25 @@ describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it.each(["file", "access"])(
-    "rebinds uploads and submission identity after changing %s",
-    async (change) => {
-      const form = setup();
-      await fail(form);
-      if (change === "file")
-        fireEvent.change(screen.getByLabelText(files[0]!), {
-          target: { files: [new File(["replacement"], "same.png", { type: "image/png" })] },
-        });
-      else
-        fireEvent.change(screen.getByLabelText("Code from your email"), {
-          target: { value: "second-access" },
-        });
-      fireEvent.submit(form);
-      await screen.findByRole("status");
-      expect(uploadOnboardingFile).toHaveBeenCalledTimes(
-        change === "access" ? files.length * 2 : files.length + 1,
-      );
-      const bodies = vi
-        .mocked(fetch)
-        .mock.calls.map(([, init]) => JSON.parse(init!.body as string));
-      expect(bodies[1][field]).not.toEqual(bodies[0][field]);
-      expect(bodies[1].client_request_id).not.toEqual(bodies[0].client_request_id);
-      if (change === "access")
-        expect(
-          vi
-            .mocked(uploadOnboardingFile)
-            .mock.calls.slice(files.length)
-            .every(([token]) => token === "second-access"),
-        ).toBe(true);
-    },
-  );
+  it("rebinds uploads and submission identity after changing a file", async () => {
+    const form = setup();
+    await fail(form);
+    fireEvent.change(screen.getByLabelText(files[0]!), {
+      target: { files: [new File(["replacement"], "same.png", { type: "image/png" })] },
+    });
+    fireEvent.submit(form);
+    await screen.findByRole("status");
+    expect(uploadOnboardingFile).toHaveBeenCalledTimes(files.length + 1);
+    const bodies = vi.mocked(fetch).mock.calls.map(([, init]) => JSON.parse(init!.body as string));
+    expect(bodies[1][field]).not.toEqual(bodies[0][field]);
+    expect(bodies[1].client_request_id).not.toEqual(bodies[0].client_request_id);
+    expect(
+      vi.mocked(uploadOnboardingFile).mock.calls.every(([token]) => token === "first-access"),
+    ).toBe(true);
+  });
 
-  it.each(["file", "access"])(
-    "cannot submit or cache stale uploads after %s changes in flight",
-    async (change) => {
+  it("cannot submit or cache stale uploads after a file changes in flight", async () => {
+    {
       let release!: (id: string) => void;
       vi.mocked(uploadOnboardingFile).mockImplementationOnce(
         () =>
@@ -139,27 +119,20 @@ describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
       const form = setup();
       fireEvent.submit(form);
       await waitFor(() => expect(uploadOnboardingFile).toHaveBeenCalledTimes(files.length));
-      if (change === "file")
-        fireEvent.change(screen.getByLabelText(files[0]!), {
-          target: { files: [new File(["new"], "same.png", { type: "image/png" })] },
-        });
-      else
-        fireEvent.change(screen.getByLabelText("Code from your email"), {
-          target: { value: "other-access" },
-        });
+      fireEvent.change(screen.getByLabelText(files[0]!), {
+        target: { files: [new File(["new"], "same.png", { type: "image/png" })] },
+      });
       release("obsolete-file");
       await waitFor(() => expect(screen.getByRole("button", { name: /^Send my/ })).toBeEnabled());
       expect(fetch).not.toHaveBeenCalled();
       fireEvent.submit(form);
       await screen.findByRole("alert");
-      expect(uploadOnboardingFile).toHaveBeenCalledTimes(
-        change === "file" ? files.length + 1 : files.length * 2,
-      );
+      expect(uploadOnboardingFile).toHaveBeenCalledTimes(files.length + 1);
       expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]!.body as string)[field]).not.toBe(
         "obsolete-file",
       );
-    },
-  );
+    }
+  });
 
   it("treats a new same-content File as a replacement and retains clean siblings", async () => {
     const form = setup();
@@ -287,30 +260,27 @@ describe("vehicle upload scope", () => {
     let attempts = 0;
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input) => {
-        if (String(input) === "/api/apply/onboarding/vehicles")
-          return Response.json({
-            items: [
-              { vehicle_id: "car-a", plate_number: "CAR-A", status: "rejected" },
-              { vehicle_id: "car-b", plate_number: "CAR-B", status: "rejected" },
-            ],
-          });
+      vi.fn(async () => {
         attempts += 1;
         return attempts < 3
           ? Response.json({ error: { message: "Submission failed" } }, { status: 503 })
           : Response.json({ status: "pending_review", version: 1, vehicle_id: "car-b" });
       }),
     );
-    render(<VehicleForm />);
-    fireEvent.change(screen.getByLabelText("Code from your email"), {
-      target: { value: "access" },
-    });
+    render(
+      <VehicleForm
+        accessToken="access"
+        cars={[
+          { vehicle_id: "car-a", plate_number: "CAR-A", status: "rejected" },
+          { vehicle_id: "car-b", plate_number: "CAR-B", status: "rejected" },
+        ]}
+      />,
+    );
     for (const label of ["Registration papers", "Insurance certificate", "Photo of the car"])
       fireEvent.change(screen.getByLabelText(label), {
         target: { files: [new File([label], `${label}.png`, { type: "image/png" })] },
       });
-    fireEvent.click(screen.getByRole("button", { name: "Find my cars" }));
-    fireEvent.click(await screen.findByRole("radio", { name: /CAR-A/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /CAR-A/ }));
     const form = screen.getByRole("button", { name: /^Send my/ }).closest("form")!;
     const submissions = () =>
       vi

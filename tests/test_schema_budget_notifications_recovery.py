@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
 
-def test_budget_transition_is_append_only(monkeypatch) -> None:
+def test_current_budget_transition_is_append_only(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
 
     async def seed_and_mutate() -> None:
@@ -24,46 +24,22 @@ def test_budget_transition_is_append_only(monkeypatch) -> None:
             async with engine.begin() as connection:
                 await connection.execute(text("SET LOCAL session_replication_role = replica"))
                 await connection.execute(
-                    text(
-                        """
-                        INSERT INTO budget_policy_evaluations
-                          (id, campaign_id, evaluation_key, state, external_gate,
-                           campaign_budget_amount, campaign_daily_budget_amount, currency,
-                           policy_id, policy_revision, policy_source, budget_basis,
-                           billing_fact_source, billing_spend_amount, alert_threshold_amount,
-                           pause_threshold_amount, resume_threshold_amount, alert_applied,
-                           pause_applied, resume_allowed, evaluated_at)
-                        VALUES
-                          ('64000000-0000-0000-0000-000000000001',
-                           '64000000-0000-0000-0000-000000000002', repeat('a', 64),
-                           'pause_threshold', NULL, 1000, NULL, 'NGN',
-                           'synthetic-policy', 'synthetic-r1', 'synthetic_test', 'total',
-                           'confirmed_funding', 1000, 800, 1000, 700, true, true, false, now())
-                        """
-                    )
+                    text("""
+                    INSERT INTO budget_campaign_transitions
+                      (id, campaign_id, budget_amount, funding_fingerprint, action,
+                       prior_status, new_status, actor_user_id, reason, created_at)
+                    VALUES ('64000000-0000-0000-0000-000000000003',
+                            '64000000-0000-0000-0000-000000000002', 1000, repeat('a',64),
+                            'pause', 'active', 'paused', NULL, 'threshold reached', now())
+                """)
                 )
-                await connection.execute(
-                    text(
-                        """
-                        INSERT INTO budget_campaign_transitions
-                          (id, campaign_id, evaluation_id, action, prior_status, new_status,
-                           actor_user_id, reason, created_at)
-                        VALUES
-                          ('64000000-0000-0000-0000-000000000003',
-                           '64000000-0000-0000-0000-000000000002',
-                           '64000000-0000-0000-0000-000000000001',
-                           'pause', 'active', 'paused', NULL, 'threshold reached', now())
-                        """
-                    )
-                )
-            with pytest.raises(DBAPIError, match="append-only"):
-                async with engine.begin() as connection:
-                    await connection.execute(
-                        text(
-                            "UPDATE budget_campaign_transitions SET reason = reason WHERE id = "
-                            "'64000000-0000-0000-0000-000000000003'"
-                        )
-                    )
+            for statement in (
+                "UPDATE budget_campaign_transitions SET reason = reason WHERE id = "
+                "'64000000-0000-0000-0000-000000000003'",
+            ):
+                with pytest.raises(DBAPIError, match="append-only"):
+                    async with engine.begin() as connection:
+                        await connection.execute(text(statement))
         finally:
             await engine.dispose()
 

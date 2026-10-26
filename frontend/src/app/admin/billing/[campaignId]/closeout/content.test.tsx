@@ -27,7 +27,7 @@ describe("recorded campaign money position", () => {
     expect(screen.getByText(/do not confirm physical removal/)).toBeVisible();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
-  it("shows backend currency amounts and explicitly labels cross-campaign debt", async () => {
+  it("shows verified cash and provider exposure without a debt balance", async () => {
     api.mockResolvedValue({
       ...position,
       total: 60,
@@ -59,17 +59,16 @@ describe("recorded campaign money position", () => {
           terminal_failed: "0.00",
           cash_paid: "10.01",
           provider_verified_paid: "20.02",
-          driver_wide_debt: "5.04",
         },
       ],
     });
     render(await MoneyCloseoutPage({ ...props, searchParams: Promise.resolve({ page: "1" }) }));
     expect(api).toHaveBeenCalledWith("/campaigns/campaign/position?limit=25&offset=25");
-    expect(screen.getByText("Pay records marked paid: ₦10.01")).toBeVisible();
+    expect(screen.getByText("Verified cash paid: ₦10.01")).toBeVisible();
     expect(screen.getByText("Confirmed provider transfers: ₦20.02")).toBeVisible();
     expect(screen.getByText("Payments awaiting a provider result: ₦40.03")).toBeVisible();
     expect(screen.getByText(/Recorded pay totals count each credit once/)).toBeVisible();
-    expect(screen.getByText("Amount the driver owes (all campaigns): ₦5.04")).toBeVisible();
+    expect(screen.queryByText(/Amount the driver owes/)).toBeNull();
     expect(screen.getByText("Physical removal requires evidence")).toBeVisible();
     expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute(
       "href",

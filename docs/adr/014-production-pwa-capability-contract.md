@@ -83,14 +83,14 @@ R14-A adopts the existing backend/OpenAPI/BFF/auth shapes unchanged:
 - pings enter IndexedDB immediately;
 - batch cut, removal of pending rows and cumulative watermark increments are atomic;
 - one idempotency key is minted at cut and reused with the identical payload after reload/retry;
-- accepted, duplicate and quarantined acknowledgements permit local deletion;
+- accepted, duplicate and signed dropped acknowledgements permit local deletion;
 - terminal 400/409/422 dead-letter that exact batch without rekeying; retryable failures retain it;
 - Web Locks provide one writer;
 - server lifecycle remains `active → ended → sealed`; money starts only after `sealed`;
 - seal predicate is server batch count ≥ `client_batch_count`; ping count and completeness are diagnostic;
 - satisfied watermark may seal immediately; otherwise configured grace sweep seals;
 - `ended` is the bounded late-data window and does not require the assignment still to be active;
-- post-seal batches are preserved in quarantine with live-batch idempotency;
+- late batches reuse live-batch idempotency: admit only before any affected Nigeria day has calculated pay; otherwise acknowledge a signed drop with per-sample dispositions and one audit, retaining no GPS payload (D113, REQ-213);
 - audited apply/discard remains serialized; apply requires initial payout, names affected Lagos days, never auto-recomputes money; and pre-seal analytics are not reused for money.
 
 Architecture §9 baselines stay byte-identical: `openapi.json`, `frontend/src/lib/api/schema.d.ts`, and `docs/api/openapi.snapshot.json` do not move.

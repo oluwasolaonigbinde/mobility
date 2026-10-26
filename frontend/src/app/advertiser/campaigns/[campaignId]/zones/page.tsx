@@ -8,7 +8,7 @@ import { statusLabel, statusTone } from "@/lib/campaigns/status";
 import { StatusChip } from "@/components/ui/status-chip";
 import { ZonesEditor } from "./zones-editor";
 
-export const metadata: Metadata = { title: "Zones" };
+export const metadata: Metadata = { title: "Areas" };
 
 export default async function CampaignZonesPage({
   params,
@@ -33,6 +33,7 @@ export default async function CampaignZonesPage({
     throw error;
   }
   if (!campaign) notFound();
+  const editable = ["draft", "rejected"].includes(campaign.status);
 
   return (
     <div className="animate-rise mx-auto max-w-6xl">
@@ -44,19 +45,25 @@ export default async function CampaignZonesPage({
         <Link href={`/advertiser/campaigns/${campaign.id}`} className="hover:text-muted">
           {campaign.name}
         </Link>{" "}
-        / <span className="text-muted">Zones</span>
+        / <span className="text-muted">Areas</span>
       </nav>
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Targeting zones</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Areas</h1>
         <StatusChip tone={statusTone[campaign.status]}>{statusLabel[campaign.status]}</StatusChip>
       </div>
       <p className="text-muted mb-6 max-w-2xl text-sm">
-        Draw where campaign vehicle activity is prioritized. Target zones carry premium driver
-        time, bonus zones add driver incentive, and exclusion zones are never billed.
+        {editable
+          ? "Draw the areas where you want your advert seen. Mark any places cars should avoid."
+          : "These are the areas for your advert and the places cars should avoid."}
       </p>
 
-      <ZonesEditor campaignId={campaign.id} zones={zones?.items ?? []} />
+      <ZonesEditor
+        key={campaign.id}
+        campaignId={campaign.id}
+        zones={zones?.items ?? []}
+        editable={editable}
+      />
     </div>
   );
 }

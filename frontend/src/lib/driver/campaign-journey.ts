@@ -33,9 +33,8 @@ export interface OfferAuthority {
   active: number;
   declined: number;
   expired: number;
-  deactivated: number;
   cancelled: number;
-  completed: number;
+  finished: number;
 }
 
 export interface DriverJourneyFacts {
@@ -379,7 +378,7 @@ export function projectDriverCampaignJourney(facts: DriverJourneyFacts): DriverC
               label: "Ready to drive",
               state: "current",
               title: "Set up to drive",
-              detail: "Before each shift, take a display photo on Jobs, then press Start on Track.",
+              detail: "Your car is ready. Press Start trip when you are ready to drive.",
               href: "/driver/track",
             }
           : {
@@ -420,8 +419,7 @@ export function projectDriverCampaignJourney(facts: DriverJourneyFacts): DriverC
   if (canStart)
     return {
       standing: "READY",
-      summary:
-        "Your setup is done. Before each shift, take a display photo on Jobs, then press Start.",
+      summary: "Your setup is done. Press Start trip when you are ready to drive.",
       canStart: true,
       hasCurrentTrip: false,
       steps: allSteps,

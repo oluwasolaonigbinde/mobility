@@ -28,16 +28,24 @@ from app.schemas.driver_onboarding import (
     VehicleReviewDecisionCreate,
 )
 from app.schemas.organizations import (
+    AdminOrganizationCreate,
     AdminOrganizationCreateResponse,
+    AdminOrganizationListItemRead,
     AdminOrganizationListResponse,
     AdminOrganizationMemberListResponse,
     AdminOrganizationMemberRead,
-    AdvertiserOrganizationCreate,
+    AdvertiserLoginInviteCreate,
+    AdvertiserLoginInviteRead,
     AdvertiserOrganizationRead,
     OrganizationMembershipRead,
 )
 from app.schemas.users import UserCreate, UserListResponse, UserRead, UserUpdate
 from app.services.admin_authorization import require_active_admin
+from app.services.advertiser_invites import (
+    create_company_with_invite,
+    login_invite_available,
+    send_login_invite,
+)
 from app.services.audit import create_audit_event
 from app.services.driver_account_setup import initiate_driver_account_setup, setup_state
 from app.services.driver_applications import list_driver_applications
@@ -46,7 +54,6 @@ from app.services.driver_onboarding import (
     review_application_person_payee,
 )
 from app.services.organizations import (
-    create_advertiser_organization,
     get_company_profile,
     list_advertiser_organizations,
     list_organization_members,
@@ -168,8 +175,26 @@ async def admin_list_advertiser_organizations(
     organizations, total = await list_advertiser_organizations(
         session, q=q, limit=limit, offset=offset
     )
+    from app.services.billing.invoices import outstanding_invoice_totals
+    from app.services.list_counts import organization_list_counts
+
+    identities = [org.id for org in organizations]
+    counts = await organization_list_counts(session, identities)
+    outstanding = await outstanding_invoice_totals(session, identities)
     return AdminOrganizationListResponse(
-        items=[AdvertiserOrganizationRead.model_validate(org) for org in organizations],
+        items=[
+            AdminOrganizationListItemRead.model_validate(
+                {
+                    **AdvertiserOrganizationRead.model_validate(org).model_dump(),
+                    **counts[org.id],
+                    "outstanding": outstanding[org.id],
+                    "billing_contact_name": org.billing_contact_name,
+                    "operational_contact_name": org.operational_contact_name,
+                    "operational_contact_email": org.operational_contact_email,
+                }
+            )
+            for org in organizations
+        ],
         total=total,
         limit=limit,
         offset=offset,
@@ -223,7 +248,7 @@ async def admin_list_organization_members(
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> AdminOrganizationMemberListResponse:
-    await get_company_profile(
+    organization = await get_company_profile(
         session, actor_user_id=current_user.id, organization_id=organization_id
     )
     rows, total = await list_organization_members(
@@ -240,7 +265,32 @@ async def admin_list_organization_members(
         total=total,
         limit=limit,
         offset=offset,
+        login_invite_available=await login_invite_available(session, organization),
     )
+
+
+@router.post(
+    "/advertiser-organizations/{organization_id}/login-invite",
+    response_model=AdvertiserLoginInviteRead,
+)
+async def admin_send_login_invite(
+    organization_id: UUID,
+    payload: AdvertiserLoginInviteCreate,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+    request: Request,
+) -> AdvertiserLoginInviteRead:
+    await send_login_invite(
+        session,
+        organization_id=organization_id,
+        actor_user_id=current_user.id,
+        email=payload.email,
+        settings=settings,
+        actor_session_version=request.state.authenticated_session_version,
+    )
+    await session.commit()
+    return AdvertiserLoginInviteRead()
 
 
 @router.get("/users", response_model=UserListResponse, summary="List users")
@@ -476,29 +526,20 @@ async def admin_update_user(
     summary="Create an advertiser organization",
 )
 async def admin_create_advertiser_organization(
-    payload: AdvertiserOrganizationCreate,
+    payload: AdminOrganizationCreate,
     current_user: AdminUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
+    request: Request,
 ) -> AdminOrganizationCreateResponse:
-    organization, owner_membership = await create_advertiser_organization(
+    organization = await create_company_with_invite(
         session,
-        payload,
-        settings,
-    )
-    await create_audit_event(
-        session,
+        payload=payload,
+        settings=settings,
         actor_user_id=current_user.id,
-        action="admin.advertiser_organization.created",
-        entity_type="advertiser_organization",
-        entity_id=str(organization.id),
-        metadata={
-            "name": organization.name,
-            "owner_user_id": str(payload.owner_user_id) if payload.owner_user_id else None,
-        },
+        actor_session_version=request.state.authenticated_session_version,
     )
     await session.commit()
     return AdminOrganizationCreateResponse(
         organization=organization,
-        owner_membership=owner_membership,
     )

@@ -8,9 +8,8 @@ from conftest import (
     create_test_driver_profile,
     create_test_user,
     create_test_vehicle,
-    sign_test_trip_manifest,
 )
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 from test_campaign_assignments import (
     PASSWORD,
     create_assignment_ready_graph,
@@ -22,9 +21,7 @@ from app.core.errors import AppError
 from app.models.audit import AuditEvent
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
-from app.models.evidence_verification import EvidenceVerification
 from app.models.installation_evidence import (
-    DisplayProof,
     InstallationEvidenceStatus,
     InstallationEvidenceSubmission,
 )
@@ -35,11 +32,13 @@ from app.models.stored_file import (
     StoredFile,
     UploadIntentStatus,
 )
-from app.models.trip import TripSession
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
-from app.schemas.installation_evidence import DisplayProofCreate, InstallationEvidenceCreate
-from app.services.installation_evidence import submit_display_proof, submit_installation_evidence
+from app.schemas.installation_evidence import InstallationEvidenceCreate
+from app.services.installation_evidence import (
+    INSTALLATION_EVIDENCE_VIEWS,
+    submit_installation_evidence,
+)
 
 
 def create_clean_evidence_file(db_sessionmaker, *, user_id: UUID) -> UUID:
@@ -87,14 +86,6 @@ def create_clean_evidence_file(db_sessionmaker, *, user_id: UUID) -> UUID:
     return asyncio.run(create())
 
 
-def configure_evidence_policy(settings) -> None:
-    settings.installation_evidence_uploader_roles = "driver,admin"
-    settings.installation_evidence_required_views = "front,close_up"
-    settings.installation_evidence_validity_hours = 24
-    settings.display_proof_challenge_ttl_seconds = 120
-    settings.display_proof_validity_seconds = 3600
-
-
 def accepted_assignment(db_client, db_sessionmaker, *, suffix: str):
     admin, campaign, driver, profile, vehicle = create_assignment_ready_graph(
         db_sessionmaker,
@@ -121,17 +112,12 @@ def evidence_payload(db_sessionmaker, *, driver_id: UUID) -> dict:
         "captured_at": (datetime.now(UTC) - timedelta(minutes=1)).isoformat(),
         "photos": [
             {
-                "view": "front",
+                "view": view,
                 "stored_file_id": str(
                     create_clean_evidence_file(db_sessionmaker, user_id=driver_id)
                 ),
-            },
-            {
-                "view": "close_up",
-                "stored_file_id": str(
-                    create_clean_evidence_file(db_sessionmaker, user_id=driver_id)
-                ),
-            },
+            }
+            for view in INSTALLATION_EVIDENCE_VIEWS
         ],
         "metadata": {"source": "synthetic-test"},
     }
@@ -255,7 +241,6 @@ def test_driver_admin_evidence_flow_is_bound_and_idempotent(
     db_sessionmaker,
     settings,
 ) -> None:
-    configure_evidence_policy(settings)
     admin, driver, vehicle, assignment_id = accepted_assignment(
         db_client, db_sessionmaker, suffix="flow"
     )
@@ -272,7 +257,7 @@ def test_driver_admin_evidence_flow_is_bound_and_idempotent(
     assert body["vehicle_id"] == str(vehicle.id)
     assert body["device_id"] == payload["device_id"]
     assert body["status"] == "pending_review"
-    assert {photo["view"] for photo in body["photos"]} == {"front", "close_up"}
+    assert {photo["view"] for photo in body["photos"]} == set(INSTALLATION_EVIDENCE_VIEWS)
 
     duplicate = db_client.post(
         f"/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence",
@@ -304,7 +289,6 @@ def test_distinct_submission_is_rejected_while_review_is_pending(
     db_sessionmaker,
     settings,
 ) -> None:
-    configure_evidence_policy(settings)
     _, driver, _, assignment_id_value = accepted_assignment(
         db_client, db_sessionmaker, suffix="pending-guard"
     )
@@ -364,7 +348,6 @@ def test_future_capture_is_rejected_without_persisting_submission_or_audit(
     db_sessionmaker,
     settings,
 ) -> None:
-    configure_evidence_policy(settings)
     _, driver, _, assignment_id_value = accepted_assignment(
         db_client, db_sessionmaker, suffix="future-guard"
     )
@@ -410,57 +393,34 @@ def test_future_capture_is_rejected_without_persisting_submission_or_audit(
     assert asyncio.run(exercise()) == (0, 0)
 
 
-def test_evidence_policy_absence_and_cross_driver_file_fail_closed(
+def test_built_in_photo_rule_needs_no_settings_and_still_fails_closed(
     db_client,
     db_sessionmaker,
     settings,
 ) -> None:
-    settings.installation_evidence_uploader_roles = ""
-    settings.installation_evidence_required_views = ""
-    settings.installation_evidence_validity_hours = None
-    settings.display_proof_challenge_ttl_seconds = None
-    settings.display_proof_validity_seconds = None
+    """REQ-208: five views, driver or admin, 7 days; no deployment switch to set first."""
     admin, driver, vehicle, assignment_id = accepted_assignment(
         db_client, db_sessionmaker, suffix="policy"
     )
-    payload = evidence_payload(db_sessionmaker, driver_id=driver.id)
-    unavailable = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence",
-        headers=auth_headers(db_client, driver.email, PASSWORD),
-        json=payload,
-    )
-    assert unavailable.status_code == 503
-    assert unavailable.json()["error"]["code"] == "INSTALLATION_EVIDENCE_POLICY_UNAVAILABLE"
+    url = f"/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence"
+    headers = auth_headers(db_client, driver.email, PASSWORD)
 
-    configure_evidence_policy(settings)
-    payload["client_request_id"] = str(uuid4())
+    short = evidence_payload(db_sessionmaker, driver_id=driver.id)
+    short["photos"] = short["photos"][:4]
+    missing_view = db_client.post(url, headers=headers, json=short)
+    assert missing_view.status_code == 422, missing_view.text
+    assert missing_view.json()["error"]["code"] == "INSTALLATION_EVIDENCE_VIEWS_INVALID"
+
+    payload = evidence_payload(db_sessionmaker, driver_id=driver.id)
     payload["photos"][0]["stored_file_id"] = str(
         create_clean_evidence_file(db_sessionmaker, user_id=admin.id)
     )
-    invalid = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence",
-        headers=auth_headers(db_client, driver.email, PASSWORD),
-        json=payload,
-    )
+    invalid = db_client.post(url, headers=headers, json=payload)
     assert invalid.status_code == 409
     assert invalid.json()["error"]["code"] == "INSTALLATION_EVIDENCE_FILE_INVALID"
 
-
-def test_display_proof_nonce_is_device_bound_fresh_and_one_use(
-    db_client,
-    db_sessionmaker,
-    settings,
-) -> None:
-    configure_evidence_policy(settings)
-    admin, driver, vehicle, assignment_id = accepted_assignment(
-        db_client, db_sessionmaker, suffix="proof"
-    )
     payload = evidence_payload(db_sessionmaker, driver_id=driver.id)
-    submitted = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence",
-        headers=auth_headers(db_client, driver.email, PASSWORD),
-        json=payload,
-    )
+    submitted = db_client.post(url, headers=headers, json=payload)
     assert submitted.status_code == 201, submitted.text
     approved = db_client.post(
         f"/api/v1/admin/installation-evidence/{submitted.json()['id']}/approve",
@@ -468,210 +428,66 @@ def test_display_proof_nonce_is_device_bound_fresh_and_one_use(
         json={"reason": "Synthetic review passed"},
     )
     assert approved.status_code == 200, approved.text
-    set_assignment_active(db_sessionmaker, UUID(assignment_id))
-
-    async def seed_recurring_challenge() -> UUID:
-        async with db_sessionmaker() as session:
-            assignment = await session.get(CampaignAssignment, UUID(assignment_id))
-            issued_at = datetime.now(UTC) - timedelta(minutes=1)
-            source_trip = TripSession(
-                assignment_id=assignment.id,
-                campaign_id=assignment.campaign_id,
-                driver_profile_id=assignment.driver_profile_id,
-                vehicle_id=vehicle.id,
-                started_by_user_id=driver.id,
-                status="sealed",
-                started_at=issued_at - timedelta(hours=1),
-                ended_at=issued_at - timedelta(minutes=10),
-                sealed_at=issued_at - timedelta(minutes=5),
-                seal_reason="client_complete",
-                trip_metadata={"synthetic": True},
-            )
-            sign_test_trip_manifest(source_trip)
-            session.add(source_trip)
-            await session.flush()
-            verification = EvidenceVerification(
-                assignment_id=assignment.id,
-                campaign_id=assignment.campaign_id,
-                driver_profile_id=assignment.driver_profile_id,
-                vehicle_id=vehicle.id,
-                source_trip_session_id=source_trip.id,
-                verification_type="high_earner_renewal",
-                status="pending",
-                due_at=issued_at + timedelta(hours=1),
-                verification_metadata={"source": "synthetic-test"},
-                issued_at=issued_at,
-            )
-            session.add(verification)
-            await session.commit()
-            return verification.id
-
-    verification_id = asyncio.run(seed_recurring_challenge())
-
-    wrong_device = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{assignment_id}/display-proof/challenge",
-        headers=auth_headers(db_client, driver.email, PASSWORD),
-        json={"device_id": str(uuid4())},
-    )
-    assert wrong_device.status_code == 409
-    assert wrong_device.json()["error"]["code"] == "DISPLAY_PROOF_DEVICE_MISMATCH"
-
-    challenge = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{assignment_id}/display-proof/challenge",
-        headers=auth_headers(db_client, driver.email, PASSWORD),
-        json={"device_id": payload["device_id"]},
-    )
-    assert challenge.status_code == 201, challenge.text
-    proof_file_id = create_clean_evidence_file(db_sessionmaker, user_id=driver.id)
-    proof_payload = {
-        "challenge_id": challenge.json()["challenge_id"],
-        "nonce": challenge.json()["nonce"],
-        "device_id": payload["device_id"],
-        "stored_file_id": str(proof_file_id),
-        "metadata": {"source": "synthetic-test"},
-    }
-    proof = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{assignment_id}/display-proof",
-        headers=auth_headers(db_client, driver.email, PASSWORD),
-        json=proof_payload,
-    )
-    assert proof.status_code == 201, proof.text
-    assert proof.json()["assignment_id"] == assignment_id
-    assert proof.json()["evidence_submission_id"] == approved.json()["id"]
-
-    async def read_verification() -> EvidenceVerification:
-        async with db_sessionmaker() as session:
-            return await session.get(EvidenceVerification, verification_id)
-
-    verification = asyncio.run(read_verification())
-    assert verification.status == "satisfied"
-    assert verification.display_proof_id == UUID(proof.json()["id"])
-
-    replay = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{assignment_id}/display-proof",
-        headers=auth_headers(db_client, driver.email, PASSWORD),
-        json=proof_payload,
-    )
-    assert replay.status_code == 409
-    assert replay.json()["error"]["code"] == "DISPLAY_PROOF_CHALLENGE_REPLAYED"
+    approved_at = datetime.fromisoformat(approved.json()["reviewed_at"])
+    approved_until = datetime.fromisoformat(approved.json()["approved_until"])
+    assert approved_until - approved_at == timedelta(days=7)
 
 
-def test_concurrent_display_proof_replay_has_one_winner_on_postgres(
-    postgis_db_client,
-    postgis_db_sessionmaker,
-    settings,
-) -> None:
-    configure_evidence_policy(settings)
-    admin, driver, _, assignment_id = accepted_assignment(
-        postgis_db_client, postgis_db_sessionmaker, suffix="race"
-    )
-    evidence = evidence_payload(postgis_db_sessionmaker, driver_id=driver.id)
-    submitted = postgis_db_client.post(
-        f"/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence",
-        headers=auth_headers(postgis_db_client, driver.email, PASSWORD),
-        json=evidence,
-    )
-    assert submitted.status_code == 201, submitted.text
-    approved = postgis_db_client.post(
-        f"/api/v1/admin/installation-evidence/{submitted.json()['id']}/approve",
-        headers=auth_headers(postgis_db_client, admin.email, PASSWORD),
-        json={"reason": "Synthetic review passed"},
-    )
-    assert approved.status_code == 200, approved.text
-    set_assignment_active(postgis_db_sessionmaker, UUID(assignment_id))
-    challenge = postgis_db_client.post(
-        f"/api/v1/driver/campaign-assignments/{assignment_id}/display-proof/challenge",
-        headers=auth_headers(postgis_db_client, driver.email, PASSWORD),
-        json={"device_id": evidence["device_id"]},
-    )
-    assert challenge.status_code == 201, challenge.text
-    proof_file_id = create_clean_evidence_file(postgis_db_sessionmaker, user_id=driver.id)
-    payload = DisplayProofCreate(
-        challenge_id=UUID(challenge.json()["challenge_id"]),
-        nonce=challenge.json()["nonce"],
-        device_id=UUID(evidence["device_id"]),
-        stored_file_id=proof_file_id,
-        metadata={"source": "synthetic-race"},
-    )
-
-    async def attempt() -> str:
-        async with postgis_db_sessionmaker() as session:
-            try:
-                await submit_display_proof(
-                    session,
-                    actor_user_id=driver.id,
-                    assignment_id=UUID(assignment_id),
-                    payload=payload,
-                    settings=settings,
-                )
-                await session.commit()
-                return "ok"
-            except AppError as exc:
-                await session.rollback()
-                return exc.code
-
-    async def run_race() -> list[str]:
-        return list(await asyncio.gather(attempt(), attempt()))
-
-    outcomes = asyncio.run(run_race())
-    assert sorted(outcomes) == ["DISPLAY_PROOF_CHALLENGE_REPLAYED", "ok"]
-
-
-def test_trip_start_fails_closed_without_current_bound_display_proof(
-    db_client,
-    db_sessionmaker,
-) -> None:
+def test_trip_starts_with_weekly_photos_without_daily_configuration(db_client, db_sessionmaker):
+    """A fresh database's ordinary trip authority needs only weekly photos."""
     _, _, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
+    response = start_trip(db_client, assignment.id)
+    assert response.status_code == 201, response.text
+    assert "display_proof_id" not in response.json()
 
-    async def remove_proof() -> None:
+
+@pytest.mark.parametrize("photo_state", ["expired", "rejected", "missing"])
+def test_trip_still_requires_current_approved_weekly_photos(
+    db_client, db_sessionmaker, photo_state
+):
+    _, _, _, _, _, assignment = create_trip_ready_graph(
+        db_sessionmaker, with_installation_evidence=photo_state != "missing"
+    )
+
+    async def change_photo_authority():
         async with db_sessionmaker() as session:
-            await session.execute(
-                delete(DisplayProof).where(DisplayProof.assignment_id == assignment.id)
+            evidence = await session.scalar(
+                select(InstallationEvidenceSubmission).where(
+                    InstallationEvidenceSubmission.assignment_id == assignment.id
+                )
             )
+            if photo_state == "expired":
+                evidence.approved_until = datetime.now(UTC) - timedelta(seconds=1)
+            elif photo_state == "rejected":
+                evidence.status = "rejected"
+                evidence.rejection_reason = "Photos need replacement"
+                evidence.approved_until = None
             await session.commit()
 
-    asyncio.run(remove_proof())
+    if photo_state != "missing":
+        asyncio.run(change_photo_authority())
     response = start_trip(db_client, assignment.id)
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "CURRENT_DISPLAY_PROOF_REQUIRED"
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] in {
+        "APPROVED_INSTALLATION_EVIDENCE_REQUIRED",
+        "INSTALLATION_EVIDENCE_EXPIRED",
+    }
 
 
-def test_photo_policy_enables_driver_uploads_before_display_proof_windows_exist(
-    db_client, db_sessionmaker, settings
-) -> None:
-    """Client answer #4 photo rules stand alone; display-proof windows are still open inputs."""
-    settings.installation_evidence_uploader_roles = "driver,admin"
-    settings.installation_evidence_required_views = "front,back,left,right,close_up"
-    settings.installation_evidence_validity_hours = 168
-    settings.display_proof_challenge_ttl_seconds = None
-    settings.display_proof_validity_seconds = None
+def test_installation_policy_has_only_weekly_rule(db_client, db_sessionmaker):
     driver = create_test_user(
         db_sessionmaker,
-        email="evidence-policy-driver@example.com",
+        email="weekly-policy@example.com",
         password=PASSWORD,
         role=UserRole.DRIVER,
     )
     create_test_driver_profile(db_sessionmaker, user_id=driver.id)
-    headers = auth_headers(db_client, driver.email, PASSWORD)
-
-    policy = db_client.get("/api/v1/driver/installation-evidence/policy", headers=headers)
-    assert policy.status_code == 200, policy.text
-    assert policy.json() == {
-        "configured": True,
-        "can_upload": True,
+    response = db_client.get(
+        "/api/v1/driver/installation-evidence/policy",
+        headers=auth_headers(db_client, driver.email, PASSWORD),
+    )
+    assert response.status_code == 200
+    assert response.json() == {
         "required_views": ["front", "back", "left", "right", "close_up"],
         "evidence_validity_hours": 168,
-        "display_proof_challenge_ttl_seconds": None,
-        "display_proof_validity_seconds": None,
     }
-
-    settings.display_proof_challenge_ttl_seconds = 120
-    settings.display_proof_validity_seconds = 3600
-    with_proof = db_client.get("/api/v1/driver/installation-evidence/policy", headers=headers)
-    assert with_proof.json()["display_proof_challenge_ttl_seconds"] == 120
-    assert with_proof.json()["display_proof_validity_seconds"] == 3600
-
-    settings.installation_evidence_validity_hours = None
-    unset = db_client.get("/api/v1/driver/installation-evidence/policy", headers=headers).json()
-    assert unset["configured"] is False and unset["can_upload"] is False
-    assert unset["display_proof_challenge_ttl_seconds"] is None

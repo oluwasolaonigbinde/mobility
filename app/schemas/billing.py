@@ -288,10 +288,6 @@ class InvoiceDraftCreate(BaseModel):
     commercial_terms_id: UUID
 
 
-class InvoiceIssue(BaseModel):
-    issuer_profile_id: UUID
-
-
 class FinancialAuthorityCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     authority_type: FinancialAuthorityType
@@ -301,8 +297,6 @@ class FinancialAuthorityCreate(BaseModel):
     due_at: datetime | None = None
     approved_by_user_id: UUID | None = None
     credit_terms: dict[str, Any] | None = None
-    subsidy_amount: Decimal | None = None
-    subsidy_reference: str | None = None
 
 
 class FinancialAuthorityRead(ORMRead):
@@ -317,7 +311,6 @@ class FinancialAuthorityRead(ORMRead):
     max_driver_liability: Decimal
     credit_limit: Decimal | None
     credit_due_at: datetime | None
-    subsidy_reference: str | None
     effective_from: datetime
     reason: str
 
@@ -413,26 +406,11 @@ class SettlementRead(ORMRead):
     recorded_at: datetime
 
 
-class BudgetEvaluationRead(ORMRead):
-    id: UUID
-    campaign_id: UUID
+class BudgetCheckRead(ORMRead):
     state: str
-    external_gate: str | None
-    campaign_budget_amount: Decimal | None
-    campaign_daily_budget_amount: Decimal | None
+    campaign_budget_amount: Decimal
     currency: str
-    policy_id: str | None
-    policy_revision: str | None
-    policy_source: str | None
-    budget_basis: str | None
-    billing_fact_source: str | None
-    billing_spend_amount: Decimal | None
-    alert_threshold_amount: Decimal | None
-    urgent_threshold_amount: Decimal | None
-    pause_threshold_amount: Decimal | None
-    resume_threshold_amount: Decimal | None
-    alert_applied: bool
-    pause_applied: bool
+    billing_spend_amount: Decimal
     resume_allowed: bool
     evaluated_at: datetime
 
@@ -446,7 +424,7 @@ class BudgetResumeCreate(BaseModel):
 class BudgetTransitionRead(ORMRead):
     id: UUID
     campaign_id: UUID
-    evaluation_id: UUID
+    pause_transition_id: UUID | None
     action: str
     prior_status: str
     new_status: str
@@ -465,7 +443,11 @@ class CampaignCommercialRead(BaseModel):
     waiver: WaiverRead | None
     production_start: ProductionStartRead | None
     settlements: list[SettlementRead]
-    budget_evaluations: list[BudgetEvaluationRead]
+    budget_check: BudgetCheckRead | None
+
+
+class AdminCampaignCommercialRead(CampaignCommercialRead):
+    issuing_available: bool
 
 
 class PaymentWebhookReceipt(BaseModel):

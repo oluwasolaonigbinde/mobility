@@ -57,6 +57,7 @@ export function VehicleDecisionActions({
   submissionId,
   documentFileIds,
   status,
+  defaultValidUntil,
 }: {
   applicationId: string;
   driverProfileId?: string;
@@ -64,6 +65,8 @@ export function VehicleDecisionActions({
   submissionId: string;
   documentFileIds: Record<string, string>;
   status: string;
+  /** Editable prefill, one calendar year ahead in Nigeria time; computed once by the server page. */
+  defaultValidUntil?: string;
 }) {
   const [state, action, pending] = useActionState(reviewVehicleAction, initialDecisionState);
   const [decisionRequestId] = useState(() => crypto.randomUUID());
@@ -103,16 +106,13 @@ export function VehicleDecisionActions({
   }
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <p className="text-muted mb-2 text-sm">
-        Each view is logged. Documents are hidden after one minute or when you leave this page.
-      </p>
       {Object.entries(documentFileIds).map(([name, fileId]) => (
         <section
           key={`${name}:${vehicleId}:${submissionId}:${fileId}`}
           aria-label={adminDocumentLabel(name)}
           className="border-edge border-b py-3"
         >
-          <h4 className="mb-2 font-medium">{adminDocumentLabel(name)}</h4>
+          <h4 className="mb-2 font-medium first-letter:uppercase">{adminDocumentLabel(name)}</h4>
           <SensitiveReview purpose="Vehicle review">
             <EvidenceRead fileId={fileId} submissionId={submissionId} label="View" />
           </SensitiveReview>
@@ -142,11 +142,12 @@ export function VehicleDecisionActions({
           <input type="checkbox" name="documents_readable_confirmed" /> Documents readable
         </label>
         <label className="micro text-muted mt-1 flex flex-col gap-1">
-          Approval expiry
+          Car approval valid until (Nigeria time)
           <input
             name="valid_until"
             type="datetime-local"
             required
+            defaultValue={state.validUntil ?? defaultValidUntil}
             className="border-edge bg-raised text-ink rounded-lg border px-2 py-2 text-xs"
           />
         </label>
@@ -167,7 +168,7 @@ export function VehicleDecisionActions({
           </select>
         </label>
         <fieldset className="border-edge my-2 rounded-lg border p-3 text-xs">
-          <legend>Document outcomes for rejection or expiry</legend>
+          <legend>Documents that need changes</legend>
           <div className="my-3">
             <p className="font-medium">Registration</p>
             <label className="flex flex-col gap-1">
@@ -259,17 +260,6 @@ export function VehicleDecisionActions({
             className="h-8 px-2 text-xs"
           >
             Reject
-          </Button>
-          <Button
-            type="submit"
-            name="intent"
-            value="expire"
-            formNoValidate
-            disabled={pending}
-            variant="ghost"
-            className="h-8 px-2 text-xs"
-          >
-            Mark expired
           </Button>
         </div>
         {state.error ? (

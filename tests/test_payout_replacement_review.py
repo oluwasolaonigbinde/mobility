@@ -107,7 +107,11 @@ def test_terminal_failure_rejects_semantically_unchanged_destination(
             batch_count = await session.scalar(select(func.count(PayoutBatch.id)))
             with pytest.raises(AppError) as denied:
                 await disbursements.retry_failed_payout_lines(
-                    session, batch_id=batch.id, actor_user_id=graph.admin.id, adapter=adapter
+                    session,
+                    reason="Focused staff payout action",
+                    batch_id=batch.id,
+                    actor_user_id=graph.admin.id,
+                    adapter=adapter,
                 )
             assert denied.value.code == "PAYOUT_RESOLVED_LINES_NOT_RETRYABLE"
             assert await session.scalar(select(func.count(PayoutBatch.id))) == batch_count
@@ -135,7 +139,11 @@ def test_terminal_failure_replacement_uses_changed_verified_destination(postgis_
             await _add_new_bank_version(session, graph)
             await session.commit()
             replacement, children = await disbursements.retry_failed_payout_lines(
-                session, batch_id=batch.id, actor_user_id=graph.admin.id, adapter=adapter
+                session,
+                reason="Focused staff payout action",
+                batch_id=batch.id,
+                actor_user_id=graph.admin.id,
+                adapter=adapter,
             )
             await session.commit()
             assert replacement.id != batch.id
@@ -163,7 +171,11 @@ def test_terminal_failure_replacement_uses_changed_verified_destination(postgis_
                 after.account_number,
             )
             again, same_children = await disbursements.retry_failed_payout_lines(
-                session, batch_id=batch.id, actor_user_id=graph.admin.id, adapter=adapter
+                session,
+                reason="Focused staff payout action",
+                batch_id=batch.id,
+                actor_user_id=graph.admin.id,
+                adapter=adapter,
             )
             assert again.id == replacement.id
             assert [line.id for line in same_children] == [child.id]
@@ -185,16 +197,23 @@ def test_replacement_stale_assessment_denies_every_line_before_construction(
         async with sessions() as session:
             entries = [await _seed_authority(session, graph) for graph in graphs]
             batch = await disbursements.create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graphs[0].admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graphs[0].admin.id,
             )
             _, lines = await disbursements.reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=batch.id,
                 ledger_entry_ids=tuple(e.id for e in entries),
                 actor_user_id=graphs[0].admin.id,
             )
             await disbursements.approve_payout_batch(
-                session, batch_id=batch.id, actor_user_id=checker.id
+                session,
+                reason="Focused staff payout action",
+                batch_id=batch.id,
+                actor_user_id=checker.id,
             )
             await disbursements.submit_payout_batch(
                 session, batch_id=batch.id, actor_user_id=graphs[0].admin.id, adapter=adapter
@@ -250,6 +269,7 @@ def test_replacement_stale_assessment_denies_every_line_before_construction(
                 with pytest.raises(AppError) as denied:
                     await disbursements.retry_failed_payout_lines(
                         session,
+                        reason="Focused staff payout action",
                         batch_id=batch.id,
                         actor_user_id=graphs[0].admin.id,
                         adapter=adapter,
@@ -284,10 +304,17 @@ def test_campaign_exposure_survives_late_predecessor_success_and_counts_both_ver
             batch, original, _ = await _fail(session, graph, checker, reconciler, adapter)
             await _add_new_bank_version(session, graph)
             replacement, children = await disbursements.retry_failed_payout_lines(
-                session, batch_id=batch.id, actor_user_id=graph.admin.id, adapter=adapter
+                session,
+                reason="Focused staff payout action",
+                batch_id=batch.id,
+                actor_user_id=graph.admin.id,
+                adapter=adapter,
             )
             await disbursements.approve_payout_batch(
-                session, batch_id=replacement.id, actor_user_id=checker.id
+                session,
+                reason="Focused staff payout action",
+                batch_id=replacement.id,
+                actor_user_id=checker.id,
             )
             await disbursements.submit_payout_batch(
                 session, batch_id=replacement.id, actor_user_id=graph.admin.id, adapter=adapter
@@ -331,10 +358,10 @@ def test_campaign_exposure_survives_late_predecessor_success_and_counts_both_ver
             after = (await campaign_money_position(session, campaign_id=graph.campaign.id))[
                 "items"
             ][0]
-            assert after["cash_paid"] == Decimal("100.00")
+            assert after["cash_paid"] == Decimal("200.00")
             assert after["earned_net"] == Decimal("100.00")
             assert after["in_flight"] == Decimal("0.00")
             assert after["provider_verified_paid"] == Decimal("200.00")
-            assert after["driver_wide_debt"] == Decimal("100.00")
+            assert after["unbatched_available"] == Decimal("0.00")
 
     asyncio.run(exercise())

@@ -32,6 +32,42 @@ from app.services.audit import create_audit_event
 from app.services.trip_evidence import manifest_root
 
 AUDITED = {
+    ("POST", "/api/v1/auth/advertiser-invite/complete"): "advertiser.login_invite.completed",
+    (
+        "POST",
+        "/api/v1/admin/advertiser-organizations/{organization_id}/login-invite",
+    ): "advertiser.login_invite.sent",
+    # S9/S10/D118: one report; retained issued-file downloads above remain.
+    ("POST", "/api/v1/advertiser/reports"): "campaign_report.requested",
+    (
+        "POST",
+        "/api/v1/advertiser/reports/{report_id}/artifacts/{artifact_format}/download",
+    ): "stored_file.read|campaign_report.downloaded",
+    (
+        "POST",
+        "/api/v1/admin/reports/{report_id}/artifacts/{artifact_format}/download",
+    ): "stored_file.read|campaign_report.downloaded",
+    ("POST", "/api/v1/admin/earnings-ledger/{entry_id}/negative-adjustments"): (
+        "admin.earnings.negative_adjustment"
+    ),
+    (
+        "PUT",
+        "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/website",
+    ): "creative.website_updated",
+    ("POST", "/api/v1/admin/campaigns/{campaign_id}/cancel"): "admin.campaign.cancelled",
+    (
+        "POST",
+        "/api/v1/driver/campaign-assignments/{assignment_id}/artwork/download",
+    ): "stored_file.read",
+    ("POST", "/api/v1/campaign-enquiries"): "campaign_enquiry.received",
+    (
+        "POST",
+        "/api/v1/admin/campaign-enquiries/{enquiry_id}/create-advertiser",
+    ): "campaign_enquiry.converted",
+    (
+        "POST",
+        "/api/v1/admin/campaigns/{campaign_id}/reports/re-run",
+    ): "campaign_report.requested|campaign_report.rerun",
     ("POST", "/api/v1/admin/campaigns/{campaign_id}/resume"): "admin.campaign.resumed",
     ("POST", "/api/v1/auth/login"): "auth.login.*",
     ("POST", "/api/v1/auth/change-password"): "auth.password.*",
@@ -75,35 +111,6 @@ AUDITED = {
         "POST",
         "/api/v1/admin/campaign-change-requests/{request_id}/reject",
     ): "admin.campaign_change.rejected",
-    (
-        "POST",
-        "/api/v1/advertiser/campaigns/{campaign_id}/cancel",
-    ): "advertiser.campaign.cancelled",
-    ("POST", "/api/v1/advertiser/retargeting-sources"): "retargeting_source.created",
-    (
-        "POST",
-        "/api/v1/advertiser/retargeting-sources/{source_id}/deactivate",
-    ): "retargeting_source.deactivated",
-    (
-        "POST",
-        "/api/v1/advertiser/retargeting-source-links",
-    ): "retargeting_source_link.created",
-    (
-        "POST",
-        "/api/v1/advertiser/retargeting-source-links/{link_id}/remove",
-    ): "retargeting_source_link.removed",
-    (
-        "POST",
-        "/api/v1/admin/exposure-segments/{segment_id}/delivery-approvals",
-    ): "audience_delivery.approved",
-    (
-        "POST",
-        "/api/v1/advertiser/exposure-segments/{segment_id}/exports",
-    ): "audience_segment.exported",
-    (
-        "POST",
-        "/api/v1/admin/exposure-segments/{segment_id}/activations",
-    ): "audience_segment.activation_submitted",
     ("PATCH", "/api/v1/advertiser/campaigns/{campaign_id}"): "advertiser.campaign.updated",
     ("POST", "/api/v1/advertiser/campaigns/{campaign_id}/submit"): (
         "advertiser.campaign.submitted_for_review"
@@ -159,20 +166,8 @@ AUDITED = {
     ): "installation_evidence.rejected",
     (
         "POST",
-        "/api/v1/driver/campaign-assignments/{assignment_id}/display-proof/challenge",
-    ): "display_proof.challenge_issued",
-    (
-        "POST",
-        "/api/v1/driver/campaign-assignments/{assignment_id}/display-proof",
-    ): "display_proof.verified",
-    (
-        "POST",
         "/api/v1/admin/evidence-verifications/physical-spot-checks",
-    ): "evidence_verification.spot_check_queued",
-    (
-        "POST",
-        "/api/v1/admin/evidence-verifications/{verification_id}/physical-spot-check-result",
-    ): "evidence_verification.spot_check_resolved",
+    ): "evidence_verification.spot_check_recorded",
     ("POST", "/api/v1/driver/kyc/submissions"): "driver.kyc.submitted",
     ("PATCH", "/api/v1/driver/profile"): "driver.profile.updated",
     ("POST", "/api/v1/driver/campaign-assignments/{assignment_id}/accept"): (
@@ -221,37 +216,17 @@ AUDITED = {
     ("POST", "/api/v1/admin/trips/{trip_id}/calculate-payout"): (
         "admin.payout_calculation.created"
     ),
-    # MNY-06C maker-checker correction orders (Q22):
+    # D112 audited correction orders (Q22):
     ("POST", "/api/v1/admin/payouts/correction-orders"): ("admin.payout_correction_order.created"),
-    ("POST", "/api/v1/admin/payouts/correction-orders/{order_id}/submit"): (
-        "admin.payout_correction_order.submitted"
-    ),
     ("POST", "/api/v1/admin/payouts/correction-orders/{order_id}/approve"): (
         "admin.payout_correction_order.approved"
-    ),
-    ("POST", "/api/v1/admin/payouts/correction-orders/{order_id}/reject"): (
-        "admin.payout_correction_order.rejected"
-    ),
-    ("POST", "/api/v1/admin/payouts/correction-orders/{order_id}/execute"): (
-        "admin.payout_correction_order.executed"
     ),
     # S4 backfill (§6.4.9):
     ("POST", "/api/v1/driver/trips/start"): "driver.trip.started",
     ("POST", "/api/v1/driver/trips/{trip_id}/end"): "driver.trip.ended",
     ("POST", "/api/v1/driver/trips/{trip_id}/evidence/reconcile"): "trip.sealed",
-    (
-        "POST",
-        "/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply",
-    ): "admin.trip.quarantined_batch.applied",
-    (
-        "POST",
-        "/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/discard",
-    ): "admin.trip.quarantined_batch.discarded",
     ("POST", "/api/v1/admin/trips/{trip_id}/recompute-analytics"): (
         "admin.trip_analytics.recomputed"
-    ),
-    ("POST", "/api/v1/admin/fraud-flags/{flag_id}/review/acknowledge"): (
-        "admin.fraud_flag.acknowledged"
     ),
     ("POST", "/api/v1/admin/fraud-flags/{flag_id}/review/resolve"): ("admin.fraud_flag.resolved"),
     ("POST", "/api/v1/driver/fraud-holds/{flag_id}/disputes"): ("driver.fraud_dispute.created"),
@@ -277,10 +252,6 @@ AUDITED = {
         "admin.bank_account.rewrapped"
     ),
     ("POST", "/api/v1/admin/payout-batches"): "admin.payout_batch.created",
-    (
-        "POST",
-        "/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}/allocate",
-    ): "admin.payout_debt.allocated",
     ("POST", "/api/v1/admin/payout-batches/{batch_id}/reserve"): ("admin.payout_batch.reserved"),
     ("POST", "/api/v1/admin/payout-batches/{batch_id}/approve"): ("admin.payout_batch.approved"),
     ("POST", "/api/v1/admin/payout-batches/{batch_id}/submit"): ("admin.payout_batch.submitted"),
@@ -298,10 +269,6 @@ AUDITED = {
     ),
     ("POST", "/api/v1/admin/payouts/automatic/alerts/{alert_id}/resolve"): (
         "admin.payout_automatic_alert.resolved"
-    ),
-    ("POST", "/api/v1/admin/traffic-density-profiles"): ("admin.traffic_density_profile.created"),
-    ("PATCH", "/api/v1/admin/traffic-density-profiles/{profile_id}"): (
-        "admin.traffic_density_profile.updated"
     ),
     ("POST", "/api/v1/admin/trips/{trip_id}/estimate-impressions"): (
         "admin.impression_estimate.computed"
@@ -344,9 +311,6 @@ AUDITED = {
     ("POST", "/api/v1/admin/invoices/{invoice_id}/corrections"): ("billing.invoice.corrected"),
     ("POST", "/api/v1/admin/refunds"): "billing.refund.recorded",
     ("POST", "/api/v1/admin/credit-settlements"): ("billing.credit_settlement.recorded"),
-    ("POST", "/api/v1/admin/campaigns/{campaign_id}/budget-policy-evaluation"): (
-        "billing.budget_policy.*"
-    ),
     ("POST", "/api/v1/admin/campaigns/{campaign_id}/budget-policy-resume"): (
         "billing.budget_policy.resumed"
     ),
@@ -378,15 +342,6 @@ AUDITED = {
     ("POST", "/api/v1/admin/manual-driver-contact-tasks/{task_id}/complete"): (
         "operations.driver_contact_task.completed"
     ),
-    ("POST", "/api/v1/admin/measurement-runs"): "measurement_run.issued",
-    ("POST", "/api/v1/admin/privacy/dsr-requests"): "privacy.dsr.opened",
-    ("POST", "/api/v1/admin/privacy/dsr-requests/{request_id}/verify-identity"): (
-        "privacy.dsr.identity_verified"
-    ),
-    ("POST", "/api/v1/admin/privacy/dsr-requests/{request_id}/locations/{location}"): (
-        "privacy.dsr.location_assessed"
-    ),
-    ("POST", "/api/v1/admin/privacy/dsr-requests/{request_id}/complete"): ("privacy.dsr.completed"),
     # W3-04B/C driver-application onboarding and review (public applicant
     # capability token in the request body; each router commits once):
     ("POST", "/api/v1/auth/driver-onboarding/files/uploads"): ("stored_file.upload_requested"),
@@ -417,12 +372,6 @@ AUDITED = {
         "admin.bank_account.payout_verified"
     ),
     # Report issuance request/download (advertiser and admin share one service):
-    ("POST", "/api/v1/advertiser/measurement-runs/{run_id}/report-issuances"): (
-        "report_issuance.requested|report_issuance.replayed"
-    ),
-    ("POST", "/api/v1/admin/measurement-runs/{run_id}/report-issuances"): (
-        "report_issuance.requested|report_issuance.replayed"
-    ),
     (
         "POST",
         "/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/{artifact_format}/download",
@@ -434,17 +383,15 @@ AUDITED = {
 }
 
 EXEMPT = {
+    ("POST", "/api/v1/auth/driver-onboarding/continue"): (
+        "D94/REQ-192: body-only capability validation returns current step and expiry, "
+        "without consuming/extending access or changing application authority."
+    ),
     ("POST", "/api/v1/auth/driver-onboarding/account-name"): (
         "D78, architecture section 23: capability-scoped account-name lookup keeps "
         "bank details in the body, performs no database mutation and returns a short-lived "
         "signed capture receipt. It cannot approve a bank account or authorize payment; "
         "the separately submitted person/payee capture and staff review are audited."
-    ),
-    ("POST", "/api/v1/campaign-enquiries"): (
-        "D52/REQ-070, architecture §27.3: bounded public campaign enquiries send only to the "
-        "official inbox, with expiring Redis rate-limit counters and an SMTP side effect. "
-        "This path creates no database authority records and does not log form content; "
-        "contact details are used only to answer the enquiry."
     ),
     ("POST", "/api/v1/admin/payout-batches/selection-preview"): (
         "Read-only exact selection preview: immutable credit IDs remain in the request body; "
@@ -457,10 +404,6 @@ EXEMPT = {
         "service issues only SELECTs and returns a digest-bound projection. It creates no "
         "campaign, request, revision, allocation or audit row; the separately confirmed command "
         "is the audited authority mutation."
-    ),
-    ("POST", "/api/v1/notifications/email/delivery-receipts"): (
-        "Provider-authenticated machine callback: the signed, fingerprinted, append-only "
-        "notification_delivery_receipts row is the canonical delivery evidence."
     ),
     ("POST", "/api/v1/webhooks/payments"): (
         "Provider-authenticated machine callback: the append-only payment_gateway_events row "
@@ -675,7 +618,6 @@ def test_analytics_recompute_and_impression_estimate_write_audit_events(
 
     from conftest import (
         auth_headers,
-        create_test_traffic_density_profile,
         create_test_trip_session,
     )
 
@@ -711,7 +653,7 @@ def test_analytics_recompute_and_impression_estimate_write_audit_events(
     assert recompute.status_code == http_status.HTTP_200_OK, recompute.text
     analytics_id = recompute.json()["id"]
 
-    create_test_traffic_density_profile(db_sessionmaker, is_default=True)
+    # S10 / D118 uses fixed estimate factors, with no profile prerequisite.
     estimate = db_client.post(
         f"/api/v1/admin/trips/{trip.id}/estimate-impressions", headers=headers, json={}
     )
@@ -732,37 +674,6 @@ def test_analytics_recompute_and_impression_estimate_write_audit_events(
     assert asyncio.run(audited_entities("admin.impression_estimate.computed")) == {
         estimate.json()["id"]
     }
-
-
-def test_traffic_density_profile_mutations_write_audit_events(db_client, db_sessionmaker) -> None:
-    from conftest import auth_headers, create_test_user
-
-    create_test_user(
-        db_sessionmaker, email="audit-admin@example.com", password="long-secure-password"
-    )
-    headers = auth_headers(db_client, "audit-admin@example.com", "long-secure-password")
-
-    created = db_client.post(
-        "/api/v1/admin/traffic-density-profiles",
-        headers=headers,
-        json={
-            "name": "Audit Profile",
-            "traffic_density_per_km": "120",
-            "dwell_impressions_per_minute": "3",
-        },
-    )
-    assert created.status_code == http_status.HTTP_200_OK, created.text
-    profile_id = created.json()["id"]
-    updated = db_client.patch(
-        f"/api/v1/admin/traffic-density-profiles/{profile_id}",
-        headers=headers,
-        json={"description": "updated"},
-    )
-    assert updated.status_code == http_status.HTTP_200_OK, updated.text
-
-    actions = audit_actions(db_sessionmaker)
-    assert "admin.traffic_density_profile.created" in actions
-    assert "admin.traffic_density_profile.updated" in actions
 
 
 def test_applicant_file_status_probe_stays_exempt(db_client, db_sessionmaker, settings) -> None:

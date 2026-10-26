@@ -4,6 +4,8 @@ import type { components } from "@/lib/api/schema";
 import { createApiClient, type ApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
+import { readDriverCurrentJob } from "@/lib/api/navigation";
+import { frozenJob } from "./frozen-job";
 import {
   projectDriverCampaignJourney,
   type DriverCampaignJourney,
@@ -15,15 +17,18 @@ import {
   type VehicleAuthority,
 } from "./campaign-journey";
 
-type AssignmentStatus = components["schemas"]["CampaignAssignmentStatus"];
-type AssignmentList = components["schemas"]["CampaignAssignmentListResponse"];
+type AssignmentStatus = components["schemas"]["CampaignAssignmentRead"]["status"];
+type CurrentJob = components["schemas"]["DriverCurrentJob"];
 
 export interface LoadedDriverCampaignJourney {
   journey: DriverCampaignJourney;
-  photoStatus: "ready" | "display_required" | "installation_required" | "unavailable";
+  photoStatus: "ready" | "installation_required" | "unavailable";
   activationAssignment: DriverTrackerAssignment | null;
   currentTrip: DriverTrackerTrip | null;
   trackerAssignment: DriverTrackerAssignment | null;
+  /** Optional presentation context from the same authoritative current-job read. */
+  visualAssignment: { id: string; job: ReturnType<typeof frozenJob> } | null;
+  needsServiceCity: boolean | null;
 }
 
 async function read<T>(
@@ -41,12 +46,8 @@ async function read<T>(
   }
 }
 
-function assignmentCount(source: JourneyRead<AssignmentList>): number | null {
-  return source.state === "available" ? source.value.total : null;
-}
-
 function assignmentSummary(
-  source: JourneyRead<components["schemas"]["ActiveCampaignAssignmentResponse"]>,
+  source: JourneyRead<CurrentJob>,
 ): JourneyRead<DriverTrackerAssignment | null> {
   if (source.state !== "available") return source;
   const assignment = source.value.assignment;
@@ -179,39 +180,32 @@ export async function loadDriverCampaignJourney(): Promise<LoadedDriverCampaignJ
     "active",
     "declined",
     "expired",
-    "deactivated",
     "cancelled",
-    "completed",
+    "finished",
   ];
-  const [profile, personPayee, vehicles, activeAssignment, currentTrip, ...assignmentReads] =
-    await Promise.all([
-      read(api.GET("/api/v1/driver/profile"), { notFoundIsAbsent: true }),
-      read(api.GET("/api/v1/driver/kyc/current"), { notFoundIsAbsent: true }),
-      read(api.GET("/api/v1/driver/vehicles", { params: { query: { limit: 100 } } })),
-      read(api.GET("/api/v1/driver/campaign-assignments/active"), {
-        notFoundIsAbsent: true,
-      }),
-      read(api.GET("/api/v1/driver/trips/current"), { notFoundIsAbsent: true }),
-      ...assignmentStatuses.map((status) =>
-        read(
-          api.GET("/api/v1/driver/campaign-assignments", {
-            params: { query: { limit: 1, status } },
-          }),
-        ),
-      ),
-    ] as const);
+  const [profile, personPayee, vehicles, activeAssignment, currentTrip] = await Promise.all([
+    read(api.GET("/api/v1/driver/profile"), { notFoundIsAbsent: true }),
+    read(api.GET("/api/v1/driver/kyc/current"), { notFoundIsAbsent: true }),
+    read(api.GET("/api/v1/driver/vehicles", { params: { query: { limit: 100 } } })),
+    read(readDriverCurrentJob(api)),
+    read(api.GET("/api/v1/driver/trips/current"), { notFoundIsAbsent: true }),
+  ] as const);
 
   const activation = assignmentSummary(activeAssignment);
   const trip = tripSummary(currentTrip);
-  const counts = assignmentReads.map(assignmentCount);
-  const offers: JourneyRead<OfferAuthority> = counts.some((count) => count === null)
-    ? { state: "unavailable" }
-    : {
-        state: "available",
-        value: Object.fromEntries(
-          assignmentStatuses.map((status, index) => [status, counts[index] ?? 0]),
-        ) as unknown as OfferAuthority,
-      };
+  const counts = activeAssignment.state === "available" ? activeAssignment.value.counts : null;
+  const offers: JourneyRead<OfferAuthority> =
+    !counts ||
+    assignmentStatuses.some(
+      (status) => !Number.isSafeInteger(counts[status]) || counts[status]! < 0,
+    )
+      ? { state: "unavailable" }
+      : {
+          state: "available",
+          value: Object.fromEntries(
+            assignmentStatuses.map((status) => [status, counts[status]]),
+          ) as unknown as OfferAuthority,
+        };
   const vehicle =
     activation.state === "available" && activation.value
       ? await exactVehicleAuthority(api, activation.value.vehicleId)
@@ -242,5 +236,13 @@ export async function loadDriverCampaignJourney(): Promise<LoadedDriverCampaignJ
     activationAssignment,
     currentTrip: currentTripSummary,
     trackerAssignment: journey.canStart ? activationAssignment : null,
+    visualAssignment:
+      activeAssignment.state === "available" && activeAssignment.value.assignment
+        ? {
+            id: activeAssignment.value.assignment.id,
+            job: frozenJob(activeAssignment.value.assignment.offer_terms),
+          }
+        : null,
+    needsServiceCity: profile.state === "available" ? !profile.value.service_city?.trim() : null,
   };
 }

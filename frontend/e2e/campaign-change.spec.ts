@@ -44,7 +44,8 @@ test("advertiser preview and reasoned admin decision complete a mid-flight chang
   try {
     await login(page, ADVERTISER, "advertiser");
     await page.goto("/advertiser/campaigns");
-    await page.getByRole("link", { name: campaignName }).click();
+    await page.getByRole("table").getByRole("link", { name: campaignName }).click();
+    await page.locator("#manage > summary").click();
     await expect(page.getByRole("heading", { name: "Campaign changes" })).toBeVisible();
 
     await page.getByLabel("Total budget").fill("999999999.00");
@@ -95,11 +96,13 @@ test("advertiser preview and reasoned admin decision complete a mid-flight chang
     await changeForm.getByRole("button", { name: "Approve change" }).click();
     const response = await approvalResponse;
     expect(response.ok(), "the browser approval action must complete successfully").toBe(true);
-    await response.finished();
+    // The streamed action can remain open after its decision is applied. The
+    // rendered form and authenticated persisted request below are authoritative.
     await expect(changeForm).toHaveCount(0);
 
     await login(page, ADVERTISER, "advertiser");
     await page.goto(`/advertiser/campaigns/${campaignId}`);
+    await page.locator("#manage > summary").click();
     const decidedRequest = page.getByRole("listitem").filter({
       hasText: `Decision: ${decisionReason}`,
     });

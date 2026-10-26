@@ -452,7 +452,7 @@ def test_earlier_future_start_is_classified_as_an_expansion(
         db_sessionmaker,
         organization_id=organization.id,
         created_by_user_id=advertiser.id,
-        campaign_status=CampaignStatus.SCHEDULED,
+        campaign_status=CampaignStatus.APPROVED,
         start_at=current_start,
         end_at=now + timedelta(days=10),
         budget_amount="1000.00",
@@ -522,7 +522,7 @@ def test_funding_and_change_approval_serialize_without_overauthorization_pg(
                     daily_target_miles="70.00",
                     shortfall_strategy="proportional",
                     minimum_miles="0.00",
-                    outside_area_weight="1.00",
+                    outside_area_weight="0.00",
                     currency="NGN",
                     eligibility_params={},
                     resolved_eligibility_params={},
@@ -755,8 +755,8 @@ def test_postgres_campaign_change_and_disclosure_snapshot_do_not_deadlock(
         original = campaign_changes._locked_campaign
         reader_pid = None
 
-        async def hold_writer(session, campaign_id):
-            result = await original(session, campaign_id)
+        async def hold_writer(session, campaign_id, **kwargs):
+            result = await original(session, campaign_id, **kwargs)
             locked.set()
             await reader_started.wait()
             async with postgis_db_sessionmaker() as observer:

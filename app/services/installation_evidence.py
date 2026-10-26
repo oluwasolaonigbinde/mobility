@@ -1,8 +1,7 @@
 import hashlib
-import hmac
 import json
-import secrets
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -13,24 +12,29 @@ from starlette import status
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.db.integrity import integrity_constraint_name
+from app.models.campaign import Campaign
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.driver import DriverProfile
 from app.models.installation_evidence import (
-    DisplayProof,
-    DisplayProofChallenge,
     InstallationEvidencePhoto,
     InstallationEvidenceStatus,
     InstallationEvidenceSubmission,
 )
 from app.models.stored_file import FilePurpose, FileScanStatus, StoredFile
 from app.models.vehicle import Vehicle
+from app.schemas.campaign_assignments import AssignmentReadinessRead, CampaignAssignmentTransition
 from app.schemas.installation_evidence import (
-    DisplayProofCreate,
     InstallationEvidenceCreate,
 )
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
+from app.services.vehicle_onboarding import acquire_work_eligibility_lock
+
+# Client rule (installation photos, client answers item 4): the driver or an admin uploads
+# these five views, and an approval is valid for seven days.
+INSTALLATION_EVIDENCE_VIEWS = ("front", "back", "left", "right", "close_up")
+INSTALLATION_PHOTO_VALIDITY_HOURS = 168
 
 
 def _error(code: str, message: str, status_code: int) -> AppError:
@@ -39,30 +43,6 @@ def _error(code: str, message: str, status_code: int) -> AppError:
 
 def _aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
-
-
-def _require_evidence_policy(settings: Settings) -> tuple[tuple[str, ...], int]:
-    views = settings.installation_evidence_views
-    validity = settings.installation_evidence_validity_hours
-    if not settings.installation_evidence_uploaders or not views or validity is None:
-        raise _error(
-            "INSTALLATION_EVIDENCE_POLICY_UNAVAILABLE",
-            "Installation evidence policy is not configured",
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-        )
-    return views, validity
-
-
-def _require_proof_policy(settings: Settings) -> tuple[int, int]:
-    challenge_ttl = settings.display_proof_challenge_ttl_seconds
-    proof_ttl = settings.display_proof_validity_seconds
-    if challenge_ttl is None or proof_ttl is None:
-        raise _error(
-            "DISPLAY_PROOF_POLICY_UNAVAILABLE",
-            "Display-proof policy is not configured",
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-        )
-    return challenge_ttl, proof_ttl
 
 
 async def _assignment_context(
@@ -119,18 +99,12 @@ async def submit_installation_evidence(  # noqa: C901
     session: AsyncSession,
     *,
     actor_user_id: UUID,
-    actor_role: str,
+    actor_role: Literal["driver", "admin"],
     assignment_id: UUID,
     payload: InstallationEvidenceCreate,
     settings: Settings,
 ) -> InstallationEvidenceSubmission:
-    views, _validity = _require_evidence_policy(settings)
-    if actor_role not in settings.installation_evidence_uploaders:
-        raise _error(
-            "INSTALLATION_EVIDENCE_UPLOAD_FORBIDDEN",
-            "This role is not configured to submit installation evidence",
-            status.HTTP_403_FORBIDDEN,
-        )
+    views = INSTALLATION_EVIDENCE_VIEWS
     campaign_id = await session.scalar(
         select(CampaignAssignment.campaign_id).where(CampaignAssignment.id == assignment_id)
     )
@@ -156,7 +130,6 @@ async def submit_installation_evidence(  # noqa: C901
     if assignment.status not in {
         CampaignAssignmentStatus.ACCEPTED.value,
         CampaignAssignmentStatus.ACTIVE.value,
-        CampaignAssignmentStatus.DEACTIVATED.value,
     }:
         raise _error(
             "INSTALLATION_EVIDENCE_NOT_ALLOWED",
@@ -198,7 +171,7 @@ async def submit_installation_evidence(  # noqa: C901
     if len(submitted_views) != len(set(submitted_views)) or set(submitted_views) != set(views):
         raise _error(
             "INSTALLATION_EVIDENCE_VIEWS_INVALID",
-            "Evidence must contain exactly the configured required views",
+            "Evidence must contain exactly the required views",
             status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
     now = await database_clock(session)
@@ -363,13 +336,17 @@ async def review_installation_evidence(
     approve: bool,
     reason: str | None,
     settings: Settings,
-) -> InstallationEvidenceSubmission:
-    _views, validity_hours = _require_evidence_policy(settings)
-    campaign_id = await session.scalar(
-        select(InstallationEvidenceSubmission.campaign_id).where(
-            InstallationEvidenceSubmission.id == submission_id
+) -> tuple[InstallationEvidenceSubmission, AssignmentReadinessRead | None]:
+    context = (
+        await session.execute(
+            select(
+                InstallationEvidenceSubmission.campaign_id,
+                InstallationEvidenceSubmission.driver_profile_id,
+                InstallationEvidenceSubmission.vehicle_id,
+            ).where(InstallationEvidenceSubmission.id == submission_id)
         )
-    )
+    ).one_or_none()
+    campaign_id = context[0] if context else None
     if campaign_id is not None:
         await acquire_campaign_terms_lock(session, campaign_id)
     await require_active_admin(session, actor_user_id)
@@ -379,6 +356,11 @@ async def review_installation_evidence(
             "Installation evidence was not found",
             status.HTTP_404_NOT_FOUND,
         )
+    assert context is not None
+    await acquire_work_eligibility_lock(
+        session, driver_profile_id=context[1], vehicle_id=context[2]
+    )
+    await session.scalar(select(Campaign).where(Campaign.id == campaign_id).with_for_update())
     submission = await session.scalar(
         select(InstallationEvidenceSubmission)
         .where(InstallationEvidenceSubmission.id == submission_id)
@@ -446,7 +428,7 @@ async def review_installation_evidence(
         for old_submission in prior:
             old_submission.status = InstallationEvidenceStatus.EXPIRED.value
         submission.status = InstallationEvidenceStatus.APPROVED.value
-        submission.approved_until = now + timedelta(hours=validity_hours)
+        submission.approved_until = now + timedelta(hours=INSTALLATION_PHOTO_VALIDITY_HOURS)
         action = "installation_evidence.approved"
     else:
         submission.status = InstallationEvidenceStatus.REJECTED.value
@@ -467,7 +449,47 @@ async def review_installation_evidence(
             "reason": reason if not approve else None,
         },
     )
-    return submission
+    activation = None
+    if approve:
+        await session.flush()
+        activation = await _activate_approved_installation(
+            session,
+            actor_user_id=actor_user_id,
+            assignment_id=submission.assignment_id,
+            settings=settings,
+        )
+    return submission, activation
+
+
+async def _activate_approved_installation(
+    session: AsyncSession, *, actor_user_id: UUID, assignment_id: UUID, settings: Settings
+) -> AssignmentReadinessRead:
+    from app.services.campaign_assignments import activate_admin_assignment
+
+    # Only activation rolls back: approval and its audit were flushed first.
+    try:
+        async with session.begin_nested():
+            await activate_admin_assignment(
+                session,
+                admin_user_id=actor_user_id,
+                assignment_id=assignment_id,
+                payload=CampaignAssignmentTransition(),
+                settings=settings,
+            )
+    except AppError as exc:
+        if exc.status_code in {401, 403, 404}:
+            raise
+        return AssignmentReadinessRead(
+            assignment_id=assignment_id,
+            ready=False,
+            blocker_code=exc.code,
+            message=exc.message,
+        )
+    return AssignmentReadinessRead(
+        assignment_id=assignment_id,
+        ready=True,
+        message="Installation approved and job started.",
+    )
 
 
 async def ensure_current_approved_installation_evidence(
@@ -478,7 +500,6 @@ async def ensure_current_approved_installation_evidence(
     now: datetime,
     lock: bool = False,
 ) -> InstallationEvidenceSubmission:
-    _require_evidence_policy(settings)
     query = (
         select(InstallationEvidenceSubmission)
         .where(
@@ -510,244 +531,3 @@ async def ensure_current_approved_installation_evidence(
             status.HTTP_409_CONFLICT,
         )
     return evidence
-
-
-async def create_display_proof_challenge(
-    session: AsyncSession,
-    *,
-    actor_user_id: UUID,
-    assignment_id: UUID,
-    device_id: UUID,
-    settings: Settings,
-) -> tuple[DisplayProofChallenge, str]:
-    challenge_ttl, _proof_ttl = _require_proof_policy(settings)
-    campaign_id = await session.scalar(
-        select(CampaignAssignment.campaign_id).where(CampaignAssignment.id == assignment_id)
-    )
-    if campaign_id is None:
-        raise _error(
-            "CAMPAIGN_ASSIGNMENT_NOT_FOUND",
-            "Campaign assignment was not found",
-            status.HTTP_404_NOT_FOUND,
-        )
-    await acquire_campaign_terms_lock(session, campaign_id)
-    assignment, profile, _vehicle = await _assignment_context(
-        session, assignment_id=assignment_id, lock=True
-    )
-    if profile.user_id != actor_user_id:
-        raise _error(
-            "CAMPAIGN_ASSIGNMENT_NOT_FOUND",
-            "Campaign assignment was not found",
-            status.HTTP_404_NOT_FOUND,
-        )
-    if assignment.status != CampaignAssignmentStatus.ACTIVE.value:
-        raise _error(
-            "CAMPAIGN_ASSIGNMENT_NOT_ACTIVE",
-            "Campaign assignment must be active for a display proof",
-            status.HTTP_409_CONFLICT,
-        )
-    now = await database_clock(session)
-    evidence = await ensure_current_approved_installation_evidence(
-        session, assignment=assignment, settings=settings, now=now, lock=True
-    )
-    if evidence.device_id != device_id:
-        raise _error(
-            "DISPLAY_PROOF_DEVICE_MISMATCH",
-            "The device does not match the approved installation evidence",
-            status.HTTP_409_CONFLICT,
-        )
-    nonce = secrets.token_urlsafe(32)
-    challenge = DisplayProofChallenge(
-        assignment_id=assignment.id,
-        evidence_submission_id=evidence.id,
-        driver_profile_id=assignment.driver_profile_id,
-        vehicle_id=assignment.vehicle_id,
-        device_id=device_id,
-        nonce_sha256=hashlib.sha256(nonce.encode()).hexdigest(),
-        expires_at=now + timedelta(seconds=challenge_ttl),
-        created_at=now,
-    )
-    session.add(challenge)
-    await session.flush()
-    await create_audit_event(
-        session,
-        actor_user_id=actor_user_id,
-        action="display_proof.challenge_issued",
-        entity_type="display_proof_challenge",
-        entity_id=str(challenge.id),
-        metadata={
-            "assignment_id": str(assignment.id),
-            "evidence_submission_id": str(evidence.id),
-            "expires_at": challenge.expires_at.isoformat(),
-        },
-    )
-    return challenge, nonce
-
-
-async def submit_display_proof(
-    session: AsyncSession,
-    *,
-    actor_user_id: UUID,
-    assignment_id: UUID,
-    payload: DisplayProofCreate,
-    settings: Settings,
-) -> DisplayProof:
-    _challenge_ttl, proof_ttl = _require_proof_policy(settings)
-    campaign_id = await session.scalar(
-        select(CampaignAssignment.campaign_id).where(CampaignAssignment.id == assignment_id)
-    )
-    if campaign_id is None:
-        raise _error(
-            "CAMPAIGN_ASSIGNMENT_NOT_FOUND",
-            "Campaign assignment was not found",
-            status.HTTP_404_NOT_FOUND,
-        )
-    await acquire_campaign_terms_lock(session, campaign_id)
-    assignment, profile, _vehicle = await _assignment_context(
-        session, assignment_id=assignment_id, lock=True
-    )
-    if profile.user_id != actor_user_id:
-        raise _error(
-            "CAMPAIGN_ASSIGNMENT_NOT_FOUND",
-            "Campaign assignment was not found",
-            status.HTTP_404_NOT_FOUND,
-        )
-    challenge = await session.scalar(
-        select(DisplayProofChallenge)
-        .where(
-            DisplayProofChallenge.id == payload.challenge_id,
-            DisplayProofChallenge.assignment_id == assignment.id,
-        )
-        .with_for_update()
-    )
-    if challenge is None:
-        raise _error(
-            "DISPLAY_PROOF_CHALLENGE_NOT_FOUND",
-            "Display-proof challenge was not found",
-            status.HTTP_404_NOT_FOUND,
-        )
-    existing = await session.scalar(
-        select(DisplayProof).where(DisplayProof.challenge_id == challenge.id)
-    )
-    if existing is not None or challenge.consumed_at is not None:
-        raise _error(
-            "DISPLAY_PROOF_CHALLENGE_REPLAYED",
-            "Display-proof challenge has already been consumed",
-            status.HTTP_409_CONFLICT,
-        )
-    now = await database_clock(session)
-    if _aware(challenge.expires_at) <= _aware(now):
-        raise _error(
-            "DISPLAY_PROOF_CHALLENGE_EXPIRED",
-            "Display-proof challenge has expired",
-            status.HTTP_410_GONE,
-        )
-    supplied_hash = hashlib.sha256(payload.nonce.encode()).hexdigest()
-    if not hmac.compare_digest(supplied_hash, challenge.nonce_sha256):
-        raise _error(
-            "DISPLAY_PROOF_NONCE_INVALID",
-            "Display-proof nonce is invalid",
-            status.HTTP_409_CONFLICT,
-        )
-    if payload.device_id != challenge.device_id:
-        raise _error(
-            "DISPLAY_PROOF_DEVICE_MISMATCH",
-            "The proof device does not match its challenge",
-            status.HTTP_409_CONFLICT,
-        )
-    evidence = await ensure_current_approved_installation_evidence(
-        session, assignment=assignment, settings=settings, now=now, lock=True
-    )
-    if evidence.id != challenge.evidence_submission_id:
-        raise _error(
-            "DISPLAY_PROOF_EVIDENCE_CHANGED",
-            "Approved installation evidence changed after the challenge",
-            status.HTTP_409_CONFLICT,
-        )
-    stored_file = await session.scalar(
-        select(StoredFile).where(StoredFile.id == payload.stored_file_id).with_for_update()
-    )
-    if (
-        stored_file is None
-        or stored_file.subject_user_id != profile.user_id
-        or stored_file.purpose != FilePurpose.INSTALLATION_EVIDENCE.value
-        or stored_file.scan_status != FileScanStatus.CLEAN.value
-        or not stored_file.content_type.startswith("image/")
-        or _aware(stored_file.created_at) <= _aware(challenge.created_at)
-    ):
-        raise _error(
-            "DISPLAY_PROOF_FILE_INVALID",
-            "Proof must be a fresh clean image for the assigned driver",
-            status.HTTP_409_CONFLICT,
-        )
-    proof = DisplayProof(
-        challenge_id=challenge.id,
-        assignment_id=assignment.id,
-        evidence_submission_id=evidence.id,
-        driver_profile_id=assignment.driver_profile_id,
-        vehicle_id=assignment.vehicle_id,
-        device_id=payload.device_id,
-        stored_file_id=payload.stored_file_id,
-        verified_at=now,
-        valid_until=now + timedelta(seconds=proof_ttl),
-        proof_metadata=payload.metadata,
-    )
-    session.add(proof)
-    challenge.consumed_at = now
-    await session.flush()
-    await create_audit_event(
-        session,
-        actor_user_id=actor_user_id,
-        action="display_proof.verified",
-        entity_type="display_proof",
-        entity_id=str(proof.id),
-        metadata={
-            "assignment_id": str(assignment.id),
-            "evidence_submission_id": str(evidence.id),
-            "valid_until": proof.valid_until.isoformat(),
-        },
-    )
-    from app.services.evidence_verification import satisfy_pending_evidence_challenges
-
-    await satisfy_pending_evidence_challenges(
-        session,
-        assignment_id=assignment.id,
-        proof=proof,
-        actor_user_id=actor_user_id,
-    )
-    return proof
-
-
-async def ensure_current_display_proof(
-    session: AsyncSession,
-    *,
-    assignment: CampaignAssignment,
-    settings: Settings,
-    now: datetime,
-    lock: bool = False,
-) -> DisplayProof:
-    _require_proof_policy(settings)
-    evidence = await ensure_current_approved_installation_evidence(
-        session, assignment=assignment, settings=settings, now=now, lock=lock
-    )
-    query = (
-        select(DisplayProof)
-        .where(
-            DisplayProof.assignment_id == assignment.id,
-            DisplayProof.evidence_submission_id == evidence.id,
-            DisplayProof.driver_profile_id == assignment.driver_profile_id,
-            DisplayProof.vehicle_id == assignment.vehicle_id,
-        )
-        .order_by(DisplayProof.verified_at.desc(), DisplayProof.id.desc())
-        .limit(1)
-    )
-    if lock:
-        query = query.with_for_update()
-    proof = await session.scalar(query)
-    if proof is None or _aware(proof.valid_until) <= _aware(now):
-        raise _error(
-            "CURRENT_DISPLAY_PROOF_REQUIRED",
-            "A current display proof is required before earning can start",
-            status.HTTP_409_CONFLICT,
-        )
-    return proof

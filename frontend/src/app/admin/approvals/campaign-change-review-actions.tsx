@@ -9,14 +9,22 @@ const initialState: CampaignReviewActionState = {};
 export function CampaignChangeReviewActions({
   requestId,
   initialReason,
+  pendingFunding = false,
 }: {
   requestId: string;
   initialReason?: string;
+  pendingFunding?: boolean;
 }) {
   const [state, formAction] = useActionState(reviewCampaignChangeAction, initialState);
   return (
     <form action={formAction} className="flex w-full max-w-sm flex-col items-end gap-2">
       <input type="hidden" name="request_id" value={requestId} />
+      {pendingFunding ? (
+        <p className="text-muted text-sm">
+          This change is approved. The approval stays in place. When there is enough funding, press
+          Retry approved change to apply it.
+        </p>
+      ) : null}
       <label className="flex w-full flex-col gap-1">
         <span className="micro text-muted">Decision reason</span>
         <textarea
@@ -29,8 +37,15 @@ export function CampaignChangeReviewActions({
           placeholder="Record why this change is approved or rejected"
         />
       </label>
-      <DecisionButtons approveLabel="Approve change" rejectLabel="Reject change" />
+      <DecisionButtons
+        approveLabel={pendingFunding ? "Retry approved change" : "Approve change"}
+        rejectLabel="Reject change"
+        allowReject={!pendingFunding}
+      />
       <div aria-live="polite">
+        {state.notice && !state.error ? (
+          <p className="text-muted text-right text-xs">{state.notice}</p>
+        ) : null}
         {state.error ? (
           <p role="alert" className="text-coral text-right text-xs">
             {state.error}

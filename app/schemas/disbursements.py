@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
@@ -19,9 +19,18 @@ from app.models.disbursement import (
 )
 
 
-class PayoutBatchCreate(BaseModel):
+class PayoutActionReason(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    reason: str = Field(min_length=3, max_length=500)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def strip_reason(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+class PayoutBatchCreate(PayoutActionReason):
     currency: str = Field(min_length=3, max_length=3)
     request_id: UUID | None = None
 
@@ -31,21 +40,15 @@ class PayoutBatchCreate(BaseModel):
         return value.strip().upper()
 
 
-class PayoutBatchReserve(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class PayoutBatchReserve(PayoutActionReason):
     ledger_entry_ids: list[UUID] = Field(min_length=1, max_length=500)
 
 
-class PayoutDebtAllocate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    currency: str = Field(min_length=3, max_length=3)
-
-    @field_validator("currency")
-    @classmethod
-    def normalize_debt_currency(cls, value: str) -> str:
-        return value.strip().upper()
+class PayoutNegativeAdjustment(PayoutActionReason):
+    request_id: UUID
+    amount: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+    currency: str = Field(pattern=r"^[A-Z]{3}$")
+    lagos_day: date | None = None
 
 
 class DriverMoneyBalanceRead(BaseModel):
@@ -57,7 +60,6 @@ class DriverMoneyBalanceRead(BaseModel):
     in_flight: Decimal
     terminal_failed: Decimal
     cash_paid: Decimal
-    carry_forward_debt: Decimal
     batch_payable: Decimal
 
     @field_serializer(
@@ -67,17 +69,10 @@ class DriverMoneyBalanceRead(BaseModel):
         "in_flight",
         "terminal_failed",
         "cash_paid",
-        "carry_forward_debt",
         "batch_payable",
     )
     def serialize_balance(self, value: Decimal) -> str:
         return str(value)
-
-
-class PayoutDebtAllocationRead(BaseModel):
-    balance: DriverMoneyBalanceRead
-    settlement_ids: list[UUID]
-    remainder_entry_ids: list[UUID]
 
 
 class PayoutBatchLineRead(BaseModel):
@@ -118,7 +113,7 @@ class PayoutBatchRead(BaseModel):
     approved_by_user_id: UUID | None
     approved_at: datetime | None
     submitted_at: datetime | None
-    approval_mode: PayoutBatchApprovalMode = PayoutBatchApprovalMode.MAKER_CHECKER
+    approval_mode: PayoutBatchApprovalMode = PayoutBatchApprovalMode.MANUAL
     automatic_run_id: UUID | None = None
     created_at: datetime
     lines: list[PayoutBatchLineRead] = Field(default_factory=list)
@@ -152,8 +147,6 @@ class EligiblePaymentRead(BaseModel):
     occurred_at: datetime
     amount: Money
     currency: str
-    debt_deducted: Money
-    carry_forward_debt: Money
     destination_verified: bool
     bank_account_version_id: UUID | None
     eligible: bool
@@ -189,7 +182,7 @@ class PayoutBatchSummaryRead(BaseModel):
     approved_by_user_id: UUID | None
     maker_name: str
     checker_name: str | None
-    approval_mode: PayoutBatchApprovalMode = PayoutBatchApprovalMode.MAKER_CHECKER
+    approval_mode: PayoutBatchApprovalMode = PayoutBatchApprovalMode.MANUAL
     created_at: datetime
     approved_at: datetime | None
     submitted_at: datetime | None
@@ -261,14 +254,13 @@ class CampaignDriverMoneyRead(BaseModel):
         )
     )
     terminal_failed: Money
-    cash_paid: Money = Field(description="Economic ledger amount paid, counting each credit once.")
+    cash_paid: Money = Field(description="Actual verified successful payout-line amounts.")
     provider_verified_paid: Money = Field(
         description=(
             "Total amount of verified successful payout lines, "
             "including duplicate transfers in a replacement chain."
         )
     )
-    driver_wide_debt: Money
 
 
 class CancellationPositionRead(BaseModel):

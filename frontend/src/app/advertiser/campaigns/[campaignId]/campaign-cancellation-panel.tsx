@@ -1,72 +1,112 @@
 "use client";
-
-import { useActionState, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Panel } from "@/components/ui/panel";
-import { requestCampaignCancellationAction, type CampaignReviewActionState } from "./actions";
-
-const initialState: CampaignReviewActionState = {};
+import { useRef, useState, useTransition, type FormEvent } from "react";
+import Link from "next/link";
+import {
+  requestCampaignCancellation,
+  type CancellationRequestState,
+} from "./cancellation-request-actions";
 
 export function CampaignCancellationPanel({
   campaignId,
-  clientRequestId,
+  campaignName,
+  pendingThreadId,
 }: {
   campaignId: string;
-  clientRequestId: string;
+  campaignName: string;
+  /** An open or answered cancellation request already sent for this campaign (REQ-194). */
+  pendingThreadId?: string;
 }) {
-  const [confirmed, setConfirmed] = useState(false);
-  const [state, formAction, pending] = useActionState(
-    requestCampaignCancellationAction,
-    initialState,
+  const [reason, setReason] = useState("");
+  const [touched, setTouched] = useState(false);
+  const [state, setState] = useState<CancellationRequestState>(
+    pendingThreadId ? { threadId: pendingThreadId } : {},
   );
-
+  // Sent from this panel, not found on load; the refreshed page then passes the same thread as pending.
+  const [sent, setSent] = useState(false);
+  const [pending, start] = useTransition();
+  const request = useRef<string | null>(null);
+  const sending = useRef(false);
+  const reasonError = touched && !reason.trim() ? "Please add a short reason." : undefined;
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setTouched(true);
+    if (!reason.trim() || reason.trim().length > 2000 || sending.current) return;
+    request.current ??= crypto.randomUUID();
+    sending.current = true;
+    start(async () => {
+      try {
+        const result = await requestCampaignCancellation(
+          campaignId,
+          reason.trim(),
+          request.current!,
+        );
+        setSent(Boolean(result.threadId));
+        setState(result);
+      } catch {
+        setState({
+          error: "We couldn’t confirm your request. Try sending the same request again.",
+        });
+      } finally {
+        sending.current = false;
+      }
+    });
+  }
+  if (state.threadId)
+    return (
+      <section aria-label="Cancellation request" className="mt-6" role="status">
+        <p className="text-ink text-base">
+          {sent ? "Request sent." : "Cancellation requested."} Your campaign continues until Terrax
+          confirms.
+        </p>
+        <Link
+          className="text-green mt-3 inline-block underline"
+          href={`/advertiser/help/${state.threadId}`}
+        >
+          View cancellation request
+        </Link>
+      </section>
+    );
   return (
-    <Panel className="border-coral/30 mt-6 p-6" aria-label="Cancel campaign">
-      <h2 className="font-display text-xl font-semibold">Cancel campaign</h2>
-      <p className="text-muted mt-2 max-w-3xl text-sm">
-        Cancellation is permanent. New assignments and trip starts stop at one server-recorded
-        cutoff. Verified driver earnings before that cutoff remain payable. Refund eligibility is
-        determined from accepted terms and records of campaign preparation; cancellation does not
-        itself prove that money was transferred.
+    <section aria-label="Ask Terrax to cancel" className="border-edge mt-6 border-t pt-6">
+      <h2 className="font-display text-xl font-semibold">Ask Terrax to cancel this campaign</h2>
+      <p className="text-muted mt-3 text-sm">
+        Tell Terrax Media why you’d like to stop {campaignName}.
       </p>
-      <form action={formAction} className="mt-5 grid gap-4">
-        <input type="hidden" name="campaign_id" value={campaignId} />
-        <input type="hidden" name="client_request_id" value={clientRequestId} />
-        <label className="text-sm">
-          <span className="micro text-muted">Reason</span>
+      <form onSubmit={submit}>
+        <label className="mt-4 grid gap-2 text-sm">
+          <span>Why would you like to cancel?</span>
           <textarea
+            value={reason}
+            onChange={(event) => {
+              setReason(event.target.value);
+              request.current = null;
+              setState({});
+            }}
+            onBlur={() => setTouched(true)}
             name="reason"
             required
-            maxLength={1000}
-            className="border-edge bg-raised mt-1 min-h-20 w-full rounded-lg border px-3.5 py-2"
-            placeholder="Explain why the campaign must stop"
+            disabled={pending}
+            minLength={1}
+            maxLength={2000}
+            aria-invalid={Boolean(reasonError)}
+            aria-describedby={reasonError ? "cancel-reason-error" : undefined}
+            className="border-edge min-h-24 w-full rounded-xl border bg-white p-3"
           />
         </label>
-        <label className="flex items-start gap-3 text-sm">
-          <input
-            type="checkbox"
-            name="confirmed"
-            required
-            checked={confirmed}
-            onChange={(event) => setConfirmed(event.target.checked)}
-            className="mt-0.5 h-4 w-4"
-          />
-          <span>I understand this records a permanent cancellation cutoff.</span>
-        </label>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div aria-live="polite" className="text-sm">
-            {state.error ? (
-              <p role="alert" className="text-coral">
-                {state.error}
-              </p>
-            ) : null}
-            {state.done && !state.error ? <p className="text-green">✓ {state.done}</p> : null}
-          </div>
-          <Button type="submit" variant="danger" disabled={pending || !confirmed}>
-            {pending ? "Cancelling…" : "Cancel campaign permanently"}
-          </Button>
-        </div>
+        {reasonError ? (
+          <p id="cancel-reason-error" role="alert" className="text-coral mt-2 text-sm">
+            {reasonError}
+          </p>
+        ) : null}
+        {state.error ? (
+          <p role="alert" className="text-coral mt-2 text-sm">
+            {state.error}
+          </p>
+        ) : null}
+        <button type="submit" disabled={pending} className="brand-action mt-4">
+          {pending ? "Sending…" : "Ask Terrax to cancel"}
+        </button>
       </form>
-    </Panel>
+    </section>
   );
 }

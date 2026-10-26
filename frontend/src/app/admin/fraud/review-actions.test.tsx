@@ -2,120 +2,59 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ReviewActions } from "./review-actions";
-
-const reviewActionMock = vi.hoisted(() => vi.fn());
-
-vi.mock("./actions", () => ({
-  reviewFraudFlagAction: reviewActionMock,
-}));
-
-const FLAG_ID = "00000000-0000-4000-8000-00000000000a";
-
-describe("ReviewActions", () => {
+const review = vi.hoisted(() => vi.fn());
+vi.mock("./actions", () => ({ reviewFraudFlagAction: review }));
+const flagId = "00000000-0000-4000-8000-00000000000a";
+describe("trip review", () => {
   beforeEach(() => {
-    reviewActionMock.mockReset();
-    reviewActionMock.mockResolvedValue({});
+    review.mockReset();
+    review.mockResolvedValue({});
   });
-
-  it("offers only acknowledgement for an open flag", () => {
-    render(<ReviewActions flagId={FLAG_ID} status="open" />);
-
-    expect(screen.getByRole("button", { name: "Start review" })).toBeEnabled();
-    expect(screen.queryByLabelText("Review note")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Confirm problem" })).not.toBeInTheDocument();
-  });
-
-  it("requires a note before an acknowledged flag can be resolved", async () => {
+  it("offers a direct final decision with a required note", async () => {
     const user = userEvent.setup();
-    render(<ReviewActions flagId={FLAG_ID} status="acknowledged" />);
-
+    render(<ReviewActions flagId={flagId} status="open" />);
+    expect(screen.queryByRole("button", { name: "Start review" })).toBeNull();
     const note = screen.getByLabelText("Review note");
     expect(note).toBeRequired();
-    expect(note).toHaveAttribute("maxlength", "2000");
-
     await user.click(screen.getByRole("button", { name: "Clear" }));
-    expect(reviewActionMock).not.toHaveBeenCalled();
-
-    await user.type(note, "Route evidence was not persuasive.");
+    expect(review).not.toHaveBeenCalled();
+    await user.type(note, "Evidence checked");
     await user.click(screen.getByRole("button", { name: "Clear" }));
-    expect(reviewActionMock).toHaveBeenCalledTimes(1);
+    expect(review).toHaveBeenCalledTimes(1);
   });
-
-  it("makes the post-release reversal consequence explicit", () => {
-    render(
-      <ReviewActions
-        flagId={FLAG_ID}
-        status="acknowledged"
-        reversalRecommended={true}
-        reversalAmount="₦3,263.51"
-      />,
-    );
-
-    const confirm = screen.getByRole("button", {
-      name: "Confirm problem & reverse released earnings",
-    });
-    expect(confirm).toBeEnabled();
-    expect(confirm).toHaveAccessibleDescription(
-      "Reverses ₦3,263.51 of this trip's released earnings. This is final.",
-    );
-    expect(screen.getByRole("button", { name: "Clear" })).toHaveAccessibleDescription(
-      "Removes this hold. Held pay is released only when a fresh check finds it is still owed.",
-    );
-  });
-
-  it("says confirming keeps held pay held when nothing was released yet", () => {
-    render(<ReviewActions flagId={FLAG_ID} status="acknowledged" />);
-
+  it("explains that confirmation keeps pay held and correction is separate", () => {
+    render(<ReviewActions flagId={flagId} status="open" />);
     expect(screen.getByRole("button", { name: "Confirm problem" })).toHaveAccessibleDescription(
-      "Keeps this trip's held pay held. This is final.",
-    );
-    expect(screen.queryByText(/Takes back/)).not.toBeInTheDocument();
-  });
-
-  it("says starting a review keeps held pay held", () => {
-    render(<ReviewActions flagId={FLAG_ID} status="open" />);
-
-    expect(screen.getByRole("button", { name: "Start review" })).toHaveAccessibleDescription(
-      "Marks this trip as being reviewed. Any held pay stays held.",
+      "Keeps this trip's held pay held. Record any money correction separately with a reason.",
     );
   });
-
-  it.each(["confirmed", "dismissed"] as const)("renders %s as terminal", (status) => {
-    render(<ReviewActions flagId={FLAG_ID} status={status} />);
-
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    expect(screen.getByText(/review is final|hold removed/i)).toBeInTheDocument();
+  it.each(["confirmed", "dismissed"] as const)("%s is final", (status) => {
+    render(<ReviewActions flagId={flagId} status={status} />);
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getByText(/review is final/)).toBeInTheDocument();
   });
-
-  it("shows when confirmed fraud already reversed released earnings", () => {
-    render(<ReviewActions flagId={FLAG_ID} status="confirmed" reversalRecorded={true} />);
-
-    expect(screen.getByText(/released earnings were reversed/i)).toBeInTheDocument();
-  });
-
-  it("disables the control and gives pending feedback while acknowledging", async () => {
-    let resolveAction!: (value: object) => void;
-    reviewActionMock.mockReturnValue(
+  it("disables both decisions while confirmation is pending", async () => {
+    let complete!: (value: object) => void;
+    review.mockReturnValue(
       new Promise((resolve) => {
-        resolveAction = resolve;
+        complete = resolve;
       }),
     );
     const user = userEvent.setup();
-    render(<ReviewActions flagId={FLAG_ID} status="open" />);
-
-    await user.click(screen.getByRole("button", { name: "Start review" }));
-    expect(screen.getByRole("button", { name: "Starting review…" })).toBeDisabled();
-
-    await act(async () => resolveAction({ done: "Review started" }));
-    expect(await screen.findByText("✓ Review started")).toBeInTheDocument();
+    render(<ReviewActions flagId={flagId} status="open" />);
+    await user.type(screen.getByLabelText("Review note"), "Evidence checked");
+    await user.click(screen.getByRole("button", { name: "Confirm problem" }));
+    expect(screen.getByRole("button", { name: "Clear" })).toBeDisabled();
+    await act(async () => complete({ done: "Decision recorded" }));
+    expect(await screen.findByText(/Decision recorded/)).toBeInTheDocument();
   });
-
-  it("surfaces the backend error", async () => {
-    reviewActionMock.mockResolvedValue({ error: "This flag was already resolved." });
+  it("shows a refusal and keeps retry available", async () => {
+    review.mockResolvedValue({ error: "This flag was already resolved." });
     const user = userEvent.setup();
-    render(<ReviewActions flagId={FLAG_ID} status="open" />);
-
-    await user.click(screen.getByRole("button", { name: "Start review" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("This flag was already resolved.");
+    render(<ReviewActions flagId={flagId} status="open" />);
+    await user.type(screen.getByLabelText("Review note"), "Evidence checked");
+    await user.click(screen.getByRole("button", { name: "Confirm problem" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("already resolved");
+    expect(screen.getByRole("button", { name: "Clear" })).toBeEnabled();
   });
 });

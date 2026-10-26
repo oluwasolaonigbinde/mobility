@@ -124,7 +124,7 @@ test("fraud page renders with status filters", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("fraud review moves an isolated open flag through acknowledgement to dismissal", async ({
+test("fraud review moves an isolated open flag directly to dismissal with a reason", async ({
   page,
 }, testInfo) => {
   await loginAsAdmin(page);
@@ -140,7 +140,6 @@ test("fraud review moves an isolated open flag through acknowledgement to dismis
     .nth(projectRow)
     .click();
   const drawer = page.getByRole("dialog");
-  await drawer.getByRole("button", { name: "Start review" }).click();
   await expect(drawer.getByLabel("Review note")).toBeVisible();
   await drawer
     .getByLabel("Review note")
@@ -163,10 +162,10 @@ test("audit trail shows login activity and supports filtering", async ({ page })
   await page.goto("/admin/settings/activity");
   await expect(page.getByRole("heading", { name: "Activity log", exact: true })).toBeVisible();
   await expect(page.locator("main tbody tr").first()).toBeVisible();
-  await page.getByPlaceholder("Action, e.g. auth.login.succeeded").fill("auth.login.succeeded");
+  await page.getByRole("combobox", { name: /^Activity\b/ }).selectOption("auth.login.succeeded");
   await page.getByRole("button", { name: "Filter" }).click();
   await expect(page).toHaveURL(/action=auth.login.succeeded/);
-  await expect(page.getByText("Auth login succeeded").first()).toBeVisible();
+  await expect(page.locator("main tbody tr").first()).toContainText("Signed in");
 });
 
 test("daily-rate terms show the frozen version and publishing controls", async ({ page }) => {

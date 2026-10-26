@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -361,7 +362,11 @@ def test_backend_loads_identical_minio_images_before_startup(
 ) -> None:
     step = next(s for s in workflow["jobs"][job]["steps"] if s.get("name") == step_name)
     run = step["run"]
-    assert run.index(MINIO_LOADER) < run.index(startup)
+    loader_command = re.search(rf"(?m)^[ \t]*{re.escape(MINIO_LOADER)}(?:[ \t]|$)", run)
+    startup_command = re.search(rf"(?m)^[ \t]*{re.escape(startup)}(?:[ \t]|$)", run)
+    assert loader_command is not None, "pinned image loader must execute"
+    assert startup_command is not None, "real backend startup command must execute"
+    assert loader_command.start() < startup_command.start()
 
 
 def test_minio_loader_pins_checksummed_exports_of_the_pinned_images() -> None:

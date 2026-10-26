@@ -74,7 +74,7 @@ def create_advertiser_campaign(
     db_sessionmaker,
     *,
     email: str,
-    role: MembershipRole = MembershipRole.OWNER,
+    role: MembershipRole = MembershipRole.ADVERTISER,
     campaign_status: CampaignStatus = CampaignStatus.DRAFT,
 ):
     advertiser = create_test_user(
@@ -152,7 +152,7 @@ def test_owner_and_manager_can_create_campaign_zones_with_geojson_and_audit(
     _, _, manager_campaign = create_advertiser_campaign(
         postgis_db_sessionmaker,
         email="manager@example.com",
-        role=MembershipRole.MANAGER,
+        role=MembershipRole.ADVERTISER,
     )
 
     owner_response = postgis_db_client.post(
@@ -165,7 +165,7 @@ def test_owner_and_manager_can_create_campaign_zones_with_geojson_and_audit(
         headers=auth_headers(postgis_db_client, "manager@example.com", PASSWORD),
         json=zone_payload(
             name="Manager Bonus Zone",
-            zone_type="bonus",
+            zone_type="exclusion",
             geometry=multipolygon_geometry(),
         ),
     )
@@ -184,7 +184,7 @@ def test_owner_and_manager_can_create_campaign_zones_with_geojson_and_audit(
     assert "POLYGON" not in owner_response.text
 
     assert manager_response.status_code == http_status.HTTP_201_CREATED
-    assert manager_response.json()["zone_type"] == "bonus"
+    assert manager_response.json()["zone_type"] == "exclusion"
     assert manager_response.json()["geometry"]["type"] == "MultiPolygon"
 
     audit_events = fetch_audit_events(postgis_db_sessionmaker)
@@ -192,69 +192,6 @@ def test_owner_and_manager_can_create_campaign_zones_with_geojson_and_audit(
         "advertiser.campaign_zone.created",
         "advertiser.campaign_zone.created",
     ]
-
-
-def test_viewer_can_list_and_read_but_cannot_write_campaign_zones(
-    postgis_db_client,
-    postgis_db_sessionmaker,
-) -> None:
-    owner, organization, campaign = create_advertiser_campaign(
-        postgis_db_sessionmaker,
-        email="owner@example.com",
-    )
-    viewer = create_test_user(
-        postgis_db_sessionmaker,
-        email="viewer@example.com",
-        password=PASSWORD,
-        role=UserRole.ADVERTISER,
-    )
-    add_membership(
-        postgis_db_sessionmaker,
-        organization_id=organization.id,
-        user_id=viewer.id,
-        role=MembershipRole.VIEWER,
-    )
-    create_response = postgis_db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/zones",
-        headers=auth_headers(postgis_db_client, "owner@example.com", PASSWORD),
-        json=zone_payload(),
-    )
-    assert create_response.status_code == http_status.HTTP_201_CREATED
-    zone_id = create_response.json()["id"]
-    del owner
-
-    headers = auth_headers(postgis_db_client, "viewer@example.com", PASSWORD)
-    list_response = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/zones",
-        headers=headers,
-    )
-    read_response = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/zones/{zone_id}",
-        headers=headers,
-    )
-    viewer_create = postgis_db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/zones",
-        headers=headers,
-        json=zone_payload(name="Viewer Write"),
-    )
-    viewer_update = postgis_db_client.patch(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/zones/{zone_id}",
-        headers=headers,
-        json={"name": "Viewer Update"},
-    )
-    viewer_delete = postgis_db_client.delete(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/zones/{zone_id}",
-        headers=headers,
-    )
-
-    assert list_response.status_code == http_status.HTTP_200_OK
-    assert list_response.json()["total"] == 1
-    assert read_response.status_code == http_status.HTTP_200_OK
-    assert read_response.json()["id"] == zone_id
-    assert viewer_create.status_code == http_status.HTTP_403_FORBIDDEN
-    assert viewer_update.status_code == http_status.HTTP_403_FORBIDDEN
-    assert viewer_delete.status_code == http_status.HTTP_403_FORBIDDEN
-    assert viewer_create.json()["error"]["code"] == "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN"
 
 
 def test_non_advertisers_unauthenticated_and_missing_membership_are_rejected(
@@ -406,9 +343,9 @@ def test_owner_can_update_and_delete_campaign_zone_with_audit(
         f"/api/v1/advertiser/campaigns/{campaign.id}/zones/{zone_id}",
         headers=headers,
         json={
-            "name": " Updated Bonus Zone ",
+            "name": " Updated Exclusion Zone ",
             "description": None,
-            "zone_type": "bonus",
+            "zone_type": "exclusion",
             "geometry": polygon_geometry(0.02),
             "metadata": {"updated": True},
         },
@@ -427,9 +364,9 @@ def test_owner_can_update_and_delete_campaign_zone_with_audit(
     )
 
     assert update_response.status_code == http_status.HTTP_200_OK
-    assert update_response.json()["name"] == "Updated Bonus Zone"
+    assert update_response.json()["name"] == "Updated Exclusion Zone"
     assert update_response.json()["description"] is None
-    assert update_response.json()["zone_type"] == "bonus"
+    assert update_response.json()["zone_type"] == "exclusion"
     assert update_response.json()["metadata"] == {"updated": True}
     assert update_response.json()["area_sq_m"] == original_area
     assert delete_response.status_code == http_status.HTTP_204_NO_CONTENT
@@ -452,7 +389,9 @@ def test_campaign_lifecycle_blocks_mutation_but_allows_reads(
     for blocked_status in [
         CampaignStatus.PENDING_REVIEW,
         CampaignStatus.APPROVED,
-        CampaignStatus.COMPLETED,
+        # S23 / D118 keeps stored active/paused; Finished is a date projection.
+        CampaignStatus.ACTIVE,
+        CampaignStatus.PAUSED,
         CampaignStatus.CANCELLED,
     ]:
         _, _, campaign = create_advertiser_campaign(
@@ -497,10 +436,7 @@ def test_campaign_lifecycle_blocks_mutation_but_allows_reads(
         assert create_blocked.status_code == http_status.HTTP_400_BAD_REQUEST
         assert update_blocked.status_code == http_status.HTTP_400_BAD_REQUEST
         assert delete_blocked.status_code == http_status.HTTP_400_BAD_REQUEST
-        assert (
-            create_blocked.json()["error"]["code"]
-            == "CAMPAIGN_STATUS_FORBIDS_ZONE_MUTATION"
-        )
+        assert create_blocked.json()["error"]["code"] == "CAMPAIGN_STATUS_FORBIDS_ZONE_MUTATION"
 
 
 def test_rejected_campaign_remains_zone_mutable(
@@ -538,9 +474,7 @@ def test_geojson_and_schema_validation_reject_invalid_zone_payloads(
         zone_payload(
             geometry={
                 "type": "Polygon",
-                "coordinates": [
-                    [[181.0, 6.45], [3.41, 6.45], [3.41, 6.47], [181.0, 6.45]]
-                ],
+                "coordinates": [[[181.0, 6.45], [3.41, 6.45], [3.41, 6.47], [181.0, 6.45]]],
             },
         ),
         zone_payload(
@@ -582,8 +516,7 @@ def test_geojson_and_schema_validation_reject_invalid_zone_payloads(
     ]
 
     assert all(
-        response.status_code == http_status.HTTP_400_BAD_REQUEST
-        for response in geojson_responses
+        response.status_code == http_status.HTTP_400_BAD_REQUEST for response in geojson_responses
     )
     assert {response.json()["error"]["code"] for response in geojson_responses} == {
         "INVALID_GEOJSON"
@@ -732,9 +665,7 @@ def test_zone_mutation_lock_precedes_submission_snapshot(
             submission_attempted.set()
             return await original_submission_lock(session, **kwargs)
 
-        monkeypatch.setattr(
-            campaign_zones_service, "_locked_advertiser_campaign", gated_zone_lock
-        )
+        monkeypatch.setattr(campaign_zones_service, "_locked_advertiser_campaign", gated_zone_lock)
         monkeypatch.setattr(
             campaigns_service, "_locked_advertiser_campaign", observed_submission_lock
         )
@@ -799,9 +730,9 @@ def test_zone_mutation_lock_precedes_submission_snapshot(
             assert persisted_campaign is not None
             assert persisted_campaign.status == CampaignStatus.PENDING_REVIEW.value
             zone_count = await session.scalar(
-                select(func.count()).select_from(CampaignZone).where(
-                    CampaignZone.campaign_id == campaign.id
-                )
+                select(func.count())
+                .select_from(CampaignZone)
+                .where(CampaignZone.campaign_id == campaign.id)
             )
             assert zone_count == (2 if operation in {"create", "update"} else 1)
             if operation == "update":

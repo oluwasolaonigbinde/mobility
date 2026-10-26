@@ -9,6 +9,7 @@ import {
 import { SearchSelect } from "../../search-select";
 import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 export function AssignmentForm({
   campaignId,
@@ -154,6 +155,14 @@ export function AssignmentForm({
         <p role="alert" className="text-coral">
           {state.error}
         </p>
+      ) : null}
+      {state.cityRequiredForDriver ? (
+        <Link
+          className="text-green underline"
+          href={`/admin/drivers/${state.cityRequiredForDriver}#details`}
+        >
+          Add the driver’s city
+        </Link>
       ) : null}
       <Button type="submit" disabled={pending}>
         {pending ? "Offering…" : "Send offer"}

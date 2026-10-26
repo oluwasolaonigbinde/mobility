@@ -13,10 +13,12 @@ const genericResponse =
 describe("password reset request page", () => {
   beforeEach(() => requestPasswordResetAction.mockReset());
 
-  it("explains the privacy-preserving response and links back to sign in", () => {
+  it("explains the request and links back to sign in", () => {
     render(<ForgotPasswordPage />);
     expect(screen.getByRole("heading", { name: "Reset your password" })).toBeTruthy();
-    expect(screen.getByText(/the response is the same whether or not an eligible/)).toBeTruthy();
+    expect(
+      screen.getByText("Enter your email and we’ll send you a link to choose a new password."),
+    ).toBeTruthy();
     expect(screen.getByRole("link", { name: "Back to sign in" })).toHaveAttribute("href", "/login");
   });
 

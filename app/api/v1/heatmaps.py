@@ -38,8 +38,7 @@ async def advertiser_get_campaign_heatmap(
     bbox: str | None = Query(
         default=None,
         description=(
-            "Required min_lon,min_lat,max_lon,max_lat bbox, "
-            "for example 3.35,6.43,3.47,6.56."
+            "Required min_lon,min_lat,max_lon,max_lat bbox, for example 3.35,6.43,3.47,6.56."
         ),
     ),
     resolution_m: Annotated[

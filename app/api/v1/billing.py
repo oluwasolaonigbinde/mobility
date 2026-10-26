@@ -4,7 +4,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Query, Request, status
 from sqlalchemy import select
 
-from app.adapters.budget import build_budget_policy_adapter
 from app.adapters.payments import PaymentGatewayAdapter, PaymentGatewayUnavailableError
 from app.adapters.payments.paystack import (
     PaystackNotFoundError,
@@ -21,7 +20,6 @@ from app.api.v1.dependencies import (
 from app.core.errors import AppError
 from app.core.webhook_body import read_webhook_body
 from app.models.billing import (
-    BudgetPolicyEvaluation,
     CampaignFinancialAuthorization,
     CommercialQuotationRevision,
     CommercialQuoteRequest,
@@ -36,8 +34,9 @@ from app.models.billing import (
 )
 from app.models.campaign import Campaign
 from app.schemas.billing import (
+    AdminCampaignCommercialRead,
     BillingHistoryEntry,
-    BudgetEvaluationRead,
+    BudgetCheckRead,
     BudgetResumeCreate,
     BudgetTransitionRead,
     CampaignCommercialRead,
@@ -50,7 +49,6 @@ from app.schemas.billing import (
     InvoiceCorrectionCreate,
     InvoiceCorrectionRead,
     InvoiceDraftCreate,
-    InvoiceIssue,
     InvoiceRead,
     IssuerProfileCreate,
     IssuerProfileRead,
@@ -78,10 +76,9 @@ from app.services.billing.authority import (
     record_expedited_production_waiver,
     record_prepaid_cash_authorization,
     record_production_start,
-    record_subsidy_authorization,
 )
 from app.services.billing.budget import (
-    evaluate_campaign_budget_policy,
+    campaign_budget_check,
     resume_campaign_after_budget_pause,
 )
 from app.services.billing.checkout import (
@@ -100,6 +97,7 @@ from app.services.billing.gateway import (
     ingest_verified_payment_event,
 )
 from app.services.billing.invoices import (
+    configured_invoice_issuer,
     create_invoice_draft,
     invoice_payment_status,
     issue_invoice,
@@ -202,12 +200,9 @@ async def _campaign_commercial_state(
             .order_by(RefundSettlement.recorded_at)
         )
     )
-    budget_evaluations = list(
-        await session.scalars(
-            select(BudgetPolicyEvaluation)
-            .where(BudgetPolicyEvaluation.campaign_id == campaign_id)
-            .order_by(BudgetPolicyEvaluation.evaluated_at)
-        )
+    budget_campaign = await session.get(Campaign, campaign_id)
+    budget_check = (
+        await campaign_budget_check(session, campaign=budget_campaign) if budget_campaign else None
     )
     return CampaignCommercialRead(
         quote_request=quote_request,
@@ -223,7 +218,7 @@ async def _campaign_commercial_state(
         waiver=waiver,
         production_start=production_start,
         settlements=settlements,
-        budget_evaluations=budget_evaluations,
+        budget_check=BudgetCheckRead.model_validate(budget_check) if budget_check else None,
     )
 
 
@@ -423,16 +418,21 @@ async def advertiser_campaign_commercial(
 
 @router.get(
     "/admin/campaigns/{campaign_id}/commercial",
-    response_model=CampaignCommercialRead,
+    response_model=AdminCampaignCommercialRead,
 )
 async def admin_campaign_commercial(
     campaign_id: UUID,
     _: AdminUserDependency,
     session: SessionDependency,
-) -> CampaignCommercialRead:
+    settings: SettingsDependency,
+) -> AdminCampaignCommercialRead:
     if await session.get(Campaign, campaign_id) is None:
         raise AppError("CAMPAIGN_NOT_FOUND", "Campaign was not found", status_code=404)
-    return await _campaign_commercial_state(session, campaign_id=campaign_id)
+    state = await _campaign_commercial_state(session, campaign_id=campaign_id)
+    return AdminCampaignCommercialRead(
+        **state.model_dump(),
+        issuing_available=await configured_invoice_issuer(session, settings) is not None,
+    )
 
 
 @router.get("/advertiser/billing", response_model=list[BillingHistoryEntry])
@@ -555,13 +555,13 @@ async def admin_record_manual_transfer(
     user: AdminUserDependency,
     session: SessionDependency,
 ) -> ManualTransferResult:
-    receipt, reconciliation, allocation = await process_manual_bank_transfer(
+    receipt, matched, allocation = await process_manual_bank_transfer(
         session, actor_user_id=user.id, **payload.model_dump()
     )
     await session.commit()
     return ManualTransferResult(
         receipt=ReceiptRead.model_validate(receipt),
-        matched=reconciliation.matched,
+        matched=matched,
         allocation=allocation,
     )
 
@@ -598,7 +598,6 @@ async def admin_create_invoice(
 @router.post("/admin/invoices/{invoice_id}/issue", response_model=InvoiceRead)
 async def admin_issue_invoice(
     invoice_id: UUID,
-    payload: InvoiceIssue,
     user: AdminUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
@@ -606,7 +605,6 @@ async def admin_issue_invoice(
     invoice = await issue_invoice(
         session,
         invoice_id=invoice_id,
-        issuer_profile_id=payload.issuer_profile_id,
         actor_user_id=user.id,
         settings=settings,
     )
@@ -648,22 +646,6 @@ async def admin_record_financial_authority(
             due_at=payload.due_at,
             approved_by_user_id=payload.approved_by_user_id,
             credit_terms=payload.credit_terms or {},
-            reason=payload.reason,
-        )
-    else:
-        if payload.subsidy_amount is None or payload.subsidy_reference is None:
-            raise AppError(
-                "SUBSIDY_FIELDS_REQUIRED",
-                "Subsidy amount and reference are required",
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
-        authority = await record_subsidy_authorization(
-            session,
-            campaign_id=campaign_id,
-            actor_user_id=user.id,
-            subsidy_amount=payload.subsidy_amount,
-            max_driver_liability=payload.max_driver_liability,
-            subsidy_reference=payload.subsidy_reference,
             reason=payload.reason,
         )
     await session.commit()
@@ -762,25 +744,6 @@ async def admin_record_credit_settlement(
     )
     await session.commit()
     return SettlementRead.model_validate(settlement)
-
-
-@router.post(
-    "/admin/campaigns/{campaign_id}/budget-policy-evaluation",
-    response_model=BudgetEvaluationRead,
-)
-async def admin_record_budget_evaluation(
-    campaign_id: UUID,
-    _: AdminUserDependency,
-    session: SessionDependency,
-    settings: SettingsDependency,
-) -> BudgetEvaluationRead:
-    evaluation = await evaluate_campaign_budget_policy(
-        session,
-        campaign_id=campaign_id,
-        adapter=build_budget_policy_adapter(settings),
-    )
-    await session.commit()
-    return BudgetEvaluationRead.model_validate(evaluation)
 
 
 @router.post(

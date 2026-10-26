@@ -40,6 +40,23 @@ export interface paths {
         patch: operations["admin_update_company_api_v1_admin_advertiser_organizations__organization_id__company_patch"];
         trace?: never;
     };
+    "/api/v1/admin/advertiser-organizations/{organization_id}/login-invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Send Login Invite */
+        post: operations["admin_send_login_invite_api_v1_admin_advertiser_organizations__organization_id__login_invite_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/advertiser-organizations/{organization_id}/members": {
         parameters: {
             query?: never;
@@ -66,6 +83,23 @@ export interface paths {
         };
         /** List audit events */
         get: operations["admin_list_audit_events_api_v1_admin_audit_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/badge-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Staff Badges */
+        get: operations["staff_badges_api_v1_admin_badge_summary_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -314,6 +348,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/campaign-enquiries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Staff Enquiries */
+        get: operations["list_staff_enquiries_api_v1_admin_campaign_enquiries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaign-enquiries/{enquiry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Staff Enquiry */
+        get: operations["read_staff_enquiry_api_v1_admin_campaign_enquiries__enquiry_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaign-enquiries/{enquiry_id}/create-advertiser": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Convert Staff Enquiry */
+        post: operations["convert_staff_enquiry_api_v1_admin_campaign_enquiries__enquiry_id__create_advertiser_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/campaigns": {
         parameters: {
             query?: never;
@@ -382,23 +467,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/campaigns/{campaign_id}/budget-policy-evaluation": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Admin Record Budget Evaluation */
-        post: operations["admin_record_budget_evaluation_api_v1_admin_campaigns__campaign_id__budget_policy_evaluation_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/campaigns/{campaign_id}/budget-policy-resume": {
         parameters: {
             query?: never;
@@ -410,6 +478,23 @@ export interface paths {
         put?: never;
         /** Admin Resume Budget Paused Campaign */
         post: operations["admin_resume_budget_paused_campaign_api_v1_admin_campaigns__campaign_id__budget_policy_resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{campaign_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Cancel Campaign */
+        post: operations["admin_cancel_campaign_api_v1_admin_campaigns__campaign_id__cancel_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -586,6 +671,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/campaigns/{campaign_id}/reports/re-run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Rerun Report */
+        post: operations["admin_rerun_report_api_v1_admin_campaigns__campaign_id__reports_re_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/campaigns/{campaign_id}/resume": {
         parameters: {
             query?: never;
@@ -612,23 +714,6 @@ export interface paths {
         };
         /** List review history across organizations */
         get: operations["admin_list_campaign_review_history_api_v1_admin_campaigns__campaign_id__review_history_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/campaigns/{campaign_id}/zone-insights": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read governed admin high-exposure zone insights */
-        get: operations["admin_zone_insights_api_v1_admin_campaigns__campaign_id__zone_insights_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -996,6 +1081,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/earnings-ledger/{entry_id}/negative-adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record an audited manual negative adjustment on a trip */
+        post: operations["admin_record_negative_adjustment_api_v1_admin_earnings_ledger__entry_id__negative_adjustments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/evidence-verifications": {
         parameters: {
             query?: never;
@@ -1003,7 +1105,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List recurring challenges and physical spot checks */
+        /** List physical spot checks */
         get: operations["admin_evidence_verifications_api_v1_admin_evidence_verifications_get"];
         put?: never;
         post?: never;
@@ -1022,59 +1124,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Queue an assignment-bound physical spot check */
-        post: operations["admin_queue_physical_spot_check_api_v1_admin_evidence_verifications_physical_spot_checks_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/evidence-verifications/{verification_id}/physical-spot-check-result": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Record an audited physical spot-check result */
-        post: operations["admin_resolve_physical_spot_check_api_v1_admin_evidence_verifications__verification_id__physical_spot_check_result_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/exposure-segments/{segment_id}/activations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Activate Segment */
-        post: operations["activate_segment_api_v1_admin_exposure_segments__segment_id__activations_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/exposure-segments/{segment_id}/delivery-approvals": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Approve Segment Delivery */
-        post: operations["approve_segment_delivery_api_v1_admin_exposure_segments__segment_id__delivery_approvals_post"];
+        /** Record passed or failed physical spot check */
+        post: operations["admin_record_physical_spot_check_api_v1_admin_evidence_verifications_physical_spot_checks_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1143,23 +1194,6 @@ export interface paths {
         get: operations["admin_list_fraud_flags_api_v1_admin_fraud_flags_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/fraud-flags/{flag_id}/review/acknowledge": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Acknowledge a fraud flag for staff review */
-        post: operations["admin_acknowledge_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_acknowledge_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1424,58 +1458,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/measurement-runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Admin List Measurement Runs */
-        get: operations["admin_list_measurement_runs_api_v1_admin_measurement_runs_get"];
-        put?: never;
-        /** Issue an immutable campaign measurement run */
-        post: operations["admin_issue_measurement_run_api_v1_admin_measurement_runs_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/measurement-runs/{run_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read and reproduce an immutable measurement run */
-        get: operations["admin_get_measurement_run_api_v1_admin_measurement_runs__run_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/measurement-runs/{run_id}/report-issuances": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Admin Request Report Issuance */
-        post: operations["admin_request_report_issuance_api_v1_admin_measurement_runs__run_id__report_issuances_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/operations/file-kyc-retention": {
         parameters: {
             query?: never;
@@ -1613,40 +1595,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Admin Get Driver Money Balance */
-        get: operations["admin_get_driver_money_balance_api_v1_admin_payout_batches_debt_balances__driver_profile_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}/allocate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Admin Allocate Driver Debt */
-        post: operations["admin_allocate_driver_debt_api_v1_admin_payout_batches_debt_balances__driver_profile_id__allocate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/payout-batches/eligible": {
         parameters: {
             query?: never;
@@ -1692,6 +1640,23 @@ export interface paths {
         put?: never;
         /** Admin Poll Payout Line */
         post: operations["admin_poll_payout_line_api_v1_admin_payout_batches_lines__line_id__poll_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-batches/money-balances/{driver_profile_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Get Driver Money Balance */
+        get: operations["admin_get_driver_money_balance_api_v1_admin_payout_batches_money_balances__driver_profile_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1868,23 +1833,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/payout-v4/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Whether daily-rate (payout_v4) revisions can be published */
-        get: operations["admin_payout_v4_status_api_v1_admin_payout_v4_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/payouts/automatic/alerts": {
         parameters: {
             query?: never;
@@ -2048,59 +1996,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Approve a correction order (approver must differ from creator) */
+        /** Approve and apply a saved pay correction with a reason */
         post: operations["admin_approve_correction_order_api_v1_admin_payouts_correction_orders__order_id__approve_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/payouts/correction-orders/{order_id}/execute": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Execute an approved correction order (idempotent) */
-        post: operations["admin_execute_correction_order_api_v1_admin_payouts_correction_orders__order_id__execute_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/payouts/correction-orders/{order_id}/reject": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reject a pending correction order */
-        post: operations["admin_reject_correction_order_api_v1_admin_payouts_correction_orders__order_id__reject_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/payouts/correction-orders/{order_id}/submit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Submit a draft correction order for approval */
-        post: operations["admin_submit_correction_order_api_v1_admin_payouts_correction_orders__order_id__submit_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2140,7 +2037,7 @@ export interface paths {
         /**
          * Retired: direct day recompute now requires a correction order
          * @description PR7: the direct execute path is retired. Every retroactive recompute —
-         *     regardless of delta sign — runs through an approved maker-checker
+         *     regardless of delta sign — runs through an approved reasoned manual
          *     correction order. The route stays registered so the contract and the
          *     audit-coverage table remain consistent; it always answers 409.
          */
@@ -2162,91 +2059,6 @@ export interface paths {
         get: operations["admin_phone_verification_work_api_v1_admin_phone_verification_challenges_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/privacy/dsr-requests": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Open Data Subject Request */
-        post: operations["open_data_subject_request_api_v1_admin_privacy_dsr_requests_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/privacy/dsr-requests/{request_id}/complete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Complete Data Subject Request Case */
-        post: operations["complete_data_subject_request_case_api_v1_admin_privacy_dsr_requests__request_id__complete_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/privacy/dsr-requests/{request_id}/inventory": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Inspect Data Subject Inventory */
-        get: operations["inspect_data_subject_inventory_api_v1_admin_privacy_dsr_requests__request_id__inventory_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/privacy/dsr-requests/{request_id}/locations/{location}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Assess Data Subject Location */
-        post: operations["assess_data_subject_location_api_v1_admin_privacy_dsr_requests__request_id__locations__location__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/privacy/dsr-requests/{request_id}/verify-identity": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Verify Data Subject Request Identity */
-        post: operations["verify_data_subject_request_identity_api_v1_admin_privacy_dsr_requests__request_id__verify_identity_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2321,23 +2133,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/report-issuances/{issuance_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Admin Get Report Issuance */
-        get: operations["admin_get_report_issuance_api_v1_admin_report_issuances__issuance_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/report-issuances/{issuance_id}/artifacts/{artifact_format}/download": {
         parameters: {
             query?: never;
@@ -2355,15 +2150,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/retargeting-source-links": {
+    "/api/v1/admin/reports": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Admin List Links */
-        get: operations["admin_list_links_api_v1_admin_retargeting_source_links_get"];
+        /** Admin List Reports */
+        get: operations["admin_list_reports_api_v1_admin_reports_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2372,155 +2167,17 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/retargeting-source-links/{link_id}": {
+    "/api/v1/admin/reports/{report_id}/artifacts/{artifact_format}/download": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Admin Get Link */
-        get: operations["admin_get_link_api_v1_admin_retargeting_source_links__link_id__get"];
+        get?: never;
         put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/retargeting-source-links/{link_id}/history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Admin Link History */
-        get: operations["admin_link_history_api_v1_admin_retargeting_source_links__link_id__history_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/retargeting-source-links/{link_id}/recommendations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Admin Recommendations */
-        get: operations["admin_recommendations_api_v1_admin_retargeting_source_links__link_id__recommendations_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/retargeting-sources": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Admin Sources */
-        get: operations["list_admin_sources_api_v1_admin_retargeting_sources_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/retargeting-sources/{source_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Admin Source */
-        get: operations["get_admin_source_api_v1_admin_retargeting_sources__source_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/retargeting-sources/{source_id}/history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Admin Source History */
-        get: operations["admin_source_history_api_v1_admin_retargeting_sources__source_id__history_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/traffic-density-profiles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List traffic density profiles */
-        get: operations["admin_list_traffic_density_profiles_api_v1_admin_traffic_density_profiles_get"];
-        put?: never;
-        /** Create a traffic density profile */
-        post: operations["admin_create_traffic_density_profile_api_v1_admin_traffic_density_profiles_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/traffic-density-profiles/{profile_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read a traffic density profile */
-        get: operations["admin_get_traffic_density_profile_api_v1_admin_traffic_density_profiles__profile_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update a traffic density profile */
-        patch: operations["admin_update_traffic_density_profile_api_v1_admin_traffic_density_profiles__profile_id__patch"];
-        trace?: never;
-    };
-    "/api/v1/admin/trips/quarantined-batches": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List quarantined ping batches */
-        get: operations["admin_list_quarantined_batches_api_v1_admin_trips_quarantined_batches_get"];
-        put?: never;
-        post?: never;
+        /** Admin Download Report */
+        post: operations["admin_download_report_api_v1_admin_reports__report_id__artifacts__artifact_format__download_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2572,40 +2229,6 @@ export interface paths {
         put?: never;
         /** Estimate impressions for one analyzed trip */
         post: operations["admin_estimate_trip_impressions_api_v1_admin_trips__trip_id__estimate_impressions_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Apply a quarantined ping batch as live trip evidence */
-        post: operations["admin_apply_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__apply_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/discard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Discard a quarantined ping batch */
-        post: operations["admin_discard_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__discard_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2752,23 +2375,6 @@ export interface paths {
         patch: operations["advertiser_update_campaign_api_v1_advertiser_campaigns__campaign_id__patch"];
         trace?: never;
     };
-    "/api/v1/advertiser/campaigns/{campaign_id}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Advertiser Cancel Campaign */
-        post: operations["advertiser_cancel_campaign_api_v1_advertiser_campaigns__campaign_id__cancel_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/advertiser/campaigns/{campaign_id}/change-preview": {
         parameters: {
             query?: never;
@@ -2874,6 +2480,23 @@ export interface paths {
         patch: operations["advertiser_update_campaign_creative_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__patch"];
         trace?: never;
     };
+    "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/qr.svg": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Qr */
+        get: operations["download_qr_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__qr_svg_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/review-history": {
         parameters: {
             query?: never;
@@ -2908,6 +2531,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/website": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Website */
+        get: operations["get_website_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__website_get"];
+        /** Put Website */
+        put: operations["put_website_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__website_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/advertiser/campaigns/{campaign_id}/daily-metrics": {
         parameters: {
             query?: never;
@@ -2917,7 +2558,7 @@ export interface paths {
         };
         /**
          * List advertiser campaign daily metrics
-         * @description Return UTC daily reporting rows from stored demo or production data.
+         * @description Return Nigeria calendar days (WAT); default to seven days including partial today. Empty days are zero; days below three cars are withheld.
          */
         get: operations["advertiser_get_campaign_daily_metrics_api_v1_advertiser_campaigns__campaign_id__daily_metrics_get"];
         put?: never;
@@ -2982,6 +2623,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/advertiser/campaigns/{campaign_id}/live-positions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Live Positions */
+        get: operations["get_live_positions_api_v1_advertiser_campaigns__campaign_id__live_positions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/campaigns/{campaign_id}/qr-scans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Campaign Scans */
+        get: operations["get_campaign_scans_api_v1_advertiser_campaigns__campaign_id__qr_scans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/advertiser/campaigns/{campaign_id}/quote-request": {
         parameters: {
             query?: never;
@@ -3007,8 +2682,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read bundled advertiser campaign report
-         * @description Return compact dashboard, daily, creative, zone, assignment, and cost sections.
+         * Read campaign results
+         * @description Return campaign-wide distance, trips, Nigeria driving days, estimated views and privacy-safe areas.
          */
         get: operations["advertiser_get_campaign_report_api_v1_advertiser_campaigns__campaign_id__report_get"];
         put?: never;
@@ -3085,23 +2760,6 @@ export interface paths {
          * @description Return one privacy-governed whole-campaign aggregate without trip rows, identifiers, or event timestamps.
          */
         get: operations["advertiser_get_campaign_trip_aggregate_api_v1_advertiser_campaigns__campaign_id__trips_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/advertiser/campaigns/{campaign_id}/zone-insights": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read governed advertiser high-exposure zone insights */
-        get: operations["advertiser_zone_insights_api_v1_advertiser_campaigns__campaign_id__zone_insights_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3254,23 +2912,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/advertiser/exposure-segments/{segment_id}/exports": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Export Segment */
-        post: operations["export_segment_api_v1_advertiser_exposure_segments__segment_id__exports_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/advertiser/files/uploads": {
         parameters: {
             query?: never;
@@ -3356,24 +2997,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/advertiser/measurement-runs/{run_id}/report-issuances": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Advertiser Get Current Report Issuance */
-        get: operations["advertiser_get_current_report_issuance_api_v1_advertiser_measurement_runs__run_id__report_issuances_get"];
-        put?: never;
-        /** Advertiser Request Report Issuance */
-        post: operations["advertiser_request_report_issuance_api_v1_advertiser_measurement_runs__run_id__report_issuances_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/advertiser/notification-preferences": {
         parameters: {
             query?: never;
@@ -3443,23 +3066,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/advertiser/report-issuances/{issuance_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Advertiser Get Report Issuance */
-        get: operations["advertiser_get_report_issuance_api_v1_advertiser_report_issuances__issuance_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/{artifact_format}/download": {
         parameters: {
             query?: never;
@@ -3477,50 +3083,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/advertiser/retargeting-source-links": {
+    "/api/v1/advertiser/reports": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List Links */
-        get: operations["list_links_api_v1_advertiser_retargeting_source_links_get"];
+        /** Advertiser List Reports */
+        get: operations["advertiser_list_reports_api_v1_advertiser_reports_get"];
         put?: never;
-        /** Create Link */
-        post: operations["create_link_api_v1_advertiser_retargeting_source_links_post"];
+        /** Advertiser Request Report */
+        post: operations["advertiser_request_report_api_v1_advertiser_reports_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/advertiser/retargeting-source-links/{link_id}": {
+    "/api/v1/advertiser/reports/{report_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get Link */
-        get: operations["get_link_api_v1_advertiser_retargeting_source_links__link_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/advertiser/retargeting-source-links/{link_id}/history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Link History */
-        get: operations["link_history_api_v1_advertiser_retargeting_source_links__link_id__history_get"];
+        /** Advertiser Get Report */
+        get: operations["advertiser_get_report_api_v1_advertiser_reports__report_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3529,24 +3118,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/advertiser/retargeting-source-links/{link_id}/recommendations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Advertiser Recommendations */
-        get: operations["advertiser_recommendations_api_v1_advertiser_retargeting_source_links__link_id__recommendations_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/advertiser/retargeting-source-links/{link_id}/remove": {
+    "/api/v1/advertiser/reports/{report_id}/artifacts/{artifact_format}/download": {
         parameters: {
             query?: never;
             header?: never;
@@ -3555,50 +3127,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Remove Link */
-        post: operations["remove_link_api_v1_advertiser_retargeting_source_links__link_id__remove_post"];
+        /** Advertiser Download Report */
+        post: operations["advertiser_download_report_api_v1_advertiser_reports__report_id__artifacts__artifact_format__download_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/advertiser/retargeting-sources": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Advertiser Sources */
-        get: operations["list_advertiser_sources_api_v1_advertiser_retargeting_sources_get"];
-        put?: never;
-        /** Create Advertiser Retargeting Source */
-        post: operations["create_advertiser_retargeting_source_api_v1_advertiser_retargeting_sources_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/advertiser/retargeting-sources/{source_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Advertiser Source */
-        get: operations["get_advertiser_source_api_v1_advertiser_retargeting_sources__source_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/advertiser/retargeting-sources/{source_id}/deactivate": {
+    "/api/v1/auth/advertiser-invite/complete": {
         parameters: {
             query?: never;
             header?: never;
@@ -3607,25 +3144,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Deactivate Advertiser Source */
-        post: operations["deactivate_advertiser_source_api_v1_advertiser_retargeting_sources__source_id__deactivate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/advertiser/retargeting-sources/{source_id}/history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Advertiser Source History */
-        get: operations["advertiser_source_history_api_v1_advertiser_retargeting_sources__source_id__history_get"];
-        put?: never;
-        post?: never;
+        /** Advertiser Invite Complete */
+        post: operations["advertiser_invite_complete_api_v1_auth_advertiser_invite_complete_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3728,6 +3248,23 @@ export interface paths {
         get: operations["onboarding_banks_api_v1_auth_driver_onboarding_banks_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/driver-onboarding/continue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Continue Application */
+        post: operations["continue_application_api_v1_auth_driver_onboarding_continue_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4012,6 +3549,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/driver/campaign-assignments/{assignment_id}/artwork/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview the artwork frozen in the driver's current job */
+        post: operations["driver_job_artwork_api_v1_driver_campaign_assignments__assignment_id__artwork_download_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/driver/campaign-assignments/{assignment_id}/deactivate": {
         parameters: {
             query?: never;
@@ -4040,40 +3594,6 @@ export interface paths {
         put?: never;
         /** Decline a campaign assignment offer */
         post: operations["driver_decline_campaign_assignment_api_v1_driver_campaign_assignments__assignment_id__decline_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/driver/campaign-assignments/{assignment_id}/display-proof": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Driver Submit Display Proof */
-        post: operations["driver_submit_display_proof_api_v1_driver_campaign_assignments__assignment_id__display_proof_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/driver/campaign-assignments/{assignment_id}/display-proof/challenge": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Driver Create Proof Challenge */
-        post: operations["driver_create_proof_challenge_api_v1_driver_campaign_assignments__assignment_id__display_proof_challenge_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4252,6 +3772,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/driver/current-job": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current Job */
+        get: operations["current_job_api_v1_driver_current_job_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/driver/documents": {
         parameters: {
             query?: never;
@@ -4286,6 +3823,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/driver/earnings/days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read current driver daily earnings and totals */
+        get: operations["driver_get_earnings_days_api_v1_driver_earnings_days_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/driver/earnings/ledger": {
         parameters: {
             query?: never;
@@ -4312,23 +3866,6 @@ export interface paths {
         };
         /** Read current driver earnings summary */
         get: operations["driver_get_earnings_summary_api_v1_driver_earnings_summary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/driver/evidence-verifications/pending": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List current driver's pending evidence verifications */
-        get: operations["driver_pending_evidence_verifications_api_v1_driver_evidence_verifications_pending_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4789,23 +4326,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/notifications/email/delivery-receipts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Email Delivery Receipt */
-        post: operations["email_delivery_receipt_api_v1_notifications_email_delivery_receipts_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/notifications/read-all": {
         parameters: {
             query?: never;
@@ -4851,6 +4371,23 @@ export interface paths {
         put?: never;
         /** Read Notification */
         post: operations["read_notification_api_v1_notifications__notification_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qr/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Qr Redirect */
+        get: operations["qr_redirect_api_v1_qr__code__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4958,7 +4495,7 @@ export interface components {
              * @default unavailable
              * @enum {string}
              */
-            photo_status: "ready" | "display_required" | "installation_required" | "unavailable";
+            photo_status: "ready" | "installation_required" | "unavailable";
         };
         /** AdminApplicantRead */
         AdminApplicantRead: {
@@ -4998,10 +4535,96 @@ export interface components {
              */
             user_id: string;
         };
+        /** AdminBadgeSummary */
+        AdminBadgeSummary: {
+            /** Campaigns */
+            campaigns: number;
+            /** Drivers */
+            drivers: number;
+            /** Money */
+            money: number;
+            /** Source Counts */
+            source_counts: {
+                [key: string]: number;
+            };
+            /** Support */
+            support: number;
+            /** Total */
+            total: number;
+            /** Trips */
+            trips: number;
+        };
+        /** AdminCampaignCommercialRead */
+        AdminCampaignCommercialRead: {
+            budget_check: components["schemas"]["BudgetCheckRead"] | null;
+            expedited_waiver_copy: components["schemas"]["WaiverCopyRead"];
+            financial_authority: components["schemas"]["FinancialAuthorityRead"] | null;
+            /** Invoices */
+            invoices: components["schemas"]["InvoiceRead"][];
+            /** Issuing Available */
+            issuing_available: boolean;
+            production_start: components["schemas"]["ProductionStartRead"] | null;
+            quote_request: components["schemas"]["QuoteRequestRead"] | null;
+            /** Revisions */
+            revisions: components["schemas"]["QuoteRevisionRead"][];
+            /** Settlements */
+            settlements: components["schemas"]["SettlementRead"][];
+            terms: components["schemas"]["CommercialTermsRead"] | null;
+            waiver: components["schemas"]["WaiverRead"] | null;
+        };
+        /** AdminCampaignListItemRead */
+        AdminCampaignListItemRead: {
+            /** Assignment Count */
+            assignment_count: number;
+            /** Budget Amount */
+            budget_amount: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /** Daily Budget Amount */
+            daily_budget_amount: string | null;
+            /** Description */
+            description: string | null;
+            /** End At */
+            end_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Name */
+            name: string;
+            organization: components["schemas"]["AdminCampaignOrganizationSummary"];
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            pause?: components["schemas"]["AdminCampaignPauseRead"] | null;
+            /** Start At */
+            start_at: string | null;
+            /** Status */
+            status: components["schemas"]["CampaignStatus"] | "finished";
+            /** Target Zone Count */
+            target_zone_count: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** AdminCampaignListResponse */
         AdminCampaignListResponse: {
             /** Items */
-            items: components["schemas"]["AdminCampaignRead"][];
+            items: components["schemas"]["AdminCampaignListItemRead"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -5072,7 +4695,8 @@ export interface components {
             pause?: components["schemas"]["AdminCampaignPauseRead"] | null;
             /** Start At */
             start_at: string | null;
-            status: components["schemas"]["CampaignStatus"];
+            /** Status */
+            status: components["schemas"]["CampaignStatus"] | "finished";
             /**
              * Updated At
              * Format: date-time
@@ -5168,8 +4792,6 @@ export interface components {
             campaign_id: string;
             /** Campaign Name */
             campaign_name?: string | null;
-            /** Display Proof Id */
-            display_proof_id: string | null;
             /** Driver Name */
             driver_name?: string | null;
             /**
@@ -5177,8 +4799,6 @@ export interface components {
              * Format: uuid
              */
             driver_profile_id: string;
-            /** Due At */
-            due_at: string | null;
             /** Fraud Flag Id */
             fraud_flag_id: string | null;
             /**
@@ -5371,10 +4991,6 @@ export interface components {
             held_currency: string | null;
             /** Held Pending Net */
             held_pending_net: string;
-            /** Reversal Entry Id */
-            reversal_entry_id: string | null;
-            /** Reversal Recommended */
-            reversal_recommended: boolean;
         };
         /** AdminFraudFlagRead */
         AdminFraudFlagRead: {
@@ -5449,83 +5065,52 @@ export interface components {
              */
             vehicle_id: string;
         };
-        /** AdminMeasurementRunList */
-        AdminMeasurementRunList: {
-            /** Items */
-            items: components["schemas"]["AdminMeasurementRunSummary"][];
-            /** Limit */
-            limit: number;
-            /** Offset */
-            offset: number;
-            /** Total */
-            total: number;
+        /** AdminOrganizationCreate */
+        AdminOrganizationCreate: {
+            /** Currency */
+            currency?: string | null;
+            /** Email */
+            email: string;
+            /** Name */
+            name: string;
         };
-        /** AdminMeasurementRunSummary */
-        AdminMeasurementRunSummary: {
-            /**
-             * Campaign Id
-             * Format: uuid
-             */
-            campaign_id: string;
-            /** Campaign Name */
-            campaign_name: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Formula Version */
-            formula_version: string;
+        /** AdminOrganizationCreateResponse */
+        AdminOrganizationCreateResponse: {
+            organization: components["schemas"]["AdvertiserOrganizationRead"];
+        };
+        /** AdminOrganizationListItemRead */
+        AdminOrganizationListItemRead: {
+            /** Billing Contact Name */
+            billing_contact_name: string | null;
+            /** Billing Email */
+            billing_email: string | null;
+            /** Country Code */
+            country_code: string | null;
+            /** Currency */
+            currency: string;
             /**
              * Id
              * Format: uuid
              */
             id: string;
-            /** Input Manifest Sha256 */
-            input_manifest_sha256: string;
-            /** Method Revision */
-            method_revision: string;
-            mode: components["schemas"]["MeasurementRunMode"];
-            /**
-             * Period End At
-             * Format: date-time
-             */
-            period_end_at: string;
-            /**
-             * Period Start At
-             * Format: date-time
-             */
-            period_start_at: string;
-            /** Proof Manifest Sha256 */
-            proof_manifest_sha256: string;
-            /** Reissue Of Run Id */
-            reissue_of_run_id: string | null;
-            /** Report Issuance Id */
-            report_issuance_id?: string | null;
-            /** Report Snapshot Sha256 */
-            report_snapshot_sha256: string;
-            /** Report Status */
-            report_status?: string | null;
-            /** Reproducible */
-            reproducible: boolean;
-            /** Result Manifest Sha256 */
-            result_manifest_sha256: string;
-            /** Roi Method Revision */
-            roi_method_revision: string | null;
-            /** Superseded */
-            superseded: boolean;
-            /** Test Only */
-            test_only: boolean;
-        };
-        /** AdminOrganizationCreateResponse */
-        AdminOrganizationCreateResponse: {
-            organization: components["schemas"]["AdvertiserOrganizationRead"];
-            owner_membership: components["schemas"]["OrganizationMembershipRead"] | null;
+            /** Live Campaign Count */
+            live_campaign_count: number;
+            /** Member Count */
+            member_count: number;
+            /** Name */
+            name: string;
+            /** Operational Contact Email */
+            operational_contact_email: string | null;
+            /** Operational Contact Name */
+            operational_contact_name: string | null;
+            /** Outstanding */
+            outstanding: components["schemas"]["OutstandingInvoiceAmountRead"][];
+            status: components["schemas"]["OrganizationStatus"];
         };
         /** AdminOrganizationListResponse */
         AdminOrganizationListResponse: {
             /** Items */
-            items: components["schemas"]["AdvertiserOrganizationRead"][];
+            items: components["schemas"]["AdminOrganizationListItemRead"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -5539,6 +5124,8 @@ export interface components {
             items: components["schemas"]["AdminOrganizationMemberRead"][];
             /** Limit */
             limit: number;
+            /** Login Invite Available */
+            login_invite_available: boolean;
             /** Offset */
             offset: number;
             /** Total */
@@ -5878,6 +5465,52 @@ export interface components {
             /** Year */
             year?: number | null;
         };
+        /** AdvertiserCampaignRead */
+        AdvertiserCampaignRead: {
+            /** Budget Amount */
+            budget_amount: string | null;
+            budget_used: components["schemas"]["BudgetUsedRead"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /** Daily Budget Amount */
+            daily_budget_amount: string | null;
+            /** Description */
+            description: string | null;
+            /** End At */
+            end_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Name */
+            name: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Pause Kind */
+            pause_kind?: ("budget" | "operational" | "unknown") | null;
+            /** Start At */
+            start_at: string | null;
+            /** Status */
+            status: components["schemas"]["CampaignStatus"] | "finished";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** AdvertiserDashboardSummary */
         AdvertiserDashboardSummary: {
             assignments: components["schemas"]["AssignmentStatusCounts"];
@@ -5898,79 +5531,18 @@ export interface components {
             start_at: string | null;
             trips: components["schemas"]["TripStatusCounts"];
         };
-        /** AdvertiserExposureScoreRead */
-        AdvertiserExposureScoreRead: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Formula Fingerprint */
-            formula_fingerprint: string;
-            /** Formula Version */
-            formula_version: string;
-            /** Input Fingerprint */
-            input_fingerprint: string;
-            /** Measurement Input Sha256 */
-            measurement_input_sha256: string;
-            /** Measurement Proof Sha256 */
-            measurement_proof_sha256: string;
-            /** Measurement Result Sha256 */
-            measurement_result_sha256: string;
-            /** Reproducible */
-            reproducible: boolean;
-            result: components["schemas"]["AdvertiserExposureScoreResultRead"];
-            /** Result Fingerprint */
-            result_fingerprint: string;
-            /** Stale */
-            stale: boolean;
+        /** AdvertiserLoginInviteCreate */
+        AdvertiserLoginInviteCreate: {
+            /** Email */
+            email: string;
         };
-        /** AdvertiserExposureScoreResultRead */
-        AdvertiserExposureScoreResultRead: {
-            formula: components["schemas"]["ExposureScoreFormulaRead"];
-            /** Formula Fingerprint */
-            formula_fingerprint: string;
+        /** AdvertiserLoginInviteRead */
+        AdvertiserLoginInviteRead: {
             /**
-             * Formula Version
-             * @constant
+             * Message
+             * @default Login invite sent. It works once, for 24 hours.
              */
-            formula_version: "exposure_v1";
-            /** Input Fingerprint */
-            input_fingerprint: string;
-            /**
-             * Label
-             * @constant
-             */
-            label: "Exposure score";
-            /**
-             * Metric Class
-             * @constant
-             */
-            metric_class: "operational_composite_index";
-            /** Missing Route Count */
-            missing_route_count: number;
-            provenance: components["schemas"]["ExposureScoreProvenanceRead"];
-            range: components["schemas"]["ExposureScoreRangeRead"];
-            /** Route Count */
-            route_count: number;
-            /**
-             * Schema Version
-             * @constant
-             */
-            schema_version: "exposure-score-result-v1";
-            /** Score */
-            score: string | null;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "scored" | "insufficient_data";
-            uncertainty: components["schemas"]["ExposureScoreUncertaintyRead"];
-            /**
-             * Unit
-             * @constant
-             */
-            unit: "points";
+            message: string;
         };
         /** AdvertiserNotificationPreferenceRead */
         AdvertiserNotificationPreferenceRead: {
@@ -5992,21 +5564,6 @@ export interface components {
             membership: components["schemas"]["OrganizationMembershipRead"];
             organization: components["schemas"]["AdvertiserOrganizationRead"];
         };
-        /** AdvertiserOrganizationCreate */
-        AdvertiserOrganizationCreate: {
-            /** Billing Email */
-            billing_email?: string | null;
-            /** Country Code */
-            country_code?: string | null;
-            /** Currency */
-            currency?: string | null;
-            /** Name */
-            name: string;
-            /** Owner User Id */
-            owner_user_id?: string | null;
-            /** @default active */
-            status: components["schemas"]["OrganizationStatus"];
-        };
         /** AdvertiserOrganizationRead */
         AdvertiserOrganizationRead: {
             /** Billing Email */
@@ -6024,36 +5581,19 @@ export interface components {
             name: string;
             status: components["schemas"]["OrganizationStatus"];
         };
-        /** AggregateRecommendation */
-        AggregateRecommendation: {
-            /**
-             * Campaign Context
-             * @constant
-             */
-            campaign_context: "vehicle_transit";
-            /** Coverage Cell */
-            coverage_cell: string;
-            /** Rank */
-            rank: number;
-            /** Rationale */
-            rationale: string;
-            /**
-             * Window End At
-             * Format: date-time
-             */
-            window_end_at: string;
-            /**
-             * Window Start At
-             * Format: date-time
-             */
-            window_start_at: string;
-        };
         /** AnalyticsRecomputeRequest */
         AnalyticsRecomputeRequest: {
             /** Metadata */
             metadata?: {
                 [key: string]: unknown;
             };
+        };
+        /** AnonymousPosition */
+        AnonymousPosition: {
+            /** Latitude */
+            latitude: number;
+            /** Longitude */
+            longitude: number;
         };
         /** ApplicantFileUploadConfirm */
         ApplicantFileUploadConfirm: {
@@ -6162,6 +5702,47 @@ export interface components {
             /** Year */
             year?: number | null;
         };
+        /** ApplicationContinuationRead */
+        ApplicationContinuationRead: {
+            /** Changes Reason */
+            changes_reason: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "details_needed" | "details_in_review" | "details_changes_needed" | "car_needed" | "car_in_review" | "car_changes_needed";
+            /**
+             * Step
+             * @enum {string}
+             */
+            step: "details" | "car";
+        };
+        /** ArtworkLinkRead */
+        ArtworkLinkRead: {
+            /**
+             * Creative Id
+             * Format: uuid
+             */
+            creative_id: string;
+            /** Days */
+            days: components["schemas"]["ScanDayRead"][];
+            /** Destination */
+            destination: string | null;
+            /** Scans */
+            scans: number;
+            /** Short Path */
+            short_path: string | null;
+        };
+        /** ArtworkLinkWrite */
+        ArtworkLinkWrite: {
+            /** Destination */
+            destination: string;
+        };
         /**
          * AssignmentActivityFlagRead
          * @description Admin-only projection; no raw trip/analytics evidence is returned.
@@ -6177,6 +5758,8 @@ export interface components {
              * Format: uuid
              */
             campaign_id: string;
+            /** Closed At */
+            closed_at: string | null;
             /**
              * Driver Profile Id
              * Format: uuid
@@ -6206,8 +5789,6 @@ export interface components {
             last_verified_activity_at: string | null;
             /** Observed Seconds */
             observed_seconds: number;
-            /** Recovered At */
-            recovered_at: string | null;
             status: components["schemas"]["AssignmentActivityFlagStatus"];
             /** Threshold Seconds */
             threshold_seconds: number | null;
@@ -6231,12 +5812,12 @@ export interface components {
          * AssignmentActivityFlagStatus
          * @enum {string}
          */
-        AssignmentActivityFlagStatus: "open" | "recovered";
+        AssignmentActivityFlagStatus: "open" | "closed";
         /**
          * AssignmentActivityFlagType
          * @enum {string}
          */
-        AssignmentActivityFlagType: "verified_hours_floor" | "inactivity";
+        AssignmentActivityFlagType: "inactivity";
         /** AssignmentCampaignSummary */
         AssignmentCampaignSummary: {
             /** End At */
@@ -6250,7 +5831,8 @@ export interface components {
             name: string;
             /** Start At */
             start_at: string | null;
-            status: components["schemas"]["CampaignStatus"];
+            /** Status */
+            status: components["schemas"]["CampaignStatus"] | "finished";
         };
         /** AssignmentDriverProfileSummary */
         AssignmentDriverProfileSummary: {
@@ -6300,15 +5882,10 @@ export interface components {
              */
             cancelled: number;
             /**
-             * Completed
+             * Finished
              * @default 0
              */
-            completed: number;
-            /**
-             * Deactivated
-             * @default 0
-             */
-            deactivated: number;
+            finished: number;
             /**
              * Offered
              * @default 0
@@ -6334,173 +5911,6 @@ export interface components {
             status: components["schemas"]["VehicleStatus"];
             vehicle_type: components["schemas"]["VehicleType"];
         };
-        /** AudienceActivationRead */
-        AudienceActivationRead: {
-            /** Adapter Name */
-            adapter_name: string;
-            /**
-             * Approval Id
-             * Format: uuid
-             */
-            approval_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Operation
-             * @constant
-             */
-            operation: "ad_platform_activation";
-            /** Payload Sha256 */
-            payload_sha256: string;
-            /** Provider Reference */
-            provider_reference: string;
-            /** Purpose Code */
-            purpose_code: string;
-            /**
-             * Segment Id
-             * Format: uuid
-             */
-            segment_id: string;
-            /** Synthetic */
-            synthetic: boolean;
-        };
-        /** AudienceActivationRequest */
-        AudienceActivationRequest: {
-            /**
-             * Approval Id
-             * Format: uuid
-             */
-            approval_id: string;
-        };
-        /** AudienceDeliveryApprovalCreate */
-        AudienceDeliveryApprovalCreate: {
-            /** Budget Ceiling */
-            budget_ceiling?: number | string | null;
-            /** Legal Approval Reference */
-            legal_approval_reference: string;
-            /**
-             * Operation
-             * @constant
-             */
-            operation: "ad_platform_activation";
-            /** Provider */
-            provider: string;
-            /** Provider Account Reference */
-            provider_account_reference?: string | null;
-            /**
-             * Purpose Code
-             * @constant
-             */
-            purpose_code: "aggregate_contextual_activation";
-            /**
-             * Valid Until
-             * Format: date-time
-             */
-            valid_until: string;
-        };
-        /** AudienceDeliveryApprovalRead */
-        AudienceDeliveryApprovalRead: {
-            /**
-             * Approved By User Id
-             * Format: uuid
-             */
-            approved_by_user_id: string;
-            /** Budget Ceiling */
-            budget_ceiling: string | null;
-            /**
-             * Campaign Id
-             * Format: uuid
-             */
-            campaign_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Legal Approval Reference */
-            legal_approval_reference: string;
-            /**
-             * Operation
-             * @constant
-             */
-            operation: "ad_platform_activation";
-            /**
-             * Organization Id
-             * Format: uuid
-             */
-            organization_id: string;
-            /** Provider */
-            provider: string;
-            /** Provider Account Reference */
-            provider_account_reference: string | null;
-            /** Purpose Code */
-            purpose_code: string;
-            /**
-             * Segment Id
-             * Format: uuid
-             */
-            segment_id: string;
-            /** Snapshot Sha256 */
-            snapshot_sha256: string;
-            /** Synthetic */
-            synthetic: boolean;
-            /**
-             * Valid From
-             * Format: date-time
-             */
-            valid_from: string;
-            /**
-             * Valid Until
-             * Format: date-time
-             */
-            valid_until: string;
-        };
-        /** AudienceExportRead */
-        AudienceExportRead: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Csv Content */
-            csv_content: string;
-            /** Csv Sha256 */
-            csv_sha256: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Operation
-             * @constant
-             */
-            operation: "csv_export";
-            /** Payload Sha256 */
-            payload_sha256: string;
-            /** Purpose Code */
-            purpose_code: string;
-            /**
-             * Segment Id
-             * Format: uuid
-             */
-            segment_id: string;
-        };
-        /** AudienceExportRequest */
-        AudienceExportRequest: Record<string, never>;
         /** AuditEventListResponse */
         AuditEventListResponse: {
             /** Items */
@@ -6640,8 +6050,6 @@ export interface components {
         AutomaticPayoutRunRead: {
             /** Batch Count */
             batch_count: number;
-            /** Batch Limit */
-            batch_limit?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -6661,17 +6069,16 @@ export interface components {
         };
         /** AutomaticPayoutStatusRead */
         AutomaticPayoutStatusRead: {
-            /** Batch Limit */
-            batch_limit: string | null;
             /** Currency */
             currency: string;
-            /** Frequency */
-            frequency: ("daily" | "weekly") | null;
+            /**
+             * Frequency
+             * @constant
+             */
+            frequency: "daily";
             /** Identity Ready */
             identity_ready: boolean;
             last_run: components["schemas"]["AutomaticPayoutRunRead"] | null;
-            /** Missing Settings */
-            missing_settings: string[];
             /** Open Alert Count */
             open_alert_count: number;
             /** Pause Changed At */
@@ -6686,8 +6093,6 @@ export interface components {
             provider_ready: boolean;
             /** Runnable */
             runnable: boolean;
-            /** Switched On */
-            switched_on: boolean;
             /** Unsent Count */
             unsent_count: number;
         };
@@ -6824,27 +6229,12 @@ export interface components {
             events: components["schemas"]["ReceiptEventRead"][];
             receipt: components["schemas"]["ReceiptRead"];
         };
-        /** BudgetEvaluationRead */
-        BudgetEvaluationRead: {
-            /** Alert Applied */
-            alert_applied: boolean;
-            /** Alert Threshold Amount */
-            alert_threshold_amount: string | null;
-            /** Billing Fact Source */
-            billing_fact_source: string | null;
+        /** BudgetCheckRead */
+        BudgetCheckRead: {
             /** Billing Spend Amount */
-            billing_spend_amount: string | null;
-            /** Budget Basis */
-            budget_basis: string | null;
+            billing_spend_amount: string;
             /** Campaign Budget Amount */
-            campaign_budget_amount: string | null;
-            /** Campaign Daily Budget Amount */
-            campaign_daily_budget_amount: string | null;
-            /**
-             * Campaign Id
-             * Format: uuid
-             */
-            campaign_id: string;
+            campaign_budget_amount: string;
             /** Currency */
             currency: string;
             /**
@@ -6852,31 +6242,10 @@ export interface components {
              * Format: date-time
              */
             evaluated_at: string;
-            /** External Gate */
-            external_gate: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Pause Applied */
-            pause_applied: boolean;
-            /** Pause Threshold Amount */
-            pause_threshold_amount: string | null;
-            /** Policy Id */
-            policy_id: string | null;
-            /** Policy Revision */
-            policy_revision: string | null;
-            /** Policy Source */
-            policy_source: string | null;
             /** Resume Allowed */
             resume_allowed: boolean;
-            /** Resume Threshold Amount */
-            resume_threshold_amount: string | null;
             /** State */
             state: string;
-            /** Urgent Threshold Amount */
-            urgent_threshold_amount: string | null;
         };
         /** BudgetResumeCreate */
         BudgetResumeCreate: {
@@ -6900,21 +6269,40 @@ export interface components {
              */
             created_at: string;
             /**
-             * Evaluation Id
-             * Format: uuid
-             */
-            evaluation_id: string;
-            /**
              * Id
              * Format: uuid
              */
             id: string;
             /** New Status */
             new_status: string;
+            /** Pause Transition Id */
+            pause_transition_id: string | null;
             /** Prior Status */
             prior_status: string;
             /** Reason */
             reason: string | null;
+        };
+        /**
+         * BudgetUsedRead
+         * @description D103: the booked total behind the budget alerts.
+         */
+        BudgetUsedRead: {
+            /** Amount */
+            amount: string | null;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "funding" | "invoice";
+            /** Budget Amount */
+            budget_amount: string | null;
+            /** Currency */
+            currency: string;
         };
         /** CalculatePayoutRequest */
         CalculatePayoutRequest: {
@@ -7074,8 +6462,6 @@ export interface components {
             campaign_id: string;
             /** Cancelled At */
             cancelled_at: string | null;
-            /** Completed At */
-            completed_at: string | null;
             /**
              * Created At
              * Format: date-time
@@ -7116,7 +6502,8 @@ export interface components {
              * Format: date-time
              */
             offered_at: string;
-            status: components["schemas"]["CampaignAssignmentStatus"];
+            /** Status */
+            status: components["schemas"]["CampaignAssignmentStatus"] | "finished";
             /**
              * Updated At
              * Format: date-time
@@ -7213,23 +6600,13 @@ export interface components {
          * CampaignAssignmentStatus
          * @enum {string}
          */
-        CampaignAssignmentStatus: "offered" | "accepted" | "declined" | "expired" | "active" | "deactivated" | "cancelled" | "completed";
+        CampaignAssignmentStatus: "offered" | "accepted" | "declined" | "expired" | "active" | "cancelled";
         /** CampaignAssignmentTransition */
         CampaignAssignmentTransition: {
             /** Metadata */
             metadata?: {
                 [key: string]: unknown;
             };
-        };
-        /** CampaignCancellationCreate */
-        CampaignCancellationCreate: {
-            /**
-             * Client Request Id
-             * Format: uuid
-             */
-            client_request_id: string;
-            /** Reason */
-            reason: string;
         };
         /** CampaignCancellationRead */
         CampaignCancellationRead: {
@@ -7430,8 +6807,7 @@ export interface components {
         };
         /** CampaignCommercialRead */
         CampaignCommercialRead: {
-            /** Budget Evaluations */
-            budget_evaluations: components["schemas"]["BudgetEvaluationRead"][];
+            budget_check: components["schemas"]["BudgetCheckRead"] | null;
             expedited_waiver_copy: components["schemas"]["WaiverCopyRead"];
             financial_authority: components["schemas"]["FinancialAuthorityRead"] | null;
             /** Invoices */
@@ -7444,13 +6820,6 @@ export interface components {
             settlements: components["schemas"]["SettlementRead"][];
             terms: components["schemas"]["CommercialTermsRead"] | null;
             waiver: components["schemas"]["WaiverRead"] | null;
-        };
-        /** CampaignCostTotalRead */
-        CampaignCostTotalRead: {
-            /** Currency */
-            currency: string;
-            /** Value */
-            value: string;
         };
         /** CampaignCreate */
         CampaignCreate: {
@@ -7481,7 +6850,7 @@ export interface components {
         CampaignDriverMoneyRead: {
             /**
              * Cash Paid
-             * @description Economic ledger amount paid, counting each credit once.
+             * @description Actual verified successful payout-line amounts.
              */
             cash_paid: string;
             /** Currency */
@@ -7493,8 +6862,6 @@ export interface components {
              * Format: uuid
              */
             driver_profile_id: string;
-            /** Driver Wide Debt */
-            driver_wide_debt: string;
             /** Earned Net */
             earned_net: string;
             /**
@@ -7516,6 +6883,22 @@ export interface components {
             terminal_failed: string;
             /** Unbatched Available */
             unbatched_available: string;
+        };
+        /** CampaignEnquiryConversion */
+        CampaignEnquiryConversion: Record<string, never>;
+        /** CampaignEnquiryConverted */
+        CampaignEnquiryConverted: {
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /**
+             * Status
+             * @default converted
+             * @constant
+             */
+            status: "converted";
         };
         /** CampaignEnquiryRead */
         CampaignEnquiryRead: {
@@ -7551,10 +6934,62 @@ export interface components {
             /** Trip Count */
             trip_count: number;
         };
+        /** CampaignListItemRead */
+        CampaignListItemRead: {
+            /** Assignment Count */
+            assignment_count: number;
+            /** Budget Amount */
+            budget_amount: string | null;
+            budget_used: components["schemas"]["BudgetUsedRead"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /** Daily Budget Amount */
+            daily_budget_amount: string | null;
+            /** Description */
+            description: string | null;
+            /** End At */
+            end_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Name */
+            name: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Pause Kind */
+            pause_kind?: ("budget" | "operational" | "unknown") | null;
+            /** Preview File Id */
+            preview_file_id: string | null;
+            /** Start At */
+            start_at: string | null;
+            /** Status */
+            status: components["schemas"]["CampaignStatus"] | "finished";
+            /** Target Zone Count */
+            target_zone_count: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** CampaignListResponse */
         CampaignListResponse: {
             /** Items */
-            items: components["schemas"]["CampaignRead"][];
+            items: components["schemas"]["CampaignListItemRead"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -7712,75 +7147,64 @@ export interface components {
         CampaignPayoutRuleStatus: "active" | "inactive";
         /**
          * CampaignPayoutV4RevisionCreate
-         * @description A daily-rate (payout_v4, D39) revision. Every pay value is required and
-         *     entered by Terrax Media staff; nothing is defaulted. The stop rule is fixed
-         *     by the server and cannot be supplied.
+         * @description Staff set the day rate and target; D43 fixes the remaining pay rules.
          */
         CampaignPayoutV4RevisionCreate: {
             /** Daily Rate Naira */
             daily_rate_naira: number | string;
             /** Daily Target Miles */
             daily_target_miles: number | string;
-            /** Deduction Per Mile Naira */
-            deduction_per_mile_naira?: number | string | null;
             /**
              * Effective From
              * Format: date-time
              */
             effective_from: string;
-            /** Minimum Miles */
-            minimum_miles: number | string;
-            /** Outside Area Weight */
-            outside_area_weight: number | string;
             /** Reason */
             reason: string;
-            /**
-             * Shortfall Strategy
-             * @enum {string}
-             */
-            shortfall_strategy: "proportional" | "per_mile_deduction";
         };
-        /** CampaignRead */
-        CampaignRead: {
-            /** Budget Amount */
-            budget_amount: string | null;
+        /** CampaignPerformanceArea */
+        CampaignPerformanceArea: {
             /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Currency */
-            currency: string;
-            /** Daily Budget Amount */
-            daily_budget_amount: string | null;
-            /** Description */
-            description: string | null;
-            /** End At */
-            end_at: string | null;
-            /**
-             * Id
+             * Area Id
              * Format: uuid
              */
-            id: string;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
+            area_id: string;
+            /** Modelled Potential Contacts */
+            modelled_potential_contacts: string | null;
             /** Name */
             name: string;
+            /** Trip Count */
+            trip_count: number;
+        };
+        /** CampaignPerformanceRead */
+        CampaignPerformanceRead: {
+            /** Areas */
+            areas: components["schemas"]["CampaignPerformanceArea"][];
             /**
-             * Organization Id
+             * Campaign Id
              * Format: uuid
              */
-            organization_id: string;
+            campaign_id: string;
+            /** Completeness */
+            completeness: string;
+            /** End At */
+            end_at: string | null;
             /** Start At */
             start_at: string | null;
-            status: components["schemas"]["CampaignStatus"];
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
+            totals: components["schemas"]["CampaignPerformanceTotals"];
+            /** Uncertainty */
+            uncertainty: string;
+        };
+        /** CampaignPerformanceTotals */
+        CampaignPerformanceTotals: {
+            /** Distance M */
+            distance_m: string | null;
+            /** Driving Days */
+            driving_days: number | null;
+            /** Estimated Views */
+            estimated_views: string | null;
+            /** Trip Count */
+            trip_count: number | null;
         };
         /** CampaignReadSummary */
         CampaignReadSummary: {
@@ -7801,33 +7225,109 @@ export interface components {
             name: string;
             /** Start At */
             start_at: string | null;
-            status: components["schemas"]["CampaignStatus"];
+            /** Status */
+            status: components["schemas"]["CampaignStatus"] | "finished";
         };
-        /** CampaignReportResponse */
-        CampaignReportResponse: {
-            assignment_summary: components["schemas"]["AssignmentStatusCounts"];
+        /** CampaignReportCampaignRead */
+        CampaignReportCampaignRead: {
             /**
-             * Campaign Id
+             * Id
              * Format: uuid
              */
-            campaign_id: string;
-            cost_summary: components["schemas"]["app__schemas__reports__CampaignCostSummary"];
-            creative_summary: components["schemas"]["CreativeStatusCounts"];
-            /** Daily Metrics */
-            daily_metrics: components["schemas"]["DailyMetricItem"][];
-            /** End At */
-            end_at: string | null;
-            exposure_score?: components["schemas"]["AdvertiserExposureScoreRead"] | null;
-            fraud_summary: components["schemas"]["FraudFlagCounts"];
-            high_exposure_zone_insights?: components["schemas"]["HighExposureZoneInsightsRead"] | null;
-            impression_summary: components["schemas"]["ImpressionSummary"];
-            measurement_result?: components["schemas"]["MeasurementResultRead"] | null;
-            measurement_run?: components["schemas"]["MeasurementRunSummary"] | null;
-            /** Start At */
-            start_at: string | null;
-            summary: components["schemas"]["CampaignReadSummary"];
-            trip_summary: components["schemas"]["TripStatusCounts"];
-            zone_summary: components["schemas"]["ZoneTypeCounts"];
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** CampaignReportCreate */
+        CampaignReportCreate: {
+            /** Campaign Id */
+            campaign_id?: string | null;
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+        };
+        /** CampaignReportList */
+        CampaignReportList: {
+            /** Items */
+            items: components["schemas"]["CampaignReportRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** CampaignReportRead */
+        CampaignReportRead: {
+            /** Campaigns */
+            campaigns: components["schemas"]["CampaignReportCampaignRead"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /** Error */
+            error?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "weekly" | "final" | "custom" | "issued";
+            /**
+             * Legacy
+             * @default false
+             */
+            legacy: boolean;
+            /** Ready At */
+            ready_at: string | null;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "ready" | "failed";
+            /**
+             * Timezone
+             * @default Africa/Lagos
+             * @constant
+             */
+            timezone: "Africa/Lagos";
+            /** Version */
+            version: number;
+        };
+        /** CampaignReportRerun */
+        CampaignReportRerun: {
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
         };
         /** CampaignResumeRequest */
         CampaignResumeRequest: {
@@ -7873,7 +7373,8 @@ export interface components {
              */
             id: string;
             new_status: components["schemas"]["CampaignStatus"];
-            prior_status: components["schemas"]["CampaignStatus"];
+            /** Prior Status */
+            prior_status: string;
             /** Rejection Reason */
             rejection_reason: string | null;
             /** Reviewed Snapshot */
@@ -7890,11 +7391,23 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** CampaignScansRead */
+        CampaignScansRead: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Days */
+            days: components["schemas"]["ScanDayRead"][];
+            /** Scans */
+            scans: number;
+        };
         /**
          * CampaignStatus
          * @enum {string}
          */
-        CampaignStatus: "draft" | "pending_review" | "approved" | "rejected" | "scheduled" | "active" | "paused" | "completed" | "cancelled";
+        CampaignStatus: "draft" | "pending_review" | "approved" | "rejected" | "active" | "paused" | "cancelled";
         /** CampaignStatusCounts */
         CampaignStatusCounts: {
             /**
@@ -7913,15 +7426,15 @@ export interface components {
              */
             cancelled: number;
             /**
-             * Completed
-             * @default 0
-             */
-            completed: number;
-            /**
              * Draft
              * @default 0
              */
             draft: number;
+            /**
+             * Finished
+             * @default 0
+             */
+            finished: number;
             /**
              * Paused
              * @default 0
@@ -7937,11 +7450,6 @@ export interface components {
              * @default 0
              */
             rejected: number;
-            /**
-             * Scheduled
-             * @default 0
-             */
-            scheduled: number;
             /**
              * Total
              * @default 0
@@ -8068,7 +7576,7 @@ export interface components {
          * CampaignZoneType
          * @enum {string}
          */
-        CampaignZoneType: "target" | "exclusion" | "bonus";
+        CampaignZoneType: "target" | "exclusion";
         /** CampaignZoneUpdate */
         CampaignZoneUpdate: {
             /** Description */
@@ -8253,10 +7761,10 @@ export interface components {
         };
         /**
          * ComplaintCategory
-         * @description Neutral default categories (Batch E); the client has not supplied a list.
+         * @description Support categories, including the owner's D7 campaign cancellation request.
          * @enum {string}
          */
-        ComplaintCategory: "pay_or_payout" | "trip_or_tracking" | "campaign_or_job" | "billing_or_invoice" | "account" | "other";
+        ComplaintCategory: "pay_or_payout" | "trip_or_tracking" | "campaign_or_job" | "campaign_cancellation" | "billing_or_invoice" | "account" | "other";
         /** ComplaintCreate */
         ComplaintCreate: {
             category: components["schemas"]["ComplaintCategory"];
@@ -8426,7 +7934,7 @@ export interface components {
          * CreativePlacement
          * @enum {string}
          */
-        CreativePlacement: "vehicle_exterior" | "vehicle_interior" | "digital_screen" | "print" | "other";
+        CreativePlacement: "vehicle_exterior" | "vehicle_interior";
         /** CreativeRead */
         CreativeRead: {
             /**
@@ -8513,7 +8021,8 @@ export interface components {
              */
             id: string;
             new_status: components["schemas"]["CreativeStatus"];
-            prior_status: components["schemas"]["CreativeStatus"];
+            /** Prior Status */
+            prior_status: string;
             /** Rejection Reason */
             rejection_reason: string | null;
             /** Reviewed Snapshot */
@@ -8534,9 +8043,14 @@ export interface components {
          * CreativeStatus
          * @enum {string}
          */
-        CreativeStatus: "draft" | "pending_review" | "approved" | "rejected" | "ready" | "archived";
+        CreativeStatus: "draft" | "pending_review" | "approved" | "rejected" | "archived";
         /** CreativeStatusCounts */
         CreativeStatusCounts: {
+            /**
+             * Approved
+             * @default 0
+             */
+            approved: number;
             /**
              * Archived
              * @default 0
@@ -8548,10 +8062,15 @@ export interface components {
              */
             draft: number;
             /**
-             * Ready
+             * Pending Review
              * @default 0
              */
-            ready: number;
+            pending_review: number;
+            /**
+             * Rejected
+             * @default 0
+             */
+            rejected: number;
             /**
              * Total
              * @default 0
@@ -8562,7 +8081,7 @@ export interface components {
          * CreativeType
          * @enum {string}
          */
-        CreativeType: "image" | "video" | "html" | "text" | "other";
+        CreativeType: "image" | "pdf";
         /** CreativeUpdate */
         CreativeUpdate: {
             creative_type?: components["schemas"]["CreativeType"] | null;
@@ -8597,59 +8116,6 @@ export interface components {
             /** Settlement Provider */
             settlement_provider: string;
         };
-        /** CrmUploadReferenceSourceCreate */
-        CrmUploadReferenceSourceCreate: {
-            /**
-             * Consent Disclaimer Status
-             * @constant
-             */
-            consent_disclaimer_status: "not-reviewed";
-            /**
-             * Dsr Owner Role
-             * @enum {string}
-             */
-            dsr_owner_role: "privacy-officer" | "compliance-owner";
-            /**
-             * Dsr Status
-             * @enum {string}
-             */
-            dsr_status: "pending" | "not-applicable";
-            /**
-             * Expires At
-             * Format: date-time
-             */
-            expires_at: string;
-            /**
-             * Lawful Basis Reference
-             * @enum {string}
-             */
-            lawful_basis_reference: "candidate-legitimate-interest" | "candidate-consent";
-            /**
-             * Lawful Basis Status
-             * @constant
-             */
-            lawful_basis_status: "unapproved";
-            /**
-             * Provenance
-             * @enum {string}
-             */
-            provenance: "advertiser-declared" | "third-party-aggregate";
-            /**
-             * Record Count Band
-             * @enum {string}
-             */
-            record_count_band: "0-99" | "100-999" | "1000-plus";
-            /**
-             * Reference Mode
-             * @constant
-             */
-            reference_mode: "aggregate-availability-only";
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            source_type: "CRM-upload-reference";
-        };
         /** CurrencyAmountRead */
         CurrencyAmountRead: {
             /** Amount */
@@ -8663,12 +8129,6 @@ export interface components {
         };
         /** DailyMetricItem */
         DailyMetricItem: {
-            /** Analyzed Trip Count */
-            analyzed_trip_count: number;
-            /** Average Confidence Score */
-            average_confidence_score: string | null;
-            /** Average Quality Score */
-            average_quality_score: string | null;
             /**
              * Date
              * Format: date
@@ -8676,16 +8136,19 @@ export interface components {
             date: string;
             /** Distance M */
             distance_m: string | null;
+            /** Driving Seconds */
+            driving_seconds: number | null;
             /** Estimated Impressions */
             estimated_impressions: string | null;
-            /** Final Payout Total */
-            final_payout_total: string | null;
-            /** Gross Payout Total */
-            gross_payout_total: string | null;
-            /** Open Fraud Flag Count */
-            open_fraud_flag_count: number;
+            /**
+             * Suppressed
+             * @default false
+             */
+            suppressed: boolean;
             /** Trip Count */
-            trip_count: number;
+            trip_count: number | null;
+            /** Vehicle Count */
+            vehicle_count: number | null;
         };
         /** DailyMetricsResponse */
         DailyMetricsResponse: {
@@ -8704,6 +8167,11 @@ export interface components {
             offset: number;
             /** Start At */
             start_at: string | null;
+            /**
+             * Timezone
+             * @default Africa/Lagos
+             */
+            timezone: string;
             /** Total */
             total: number;
         };
@@ -8722,333 +8190,6 @@ export interface components {
         DashboardCostSummary: {
             /** Totals By Currency */
             totals_by_currency: components["schemas"]["DashboardCostCurrencySummary"][];
-        };
-        /**
-         * DataSubjectDisposition
-         * @enum {string}
-         */
-        DataSubjectDisposition: "provided" | "rectified" | "erased" | "not_found" | "retained_exception";
-        /** DataSubjectInventoryRead */
-        DataSubjectInventoryRead: {
-            /** Database */
-            database: {
-                [key: string]: number;
-            };
-            /** Manual Locations */
-            manual_locations: components["schemas"]["DataSubjectLocation"][];
-            /** Object Storage */
-            object_storage: {
-                [key: string]: number;
-            };
-        };
-        /**
-         * DataSubjectLocation
-         * @enum {string}
-         */
-        DataSubjectLocation: "database" | "object_storage" | "device_queue" | "operational_logs" | "backups" | "processors";
-        /** DataSubjectLocationAssessmentCreate */
-        DataSubjectLocationAssessmentCreate: {
-            /**
-             * Client Request Id
-             * Format: uuid
-             */
-            client_request_id: string;
-            disposition: components["schemas"]["DataSubjectDisposition"];
-            /** Evidence Reference */
-            evidence_reference: string;
-            /** Exception Reference */
-            exception_reference?: string | null;
-            /** External Record Count */
-            external_record_count?: number | null;
-        };
-        /** DataSubjectLocationAssessmentRead */
-        DataSubjectLocationAssessmentRead: {
-            /**
-             * Assessed By User Id
-             * Format: uuid
-             */
-            assessed_by_user_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Data Class Counts */
-            data_class_counts: {
-                [key: string]: number;
-            };
-            disposition: components["schemas"]["DataSubjectDisposition"];
-            /** Evidence Reference */
-            evidence_reference: string;
-            /** Exception Reference */
-            exception_reference: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            location: components["schemas"]["DataSubjectLocation"];
-            /** Record Count */
-            record_count: number;
-        };
-        /** DataSubjectRequestCreate */
-        DataSubjectRequestCreate: {
-            /**
-             * Client Request Id
-             * Format: uuid
-             */
-            client_request_id: string;
-            request_type: components["schemas"]["DataSubjectRequestType"];
-            /**
-             * Requested At
-             * Format: date-time
-             */
-            requested_at: string;
-            /**
-             * Subject User Id
-             * Format: uuid
-             */
-            subject_user_id: string;
-        };
-        /** DataSubjectRequestRead */
-        DataSubjectRequestRead: {
-            /** Completed At */
-            completed_at: string | null;
-            /** Completed By User Id */
-            completed_by_user_id: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Identity Verified At */
-            identity_verified_at: string | null;
-            /** Identity Verified By User Id */
-            identity_verified_by_user_id: string | null;
-            /**
-             * Opened By User Id
-             * Format: uuid
-             */
-            opened_by_user_id: string;
-            request_type: components["schemas"]["DataSubjectRequestType"];
-            /**
-             * Requested At
-             * Format: date-time
-             */
-            requested_at: string;
-            status: components["schemas"]["DataSubjectRequestStatus"];
-            /**
-             * Subject User Id
-             * Format: uuid
-             */
-            subject_user_id: string;
-        };
-        /**
-         * DataSubjectRequestStatus
-         * @enum {string}
-         */
-        DataSubjectRequestStatus: "open" | "identity_verified" | "completed";
-        /**
-         * DataSubjectRequestType
-         * @enum {string}
-         */
-        DataSubjectRequestType: "access" | "rectification" | "erasure";
-        /** DensityProfileProvenanceRead */
-        DensityProfileProvenanceRead: {
-            /** Dwell Impressions Per Minute */
-            dwell_impressions_per_minute: string;
-            /** Effective From */
-            effective_from: string;
-            /** Lineage Id */
-            lineage_id: string;
-            /** Profile Id */
-            profile_id: string;
-            /** Revision */
-            revision: string;
-            /** Road Category Method */
-            road_category_method: string;
-            /** Traffic Density Per Km */
-            traffic_density_per_km: string;
-            /** Value Fingerprint */
-            value_fingerprint: string;
-        };
-        /** DensityProvenanceRead */
-        DensityProvenanceRead: {
-            /** Calibration */
-            calibration: string;
-            /** Profiles */
-            profiles: components["schemas"]["DensityProfileProvenanceRead"][];
-            /** Source */
-            source: string;
-        };
-        /** DigitalCampaignAudienceSourceCreate */
-        DigitalCampaignAudienceSourceCreate: {
-            /** Aggregation Window Days */
-            aggregation_window_days: number;
-            /**
-             * Audience Stage
-             * @enum {string}
-             */
-            audience_stage: "awareness" | "consideration" | "conversion-intent";
-            /**
-             * Channel
-             * @enum {string}
-             */
-            channel: "search" | "social" | "display";
-            /**
-             * Consent Disclaimer Status
-             * @constant
-             */
-            consent_disclaimer_status: "not-reviewed";
-            /**
-             * Dsr Owner Role
-             * @enum {string}
-             */
-            dsr_owner_role: "privacy-officer" | "compliance-owner";
-            /**
-             * Dsr Status
-             * @enum {string}
-             */
-            dsr_status: "pending" | "not-applicable";
-            /**
-             * Expires At
-             * Format: date-time
-             */
-            expires_at: string;
-            /**
-             * Lawful Basis Reference
-             * @enum {string}
-             */
-            lawful_basis_reference: "candidate-legitimate-interest" | "candidate-consent";
-            /**
-             * Lawful Basis Status
-             * @constant
-             */
-            lawful_basis_status: "unapproved";
-            /**
-             * Provenance
-             * @enum {string}
-             */
-            provenance: "advertiser-declared" | "third-party-aggregate";
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            source_type: "digital-campaign-audience";
-        };
-        /** DisplayProofChallengeCreate */
-        DisplayProofChallengeCreate: {
-            /**
-             * Device Id
-             * Format: uuid
-             */
-            device_id: string;
-        };
-        /** DisplayProofChallengeRead */
-        DisplayProofChallengeRead: {
-            /**
-             * Challenge Id
-             * Format: uuid
-             */
-            challenge_id: string;
-            /**
-             * Evidence Submission Id
-             * Format: uuid
-             */
-            evidence_submission_id: string;
-            /**
-             * Expires At
-             * Format: date-time
-             */
-            expires_at: string;
-            /** Nonce */
-            nonce: string;
-        };
-        /** DisplayProofCreate */
-        DisplayProofCreate: {
-            /**
-             * Challenge Id
-             * Format: uuid
-             */
-            challenge_id: string;
-            /**
-             * Device Id
-             * Format: uuid
-             */
-            device_id: string;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
-            /** Nonce */
-            nonce: string;
-            /**
-             * Stored File Id
-             * Format: uuid
-             */
-            stored_file_id: string;
-        };
-        /** DisplayProofRead */
-        DisplayProofRead: {
-            /**
-             * Assignment Id
-             * Format: uuid
-             */
-            assignment_id: string;
-            /**
-             * Challenge Id
-             * Format: uuid
-             */
-            challenge_id: string;
-            /**
-             * Device Id
-             * Format: uuid
-             */
-            device_id: string;
-            /**
-             * Driver Profile Id
-             * Format: uuid
-             */
-            driver_profile_id: string;
-            /**
-             * Evidence Submission Id
-             * Format: uuid
-             */
-            evidence_submission_id: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Metadata */
-            metadata: {
-                [key: string]: unknown;
-            };
-            /**
-             * Stored File Id
-             * Format: uuid
-             */
-            stored_file_id: string;
-            /**
-             * Valid Until
-             * Format: date-time
-             */
-            valid_until: string;
-            /**
-             * Vehicle Id
-             * Format: uuid
-             */
-            vehicle_id: string;
-            /**
-             * Verified At
-             * Format: date-time
-             */
-            verified_at: string;
         };
         /** DocumentReviewRead */
         DocumentReviewRead: {
@@ -9165,7 +8306,7 @@ export interface components {
             /** Phone */
             phone?: string | null;
             /** Service City */
-            service_city?: string | null;
+            service_city: string;
         };
         /**
          * DriverApplicationStatus
@@ -9198,27 +8339,6 @@ export interface components {
              */
             status: "pending";
         };
-        /** DriverCampaignCostMetricRead */
-        DriverCampaignCostMetricRead: {
-            /**
-             * Class
-             * @constant
-             */
-            class: "measured_financial_fact";
-            completeness: components["schemas"]["MeasurementCompletenessRead"];
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            id: "driver_campaign_cost";
-            /**
-             * Label
-             * @constant
-             */
-            label: "Driver campaign cost";
-            /** Totals By Currency */
-            totals_by_currency: components["schemas"]["CampaignCostTotalRead"][];
-        };
         /** DriverContactStateRead */
         DriverContactStateRead: {
             challenge?: components["schemas"]["PhoneChallengeRead"] | null;
@@ -9229,6 +8349,20 @@ export interface components {
              */
             verification_available: boolean;
             whatsapp_consent: components["schemas"]["WhatsappConsentRead"] | null;
+        };
+        /** DriverCurrentJob */
+        DriverCurrentJob: {
+            assignment: components["schemas"]["CampaignAssignmentRead"] | null;
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /**
+             * Photo Status
+             * @default unavailable
+             * @enum {string}
+             */
+            photo_status: "ready" | "installation_required" | "unavailable";
         };
         /** DriverDocumentsRead */
         DriverDocumentsRead: {
@@ -9242,8 +8376,6 @@ export interface components {
             available_amount: string | null;
             /** Batch Payable Amount */
             batch_payable_amount: string | null;
-            /** Carry Forward Debt Amount */
-            carry_forward_debt_amount: string | null;
             /** Cash Paid Amount */
             cash_paid_amount: string | null;
             /** Currency */
@@ -9261,6 +8393,37 @@ export interface components {
             /** Voided Amount */
             voided_amount: string | null;
         };
+        /** DriverEarningsDayRead */
+        DriverEarningsDayRead: {
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Paid At */
+            paid_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "on_hold" | "paid" | "paying_tonight" | "being_checked";
+            /** Trip Ids */
+            trip_ids: string[];
+        };
+        /**
+         * DriverEarningsDaysRead
+         * @description REQ-208: the driver's daily earnings and headline totals in one read.
+         */
+        DriverEarningsDaysRead: {
+            /** Days */
+            days: components["schemas"]["DriverEarningsDayRead"][];
+            /** Totals */
+            totals: components["schemas"]["DriverEarningsTotalsRead"][];
+        };
         /** DriverEarningsSummary */
         DriverEarningsSummary: {
             /**
@@ -9270,6 +8433,19 @@ export interface components {
             driver_profile_id: string;
             /** Totals By Currency */
             totals_by_currency: components["schemas"]["DriverEarningsCurrencySummary"][];
+        };
+        /** DriverEarningsTotalsRead */
+        DriverEarningsTotalsRead: {
+            /** Currency */
+            currency: string;
+            /** On Hold */
+            on_hold: string;
+            /** This Week */
+            this_week: string;
+            /** Today */
+            today: string;
+            /** Total */
+            total: string;
         };
         /** DriverFraudDisputeRead */
         DriverFraudDisputeRead: {
@@ -9414,8 +8590,6 @@ export interface components {
         DriverMoneyBalanceRead: {
             /** Batch Payable */
             batch_payable: string;
-            /** Carry Forward Debt */
-            carry_forward_debt: string;
             /** Cash Paid */
             cash_paid: string;
             /** Currency */
@@ -9767,7 +8941,7 @@ export interface components {
          * EarningsLedgerEntryType
          * @enum {string}
          */
-        EarningsLedgerEntryType: "trip_payout" | "adjustment" | "reversal" | "debt_remainder";
+        EarningsLedgerEntryType: "trip_payout" | "adjustment" | "reversal";
         /** EarningsWorkDayRead */
         EarningsWorkDayRead: {
             /** Amount */
@@ -9799,12 +8973,8 @@ export interface components {
             bank_account_version_id: string | null;
             /** Campaign Name */
             campaign_name: string;
-            /** Carry Forward Debt */
-            carry_forward_debt: string;
             /** Currency */
             currency: string;
-            /** Debt Deducted */
-            debt_deducted: string;
             /** Destination Verified */
             destination_verified: boolean;
             /** Driver Name */
@@ -9831,45 +9001,6 @@ export interface components {
             /** Payee Name */
             payee_name: string | null;
         };
-        /** EmailDeliveryReceiptCreate */
-        EmailDeliveryReceiptCreate: {
-            /**
-             * Occurred At
-             * Format: date-time
-             */
-            occurred_at: string;
-            /**
-             * Outcome
-             * @enum {string}
-             */
-            outcome: "delivered" | "failed";
-            /** Provider Event Id */
-            provider_event_id: string;
-            /** Provider Message Id */
-            provider_message_id: string;
-        };
-        /** EmailDeliveryReceiptRead */
-        EmailDeliveryReceiptRead: {
-            /**
-             * Occurred At
-             * Format: date-time
-             */
-            occurred_at: string;
-            /**
-             * Outcome
-             * @enum {string}
-             */
-            outcome: "delivered" | "failed";
-            /** Provider Event Id */
-            provider_event_id: string;
-            /** Provider Message Id */
-            provider_message_id: string;
-            /**
-             * Verified At
-             * Format: date-time
-             */
-            verified_at: string;
-        };
         /** ErrorDetail */
         ErrorDetail: {
             /** Code */
@@ -9893,13 +9024,6 @@ export interface components {
             metadata?: {
                 [key: string]: unknown;
             };
-            /** Traffic Density Profile Id */
-            traffic_density_profile_id?: string | null;
-        };
-        /** EvidenceVerificationList */
-        EvidenceVerificationList: {
-            /** Items */
-            items: components["schemas"]["EvidenceVerificationRead"][];
         };
         /** EvidenceVerificationRead */
         EvidenceVerificationRead: {
@@ -9913,15 +9037,11 @@ export interface components {
              * Format: uuid
              */
             campaign_id: string;
-            /** Display Proof Id */
-            display_proof_id: string | null;
             /**
              * Driver Profile Id
              * Format: uuid
              */
             driver_profile_id: string;
-            /** Due At */
-            due_at: string | null;
             /** Fraud Flag Id */
             fraud_flag_id: string | null;
             /**
@@ -9963,208 +9083,12 @@ export interface components {
          * EvidenceVerificationStatus
          * @enum {string}
          */
-        EvidenceVerificationStatus: "pending" | "satisfied" | "missed" | "passed" | "failed";
+        EvidenceVerificationStatus: "passed" | "failed";
         /**
          * EvidenceVerificationType
          * @enum {string}
          */
-        EvidenceVerificationType: "high_earner_renewal" | "concurrent_session" | "physical_spot_check";
-        /** ExposureScoreConstantsRead */
-        ExposureScoreConstantsRead: {
-            /**
-             * Active Tracking Cap Seconds
-             * @constant
-             */
-            active_tracking_cap_seconds: 3600;
-            /**
-             * Active Tracking Weight
-             * @constant
-             */
-            active_tracking_weight: "0.40";
-            /**
-             * Distance Cap M
-             * @constant
-             */
-            distance_cap_m: "10000";
-            /**
-             * Distance Weight
-             * @constant
-             */
-            distance_weight: "0.60";
-        };
-        /** ExposureScoreFormulaRead */
-        ExposureScoreFormulaRead: {
-            /** Campaign Calculation */
-            campaign_calculation: string;
-            constants: components["schemas"]["ExposureScoreConstantsRead"];
-            /**
-             * Formula Version
-             * @constant
-             */
-            formula_version: "exposure_v1";
-            /** Inputs */
-            inputs: ("distance_m" | "active_tracking_seconds" | "quality_score")[];
-            /** Missing Data */
-            missing_data: string;
-            range: components["schemas"]["ExposureScoreRangeRead"];
-            /**
-             * Rounding
-             * @constant
-             */
-            rounding: "ROUND_HALF_UP to 2 decimal places";
-            /** Route Calculation */
-            route_calculation: string;
-            /**
-             * Scope
-             * @constant
-             */
-            scope: "campaign_route";
-            /**
-             * Unit
-             * @constant
-             */
-            unit: "points";
-        };
-        /** ExposureScoreProvenanceRead */
-        ExposureScoreProvenanceRead: {
-            /** Measurement Input Sha256 */
-            measurement_input_sha256: string;
-            /** Measurement Proof Sha256 */
-            measurement_proof_sha256: string;
-            /** Measurement Result Sha256 */
-            measurement_result_sha256: string;
-            /**
-             * Measurement Run Id
-             * Format: uuid
-             */
-            measurement_run_id: string;
-        };
-        /** ExposureScoreRangeRead */
-        ExposureScoreRangeRead: {
-            /**
-             * Maximum
-             * @constant
-             */
-            maximum: "100.00";
-            /**
-             * Minimum
-             * @constant
-             */
-            minimum: "0.00";
-        };
-        /** ExposureScoreRead */
-        ExposureScoreRead: {
-            /**
-             * Campaign Id
-             * Format: uuid
-             */
-            campaign_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Formula Fingerprint */
-            formula_fingerprint: string;
-            /** Formula Version */
-            formula_version: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Input Fingerprint */
-            input_fingerprint: string;
-            /**
-             * Issued By User Id
-             * Format: uuid
-             */
-            issued_by_user_id: string;
-            /** Measurement Input Sha256 */
-            measurement_input_sha256: string;
-            /** Measurement Proof Sha256 */
-            measurement_proof_sha256: string;
-            /** Measurement Result Sha256 */
-            measurement_result_sha256: string;
-            /**
-             * Measurement Run Id
-             * Format: uuid
-             */
-            measurement_run_id: string;
-            /**
-             * Organization Id
-             * Format: uuid
-             */
-            organization_id: string;
-            /** Reissue Of Score Id */
-            reissue_of_score_id: string | null;
-            /** Reproducible */
-            reproducible: boolean;
-            result: components["schemas"]["ExposureScoreResultRead"];
-            /** Result Fingerprint */
-            result_fingerprint: string;
-            /** Stale */
-            stale: boolean;
-        };
-        /** ExposureScoreResultRead */
-        ExposureScoreResultRead: {
-            formula: components["schemas"]["ExposureScoreFormulaRead"];
-            /** Formula Fingerprint */
-            formula_fingerprint: string;
-            /**
-             * Formula Version
-             * @constant
-             */
-            formula_version: "exposure_v1";
-            /** Input Fingerprint */
-            input_fingerprint: string;
-            /**
-             * Label
-             * @constant
-             */
-            label: "Exposure score";
-            /**
-             * Metric Class
-             * @constant
-             */
-            metric_class: "operational_composite_index";
-            /** Missing Route Count */
-            missing_route_count: number;
-            provenance: components["schemas"]["ExposureScoreProvenanceRead"];
-            range: components["schemas"]["ExposureScoreRangeRead"];
-            /** Route Count */
-            route_count: number;
-            /** Route Scores */
-            route_scores: components["schemas"]["RouteExposureScoreRead"][];
-            /**
-             * Schema Version
-             * @constant
-             */
-            schema_version: "exposure-score-result-v1";
-            /** Score */
-            score: string | null;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "scored" | "insufficient_data";
-            uncertainty: components["schemas"]["ExposureScoreUncertaintyRead"];
-            /**
-             * Unit
-             * @constant
-             */
-            unit: "points";
-        };
-        /** ExposureScoreUncertaintyRead */
-        ExposureScoreUncertaintyRead: {
-            /**
-             * Classification
-             * @constant
-             */
-            classification: "synthetic_uncalibrated_index";
-            /** Statement */
-            statement: string;
-        };
+        EvidenceVerificationType: "physical_spot_check";
         /**
          * FileAccessPurpose
          * @enum {string}
@@ -10266,10 +9190,6 @@ export interface components {
             max_driver_liability: number | string;
             /** Reason */
             reason: string;
-            /** Subsidy Amount */
-            subsidy_amount?: number | string | null;
-            /** Subsidy Reference */
-            subsidy_reference?: string | null;
         };
         /** FinancialAuthorityRead */
         FinancialAuthorityRead: {
@@ -10311,14 +9231,12 @@ export interface components {
             reason: string;
             /** Revision Number */
             revision_number: number;
-            /** Subsidy Reference */
-            subsidy_reference: string | null;
         };
         /**
          * FinancialAuthorityType
          * @enum {string}
          */
-        FinancialAuthorityType: "prepaid_cash" | "approved_credit" | "subsidy";
+        FinancialAuthorityType: "prepaid_cash" | "approved_credit";
         /** FraudDisputeCreate */
         FraudDisputeCreate: {
             /** Message */
@@ -10336,11 +9254,6 @@ export interface components {
         FraudDisputeStatus: "open" | "replied";
         /** FraudFlagCounts */
         FraudFlagCounts: {
-            /**
-             * Acknowledged
-             * @default 0
-             */
-            acknowledged: number;
             /**
              * Confirmed
              * @default 0
@@ -10389,10 +9302,6 @@ export interface components {
             available_net: string;
             /** Currency */
             currency: string | null;
-            /** Reversal Entry Id */
-            reversal_entry_id: string | null;
-            /** Reversal Recommended */
-            reversal_recommended: boolean;
         };
         /** FraudFlagRead */
         FraudFlagRead: {
@@ -10478,12 +9387,12 @@ export interface components {
          * FraudFlagStatus
          * @enum {string}
          */
-        FraudFlagStatus: "open" | "acknowledged" | "confirmed" | "dismissed";
+        FraudFlagStatus: "open" | "confirmed" | "dismissed";
         /**
          * FraudFlagType
          * @enum {string}
          */
-        FraudFlagType: "insufficient_pings" | "impossible_speed" | "poor_accuracy" | "stationary_trip" | "excessive_ping_gap" | "future_timestamp" | "route_looping" | "route_replay" | "exclusion_zone_presence" | "missed_display_challenge" | "concurrent_session_day" | "physical_spot_check_failed";
+        FraudFlagType: "impossible_speed" | "stationary_trip" | "excessive_ping_gap" | "route_replay" | "exclusion_zone_presence" | "physical_spot_check_failed";
         /** HeatmapFeature */
         HeatmapFeature: {
             /** Geometry */
@@ -10574,72 +9483,6 @@ export interface components {
          * @enum {string}
          */
         HeatmapMetric: "ping_count" | "trip_count" | "distance_m" | "estimated_impressions";
-        /** HighExposureZoneInsightsRead */
-        HighExposureZoneInsightsRead: {
-            /** Campaign Exposure Score */
-            campaign_exposure_score: string | null;
-            /**
-             * Campaign Id
-             * Format: uuid
-             */
-            campaign_id: string;
-            /** Disclaimer */
-            disclaimer: string;
-            /** Items */
-            items: components["schemas"]["HighExposureZoneItem"][];
-            provenance: components["schemas"]["HighExposureZoneProvenance"] | null;
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "empty" | "suppressed" | "ready" | "stale" | "unavailable";
-            /** Uncertainty */
-            uncertainty: string | null;
-        };
-        /** HighExposureZoneItem */
-        HighExposureZoneItem: {
-            /** Modelled Potential Contacts */
-            modelled_potential_contacts: string;
-            /** Rank */
-            rank: number;
-            /** Trip Count */
-            trip_count: number;
-            /**
-             * Zone Id
-             * Format: uuid
-             */
-            zone_id: string;
-            /** Zone Name */
-            zone_name: string;
-        };
-        /** HighExposureZoneProvenance */
-        HighExposureZoneProvenance: {
-            /** Exposure Formula Fingerprint */
-            exposure_formula_fingerprint: string;
-            /** Exposure Formula Version */
-            exposure_formula_version: string;
-            /** Exposure Input Fingerprint */
-            exposure_input_fingerprint: string;
-            /**
-             * Exposure Score Id
-             * Format: uuid
-             */
-            exposure_score_id: string;
-            /** Formula Fingerprint */
-            formula_fingerprint: string;
-            /**
-             * Formula Version
-             * @constant
-             */
-            formula_version: "high_exposure_zone_v1";
-            /**
-             * Measurement Run Id
-             * Format: uuid
-             */
-            measurement_run_id: string;
-            /** Source Segments */
-            source_segments: components["schemas"]["ZoneInsightSegmentProvenance"][];
-        };
         /** ImpressionEstimateListResponse */
         ImpressionEstimateListResponse: {
             /** Items */
@@ -10714,11 +9557,6 @@ export interface components {
             status: components["schemas"]["ImpressionEstimateStatus"];
             /** Target Zone Impressions */
             target_zone_impressions: string | null;
-            /**
-             * Traffic Density Profile Id
-             * Format: uuid
-             */
-            traffic_density_profile_id: string;
             /**
              * Trip Analytics Id
              * Format: uuid
@@ -10810,21 +9648,14 @@ export interface components {
         };
         /** InstallationEvidencePolicyRead */
         InstallationEvidencePolicyRead: {
-            /** Can Upload */
-            can_upload: boolean;
-            /** Configured */
-            configured: boolean;
-            /** Display Proof Challenge Ttl Seconds */
-            display_proof_challenge_ttl_seconds: number | null;
-            /** Display Proof Validity Seconds */
-            display_proof_validity_seconds: number | null;
             /** Evidence Validity Hours */
-            evidence_validity_hours: number | null;
+            evidence_validity_hours: number;
             /** Required Views */
             required_views: string[];
         };
         /** InstallationEvidenceRead */
         InstallationEvidenceRead: {
+            activation?: components["schemas"]["AssignmentReadinessRead"] | null;
             /** Approved Until */
             approved_until: string | null;
             /**
@@ -10967,14 +9798,6 @@ export interface components {
              * Format: uuid
              */
             commercial_terms_id: string;
-        };
-        /** InvoiceIssue */
-        InvoiceIssue: {
-            /**
-             * Issuer Profile Id
-             * Format: uuid
-             */
-            issuer_profile_id: string;
         };
         /** InvoiceRead */
         InvoiceRead: {
@@ -11137,6 +9960,21 @@ export interface components {
          * @enum {string}
          */
         KycSubmissionStatus: "pending_review" | "approved" | "rejected" | "expired";
+        /** LivePositionsRead */
+        LivePositionsRead: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Delay Minutes
+             * @default 15
+             */
+            delay_minutes: number;
+            /** Positions */
+            positions: components["schemas"]["AnonymousPosition"][];
+        };
         /** LocationPingBatchCreate */
         LocationPingBatchCreate: {
             /** Batch Sequence */
@@ -11163,17 +10001,17 @@ export interface components {
             batch_sequence?: number | null;
             /** Duplicate */
             duplicate: boolean;
+            /**
+             * Evidence Scope
+             * @enum {string}
+             */
+            evidence_scope: "manifest" | "late" | "late_dropped";
             /** Outcome */
             outcome?: string | null;
             /** Payload Hash */
             payload_hash: string;
             /** Payload Hash Version */
             payload_hash_version: number;
-            /**
-             * Quarantined
-             * @default false
-             */
-            quarantined: boolean;
             /** Receipt Format Version */
             receipt_format_version?: number | null;
             /** Receipt Key Version */
@@ -11327,59 +10165,6 @@ export interface components {
             /** Status */
             status: string;
         };
-        /** ManualInsightSourceCreate */
-        ManualInsightSourceCreate: {
-            /**
-             * Confidence Band
-             * @enum {string}
-             */
-            confidence_band: "low" | "medium" | "high";
-            /**
-             * Consent Disclaimer Status
-             * @constant
-             */
-            consent_disclaimer_status: "not-reviewed";
-            /**
-             * Dsr Owner Role
-             * @enum {string}
-             */
-            dsr_owner_role: "privacy-officer" | "compliance-owner";
-            /**
-             * Dsr Status
-             * @enum {string}
-             */
-            dsr_status: "pending" | "not-applicable";
-            /**
-             * Expires At
-             * Format: date-time
-             */
-            expires_at: string;
-            /**
-             * Insight Category
-             * @enum {string}
-             */
-            insight_category: "area-demand" | "time-pattern" | "contextual-affinity";
-            /**
-             * Lawful Basis Reference
-             * @enum {string}
-             */
-            lawful_basis_reference: "candidate-legitimate-interest" | "candidate-consent";
-            /**
-             * Lawful Basis Status
-             * @constant
-             */
-            lawful_basis_status: "unapproved";
-            /**
-             * Provenance
-             * @enum {string}
-             */
-            provenance: "advertiser-declared" | "third-party-aggregate";
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            source_type: "manual-insight";
-        };
         /** ManualTransferCreate */
         ManualTransferCreate: {
             /** Allocation Amount */
@@ -11439,358 +10224,15 @@ export interface components {
             user: components["schemas"]["UserRead"];
         };
         /**
-         * MeasurementCompletenessRead
-         * @description The frozen completeness/denominator disclosure carried by every metric.
-         */
-        MeasurementCompletenessRead: {
-            /** Cohort Trip Count */
-            cohort_trip_count: number;
-            /** Complete */
-            complete: boolean;
-            /** Covered Trip Count */
-            covered_trip_count: number;
-            /** Denominator Trip Count */
-            denominator_trip_count: number;
-            /** Excluded Trip Count */
-            excluded_trip_count: number;
-            /** In Progress Trip Count */
-            in_progress_trip_count: number;
-            /** Insufficient Data Trip Count */
-            insufficient_data_trip_count: number;
-            /** Suppressed */
-            suppressed: boolean;
-        };
-        /** MeasurementPeriodRead */
-        MeasurementPeriodRead: {
-            /**
-             * End At
-             * Format: date-time
-             */
-            end_at: string;
-            /**
-             * Start At
-             * Format: date-time
-             */
-            start_at: string;
-        };
-        /** MeasurementProofBindingRead */
-        MeasurementProofBindingRead: {
-            /**
-             * Activation Event Id
-             * Format: uuid
-             */
-            activation_event_id: string;
-            /** Activation Snapshot Sha256 */
-            activation_snapshot_sha256: string;
-            /**
-             * Assignment Id
-             * Format: uuid
-             */
-            assignment_id: string;
-            /** Binding Fingerprint */
-            binding_fingerprint: string;
-            /**
-             * Creative Id
-             * Format: uuid
-             */
-            creative_id: string;
-            /**
-             * Installation Evidence Submission Id
-             * Format: uuid
-             */
-            installation_evidence_submission_id: string;
-        };
-        /** MeasurementResultRead */
-        MeasurementResultRead: {
-            /** Formula Version */
-            formula_version: string;
-            /** Method Revision */
-            method_revision: string;
-            /** Metrics */
-            metrics: (components["schemas"]["VerifiedMovementMetricRead"] | components["schemas"]["ModelledContactsMetricRead"] | components["schemas"]["DriverCampaignCostMetricRead"])[];
-            mode: components["schemas"]["MeasurementRunMode"];
-            period: components["schemas"]["MeasurementPeriodRead"];
-            /** Proof Manifest Sha256 */
-            proof_manifest_sha256: string;
-            roi: components["schemas"]["MeasurementRoiRead"] | null;
-            /** Roi Gate */
-            roi_gate: components["schemas"]["MeasurementRoiOmittedRead"] | components["schemas"]["MeasurementRoiIncludedRead"];
-            /**
-             * Schema Version
-             * @constant
-             */
-            schema_version: "measurement-result-v1";
-            /**
-             * Title
-             * @constant
-             */
-            title: "Campaign Performance Analysis";
-        };
-        /** MeasurementRoiIncludedRead */
-        MeasurementRoiIncludedRead: {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            decision: "INCLUDE";
-            /** Test Only */
-            test_only: boolean;
-        };
-        /**
-         * MeasurementRoiMethodRead
-         * @description Every ROI method fact the methodology contract requires beside a result.
-         */
-        MeasurementRoiMethodRead: {
-            /** Approval Reference */
-            approval_reference: string;
-            /** Attribution Rule */
-            attribution_rule: string;
-            /** Attribution Window */
-            attribution_window: string;
-            /** Corrections */
-            corrections: string;
-            /** Cost Basis */
-            cost_basis: string;
-            /** Exclusions */
-            exclusions: string;
-            /** Late Data */
-            late_data: string;
-            /** Limitations */
-            limitations: string;
-        };
-        /** MeasurementRoiOmittedRead */
-        MeasurementRoiOmittedRead: {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            decision: "OMIT";
-        };
-        /** MeasurementRoiProvenanceRead */
-        MeasurementRoiProvenanceRead: {
-            /** Conversion Provenance */
-            conversion_provenance: string;
-            /** Reporting Cutoff */
-            reporting_cutoff: string;
-            /** Revenue Provenance */
-            revenue_provenance: string;
-            /** Synthetic */
-            synthetic: boolean;
-        };
-        /** MeasurementRoiRead */
-        MeasurementRoiRead: {
-            /**
-             * Class
-             * @constant
-             */
-            class: "conditional_financial_measure";
-            /** Currency */
-            currency: string;
-            /**
-             * Label
-             * @constant
-             */
-            label: "Return on investment";
-            method: components["schemas"]["MeasurementRoiMethodRead"];
-            /** Method Revision */
-            method_revision: string;
-            /** Percent */
-            percent: string;
-            provenance: components["schemas"]["MeasurementRoiProvenanceRead"];
-            /** Ratio */
-            ratio: string;
-        };
-        /** MeasurementRunCreate */
-        MeasurementRunCreate: {
-            /**
-             * Campaign Id
-             * Format: uuid
-             */
-            campaign_id: string;
-            /**
-             * Client Request Id
-             * Format: uuid
-             */
-            client_request_id: string;
-            /** @default performance_only */
-            mode: components["schemas"]["MeasurementRunMode"];
-            /**
-             * Period End At
-             * Format: date-time
-             */
-            period_end_at: string;
-            /**
-             * Period Start At
-             * Format: date-time
-             */
-            period_start_at: string;
-            roi?: components["schemas"]["RoiInput"] | null;
-            /**
-             * Test Only
-             * @default false
-             */
-            test_only: boolean;
-        };
-        /**
-         * MeasurementRunMode
-         * @enum {string}
-         */
-        MeasurementRunMode: "performance_only" | "roi_enabled";
-        /** MeasurementRunRead */
-        MeasurementRunRead: {
-            /**
-             * Campaign Id
-             * Format: uuid
-             */
-            campaign_id: string;
-            /**
-             * Client Request Id
-             * Format: uuid
-             */
-            client_request_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Created By User Id
-             * Format: uuid
-             */
-            created_by_user_id: string;
-            exposure_score?: components["schemas"]["ExposureScoreRead"] | null;
-            /** Formula Version */
-            formula_version: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Input Manifest */
-            input_manifest: {
-                [key: string]: unknown;
-            };
-            /** Input Manifest Sha256 */
-            input_manifest_sha256: string;
-            /** Method Revision */
-            method_revision: string;
-            mode: components["schemas"]["MeasurementRunMode"];
-            /**
-             * Organization Id
-             * Format: uuid
-             */
-            organization_id: string;
-            /**
-             * Period End At
-             * Format: date-time
-             */
-            period_end_at: string;
-            /**
-             * Period Start At
-             * Format: date-time
-             */
-            period_start_at: string;
-            /** Proof Bindings */
-            proof_bindings: components["schemas"]["MeasurementProofBindingRead"][];
-            /** Proof Manifest */
-            proof_manifest: {
-                [key: string]: unknown;
-            };
-            /** Proof Manifest Sha256 */
-            proof_manifest_sha256: string;
-            /** Reissue Of Run Id */
-            reissue_of_run_id: string | null;
-            /** Report Snapshot Sha256 */
-            report_snapshot_sha256: string;
-            /** Reproducible */
-            reproducible: boolean;
-            /** Result Manifest */
-            result_manifest: {
-                [key: string]: unknown;
-            };
-            /** Result Manifest Sha256 */
-            result_manifest_sha256: string;
-            /** Roi Method Revision */
-            roi_method_revision: string | null;
-            /** Test Only */
-            test_only: boolean;
-        };
-        /** MeasurementRunSummary */
-        MeasurementRunSummary: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Formula Version */
-            formula_version: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Input Manifest Sha256 */
-            input_manifest_sha256: string;
-            /** Method Revision */
-            method_revision: string;
-            mode: components["schemas"]["MeasurementRunMode"];
-            /**
-             * Period End At
-             * Format: date-time
-             */
-            period_end_at: string;
-            /**
-             * Period Start At
-             * Format: date-time
-             */
-            period_start_at: string;
-            /** Proof Manifest Sha256 */
-            proof_manifest_sha256: string;
-            /** Reissue Of Run Id */
-            reissue_of_run_id: string | null;
-            /** Report Snapshot Sha256 */
-            report_snapshot_sha256: string;
-            /** Result Manifest Sha256 */
-            result_manifest_sha256: string;
-            /** Roi Method Revision */
-            roi_method_revision: string | null;
-        };
-        /**
          * MembershipRole
          * @enum {string}
          */
-        MembershipRole: "owner" | "manager" | "viewer";
+        MembershipRole: "advertiser";
         /**
          * MembershipStatus
          * @enum {string}
          */
         MembershipStatus: "active" | "invited" | "disabled";
-        /** ModelledContactsMetricRead */
-        ModelledContactsMetricRead: {
-            /**
-             * Class
-             * @constant
-             */
-            class: "modelled_measure";
-            completeness: components["schemas"]["MeasurementCompletenessRead"];
-            density_provenance: components["schemas"]["DensityProvenanceRead"];
-            /** Formula Versions */
-            formula_versions: string[];
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            id: "modelled_potential_contacts";
-            /**
-             * Label
-             * @constant
-             */
-            label: "Modelled potential contacts";
-            /** Uncertainty */
-            uncertainty: string;
-            /** Value */
-            value: string | null;
-        };
         /** NinRevealRead */
         NinRevealRead: {
             /** Nin */
@@ -11841,7 +10283,7 @@ export interface components {
          * NotificationType
          * @enum {string}
          */
-        NotificationType: "assignment_offered" | "assignment_accepted" | "campaign_approved" | "campaign_rejected" | "creative_approved" | "creative_rejected" | "quotation_ready" | "funding_confirmed" | "budget_alert" | "budget_urgent_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "evidence_challenge_created" | "evidence_verified" | "payout_released" | "password_reset_requested" | "driver_onboarding_access_requested" | "driver_account_setup_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered" | "payout_automatic_alert" | "payout_automatic_paused" | "payout_automatic_resumed" | "complaint_received" | "complaint_replied" | "complaint_resolved" | "complaint_assigned";
+        NotificationType: "driver_id_approved" | "driver_id_rejected" | "driver_car_approved" | "driver_car_rejected" | "assignment_offered" | "assignment_accepted" | "campaign_approved" | "campaign_rejected" | "creative_approved" | "creative_rejected" | "quotation_ready" | "report_ready" | "funding_confirmed" | "budget_alert" | "budget_urgent_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "payout_released" | "password_reset_requested" | "advertiser_login_invite" | "driver_onboarding_access_requested" | "driver_account_setup_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "assignment_inactive" | "payout_automatic_alert" | "payout_automatic_paused" | "payout_automatic_resumed" | "complaint_received" | "complaint_replied" | "complaint_resolved";
         /** NotificationUnreadCountRead */
         NotificationUnreadCountRead: {
             /** Unread Count */
@@ -11857,6 +10299,13 @@ export interface components {
          * @enum {string}
          */
         OrganizationStatus: "active" | "suspended" | "disabled";
+        /** OutstandingInvoiceAmountRead */
+        OutstandingInvoiceAmountRead: {
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+        };
         /** PasswordResetComplete */
         PasswordResetComplete: {
             /** New Password */
@@ -11945,20 +10394,27 @@ export interface components {
              */
             event_id: string;
         };
+        /** PayoutActionReason */
+        PayoutActionReason: {
+            /** Reason */
+            reason: string;
+        };
         /**
          * PayoutAutomaticAlertKind
          * @enum {string}
          */
-        PayoutAutomaticAlertKind: "failed_payment" | "duplicate_payment" | "daily_limit" | "batch_limit" | "run_failed" | "submission_blocked" | "business_health";
+        PayoutAutomaticAlertKind: "failed_payment" | "duplicate_payment" | "daily_limit" | "run_failed" | "submission_blocked" | "business_health";
         /**
          * PayoutBatchApprovalMode
          * @enum {string}
          */
-        PayoutBatchApprovalMode: "maker_checker" | "automatic";
+        PayoutBatchApprovalMode: "manual" | "automatic";
         /** PayoutBatchCreate */
         PayoutBatchCreate: {
             /** Currency */
             currency: string;
+            /** Reason */
+            reason: string;
             /** Request Id */
             request_id?: string | null;
         };
@@ -12040,7 +10496,7 @@ export interface components {
         };
         /** PayoutBatchRead */
         PayoutBatchRead: {
-            /** @default maker_checker */
+            /** @default manual */
             approval_mode: components["schemas"]["PayoutBatchApprovalMode"];
             /** Approved At */
             approved_at: string | null;
@@ -12081,6 +10537,8 @@ export interface components {
         PayoutBatchReserve: {
             /** Ledger Entry Ids */
             ledger_entry_ids: string[];
+            /** Reason */
+            reason: string;
         };
         /**
          * PayoutBatchStatus
@@ -12100,7 +10558,7 @@ export interface components {
         };
         /** PayoutBatchSummaryRead */
         PayoutBatchSummaryRead: {
-            /** @default maker_checker */
+            /** @default manual */
             approval_mode: components["schemas"]["PayoutBatchApprovalMode"];
             /** Approved At */
             approved_at: string | null;
@@ -12240,6 +10698,17 @@ export interface components {
          * @enum {string}
          */
         PayoutCalculationStatus: "calculated" | "insufficient_data" | "blocked";
+        /** PayoutCorrectionOrderApproveRequest */
+        PayoutCorrectionOrderApproveRequest: {
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Reason */
+            reason: string;
+            /** Release At */
+            release_at?: string | null;
+        };
         /** PayoutCorrectionOrderCreate */
         PayoutCorrectionOrderCreate: {
             /**
@@ -12254,15 +10723,6 @@ export interface components {
             lagos_day: string;
             /** Reason */
             reason: string;
-        };
-        /** PayoutCorrectionOrderExecuteRequest */
-        PayoutCorrectionOrderExecuteRequest: {
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
-            /** Release At */
-            release_at?: string | null;
         };
         /** PayoutCorrectionOrderListResponse */
         PayoutCorrectionOrderListResponse: {
@@ -12332,7 +10792,7 @@ export interface components {
          * PayoutCorrectionOrderStatus
          * @enum {string}
          */
-        PayoutCorrectionOrderStatus: "draft" | "pending_approval" | "approved" | "rejected" | "executed" | "stale";
+        PayoutCorrectionOrderStatus: "draft" | "executed" | "stale";
         /** PayoutDayProjection */
         PayoutDayProjection: {
             /**
@@ -12351,19 +10811,6 @@ export interface components {
             };
             /** Projection Fingerprint */
             projection_fingerprint: string;
-        };
-        /** PayoutDebtAllocate */
-        PayoutDebtAllocate: {
-            /** Currency */
-            currency: string;
-        };
-        /** PayoutDebtAllocationRead */
-        PayoutDebtAllocationRead: {
-            balance: components["schemas"]["DriverMoneyBalanceRead"];
-            /** Remainder Entry Ids */
-            remainder_entry_ids: string[];
-            /** Settlement Ids */
-            settlement_ids: string[];
         };
         /** PayoutLedgerEntrySummary */
         PayoutLedgerEntrySummary: {
@@ -12414,6 +10861,22 @@ export interface components {
             offset: number;
             /** Total */
             total: number;
+        };
+        /** PayoutNegativeAdjustment */
+        PayoutNegativeAdjustment: {
+            /** Amount */
+            amount: number | string;
+            /** Currency */
+            currency: string;
+            /** Lagos Day */
+            lagos_day?: string | null;
+            /** Reason */
+            reason: string;
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
         };
         /** PayoutOperationLineRead */
         PayoutOperationLineRead: {
@@ -12468,11 +10931,6 @@ export interface components {
             ledger_entry_ids: string[];
             /** Total Amount */
             total_amount: string;
-        };
-        /** PayoutV4Status */
-        PayoutV4Status: {
-            /** Publishing Enabled */
-            publishing_enabled: boolean;
         };
         /** PaystackWebhookReceipt */
         PaystackWebhookReceipt: {
@@ -12704,24 +11162,6 @@ export interface components {
              * Format: uuid
              */
             client_request_id: string;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
-            /** Note */
-            note: string;
-            /**
-             * Trip Session Id
-             * Format: uuid
-             */
-            trip_session_id: string;
-        };
-        /** PhysicalSpotCheckResolve */
-        PhysicalSpotCheckResolve: {
-            /** Evidence */
-            evidence?: {
-                [key: string]: unknown;
-            };
             /** Note */
             note: string;
             /**
@@ -12729,6 +11169,11 @@ export interface components {
              * @enum {string}
              */
             outcome: "passed" | "failed";
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
         };
         /**
          * PingSampleResult
@@ -12738,7 +11183,7 @@ export interface components {
             /** Index */
             index: number;
             /** Rejection Code */
-            rejection_code?: ("INVALID_RECORDED_AT" | "INVALID_ASSIGNMENT_AUTHORITY" | "INVALID_ACCURACY" | "INVALID_SPEED") | null;
+            rejection_code?: ("INVALID_RECORDED_AT" | "INVALID_ASSIGNMENT_AUTHORITY" | "INVALID_ACCURACY" | "INVALID_SPEED" | "PAY_ALREADY_CALCULATED") | null;
             /** Sequence Number */
             sequence_number?: number | null;
             /**
@@ -12795,95 +11240,6 @@ export interface components {
             /** Average Quality Score */
             average_quality_score: string | null;
             fraud_flags: components["schemas"]["FraudFlagCounts"];
-        };
-        /** QuarantineApplyResponse */
-        QuarantineApplyResponse: {
-            /** Accepted Count */
-            accepted_count: number;
-            /** Affected Lagos Days */
-            affected_lagos_days: string[];
-            /**
-             * Applied Batch Id
-             * Format: uuid
-             */
-            applied_batch_id: string;
-            /**
-             * Quarantine Id
-             * Format: uuid
-             */
-            quarantine_id: string;
-            /**
-             * Trip Id
-             * Format: uuid
-             */
-            trip_id: string;
-        };
-        /** QuarantineResolveRequest */
-        QuarantineResolveRequest: {
-            /** Note */
-            note: string;
-        };
-        /** QuarantinedPingBatchListResponse */
-        QuarantinedPingBatchListResponse: {
-            /** Items */
-            items: components["schemas"]["QuarantinedPingBatchRead"][];
-            /** Limit */
-            limit: number;
-            /** Offset */
-            offset: number;
-            /** Total */
-            total: number;
-        };
-        /** QuarantinedPingBatchRead */
-        QuarantinedPingBatchRead: {
-            /** Applied Batch Id */
-            applied_batch_id?: string | null;
-            /** Assignment Id */
-            assignment_id?: string | null;
-            /** Campaign Id */
-            campaign_id?: string | null;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Driver Name */
-            driver_name?: string | null;
-            /** Driver Profile Id */
-            driver_profile_id?: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Idempotency Key */
-            idempotency_key: string;
-            /** Ping Count */
-            ping_count: number;
-            /**
-             * Received At
-             * Format: date-time
-             */
-            received_at: string;
-            /** Resolution Note */
-            resolution_note?: string | null;
-            /** Resolved At */
-            resolved_at?: string | null;
-            /** Resolved By User Id */
-            resolved_by_user_id?: string | null;
-            /** Status */
-            status: string;
-            /**
-             * Trip Session Id
-             * Format: uuid
-             */
-            trip_session_id: string;
-            /** Trip Started At */
-            trip_started_at?: string | null;
-            /** Vehicle Plate */
-            vehicle_plate?: string | null;
         };
         /** QuoteAccept */
         QuoteAccept: {
@@ -13103,55 +11459,6 @@ export interface components {
             /** Reason */
             reason: string;
         };
-        /** RecommendationProvenance */
-        RecommendationProvenance: {
-            /** Measurement Input Sha256 */
-            measurement_input_sha256: string;
-            /** Measurement Proof Sha256 */
-            measurement_proof_sha256: string;
-            /** Measurement Result Sha256 */
-            measurement_result_sha256: string;
-            /**
-             * Measurement Run Id
-             * Format: uuid
-             */
-            measurement_run_id: string;
-            /**
-             * Segment Id
-             * Format: uuid
-             */
-            segment_id: string;
-            /** Segment Snapshot Sha256 */
-            segment_snapshot_sha256: string;
-            /** Segment Version */
-            segment_version: number;
-            /**
-             * Source Link Id
-             * Format: uuid
-             */
-            source_link_id: string;
-            /** Source Link Snapshot Sha256 */
-            source_link_snapshot_sha256: string;
-        };
-        /** RecommendationsRead */
-        RecommendationsRead: {
-            /** Campaign Id */
-            campaign_id: string | null;
-            /** Disclaimer */
-            disclaimer: string;
-            provenance: components["schemas"]["RecommendationProvenance"] | null;
-            /** Recommendations */
-            recommendations: components["schemas"]["AggregateRecommendation"][];
-            /** Segment Id */
-            segment_id: string | null;
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "empty" | "suppressed" | "ready" | "stale";
-            /** Uncertainty */
-            uncertainty: string | null;
-        };
         /** RecomputeDayTripResult */
         RecomputeDayTripResult: {
             /** Delta Amount */
@@ -13286,365 +11593,6 @@ export interface components {
          * @enum {string}
          */
         ReportArtifactFormat: "csv" | "pdf";
-        /** ReportArtifactRead */
-        ReportArtifactRead: {
-            /** Checksum Sha256 */
-            checksum_sha256: string;
-            /** Content Type */
-            content_type: string;
-            /** Filename */
-            filename: string;
-            format: components["schemas"]["ReportArtifactFormat"];
-            /** Size Bytes */
-            size_bytes: number;
-        };
-        /** ReportIssuanceCreate */
-        ReportIssuanceCreate: {
-            /**
-             * Client Request Id
-             * Format: uuid
-             */
-            client_request_id: string;
-            /** Reissue Of Id */
-            reissue_of_id?: string | null;
-        };
-        /** ReportIssuanceCurrentRead */
-        ReportIssuanceCurrentRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Measurement Run Id
-             * Format: uuid
-             */
-            measurement_run_id: string;
-            status: components["schemas"]["ReportIssuanceStatus"];
-            /** Version */
-            version: number;
-        };
-        /** ReportIssuanceRead */
-        ReportIssuanceRead: {
-            /** Artifacts */
-            artifacts: components["schemas"]["ReportArtifactRead"][];
-            /**
-             * Campaign Id
-             * Format: uuid
-             */
-            campaign_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Error Code */
-            error_code: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Measurement Run Id
-             * Format: uuid
-             */
-            measurement_run_id: string;
-            /** Ready At */
-            ready_at: string | null;
-            /** Reissue Of Id */
-            reissue_of_id: string | null;
-            /** Renderer Version */
-            renderer_version: string;
-            /** Schema Version */
-            schema_version: string;
-            status: components["schemas"]["ReportIssuanceStatus"];
-            /** Synthetic */
-            synthetic: boolean;
-            /** Version */
-            version: number;
-            /** Worker Attempts */
-            worker_attempts: number;
-        };
-        /**
-         * ReportIssuanceStatus
-         * @enum {string}
-         */
-        ReportIssuanceStatus: "queued" | "processing" | "ready" | "failed";
-        /** RetargetingSourceEventRead */
-        RetargetingSourceEventRead: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Event Type
-             * @enum {string}
-             */
-            event_type: "created" | "deactivated";
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Sequence Number */
-            sequence_number: number;
-            /** Snapshot */
-            snapshot: components["schemas"]["WebsiteTrafficSourceCreate"] | components["schemas"]["DigitalCampaignAudienceSourceCreate"] | components["schemas"]["CrmUploadReferenceSourceCreate"] | components["schemas"]["UtmSourceCreate"] | components["schemas"]["ManualInsightSourceCreate"];
-            /** Snapshot Sha256 */
-            snapshot_sha256: string;
-        };
-        /** RetargetingSourceHistoryRead */
-        RetargetingSourceHistoryRead: {
-            /** Events */
-            events: components["schemas"]["RetargetingSourceEventRead"][];
-            source: components["schemas"]["RetargetingSourceRead"];
-        };
-        /** RetargetingSourceLinkCreate */
-        RetargetingSourceLinkCreate: {
-            /**
-             * Campaign Id
-             * Format: uuid
-             */
-            campaign_id: string;
-            /**
-             * End At
-             * Format: date-time
-             */
-            end_at: string;
-            /**
-             * Source Id
-             * Format: uuid
-             */
-            source_id: string;
-            /**
-             * Start At
-             * Format: date-time
-             */
-            start_at: string;
-            /**
-             * Zone Id
-             * Format: uuid
-             */
-            zone_id: string;
-        };
-        /** RetargetingSourceLinkEventRead */
-        RetargetingSourceLinkEventRead: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Event Type
-             * @enum {string}
-             */
-            event_type: "created" | "removed";
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Sequence Number */
-            sequence_number: number;
-            snapshot: components["schemas"]["RetargetingSourceLinkSnapshot"];
-            /** Snapshot Sha256 */
-            snapshot_sha256: string;
-        };
-        /** RetargetingSourceLinkHistoryRead */
-        RetargetingSourceLinkHistoryRead: {
-            /** Events */
-            events: components["schemas"]["RetargetingSourceLinkEventRead"][];
-            link: components["schemas"]["RetargetingSourceLinkRead"];
-        };
-        /** RetargetingSourceLinkListRead */
-        RetargetingSourceLinkListRead: {
-            /** Items */
-            items: components["schemas"]["RetargetingSourceLinkRead"][];
-            /** Total */
-            total: number;
-        };
-        /** RetargetingSourceLinkRead */
-        RetargetingSourceLinkRead: {
-            /**
-             * Campaign Id
-             * Format: uuid
-             */
-            campaign_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * End At
-             * Format: date-time
-             */
-            end_at: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Organization Id
-             * Format: uuid
-             */
-            organization_id: string;
-            /** Removed At */
-            removed_at: string | null;
-            snapshot: components["schemas"]["RetargetingSourceLinkSnapshot"];
-            /** Snapshot Sha256 */
-            snapshot_sha256: string;
-            /**
-             * Source Id
-             * Format: uuid
-             */
-            source_id: string;
-            /** Stale */
-            stale: boolean;
-            /**
-             * Start At
-             * Format: date-time
-             */
-            start_at: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "active" | "removed";
-            /**
-             * Zone Id
-             * Format: uuid
-             */
-            zone_id: string;
-        };
-        /** RetargetingSourceLinkSnapshot */
-        RetargetingSourceLinkSnapshot: {
-            /** Campaign Fingerprint */
-            campaign_fingerprint: string;
-            /**
-             * Campaign Id
-             * Format: uuid
-             */
-            campaign_id: string;
-            /**
-             * End At
-             * Format: date-time
-             */
-            end_at: string;
-            /**
-             * Organization Id
-             * Format: uuid
-             */
-            organization_id: string;
-            /** Source Fingerprint */
-            source_fingerprint: string;
-            /**
-             * Source Id
-             * Format: uuid
-             */
-            source_id: string;
-            /**
-             * Start At
-             * Format: date-time
-             */
-            start_at: string;
-            /** Zone Fingerprint */
-            zone_fingerprint: string;
-            /**
-             * Zone Id
-             * Format: uuid
-             */
-            zone_id: string;
-        };
-        /** RetargetingSourceListRead */
-        RetargetingSourceListRead: {
-            /** Items */
-            items: components["schemas"]["RetargetingSourceRead"][];
-            /** Total */
-            total: number;
-        };
-        /** RetargetingSourceRead */
-        RetargetingSourceRead: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Deactivated At */
-            deactivated_at: string | null;
-            /**
-             * Expires At
-             * Format: date-time
-             */
-            expires_at: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Organization Id
-             * Format: uuid
-             */
-            organization_id: string;
-            /** Snapshot */
-            snapshot: components["schemas"]["WebsiteTrafficSourceCreate"] | components["schemas"]["DigitalCampaignAudienceSourceCreate"] | components["schemas"]["CrmUploadReferenceSourceCreate"] | components["schemas"]["UtmSourceCreate"] | components["schemas"]["ManualInsightSourceCreate"];
-            /** Snapshot Sha256 */
-            snapshot_sha256: string;
-            /** Source Type */
-            source_type: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "active" | "expired" | "deactivated";
-        };
-        /** RoiInput */
-        RoiInput: {
-            /** Approved Cost Basis */
-            approved_cost_basis: number | string;
-            /** Attributed Revenue */
-            attributed_revenue: number | string;
-            /** Conversion Provenance */
-            conversion_provenance: string;
-            /** Currency */
-            currency: string;
-            method: components["schemas"]["RoiMethodInput"];
-            /**
-             * Reporting Cutoff
-             * Format: date-time
-             */
-            reporting_cutoff: string;
-            /** Revenue Provenance */
-            revenue_provenance: string;
-            /**
-             * Synthetic
-             * @default false
-             */
-            synthetic: boolean;
-        };
-        /** RoiMethodInput */
-        RoiMethodInput: {
-            /** Approval Reference */
-            approval_reference: string;
-            /** Attribution Rule */
-            attribution_rule: string;
-            /** Attribution Window */
-            attribution_window: string;
-            /** Corrections */
-            corrections: string;
-            /** Cost Basis */
-            cost_basis: string;
-            /** Exclusions */
-            exclusions: string;
-            /** Late Data */
-            late_data: string;
-            /** Revision */
-            revision: string;
-        };
         /** RouteAnalyticsSummary */
         RouteAnalyticsSummary: {
             /** Analyzed Trip Count */
@@ -13660,20 +11608,15 @@ export interface components {
             /** Total Distance M */
             total_distance_m: string | null;
         };
-        /** RouteExposureScoreRead */
-        RouteExposureScoreRead: {
-            /** Score */
-            score: string;
+        /** ScanDayRead */
+        ScanDayRead: {
             /**
-             * Trip Analytics Id
-             * Format: uuid
+             * Day
+             * Format: date
              */
-            trip_analytics_id: string;
-            /**
-             * Trip Session Id
-             * Format: uuid
-             */
-            trip_session_id: string;
+            day: string;
+            /** Scans */
+            scans: number;
         };
         /** SensitiveRevealRequest */
         SensitiveRevealRequest: {
@@ -13725,14 +11668,68 @@ export interface components {
             /** Settlement Provider */
             settlement_provider: string;
         };
+        /** StaffCampaignCancellationCreate */
+        StaffCampaignCancellationCreate: {
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /** Complaint Id */
+            complaint_id?: string | null;
+            /** Reason */
+            reason: string;
+        };
+        /** StaffCampaignEnquiryList */
+        StaffCampaignEnquiryList: {
+            /** Items */
+            items: components["schemas"]["StaffCampaignEnquiryRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** StaffCampaignEnquiryRead */
+        StaffCampaignEnquiryRead: {
+            /** Brief */
+            brief: string;
+            /** Company */
+            company: string;
+            /** Contact Name */
+            contact_name: string;
+            /** Converted At */
+            converted_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Email */
+            email: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Organization Id */
+            organization_id: string | null;
+            /**
+             * Phone
+             * @default
+             */
+            phone: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "new" | "converted";
+        };
         /** StaffComplaintDetailRead */
         StaffComplaintDetailRead: {
             /** Advertiser Organization Id */
             advertiser_organization_id: string | null;
-            /** Assigned To Name */
-            assigned_to_name: string | null;
-            /** Assigned To User Id */
-            assigned_to_user_id: string | null;
             category: components["schemas"]["ComplaintCategory"];
             /**
              * Created At
@@ -13832,10 +11829,6 @@ export interface components {
         StaffComplaintSummaryRead: {
             /** Advertiser Organization Id */
             advertiser_organization_id: string | null;
-            /** Assigned To Name */
-            assigned_to_name: string | null;
-            /** Assigned To User Id */
-            assigned_to_user_id: string | null;
             category: components["schemas"]["ComplaintCategory"];
             /**
              * Created At
@@ -13877,13 +11870,9 @@ export interface components {
         };
         /**
          * StaffComplaintUpdate
-         * @description Both fields are optional; an empty body is a valid no-op.
-         *
-         *     An omitted field is left unchanged; an explicit null assignee clears it.
+         * @description An omitted status is a valid no-op.
          */
         StaffComplaintUpdate: {
-            /** Assigned To User Id */
-            assigned_to_user_id?: string | null;
             /** Status */
             status?: ("open" | "resolved") | null;
         };
@@ -13913,200 +11902,6 @@ export interface components {
             size_bytes: number;
             /** Subject User Id */
             subject_user_id: string | null;
-        };
-        /** TrafficDensityProfileCreate */
-        TrafficDensityProfileCreate: {
-            /**
-             * Bonus Zone Weight
-             * @default 1.25
-             */
-            bonus_zone_weight: number | string;
-            /** Description */
-            description?: string | null;
-            /** Dwell Impressions Per Minute */
-            dwell_impressions_per_minute: number | string;
-            /** Effective From */
-            effective_from?: string | null;
-            /**
-             * Evening Weight
-             * @default 1.0
-             */
-            evening_weight: number | string;
-            /**
-             * Exclusion Zone Weight
-             * @default 0.0
-             */
-            exclusion_zone_weight: number | string;
-            /**
-             * Is Default
-             * @default false
-             */
-            is_default: boolean;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
-            /**
-             * Midday Weight
-             * @default 1.0
-             */
-            midday_weight: number | string;
-            /**
-             * Morning Weight
-             * @default 1.0
-             */
-            morning_weight: number | string;
-            /** Name */
-            name: string;
-            /**
-             * Night Weight
-             * @default 0.7
-             */
-            night_weight: number | string;
-            /** @default default */
-            profile_type: components["schemas"]["TrafficDensityProfileType"];
-            /**
-             * Road Category Weight
-             * @default 1.0
-             */
-            road_category_weight: number | string;
-            /** @default active */
-            status: components["schemas"]["TrafficDensityProfileStatus"];
-            /**
-             * Target Zone Weight
-             * @default 1.0
-             */
-            target_zone_weight: number | string;
-            /** Traffic Density Per Km */
-            traffic_density_per_km: number | string;
-        };
-        /** TrafficDensityProfileListResponse */
-        TrafficDensityProfileListResponse: {
-            /** Items */
-            items: components["schemas"]["TrafficDensityProfileRead"][];
-            /** Limit */
-            limit: number;
-            /** Offset */
-            offset: number;
-            /** Total */
-            total: number;
-        };
-        /** TrafficDensityProfileRead */
-        TrafficDensityProfileRead: {
-            /** Bonus Zone Weight */
-            bonus_zone_weight: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Description */
-            description: string | null;
-            /** Dwell Impressions Per Minute */
-            dwell_impressions_per_minute: string | null;
-            /**
-             * Effective From
-             * Format: date-time
-             */
-            effective_from: string;
-            /** Evening Weight */
-            evening_weight: string | null;
-            /** Exclusion Zone Weight */
-            exclusion_zone_weight: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Is Default */
-            is_default: boolean;
-            /**
-             * Lineage Id
-             * Format: uuid
-             */
-            lineage_id: string;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
-            /** Midday Weight */
-            midday_weight: string | null;
-            /** Morning Weight */
-            morning_weight: string | null;
-            /** Name */
-            name: string;
-            /** Night Weight */
-            night_weight: string | null;
-            profile_type: components["schemas"]["TrafficDensityProfileType"];
-            /** Revision */
-            revision: number;
-            /** Road Category Weight */
-            road_category_weight: string | null;
-            status: components["schemas"]["TrafficDensityProfileStatus"];
-            /** Supersedes Id */
-            supersedes_id: string | null;
-            /** Target Zone Weight */
-            target_zone_weight: string | null;
-            /** Traffic Density Per Km */
-            traffic_density_per_km: string | null;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /** Value Fingerprint */
-            value_fingerprint: string;
-        };
-        /**
-         * TrafficDensityProfileStatus
-         * @enum {string}
-         */
-        TrafficDensityProfileStatus: "active" | "inactive";
-        /**
-         * TrafficDensityProfileType
-         * @enum {string}
-         */
-        TrafficDensityProfileType: "default" | "urban" | "suburban" | "highway" | "custom";
-        /** TrafficDensityProfileUpdate */
-        TrafficDensityProfileUpdate: {
-            /** Bonus Zone Weight */
-            bonus_zone_weight?: number | string | null;
-            /** Description */
-            description?: string | null;
-            /** Dwell Impressions Per Minute */
-            dwell_impressions_per_minute?: number | string | null;
-            /** Effective From */
-            effective_from?: string | null;
-            /** Evening Weight */
-            evening_weight?: number | string | null;
-            /** Exclusion Zone Weight */
-            exclusion_zone_weight?: number | string | null;
-            /** Expected Revision */
-            expected_revision?: number | null;
-            /** Expected Value Fingerprint */
-            expected_value_fingerprint?: string | null;
-            /** Is Default */
-            is_default?: boolean | null;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
-            /** Midday Weight */
-            midday_weight?: number | string | null;
-            /** Morning Weight */
-            morning_weight?: number | string | null;
-            /** Name */
-            name?: string | null;
-            /** Night Weight */
-            night_weight?: number | string | null;
-            profile_type?: components["schemas"]["TrafficDensityProfileType"] | null;
-            /** Road Category Weight */
-            road_category_weight?: number | string | null;
-            status?: components["schemas"]["TrafficDensityProfileStatus"] | null;
-            /** Target Zone Weight */
-            target_zone_weight?: number | string | null;
-            /** Traffic Density Per Km */
-            traffic_density_per_km?: number | string | null;
         };
         /** TripAnalyticsRead */
         TripAnalyticsRead: {
@@ -14304,8 +12099,6 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
-            /** Display Proof Id */
-            display_proof_id: string | null;
             /**
              * Driver Profile Id
              * Format: uuid
@@ -14411,7 +12204,11 @@ export interface components {
             password: string;
             /** Phone */
             phone?: string | null;
-            role: components["schemas"]["UserRole"];
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "admin" | "driver";
             status: components["schemas"]["UserStatus"];
         };
         /** UserListResponse */
@@ -14463,59 +12260,6 @@ export interface components {
             phone?: string | null;
             role?: components["schemas"]["UserRole"] | null;
             status?: components["schemas"]["UserStatus"] | null;
-        };
-        /** UtmSourceCreate */
-        UtmSourceCreate: {
-            /**
-             * Campaign Stage
-             * @enum {string}
-             */
-            campaign_stage: "awareness" | "consideration" | "conversion-intent";
-            /**
-             * Channel
-             * @enum {string}
-             */
-            channel: "search" | "social" | "display" | "email";
-            /**
-             * Consent Disclaimer Status
-             * @constant
-             */
-            consent_disclaimer_status: "not-reviewed";
-            /**
-             * Dsr Owner Role
-             * @enum {string}
-             */
-            dsr_owner_role: "privacy-officer" | "compliance-owner";
-            /**
-             * Dsr Status
-             * @enum {string}
-             */
-            dsr_status: "pending" | "not-applicable";
-            /**
-             * Expires At
-             * Format: date-time
-             */
-            expires_at: string;
-            /**
-             * Lawful Basis Reference
-             * @enum {string}
-             */
-            lawful_basis_reference: "candidate-legitimate-interest" | "candidate-consent";
-            /**
-             * Lawful Basis Status
-             * @constant
-             */
-            lawful_basis_status: "unapproved";
-            /**
-             * Provenance
-             * @enum {string}
-             */
-            provenance: "advertiser-declared" | "third-party-aggregate";
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            source_type: "UTM-source";
         };
         /** VehicleCreate */
         VehicleCreate: {
@@ -14762,7 +12506,7 @@ export interface components {
          * VehicleType
          * @enum {string}
          */
-        VehicleType: "car" | "van" | "minibus" | "bus" | "motorcycle" | "tricycle" | "other";
+        VehicleType: "car";
         /** VehicleUpdate */
         VehicleUpdate: {
             /** Color */
@@ -14806,33 +12550,6 @@ export interface components {
              * Format: password
              */
             verification_reference: string;
-        };
-        /** VerifiedMovementMetricRead */
-        VerifiedMovementMetricRead: {
-            /** Active Tracking Seconds */
-            active_tracking_seconds: number | null;
-            /**
-             * Class
-             * @constant
-             */
-            class: "measured_operational_fact";
-            completeness: components["schemas"]["MeasurementCompletenessRead"];
-            /** Distance M */
-            distance_m: string | null;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            id: "verified_vehicle_movement";
-            /**
-             * Label
-             * @constant
-             */
-            label: "Verified vehicle movement";
-            /** Trip Count */
-            trip_count: number;
-            /** Uncertainty */
-            uncertainty: string;
         };
         /** WaiverCopyRead */
         WaiverCopyRead: {
@@ -14879,56 +12596,6 @@ export interface components {
             /** Wording Version */
             wording_version: string;
         };
-        /** WebsiteTrafficSourceCreate */
-        WebsiteTrafficSourceCreate: {
-            /** Aggregation Window Days */
-            aggregation_window_days: number;
-            /**
-             * Audience Category
-             * @enum {string}
-             */
-            audience_category: "site-visitor" | "content-interest" | "conversion-intent";
-            /**
-             * Consent Disclaimer Status
-             * @constant
-             */
-            consent_disclaimer_status: "not-reviewed";
-            /**
-             * Dsr Owner Role
-             * @enum {string}
-             */
-            dsr_owner_role: "privacy-officer" | "compliance-owner";
-            /**
-             * Dsr Status
-             * @enum {string}
-             */
-            dsr_status: "pending" | "not-applicable";
-            /**
-             * Expires At
-             * Format: date-time
-             */
-            expires_at: string;
-            /**
-             * Lawful Basis Reference
-             * @enum {string}
-             */
-            lawful_basis_reference: "candidate-legitimate-interest" | "candidate-consent";
-            /**
-             * Lawful Basis Status
-             * @constant
-             */
-            lawful_basis_status: "unapproved";
-            /**
-             * Provenance
-             * @enum {string}
-             */
-            provenance: "advertiser-declared" | "third-party-aggregate";
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            source_type: "website-traffic";
-        };
         /** WhatsappConsentCreate */
         WhatsappConsentCreate: {
             /** Notice Version */
@@ -14962,27 +12629,8 @@ export interface components {
             /** Withdrawn At */
             withdrawn_at: string | null;
         };
-        /** ZoneInsightSegmentProvenance */
-        ZoneInsightSegmentProvenance: {
-            /** Reissue Of Segment Id */
-            reissue_of_segment_id: string | null;
-            /**
-             * Segment Id
-             * Format: uuid
-             */
-            segment_id: string;
-            /** Segment Snapshot Sha256 */
-            segment_snapshot_sha256: string;
-            /** Segment Version */
-            segment_version: number;
-        };
         /** ZoneTypeCounts */
         ZoneTypeCounts: {
-            /**
-             * Bonus
-             * @default 0
-             */
-            bonus: number;
             /**
              * Exclusion
              * @default 0
@@ -15109,7 +12757,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AdvertiserOrganizationCreate"];
+                "application/json": components["schemas"]["AdminOrganizationCreate"];
             };
         };
         responses: {
@@ -15199,6 +12847,41 @@ export interface operations {
             };
         };
     };
+    admin_send_login_invite_api_v1_admin_advertiser_organizations__organization_id__login_invite_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdvertiserLoginInviteCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdvertiserLoginInviteRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     admin_list_organization_members_api_v1_admin_advertiser_organizations__organization_id__members_get: {
         parameters: {
             query?: {
@@ -15258,6 +12941,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditEventListResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    staff_badges_api_v1_admin_badge_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBadgeSummary"];
                 };
             };
             /** @description Request validation failed */
@@ -15340,7 +13052,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
-                status?: components["schemas"]["CampaignAssignmentStatus"] | null;
+                status?: components["schemas"]["CampaignAssignmentStatus"] | "finished" | null;
                 campaign_id?: string | null;
                 driver_profile_id?: string | null;
                 vehicle_id?: string | null;
@@ -15809,13 +13521,113 @@ export interface operations {
             };
         };
     };
+    list_staff_enquiries_api_v1_admin_campaign_enquiries_get: {
+        parameters: {
+            query?: {
+                status?: "new" | "converted";
+                q?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffCampaignEnquiryList"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_staff_enquiry_api_v1_admin_campaign_enquiries__enquiry_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enquiry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffCampaignEnquiryRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    convert_staff_enquiry_api_v1_admin_campaign_enquiries__enquiry_id__create_advertiser_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enquiry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignEnquiryConversion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignEnquiryConverted"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     admin_list_campaigns_endpoint_api_v1_admin_campaigns_get: {
         parameters: {
             query?: {
                 limit?: number;
                 offset?: number;
                 organization_id?: string | null;
-                status?: components["schemas"]["CampaignStatus"] | null;
+                status?: components["schemas"]["CampaignStatus"] | "finished" | null;
                 q?: string | null;
                 oldest_first?: boolean;
             };
@@ -15940,37 +13752,6 @@ export interface operations {
             };
         };
     };
-    admin_record_budget_evaluation_api_v1_admin_campaigns__campaign_id__budget_policy_evaluation_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                campaign_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BudgetEvaluationRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     admin_resume_budget_paused_campaign_api_v1_admin_campaigns__campaign_id__budget_policy_resume_post: {
         parameters: {
             query?: never;
@@ -16006,6 +13787,41 @@ export interface operations {
             };
         };
     };
+    admin_cancel_campaign_api_v1_admin_campaigns__campaign_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffCampaignCancellationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignCancellationRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     admin_campaign_commercial_api_v1_admin_campaigns__campaign_id__commercial_get: {
         parameters: {
             query?: never;
@@ -16023,7 +13839,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignCommercialRead"];
+                    "application/json": components["schemas"]["AdminCampaignCommercialRead"];
                 };
             };
             /** @description Request validation failed */
@@ -16349,6 +14165,41 @@ export interface operations {
             };
         };
     };
+    admin_rerun_report_api_v1_admin_campaigns__campaign_id__reports_re_run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignReportRerun"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignReportRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     admin_resume_campaign_api_v1_admin_campaigns__campaign_id__resume_post: {
         parameters: {
             query?: never;
@@ -16418,43 +14269,11 @@ export interface operations {
             };
         };
     };
-    admin_zone_insights_api_v1_admin_campaigns__campaign_id__zone_insights_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                campaign_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HighExposureZoneInsightsRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     admin_list_complaints_api_v1_admin_complaints_get: {
         parameters: {
             query?: {
                 status?: components["schemas"]["ComplaintStatus"] | null;
                 party?: components["schemas"]["ComplaintParty"] | null;
-                assigned_to_me?: boolean;
                 user_id?: string | null;
                 organization_id?: string | null;
                 limit?: number;
@@ -17239,6 +15058,41 @@ export interface operations {
             };
         };
     };
+    admin_record_negative_adjustment_api_v1_admin_earnings_ledger__entry_id__negative_adjustments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutNegativeAdjustment"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EarningsLedgerEntryRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     admin_evidence_verifications_api_v1_admin_evidence_verifications_get: {
         parameters: {
             query?: {
@@ -17278,7 +15132,7 @@ export interface operations {
             };
         };
     };
-    admin_queue_physical_spot_check_api_v1_admin_evidence_verifications_physical_spot_checks_post: {
+    admin_record_physical_spot_check_api_v1_admin_evidence_verifications_physical_spot_checks_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -17298,115 +15152,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EvidenceVerificationRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_resolve_physical_spot_check_api_v1_admin_evidence_verifications__verification_id__physical_spot_check_result_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                verification_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PhysicalSpotCheckResolve"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvidenceVerificationRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    activate_segment_api_v1_admin_exposure_segments__segment_id__activations_post: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path: {
-                segment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AudienceActivationRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AudienceActivationRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    approve_segment_delivery_api_v1_admin_exposure_segments__segment_id__delivery_approvals_post: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path: {
-                segment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AudienceDeliveryApprovalCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AudienceDeliveryApprovalRead"];
                 };
             };
             /** @description Request validation failed */
@@ -17567,37 +15312,6 @@ export interface operations {
             };
         };
     };
-    admin_acknowledge_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_acknowledge_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                flag_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdminFraudFlagRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     admin_resolve_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_resolve_post: {
         parameters: {
             query?: never;
@@ -17718,7 +15432,6 @@ export interface operations {
                 driver_profile_id?: string | null;
                 vehicle_id?: string | null;
                 status?: components["schemas"]["ImpressionEstimateStatus"] | null;
-                traffic_density_profile_id?: string | null;
             };
             header?: never;
             path?: never;
@@ -17958,11 +15671,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InvoiceIssue"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -18108,139 +15817,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ManualContactTaskRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_list_measurement_runs_api_v1_admin_measurement_runs_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-                offset?: number;
-                campaign_id?: string | null;
-                q?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdminMeasurementRunList"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_issue_measurement_run_api_v1_admin_measurement_runs_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MeasurementRunCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MeasurementRunRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_get_measurement_run_api_v1_admin_measurement_runs__run_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MeasurementRunRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_request_report_issuance_api_v1_admin_measurement_runs__run_id__report_issuances_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReportIssuanceCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReportIssuanceRead"];
                 };
             };
             /** @description Request validation failed */
@@ -18553,74 +16129,6 @@ export interface operations {
             };
         };
     };
-    admin_get_driver_money_balance_api_v1_admin_payout_batches_debt_balances__driver_profile_id__get: {
-        parameters: {
-            query: {
-                currency: string;
-            };
-            header?: never;
-            path: {
-                driver_profile_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DriverMoneyBalanceRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_allocate_driver_debt_api_v1_admin_payout_batches_debt_balances__driver_profile_id__allocate_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                driver_profile_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PayoutDebtAllocate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PayoutDebtAllocationRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     admin_eligible_payment_entries_api_v1_admin_payout_batches_eligible_get: {
         parameters: {
             query?: {
@@ -18698,7 +16206,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutActionReason"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -18707,6 +16219,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PayoutBatchRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_get_driver_money_balance_api_v1_admin_payout_batches_money_balances__driver_profile_id__get: {
+        parameters: {
+            query: {
+                currency: string;
+            };
+            header?: never;
+            path: {
+                driver_profile_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverMoneyBalanceRead"];
                 };
             };
             /** @description Request validation failed */
@@ -18829,7 +16374,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutActionReason"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -18929,7 +16478,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutActionReason"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -19038,35 +16591,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PayoutCalculationListResponse"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_payout_v4_status_api_v1_admin_payout_v4_status_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PayoutV4Status"];
                 };
             };
             /** @description Request validation failed */
@@ -19418,104 +16942,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PayoutCorrectionOrderRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_execute_correction_order_api_v1_admin_payouts_correction_orders__order_id__execute_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                order_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": components["schemas"]["PayoutCorrectionOrderExecuteRequest"] | null;
+                "application/json": components["schemas"]["PayoutCorrectionOrderApproveRequest"];
             };
         };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PayoutCorrectionOrderRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_reject_correction_order_api_v1_admin_payouts_correction_orders__order_id__reject_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                order_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PayoutCorrectionOrderRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_submit_correction_order_api_v1_admin_payouts_correction_orders__order_id__submit_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                order_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -19622,168 +17053,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminPhoneChallengeListRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    open_data_subject_request_api_v1_admin_privacy_dsr_requests_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DataSubjectRequestCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DataSubjectRequestRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    complete_data_subject_request_case_api_v1_admin_privacy_dsr_requests__request_id__complete_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                request_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DataSubjectRequestRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    inspect_data_subject_inventory_api_v1_admin_privacy_dsr_requests__request_id__inventory_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                request_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DataSubjectInventoryRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    assess_data_subject_location_api_v1_admin_privacy_dsr_requests__request_id__locations__location__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                request_id: string;
-                location: components["schemas"]["DataSubjectLocation"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DataSubjectLocationAssessmentCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DataSubjectLocationAssessmentRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    verify_data_subject_request_identity_api_v1_admin_privacy_dsr_requests__request_id__verify_identity_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                request_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DataSubjectRequestRead"];
                 };
             };
             /** @description Request validation failed */
@@ -19935,37 +17204,6 @@ export interface operations {
             };
         };
     };
-    admin_get_report_issuance_api_v1_admin_report_issuances__issuance_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                issuance_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReportIssuanceRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     admin_download_report_artifact_api_v1_admin_report_issuances__issuance_id__artifacts__artifact_format__download_post: {
         parameters: {
             query?: never;
@@ -20002,363 +17240,12 @@ export interface operations {
             };
         };
     };
-    admin_list_links_api_v1_admin_retargeting_source_links_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RetargetingSourceLinkListRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_get_link_api_v1_admin_retargeting_source_links__link_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                link_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RetargetingSourceLinkRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_link_history_api_v1_admin_retargeting_source_links__link_id__history_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                link_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RetargetingSourceLinkHistoryRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_recommendations_api_v1_admin_retargeting_source_links__link_id__recommendations_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                link_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RecommendationsRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_admin_sources_api_v1_admin_retargeting_sources_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RetargetingSourceListRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    get_admin_source_api_v1_admin_retargeting_sources__source_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                source_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RetargetingSourceRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_source_history_api_v1_admin_retargeting_sources__source_id__history_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                source_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RetargetingSourceHistoryRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_list_traffic_density_profiles_api_v1_admin_traffic_density_profiles_get: {
+    admin_list_reports_api_v1_admin_reports_get: {
         parameters: {
             query?: {
-                limit?: number;
-                offset?: number;
-                status?: components["schemas"]["TrafficDensityProfileStatus"] | null;
-                profile_type?: components["schemas"]["TrafficDensityProfileType"] | null;
-                is_default?: boolean | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TrafficDensityProfileListResponse"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_create_traffic_density_profile_api_v1_admin_traffic_density_profiles_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TrafficDensityProfileCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TrafficDensityProfileRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_get_traffic_density_profile_api_v1_admin_traffic_density_profiles__profile_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profile_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TrafficDensityProfileRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_update_traffic_density_profile_api_v1_admin_traffic_density_profiles__profile_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profile_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TrafficDensityProfileUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TrafficDensityProfileRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_list_quarantined_batches_api_v1_admin_trips_quarantined_batches_get: {
-        parameters: {
-            query?: {
-                trip_id?: string | null;
-                status?: string | null;
-                limit?: number;
-                offset?: number;
-                quarantine_id?: string | null;
-                driver_profile_id?: string | null;
                 campaign_id?: string | null;
+                limit?: number;
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -20372,7 +17259,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["QuarantinedPingBatchListResponse"];
+                    "application/json": components["schemas"]["CampaignReportList"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_download_report_api_v1_admin_reports__report_id__artifacts__artifact_format__download_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: string;
+                artifact_format: components["schemas"]["ReportArtifactFormat"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportArtifactDownloadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportArtifactDownloadRead"];
                 };
             };
             /** @description Request validation failed */
@@ -20474,78 +17397,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImpressionEstimateRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_apply_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__apply_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                trip_id: string;
-                quarantine_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["QuarantineResolveRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["QuarantineApplyResponse"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_discard_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__discard_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                trip_id: string;
-                quarantine_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["QuarantineResolveRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["QuarantinedPingBatchRead"];
                 };
             };
             /** @description Request validation failed */
@@ -20835,7 +17686,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
-                status?: components["schemas"]["CampaignStatus"] | null;
+                status?: components["schemas"]["CampaignStatus"] | "finished" | null;
                 start_at_from?: string | null;
                 start_at_to?: string | null;
             };
@@ -20884,7 +17735,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignRead"];
+                    "application/json": components["schemas"]["AdvertiserCampaignRead"];
                 };
             };
             /** @description Request validation failed */
@@ -20915,7 +17766,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignRead"];
+                    "application/json": components["schemas"]["AdvertiserCampaignRead"];
                 };
             };
             /** @description Request validation failed */
@@ -20950,42 +17801,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    advertiser_cancel_campaign_api_v1_advertiser_campaigns__campaign_id__cancel_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                campaign_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CampaignCancellationCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CampaignCancellationRead"];
+                    "application/json": components["schemas"]["AdvertiserCampaignRead"];
                 };
             };
             /** @description Request validation failed */
@@ -21305,6 +18121,38 @@ export interface operations {
             };
         };
     };
+    download_qr_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__qr_svg_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+                creative_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/svg+xml": unknown;
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     advertiser_creative_review_history_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__review_history_get: {
         parameters: {
             query?: {
@@ -21359,6 +18207,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreativeRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_website_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__website_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+                creative_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtworkLinkRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    put_website_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__website_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+                creative_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtworkLinkWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtworkLinkRead"];
                 };
             };
             /** @description Request validation failed */
@@ -21517,6 +18433,68 @@ export interface operations {
             };
         };
     };
+    get_live_positions_api_v1_advertiser_campaigns__campaign_id__live_positions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LivePositionsRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_campaign_scans_api_v1_advertiser_campaigns__campaign_id__qr_scans_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignScansRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     advertiser_request_quote_api_v1_advertiser_campaigns__campaign_id__quote_request_post: {
         parameters: {
             query?: never;
@@ -21572,7 +18550,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignReportResponse"];
+                    "application/json": components["schemas"]["CampaignPerformanceRead"];
                 };
             };
             /** @description Request validation failed */
@@ -21637,7 +18615,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignRead"];
+                    "application/json": components["schemas"]["AdvertiserCampaignRead"];
                 };
             };
             /** @description Request validation failed */
@@ -21703,37 +18681,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignTripsResponse"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    advertiser_zone_insights_api_v1_advertiser_campaigns__campaign_id__zone_insights_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                campaign_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HighExposureZoneInsightsRead"];
                 };
             };
             /** @description Request validation failed */
@@ -21979,7 +18926,9 @@ export interface operations {
     };
     advertiser_list_complaints_api_v1_advertiser_complaints_get: {
         parameters: {
-            query?: never;
+            query?: {
+                campaign_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -22166,43 +19115,6 @@ export interface operations {
             };
         };
     };
-    export_segment_api_v1_advertiser_exposure_segments__segment_id__exports_post: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path: {
-                segment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AudienceExportRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AudienceExportRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     create_file_upload_api_v1_advertiser_files_uploads_post: {
         parameters: {
             query?: never;
@@ -22351,72 +19263,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaymentCheckoutRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    advertiser_get_current_report_issuance_api_v1_advertiser_measurement_runs__run_id__report_issuances_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReportIssuanceCurrentRead"] | null;
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    advertiser_request_report_issuance_api_v1_advertiser_measurement_runs__run_id__report_issuances_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReportIssuanceCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReportIssuanceRead"];
                 };
             };
             /** @description Request validation failed */
@@ -22587,37 +19433,6 @@ export interface operations {
             };
         };
     };
-    advertiser_get_report_issuance_api_v1_advertiser_report_issuances__issuance_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                issuance_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReportIssuanceRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     advertiser_download_report_artifact_api_v1_advertiser_report_issuances__issuance_id__artifacts__artifact_format__download_post: {
         parameters: {
             query?: never;
@@ -22654,9 +19469,13 @@ export interface operations {
             };
         };
     };
-    list_links_api_v1_advertiser_retargeting_source_links_get: {
+    advertiser_list_reports_api_v1_advertiser_reports_get: {
         parameters: {
-            query?: never;
+            query?: {
+                campaign_id?: string | null;
+                limit?: number;
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -22669,7 +19488,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RetargetingSourceLinkListRead"];
+                    "application/json": components["schemas"]["CampaignReportList"];
                 };
             };
             /** @description Request validation failed */
@@ -22683,218 +19502,26 @@ export interface operations {
             };
         };
     };
-    create_link_api_v1_advertiser_retargeting_source_links_post: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RetargetingSourceLinkCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RetargetingSourceLinkRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    get_link_api_v1_advertiser_retargeting_source_links__link_id__get: {
+    advertiser_request_report_api_v1_advertiser_reports_post: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                link_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RetargetingSourceLinkRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    link_history_api_v1_advertiser_retargeting_source_links__link_id__history_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                link_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RetargetingSourceLinkHistoryRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    advertiser_recommendations_api_v1_advertiser_retargeting_source_links__link_id__recommendations_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                link_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RecommendationsRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    remove_link_api_v1_advertiser_retargeting_source_links__link_id__remove_post: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path: {
-                link_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RetargetingSourceLinkRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_advertiser_sources_api_v1_advertiser_retargeting_sources_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RetargetingSourceListRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    create_advertiser_retargeting_source_api_v1_advertiser_retargeting_sources_post: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["WebsiteTrafficSourceCreate"] | components["schemas"]["DigitalCampaignAudienceSourceCreate"] | components["schemas"]["CrmUploadReferenceSourceCreate"] | components["schemas"]["UtmSourceCreate"] | components["schemas"]["ManualInsightSourceCreate"];
+                "application/json": components["schemas"]["CampaignReportCreate"];
             };
         };
         responses: {
             /** @description Successful Response */
-            201: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RetargetingSourceRead"];
+                    "application/json": components["schemas"]["CampaignReportRead"];
                 };
             };
             /** @description Request validation failed */
@@ -22908,12 +19535,12 @@ export interface operations {
             };
         };
     };
-    get_advertiser_source_api_v1_advertiser_retargeting_sources__source_id__get: {
+    advertiser_get_report_api_v1_advertiser_reports__report_id__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                source_id: string;
+                report_id: string;
             };
             cookie?: never;
         };
@@ -22925,7 +19552,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RetargetingSourceRead"];
+                    "application/json": components["schemas"]["CampaignReportRead"];
                 };
             };
             /** @description Request validation failed */
@@ -22939,49 +19566,21 @@ export interface operations {
             };
         };
     };
-    deactivate_advertiser_source_api_v1_advertiser_retargeting_sources__source_id__deactivate_post: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path: {
-                source_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RetargetingSourceRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    advertiser_source_history_api_v1_advertiser_retargeting_sources__source_id__history_get: {
+    advertiser_download_report_api_v1_advertiser_reports__report_id__artifacts__artifact_format__download_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                source_id: string;
+                report_id: string;
+                artifact_format: components["schemas"]["ReportArtifactFormat"];
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportArtifactDownloadRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -22989,7 +19588,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RetargetingSourceHistoryRead"];
+                    "application/json": components["schemas"]["ReportArtifactDownloadRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    advertiser_invite_complete_api_v1_auth_advertiser_invite_complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetComplete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetResponse"];
                 };
             };
             /** @description Request validation failed */
@@ -23182,6 +19814,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BankRead"][];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    continue_application_api_v1_auth_driver_onboarding_continue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicantFileUploadConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationContinuationRead"];
                 };
             };
             /** @description Request validation failed */
@@ -23610,7 +20275,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
-                status?: components["schemas"]["CampaignAssignmentStatus"] | null;
+                status?: components["schemas"]["CampaignAssignmentStatus"] | "finished" | null;
             };
             header?: never;
             path?: never;
@@ -23733,6 +20398,37 @@ export interface operations {
             };
         };
     };
+    driver_job_artwork_api_v1_driver_campaign_assignments__assignment_id__artwork_download_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileDownloadRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     driver_deactivate_campaign_assignment_api_v1_driver_campaign_assignments__assignment_id__deactivate_post: {
         parameters: {
             query?: never;
@@ -23790,76 +20486,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignAssignmentRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    driver_submit_display_proof_api_v1_driver_campaign_assignments__assignment_id__display_proof_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                assignment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DisplayProofCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DisplayProofRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    driver_create_proof_challenge_api_v1_driver_campaign_assignments__assignment_id__display_proof_challenge_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                assignment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DisplayProofChallengeCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DisplayProofChallengeRead"];
                 };
             };
             /** @description Request validation failed */
@@ -24249,6 +20875,35 @@ export interface operations {
             };
         };
     };
+    current_job_api_v1_driver_current_job_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverCurrentJob"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     driver_documents_api_v1_driver_documents_get: {
         parameters: {
             query?: never;
@@ -24298,6 +20953,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PersonPayeeStageRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    driver_get_earnings_days_api_v1_driver_earnings_days_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverEarningsDaysRead"];
                 };
             };
             /** @description Request validation failed */
@@ -24364,35 +21048,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriverEarningsSummary"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    driver_pending_evidence_verifications_api_v1_driver_evidence_verifications_pending_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvidenceVerificationList"];
                 };
             };
             /** @description Request validation failed */
@@ -25256,42 +21911,6 @@ export interface operations {
             };
         };
     };
-    email_delivery_receipt_api_v1_notifications_email_delivery_receipts_post: {
-        parameters: {
-            query?: never;
-            header: {
-                "x-email-receipt-signature": string;
-                "x-email-receipt-key-id": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EmailDeliveryReceiptCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EmailDeliveryReceiptRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     read_all_notifications_api_v1_notifications_read_all_post: {
         parameters: {
             query?: never;
@@ -25369,6 +21988,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["NotificationFeedItemRead"];
                 };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    qr_redirect_api_v1_qr__code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Request validation failed */
             422: {

@@ -8,7 +8,10 @@ const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh: mocks.refresh }),
+}));
 vi.mock("@/lib/files/installation-evidence-upload", () => ({
   uploadInstallationImage: mocks.upload,
   postJson: mocks.postJson,
@@ -82,66 +85,35 @@ describe("InstallationEvidenceActions", () => {
     expect(screen.queryByRole("button", { name: "Send display photo" })).not.toBeInTheDocument();
   });
 
-  it("gets a nonce before uploading and consuming a start-of-shift proof", async () => {
+  it("names only the missing views before any upload", async () => {
     const user = userEvent.setup();
-    mocks.upload.mockResolvedValue("proof-file");
-    mocks.postJson
-      .mockResolvedValueOnce({ challenge_id: "challenge", nonce: "server-nonce" })
-      .mockResolvedValueOnce({ id: "proof" });
     const { container } = render(
       <InstallationEvidenceActions
         assignmentId={ASSIGNMENT_ID}
-        status="active"
-        requiredViews={["front"]}
-        latestEvidenceStatus="approved"
+        status="accepted"
+        requiredViews={["front", "back", "close_up"]}
       />,
     );
-    const inputs = container.querySelectorAll<HTMLInputElement>('input[type="file"]');
-    const proofInput = inputs[inputs.length - 1]!;
-    await user.upload(proofInput, new File(["proof"], "proof.png", { type: "image/png" }));
-    await user.click(screen.getByRole("button", { name: "Send display photo" }));
-
-    await waitFor(() => expect(mocks.postJson).toHaveBeenCalledTimes(2));
-    expect(mocks.postJson).toHaveBeenNthCalledWith(
-      1,
-      `/api/driver/assignments/${ASSIGNMENT_ID}/display-proof/challenge`,
-      { device_id: "00000000-0000-4000-8000-000000000002" },
+    await user.upload(
+      container.querySelector<HTMLInputElement>('input[type="file"]')!,
+      new File(["front"], "front.png", { type: "image/png" }),
     );
-    expect(mocks.postJson).toHaveBeenNthCalledWith(
-      2,
-      `/api/driver/assignments/${ASSIGNMENT_ID}/display-proof`,
-      expect.objectContaining({
-        challenge_id: "challenge",
-        nonce: "server-nonce",
-        stored_file_id: "proof-file",
-      }),
-    );
+    await user.click(screen.getByRole("button", { name: "Send installation photos" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Back");
+    expect(alert).toHaveTextContent("Close");
+    expect(alert).not.toHaveTextContent("Front");
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.postJson).not.toHaveBeenCalled();
   });
 
-  it("surfaces a requested display photo in plain words", () => {
-    render(
-      <InstallationEvidenceActions
-        assignmentId={ASSIGNMENT_ID}
-        status="active"
-        requiredViews={["front"]}
-        latestEvidenceStatus="approved"
-        pendingChallengeDueAt="2026-08-27T12:00:00Z"
-      />,
-    );
-
-    expect(screen.getByText(/Terrax Media asked for a new photo/)).toBeVisible();
-    expect(screen.queryByText(/GPS/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send display photo" })).toBeVisible();
-  });
-
-  it("names the client's photo views and hides display proof until its windows are set", async () => {
+  it("has no daily photo task after weekly photos are approved", async () => {
     render(
       <InstallationEvidenceActions
         assignmentId={ASSIGNMENT_ID}
         status="active"
         requiredViews={["front", "back", "left", "right", "close_up"]}
         latestEvidenceStatus="approved"
-        proofAvailable={false}
       />,
     );
 
@@ -151,4 +123,50 @@ describe("InstallationEvidenceActions", () => {
     expect(screen.queryByRole("button", { name: "Send new photos" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Send display photo" })).not.toBeInTheDocument();
   });
+});
+it.each(["approved", "pending_review"])(
+  "does not show an old rejection reason for %s photos",
+  (status) => {
+    render(
+      <InstallationEvidenceActions
+        assignmentId={ASSIGNMENT_ID}
+        status="accepted"
+        requiredViews={["front"]}
+        latestEvidenceStatus={status}
+        rejectionReason="Old reason"
+      />,
+    );
+    expect(screen.queryByText("Old reason")).toBeNull();
+  },
+);
+it("shows the saved rejection as plain text before retaking photos", () => {
+  const reason = "<strong>Retake the branding close-up.</strong>";
+  const { container } = render(
+    <InstallationEvidenceActions
+      assignmentId={ASSIGNMENT_ID}
+      status="accepted"
+      requiredViews={["front"]}
+      latestEvidenceStatus="rejected"
+      rejectionReason={reason}
+    />,
+  );
+  const message = screen.getByText(reason);
+  expect(message).toBeVisible();
+  expect(container.querySelector("strong")).toBeNull();
+  expect(
+    message.compareDocumentPosition(container.querySelector('input[type="file"]')!) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+});
+it("keeps a useful fallback when a rejected revision has no reason", () => {
+  render(
+    <InstallationEvidenceActions
+      assignmentId={ASSIGNMENT_ID}
+      status="accepted"
+      requiredViews={["front"]}
+      latestEvidenceStatus="rejected"
+    />,
+  );
+  expect(screen.getByText(/Your last photos weren't approved/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Send installation photos" })).toBeVisible();
 });

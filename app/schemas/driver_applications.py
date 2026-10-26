@@ -27,7 +27,7 @@ class DriverApplicationCreate(BaseModel):
     email: str = Field(min_length=3, max_length=255)
     full_name: str = Field(min_length=1, max_length=255)
     phone: str | None = Field(default=None, max_length=32)
-    service_city: str | None = Field(default=None, max_length=128)
+    service_city: str = Field(min_length=1, max_length=128)
     country_code: str | None = Field(default=None, min_length=2, max_length=2)
 
     @field_validator("email")
@@ -46,7 +46,15 @@ class DriverApplicationCreate(BaseModel):
             raise ValueError("Full name is required")
         return normalized
 
-    @field_validator("phone", "service_city")
+    @field_validator("service_city")
+    @classmethod
+    def require_city(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Choose the city you drive in")
+        return normalized
+
+    @field_validator("phone")
     @classmethod
     def trim_optional_text(cls, value: str | None) -> str | None:
         return _trim(value)

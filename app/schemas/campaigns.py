@@ -15,6 +15,7 @@ from pydantic import (
 from app.models.campaign import CampaignStatus, CreativePlacement, CreativeStatus, CreativeType
 from app.models.organization import OrganizationStatus
 from app.models.stored_file import FileScanStatus
+from app.schemas.campaign_lifecycle import CampaignLifecycleReadMixin
 from app.schemas.drivers import normalize_optional_text
 from app.schemas.vehicles import normalize_required_text
 
@@ -87,7 +88,7 @@ class CampaignCreate(BaseModel):
         ):
             raise ValueError("Daily budget must not exceed total budget")
         if self.start_at is not None and self.end_at is not None and self.start_at >= self.end_at:
-            raise ValueError("Campaign start_at must be before end_at")
+            raise ValueError("The start date must be before the end date")
         return self
 
 
@@ -137,18 +138,18 @@ class CampaignUpdate(BaseModel):
         ):
             raise ValueError("Daily budget must not exceed total budget")
         if self.start_at is not None and self.end_at is not None and self.start_at >= self.end_at:
-            raise ValueError("Campaign start_at must be before end_at")
+            raise ValueError("The start date must be before the end date")
         return self
 
 
-class CampaignRead(DecimalStringMixin):
+class CampaignRead(CampaignLifecycleReadMixin, DecimalStringMixin):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     organization_id: UUID
     name: str
     description: str | None
-    status: CampaignStatus
+    status: CampaignStatus | Literal["finished"]
     start_at: datetime | None
     end_at: datetime | None
     budget_amount: Decimal | None
@@ -159,8 +160,34 @@ class CampaignRead(DecimalStringMixin):
     updated_at: datetime
 
 
+class BudgetUsedRead(BaseModel):
+    """D103: the booked total behind the budget alerts."""
+
+    amount: Decimal
+    budget_amount: Decimal | None
+    currency: str
+    basis: Literal["funding", "invoice"]
+    as_of: datetime
+
+    @field_serializer("amount", "budget_amount")
+    def serialize_money(self, value: Decimal | None) -> str | None:
+        return None if value is None else str(value)
+
+
+class AdvertiserCampaignRead(CampaignRead):
+    budget_used: BudgetUsedRead
+    pause_kind: Literal["budget", "operational", "unknown"] | None = None
+
+
+class CampaignListItemRead(AdvertiserCampaignRead):
+    assignment_count: int = Field(ge=0)
+    target_zone_count: int = Field(ge=0)
+    # Card picture: newest clean image artwork, approved first (REQ-208).
+    preview_file_id: UUID | None
+
+
 class CampaignListResponse(BaseModel):
-    items: list[CampaignRead]
+    items: list[CampaignListItemRead]
     total: int
     limit: int
     offset: int
@@ -201,8 +228,13 @@ class AdminCampaignRead(CampaignRead):
     organization: AdminCampaignOrganizationSummary
 
 
+class AdminCampaignListItemRead(AdminCampaignRead):
+    assignment_count: int = Field(ge=0)
+    target_zone_count: int = Field(ge=0)
+
+
 class AdminCampaignListResponse(BaseModel):
-    items: list[AdminCampaignRead]
+    items: list[AdminCampaignListItemRead]
     total: int
     limit: int
     offset: int
@@ -225,7 +257,7 @@ class CampaignReviewEventRead(BaseModel):
     id: UUID
     campaign_id: UUID
     actor_user_id: UUID
-    prior_status: CampaignStatus
+    prior_status: str
     new_status: CampaignStatus
     rejection_reason: str | None
     reviewed_snapshot: dict[str, Any] | None
@@ -328,7 +360,7 @@ class CreativeReviewEventRead(BaseModel):
     id: UUID
     creative_id: UUID
     actor_user_id: UUID
-    prior_status: CreativeStatus
+    prior_status: str
     new_status: CreativeStatus
     rejection_reason: str | None
     reviewed_snapshot: dict[str, Any] | None

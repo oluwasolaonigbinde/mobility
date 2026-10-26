@@ -1,5 +1,7 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
 import { z } from "zod";
 import { refresh } from "next/cache";
 import { createApiClient } from "@/lib/api/client";
@@ -51,6 +53,7 @@ export async function requestQuoteAction(
       },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return { error: safeCommercialError(error, "Could not request a quotation. Try again.") };
   }
   return { done: "Quotation requested. Terrax Media will post it here for review." };
@@ -81,6 +84,7 @@ export async function acceptQuoteAction(
       acceptedTerms: data,
     };
   } catch (error) {
+    unstable_rethrow(error);
     return { error: safeCommercialError(error, "Could not accept the quotation. Try again.") };
   }
 }
@@ -104,6 +108,7 @@ export async function acceptExpeditedWaiverAction(
       },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return { error: safeCommercialError(error, "Could not record the waiver. Try again.") };
   }
   return { done: "Expedited production waiver recorded." };

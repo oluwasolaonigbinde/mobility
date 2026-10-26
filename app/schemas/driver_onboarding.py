@@ -31,6 +31,20 @@ class ApplicantFileUploadConfirm(BaseModel):
     application_access_token: SecretStr = Field(repr=False)
 
 
+class ApplicationContinuationRead(BaseModel):
+    step: Literal["details", "car"]
+    state: Literal[
+        "details_needed",
+        "details_in_review",
+        "details_changes_needed",
+        "car_needed",
+        "car_in_review",
+        "car_changes_needed",
+    ]
+    changes_reason: str | None
+    expires_at: datetime
+
+
 class ApplicantFileUploadRead(BaseModel):
     upload_id: UUID
     expires_at: datetime

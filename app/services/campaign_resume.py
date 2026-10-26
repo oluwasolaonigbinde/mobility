@@ -147,7 +147,7 @@ async def resume_campaign(
     await _check_start_requirements(session, campaign, now)
     await _check_active_jobs(session, campaign.id, now)
     assert campaign.start_at is not None
-    campaign.status = "scheduled" if as_aware_utc(campaign.start_at) > now else "active"
+    campaign.status = "approved" if as_aware_utc(campaign.start_at) > now else "active"
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,

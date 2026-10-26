@@ -131,14 +131,11 @@ money. The exercise uses only the in-process fake adapter and performs zero
 external provider actions.
 
 Roles:
-- maker: `<MONEY_MAKER_ROLE>`
-- checker: `<MONEY_CHECKER_ROLE>`
-- reconciler: `<MONEY_RECONCILER_ROLE>`
+- money operator (one active admin may perform all actions): `<MONEY_OPERATOR_ROLE>`
 - incident commander: `<INCIDENT_COMMANDER_ROLE>`
 
 Stop criteria:
-Stop before submission/replay on an unavailable approved provider, missing
-maker-checker-reconciler separation, changed idempotency key, provider reference
+Stop before submission/replay on an unavailable approved provider, missing actor/reason or action authority, changed idempotency key, provider reference
 or instruction hash, amount/currency drift, forged or reordered conflicting
 evidence, unresolved line, active hold, or any attempt to mark paid without
 provider finality.
@@ -148,14 +145,14 @@ Evidence fields:
 `line_id`, `line_status_before`, `line_status_after`, `idempotency_key`,
 `provider_transfer_reference`, `provider_event_id`, `instruction_sha256`,
 `amount`, `currency`, `ledger_entry_id`, `ledger_finality_before`,
-`ledger_finality_after`, `maker_id`, `checker_id`, `reconciler_id`,
+`ledger_finality_after`, `actor_id`, `reason`,
 `adapter_classification`, `external_provider_actions`, `retry_count`,
 `stop_reason`, `reconciliation_event_ids`, and `protected_evidence_pointer`.
 
 Ordered preparation procedure:
 1. Freeze the persisted batch/line identity, instruction hash, amount, currency,
    roles, and ledger status before retry.
-2. Verify maker, checker, and reconciler are distinct; otherwise stop.
+2. Verify the active admin, exact projection, reason and audit. The same admin may approve/apply and reconcile (D112); holds and provider proof remain mandatory.
 3. Replay only the existing idempotent path with the identical identity; changed
    facts conflict and require incident handling, not a new reference.
 4. Reconcile each line through existing verified webhook/poll authority; a
@@ -165,20 +162,20 @@ Ordered preparation procedure:
 
 Do not:
 Do not supply credentials, contact a provider, submit a financially effective
-transfer, edit ledger/history, reuse one operator across separated roles, or
+transfer, edit ledger/history, bypass independent evidence/credential checks, or
 convert a synthetic fake-adapter result into payment evidence.
 
 ## Domain: report-replay
 
 Authoritative sources:
-[bounded issuance contract](../pkg-08-w4-02b-bounded-issuance.md),
-[report issuance tests](../../tests/test_report_issuances.py), and persisted
-measurement run, issuance, artifact, stored-file, and worker lease rows.
+[current reports API](../../app/api/v1/campaign_reports.py),
+[report publication tests](../../tests/test_req217_reports.py), and persisted
+campaign report, frozen snapshot, artifact, stored-file, and worker lease rows (D118).
 
 Authoritative state:
-An identical accepted request identity returns its frozen issuance. A changed
+An identical accepted request identity returns its frozen report. A changed
 retry conflicts. CSV and PDF remain an atomic pair; terminal recovery creates
-an append-only reissue version rather than rewriting history.
+an append-only re-run version rather than rewriting history.
 
 Roles:
 - request owner: `<BUSINESS_ACCOUNTABLE_ROLE>`
@@ -194,23 +191,22 @@ artifact/file hash or metadata mismatch, stale unreconciled lease, or storage
 failure. A terminal failure requires append-only reissue, never mutation.
 
 Evidence fields:
-`scenario_id`, `request_id`, `request_fingerprint`, `measurement_run_id`,
-`measurement_input_sha256`, `measurement_result_sha256`, `issuance_id`,
-`issuance_version`, `reissue_of_id`, `worker_lease_id`, `worker_attempts`,
+`scenario_id`, `report_id`, `client_request_id`, `request_fingerprint`,
+`snapshot_sha256`, `version`, `rerun_of_id`, `processing_token`, `attempts`,
 `status_before`, `status_after`, `csv_artifact_id`, `csv_sha256`,
 `pdf_artifact_id`, `pdf_sha256`, `stored_file_ids`, `authority_snapshot`,
 `pair_publication_state`, `stop_reason`, `checker_id`, and
 `protected_evidence_pointer`.
 
 Ordered preparation procedure:
-1. Capture the accepted request ID/fingerprint, frozen run/proof hashes,
-   issuance/version lineage, and empty-or-complete artifact-pair state.
+1. Capture the accepted request ID/fingerprint, frozen snapshot hash,
+   report/version lineage, and empty-or-complete artifact-pair state.
 2. Replay only the exact request identity; reject changed reuse.
 3. Let the existing database-derived worker retry its due job; do not fabricate
    lease completion or write artifacts outside shared private storage.
 4. Require both immutable artifact rows, stored-file rows, exact hashes, and
    current authority before access.
-5. On terminal failure, request an explicit append-only reissue and retain the
+5. On terminal failure, ask staff for an explicit append-only re-run and retain the
    failed version plus lineage evidence.
 
 Do not:
@@ -235,7 +231,7 @@ Roles:
 - incident commander: `<INCIDENT_COMMANDER_ROLE>`
 - privacy/legal decision-maker: `<PRIVACY_DECISION_ROLE>`
 - security responder: `<SECURITY_OWNER_ROLE>`
-- money checker: `<MONEY_CHECKER_ROLE>`
+- money checker: `<MONEY_OPERATOR_ROLE>`
 - report-method authority: `<REPORT_METHOD_AUTHORITY_ROLE>`
 - service coordinator: `<SERVICE_SUPPORT_COORDINATOR_ROLE>`
 

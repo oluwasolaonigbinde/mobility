@@ -2,7 +2,11 @@
 
 import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { uploadCreativeFile, type CreativeUploadPhase } from "@/lib/files/creative-upload";
+import {
+  uploadCreativeFile,
+  CREATIVE_UPLOAD_PHASE_LABELS,
+  type CreativeUploadPhase,
+} from "@/lib/files/creative-upload";
 import {
   replaceCreativeAndSubmitAction,
   submitCreativeForReviewAction,
@@ -26,7 +30,7 @@ export function CreativeStatusActions({
   );
   const [replacement, setReplacement] = useState<{
     storedFileId?: string;
-    creativeType?: "image" | "video" | "other";
+    creativeType?: "image" | "pdf";
     phase?: CreativeUploadPhase;
     error?: string;
   }>({});
@@ -86,7 +90,7 @@ export function CreativeStatusActions({
             ? "Submitting…"
             : status === "rejected"
               ? "Resubmit current artwork"
-              : "Submit creative"}
+              : "Send artwork"}
         </Button>
         {state.error ? (
           <p role="alert" className="text-coral max-w-56 text-right text-xs">
@@ -101,16 +105,17 @@ export function CreativeStatusActions({
         Replace artwork
         <input
           type="file"
-          accept="image/png,image/jpeg,image/webp,video/mp4,application/pdf"
+          accept="image/png,image/jpeg,image/webp,application/pdf"
           className="border-edge mt-1 block w-full rounded border p-1 text-xs"
           onChange={(event) => void uploadReplacement(event.currentTarget.files?.[0])}
         />
       </label>
+      <p className="text-muted text-right text-xs">Add a PNG or JPG to see it on the car.</p>
       {replacement.phase ? (
         <p className="text-muted text-right text-xs" aria-live="polite">
           {replacement.phase === "clean"
-            ? "✓ Replacement passed security scan"
-            : `${replacement.phase}…`}
+            ? "✓ Replacement is ready"
+            : CREATIVE_UPLOAD_PHASE_LABELS[replacement.phase]}
         </p>
       ) : null}
       {replacement.error ? (

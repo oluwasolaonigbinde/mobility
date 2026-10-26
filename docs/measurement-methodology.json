@@ -62,48 +62,8 @@
       "vintage": "payout rule/formula revision, currency, calculation revision, and ledger facts frozen under one locked report snapshot; corrections restate the original trip terminal period only in a newly issued v2 run",
       "uncertainty": "A campaign cost is not revenue, conversion value, incremental value, or ROI.",
       "missing_data": "Omit unavailable currency totals; never combine currencies or substitute zero."
-    },
-    {
-      "id": "true_roi",
-      "display_label": "Return on investment",
-      "class": "conditional_financial_measure",
-      "unit": "ratio or percent defined by the approved method",
-      "source": "advertiser conversion and revenue inputs plus approved cost and attribution inputs",
-      "vintage": "approved method revision and immutable input-manifest cutoff",
-      "uncertainty": "Display the method's limitations, exclusions, corrections, attribution window, and provenance beside the result.",
-      "limitations": "Return on investment is computed from advertiser-supplied conversion and revenue inputs that Cardvert does not verify. It is not causal lift, incremental value, verified exposure, or attribution of a person to an advert, and modelled potential contacts are never one of its inputs.",
-      "missing_data": "Omit the entire ROI section and claim when any gate prerequisite is absent."
     }
   ],
-  "roi_gate": {
-    "default": "OMIT",
-    "production_enabled": false,
-    "all_required": [
-      "advertiser conversion input with schema, provenance, currency where applicable, and reporting cutoff",
-      "advertiser revenue input with schema, provenance, currency, and reporting cutoff",
-      "approved non-placeholder methodology reference",
-      "reproducible attribution rule and attribution window",
-      "defined positive cost basis and currency-consistency rule",
-      "defined exclusions, corrections, late-data handling, and reissue rule",
-      "immutable input manifest and method revision"
-    ],
-    "on_missing_or_invalid": "Omit the ROI section, metric, comparison, and claim; do not estimate, imply, rename, or substitute performance measures.",
-    "synthetic_fixture_exception": "A fixture may exercise the gate only when test_only=true and every input and method is labelled synthetic; it grants no live approval.",
-    "required_disclosure": [
-      "approval_reference",
-      "attribution_rule",
-      "attribution_window",
-      "conversion_provenance",
-      "corrections",
-      "cost_basis",
-      "exclusions",
-      "late_data",
-      "limitations",
-      "method_revision",
-      "reporting_cutoff",
-      "revenue_provenance"
-    ]
-  },
   "correction_and_reissue": {
     "issued_history": "immutable",
     "rule": "A changed input, source vintage, formula, approval, or correction creates a new run and reissue lineage; never mutate an issued result in place.",
@@ -120,7 +80,7 @@
     "people exposed",
     "guaranteed exposure",
     "causal lift",
-    "ROI when the ROI gate does not pass"
+    "return on investment"
   ],
   "completeness_rule": {
     "denominator": "Cohort trips whose session reached a terminal ended or sealed state inside the frozen reporting period.",

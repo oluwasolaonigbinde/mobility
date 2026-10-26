@@ -7,63 +7,43 @@ import { requireRole } from "@/lib/auth/current-user";
 import { loadAdvertiserPageData } from "@/lib/advertiser/page-data";
 import { DataUnavailable } from "@/components/ui/data-unavailable";
 import { getSessionToken } from "@/lib/auth/session";
-import {
-  formatCount,
-  formatDate,
-  formatDateRange,
-  formatKm,
-  formatMoney,
-  formatScore,
-} from "@/lib/format";
-import { statusLabel, statusTone } from "@/lib/campaigns/status";
+import { formatDate, formatDateRange, formatMoney } from "@/lib/format";
+import { statusLabel } from "@/lib/campaigns/status";
 import { Panel } from "@/components/ui/panel";
-import { Stat } from "@/components/ui/stat";
-import { StatusChip } from "@/components/ui/status-chip";
+import { CampaignMap } from "@/components/campaigns/campaign-map";
+import { PerformanceCard } from "@/components/campaigns/performance-card";
+import { IconTile } from "@/components/brand/portal-icon";
+import { BudgetUsed } from "@/components/campaigns/budget-used";
+import { loadCampaignVisuals } from "@/lib/advertiser/campaign-visuals";
+import { loadLivePositions } from "@/lib/advertiser/engagement";
+import { loadPerformance } from "@/lib/advertiser/performance";
+import { campaignDay } from "@/lib/campaigns/day-progress";
+import { bookedBudget } from "@/lib/advertiser/budget-display";
+import { isOutstandingInvoice } from "@/lib/billing/commercial-history";
+import { readCampaignCancellationRequests } from "@/lib/api/audit-batch2";
+import { isCancellableCampaign } from "@/lib/campaigns/cancellation";
 import { StatusActions } from "./status-actions";
 import { CommercialPanel } from "./commercial-panel";
-import { CreativeStatusActions } from "./creative-status-actions";
+import { CampaignAssets } from "./campaign-assets";
 import { CampaignChangePanel } from "./campaign-change-panel";
 import { CampaignCancellationPanel } from "./campaign-cancellation-panel";
-import { CampaignPreparationSummary } from "./campaign-preparation-summary";
 
 export const metadata: Metadata = { title: "Campaign" };
-
-const creativeTypeLabel: Record<string, string> = {
-  image: "Image",
-  video: "Video",
-  html: "HTML",
-  text: "Text",
-  other: "Other",
+const sentences: Record<string, string> = {
+  draft: "Finish setting up your campaign.",
+  pending_review: "Terrax Media is reviewing your campaign.",
+  rejected: "Terrax Media has asked for a few changes.",
+  approved: "Your campaign is approved. Terrax Media is arranging the next steps.",
+  active: "Your campaign is running.",
+  paused: "Your campaign is paused. Contact Terrax Media about the next steps.",
+  finished: "Your campaign has finished.",
+  cancelled: "This campaign has been cancelled.",
 };
-
-const placementLabel: Record<string, string> = {
-  vehicle_exterior: "Vehicle exterior",
-  vehicle_interior: "Vehicle interior",
-  digital_screen: "Digital screen",
-  print: "Print",
-  other: "Other",
-};
-
-// Mid-flight changes are accepted only in these states (server: campaign_changes.py).
-const CHANGEABLE_STATUSES: string[] = ["scheduled", "active", "paused"];
-const TERMINAL_STATUSES: string[] = ["completed", "cancelled"];
-
-const creativeStatusLabel: Record<string, string> = {
-  draft: "Not submitted",
-  pending_review: "In review",
-  approved: "Approved",
-  rejected: "Changes needed",
-  // Legacy pre-review state: readable, but never launch authority.
-  ready: "Older file",
-  archived: "Archived",
-};
-
-const scanLabel: Record<string, string> = {
-  pending: "file check in progress",
-  clean: "file check passed",
-  infected: "file failed the safety check",
-  rejected: "file type or size not accepted",
-  error: "file check couldn't finish; upload again",
+const pauseSentences = {
+  budget: "Your campaign is paused for a budget check. Contact Terrax Media about the next steps.",
+  operational:
+    "Terrax Media has paused your campaign while it checks an operational issue. Contact Terrax Media about the next steps.",
+  unknown: "Your campaign is paused. Contact Terrax Media about the next steps.",
 };
 
 export default async function CampaignDetailPage({
@@ -71,42 +51,27 @@ export default async function CampaignDetailPage({
   searchParams,
 }: {
   params: Promise<{ campaignId: string }>;
-  searchParams: Promise<{ commercial_error?: string }>;
+  searchParams: Promise<{ commercial_error?: string; details?: string; manage?: string }>;
 }) {
   const { campaignId } = await params;
   const query = await searchParams;
   await requireRole("advertiser");
   const api = createApiClient(await getSessionToken());
-  const retryHref = `/advertiser/campaigns/${campaignId}`;
-
-  const campaignResult = await loadAdvertiserPageData(() =>
+  const base = `/advertiser/campaigns/${campaignId}`;
+  const loaded = await loadAdvertiserPageData(() =>
     api.GET("/api/v1/advertiser/campaigns/{campaign_id}", {
       params: { path: { campaign_id: campaignId } },
     }),
   );
-  if (!campaignResult.available) {
-    if (campaignResult.reason === "missing") notFound();
-    return (
-      <DataUnavailable
-        title="Campaign unavailable"
-        reason={campaignResult.reason}
-        retryHref={retryHref}
-      />
-    );
+  if (!loaded.available) {
+    if (loaded.reason === "missing") notFound();
+    return <DataUnavailable title="Campaign unavailable" reason={loaded.reason} retryHref={base} />;
   }
-  const campaign = campaignResult.data;
-  const [summaryResult, creativesResult, commercialResult, historyResult, changesResult] =
+  const campaign = loaded.data;
+  const cancellable = isCancellableCampaign(campaign.status);
+  const [visuals, commercial, history, changes, cancellations, live, performance] =
     await Promise.all([
-      loadAdvertiserPageData(() =>
-        api.GET("/api/v1/advertiser/campaigns/{campaign_id}/summary", {
-          params: { path: { campaign_id: campaignId } },
-        }),
-      ),
-      loadAdvertiserPageData(() =>
-        api.GET("/api/v1/advertiser/campaigns/{campaign_id}/creatives", {
-          params: { path: { campaign_id: campaignId } },
-        }),
-      ),
+      loadCampaignVisuals(api, campaignId),
       loadAdvertiserPageData(() =>
         api.GET("/api/v1/advertiser/campaigns/{campaign_id}/commercial", {
           params: { path: { campaign_id: campaignId } },
@@ -122,347 +87,317 @@ export default async function CampaignDetailPage({
           params: { path: { campaign_id: campaignId } },
         }),
       ),
+      cancellable
+        ? loadAdvertiserPageData(() => readCampaignCancellationRequests(api, campaignId))
+        : null,
+      loadLivePositions(api, campaignId),
+      loadPerformance(api, campaignId),
     ]);
-
-  // D38(d): count target areas directly — the summary can be privacy-gated.
-  const targetAreasResult =
-    campaign.status === "draft" || campaign.status === "rejected"
-      ? await loadAdvertiserPageData(() =>
-          api.GET("/api/v1/advertiser/campaigns/{campaign_id}/zones", {
-            params: { path: { campaign_id: campaignId }, query: { zone_type: "target", limit: 1 } },
-          }),
-        )
-      : undefined;
-  const summary = summaryResult.available ? summaryResult.data : undefined;
-  const creatives = creativesResult.available ? creativesResult.data : undefined;
-  const reviewHistory = historyResult.available ? historyResult.data : undefined;
-  const cost = summary?.costs.totals_by_currency[0];
-  const creativeItems = creatives?.items ?? [];
-  // The newest review event of a rejected creative is its rejection; `undefined`
-  // marks a reason that could not be read, so only that line degrades.
-  const rejectionReasons = new Map(
+  // A request already sent shows its status instead of a second form (REQ-194).
+  const cancellation =
+    !cancellable || !cancellations ? null : !cancellations.available ? (
+      <DataUnavailable
+        title="Cancellation request unavailable"
+        reason={cancellations.reason}
+        retryHref={base}
+        className="mt-6"
+      />
+    ) : (
+      <CampaignCancellationPanel
+        campaignId={campaign.id}
+        campaignName={campaign.name}
+        pendingThreadId={
+          cancellations.data.items.find(
+            (item) =>
+              item.category === "campaign_cancellation" &&
+              (item.status === "open" || item.status === "answered"),
+          )?.id
+        }
+      />
+    );
+  const { artwork, areas } = visuals;
+  const creativeItems = artwork.available ? artwork.data.items : [];
+  const artworkReasons = new Map(
     await Promise.all(
       creativeItems
-        .filter((creative) => creative.status === "rejected")
-        .map(async (creative) => {
-          const history = await loadAdvertiserPageData(() =>
+        .filter((item) => item.status === "rejected")
+        .map(async (item) => {
+          const result = await loadAdvertiserPageData(() =>
             api.GET(
               "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/review-history",
               {
                 params: {
-                  path: { campaign_id: campaignId, creative_id: creative.id },
+                  path: { campaign_id: campaignId, creative_id: item.id },
                   query: { limit: 1 },
                 },
               },
             ),
           );
           return [
-            creative.id,
-            history.available ? (history.data.items[0]?.rejection_reason ?? null) : undefined,
+            item.id,
+            result.available ? (result.data.items[0]?.rejection_reason ?? undefined) : undefined,
           ] as const;
         }),
     ),
   );
-
+  const terminal = ["finished", "cancelled"].includes(campaign.status);
+  const artworkAuthorityAvailable =
+    campaign.status === "active" || (commercial.available && "production_start" in commercial.data);
+  const artworkLocked =
+    campaign.status === "active" ||
+    (commercial.available && Boolean(commercial.data.production_start?.started_at));
+  const positions =
+    live.available && live.data.campaign_id === campaignId ? live.data.positions : null;
+  const assets = await CampaignAssets({
+    api,
+    campaignId,
+    campaignName: campaign.name,
+    items: creativeItems,
+    canWrite: !terminal,
+    locked: artworkLocked,
+    changeAvailable: artworkAuthorityAvailable,
+    available: artwork.available,
+    reasons: artworkReasons,
+  });
+  const editable = ["draft", "rejected"].includes(campaign.status);
+  const changeable = ["approved", "active", "paused"].includes(campaign.status);
+  const invoice = commercial.available
+    ? commercial.data.invoices?.find(isOutstandingInvoice)
+    : undefined;
+  let next = { label: "See results", href: `${base}/report` };
+  if (campaign.status === "cancelled")
+    next = { label: "View invoices", href: `/advertiser/billing#campaign-${campaignId}` };
+  else if (campaign.status === "paused")
+    next = { label: "Contact Terrax Media", href: "/advertiser/help" };
+  else if (!terminal && campaign.status !== "active") {
+    if (editable && (!campaign.start_at || !campaign.end_at || !campaign.budget_amount))
+      next = { label: "Add campaign details", href: `${base}/edit` };
+    else if (editable && areas.available && areas.data.total === 0)
+      next = { label: "Choose your area", href: `${base}/zones` };
+    else if (!commercial.available || !artwork.available || (editable && !areas.available))
+      next = { label: "Try again", href: base };
+    else if (!creativeItems.length)
+      next = {
+        label: "Add your artwork",
+        href: `/advertiser/campaigns/new?campaignId=${campaignId}`,
+      };
+    else if (!commercial.data.terms && commercial.data.revisions?.length)
+      next = {
+        label: "Review your quotation",
+        href: `${base}?details=quotation#quotation`,
+      };
+    else if (!commercial.data.terms)
+      next = {
+        label: commercial.data.quote_request ? "View campaign details" : "Request a quotation",
+        href: `${base}?details=quotation#quotation`,
+      };
+    else if (creativeItems.some((item) => ["draft", "rejected"].includes(item.status)))
+      next = {
+        label: "Add or update artwork",
+        href: `/advertiser/campaigns/new?campaignId=${campaignId}`,
+      };
+    else if (invoice)
+      next = {
+        label: "Pay invoice",
+        href: `/advertiser/billing/${campaignId}/invoices/${invoice.id}`,
+      };
+    else if (editable) next = { label: "Review and submit", href: `${base}?manage=review#manage` };
+    else next = { label: "View campaign details", href: `${base}?details=quotation#quotation` };
+  }
+  if (artworkLocked && next.href.startsWith("/advertiser/campaigns/new"))
+    next = { label: "Ask Terrax to change it", href: `${base}#artwork-change` };
   return (
-    <div className="animate-rise mx-auto max-w-6xl">
-      <nav aria-label="Breadcrumb" className="micro text-faint mb-4">
-        <Link href="/advertiser/campaigns" className="hover:text-muted">
-          Campaigns
-        </Link>{" "}
-        / <span className="text-muted">{campaign.name}</span>
-      </nav>
-
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="font-display text-3xl font-semibold tracking-tight">{campaign.name}</h1>
-            <StatusChip tone={statusTone[campaign.status]}>
-              {statusLabel[campaign.status]}
-            </StatusChip>
-          </div>
-          <p className="micro text-muted mt-1.5">
-            {formatDateRange(campaign.start_at, campaign.end_at)} · created{" "}
-            {formatDate(campaign.created_at)}
+    <div className="animate-rise">
+      <section className="portal-hero mb-6" aria-label="Next step">
+        <div className="portal-hero-copy">
+          <p className="mb-3 text-sm font-semibold text-[#c8f6d0]">
+            {statusLabel[campaign.status]}
           </p>
+          <h1 className="font-display max-w-2xl text-3xl font-semibold md:text-4xl">
+            {campaign.name}
+          </h1>
+          <p className="mt-3 text-base text-[#e4f0df]">
+            {formatDateRange(campaign.start_at, campaign.end_at)}
+          </p>
+          <p className="mt-2 text-sm font-semibold text-[#f2c94c]">
+            {campaignDay(campaign.start_at, campaign.end_at)}
+          </p>
+          <p className="mt-4 text-sm text-[#e4f0df]">
+            {campaign.status === "paused"
+              ? pauseSentences[campaign.pause_kind ?? "unknown"]
+              : sentences[campaign.status]}
+          </p>
+          <Link href={next.href} className="brand-action mt-5">
+            {next.label} <span aria-hidden="true">→</span>
+          </Link>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <StatusActions campaignId={campaign.id} status={campaign.status} />
-          <div className="flex flex-wrap justify-end gap-2">
-            <Link
-              href={`/advertiser/campaigns/${campaign.id}/report`}
-              className="micro border-edge bg-raised hover:border-edge-strong rounded-lg border px-3.5 py-2.5 transition-colors"
-            >
-              Campaign Performance Analysis
-            </Link>
-            <Link
-              href={`/advertiser/campaigns/${campaign.id}/map`}
-              className="micro border-edge bg-raised hover:border-edge-strong rounded-lg border px-3.5 py-2.5 transition-colors"
-            >
-              Coverage map
-            </Link>
-            <Link
-              href={`/advertiser/campaigns/${campaign.id}/zones`}
-              className="micro border-edge bg-raised hover:border-edge-strong rounded-lg border px-3.5 py-2.5 transition-colors"
-            >
-              Zones{summary ? ` · ${formatCount(summary.zones.total)}` : ""}
-            </Link>
+        <div className="portal-hero-art" aria-hidden="true" />
+      </section>
+      <div className="mb-6 grid gap-5 lg:grid-cols-2">
+        <Panel className="overflow-hidden">
+          <div className="border-edge flex items-center justify-between gap-3 border-b px-5 py-4">
+            <h2 className="font-semibold">On the road now</h2>
+            <a href={base} className="text-green text-sm font-semibold">
+              Refresh
+            </a>
           </div>
-        </div>
-      </div>
-
-      <CampaignPreparationSummary
-        campaign={campaign}
-        commercial={commercialResult.available ? commercialResult.data : undefined}
-        creatives={creativesResult.available ? creativeItems : undefined}
-        targetAreas={targetAreasResult?.available ? targetAreasResult.data.total : undefined}
-      />
-
-      {summaryResult.available ? (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5">
-          <Stat
-            label="Distance covered"
-            value={formatKm(summary?.route_analytics.total_distance_m)}
-            hint={`${formatKm(summary?.route_analytics.target_zone_distance_m)} in target zones`}
-          />
-          <Stat
-            label="GPS signal quality"
-            value={formatScore(summary?.route_analytics.average_quality_score)}
-            tone="amber"
-            hint="Average across analysed trips"
-          />
-          <Stat
-            label="Estimated ad exposure"
-            value={formatCount(summary?.impressions.estimated_impressions)}
-            tone="cyan"
-            hint="Estimated opportunities to see the ad, based on routes and traffic. This is not a count of people or measured views."
-          />
-          <Stat
-            label="Driver pay to date"
-            className="max-sm:[&>p:nth-child(2)]:text-2xl"
-            value={cost ? formatMoney(cost.final_payout_total, cost.currency) : "—"}
-            tone="green"
-            hint="Calculated driver pay; your invoice is shown in Billing."
-          />
-          <Stat
-            label="Fraud flags"
-            value={formatCount(summary?.fraud_flags.open)}
-            tone={(summary?.fraud_flags.open ?? 0) > 0 ? "coral" : "green"}
-            hint="Trip checks waiting for Terrax Media to review"
-          />
-        </div>
-      ) : (
-        <DataUnavailable
-          title="Campaign results unavailable"
-          reason={summaryResult.reason}
-          retryHref={retryHref}
-        />
-      )}
-
-      {commercialResult.available ? (
-        <CommercialPanel
-          campaignId={campaign.id}
-          canRequestQuotation={!["completed", "cancelled"].includes(campaign.status)}
-          commercial={commercialResult.data}
-          error={
-            query.commercial_error
-              ? "That request didn't go through. Check the current terms and try again."
-              : undefined
-          }
-        />
-      ) : (
-        <DataUnavailable
-          className="mt-6"
-          title="Commercial terms unavailable"
-          reason={commercialResult.reason}
-          retryHref={retryHref}
-        />
-      )}
-
-      {changesResult.available ? (
-        CHANGEABLE_STATUSES.includes(campaign.status) || changesResult.data.items.length > 0 ? (
-          <CampaignChangePanel
-            campaignId={campaign.id}
-            clientRequestId={randomUUID()}
-            currency={campaign.currency}
-            requests={changesResult.data.items}
-            editable={CHANGEABLE_STATUSES.includes(campaign.status)}
-          />
-        ) : null
-      ) : (
-        <DataUnavailable
-          className="mt-6"
-          title="Campaign changes unavailable"
-          reason={changesResult.reason}
-          retryHref={retryHref}
-        />
-      )}
-
-      {(["approved", "scheduled", "active", "paused"] as string[]).includes(campaign.status) ? (
-        <CampaignCancellationPanel campaignId={campaign.id} clientRequestId={randomUUID()} />
-      ) : null}
-
-      {historyResult.available ? (
-        <Panel className="mt-6 overflow-hidden" aria-label="Submission and review history">
-          <div className="border-edge border-b px-6 py-4">
-            <h2 className="micro text-muted">Submission and review history</h2>
+          <div className="h-64">
+            {areas.available ? (
+              <CampaignMap
+                areas={areas.data.items.map(({ id, name, geometry, zone_type }) => ({
+                  id,
+                  name,
+                  geometry,
+                  zone_type,
+                }))}
+                positions={positions ?? []}
+              />
+            ) : (
+              <p className="text-muted p-5 text-sm">
+                The campaign area couldn&apos;t be loaded.{" "}
+                <Link href={base} className="underline">
+                  Try again
+                </Link>
+              </p>
+            )}
           </div>
-          {(reviewHistory?.items ?? []).length === 0 ? (
-            <p className="text-muted px-6 py-6 text-sm">
-              {campaign.status === "draft"
-                ? "This campaign has not been submitted for review."
-                : "No review history is recorded for this campaign."}
-            </p>
-          ) : (
-            <ol className="divide-edge/60 divide-y">
-              {(reviewHistory?.items ?? []).map((event) => (
-                <li key={event.id} className="px-6 py-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <StatusChip tone={statusTone[event.new_status]}>
-                        {statusLabel[event.new_status]}
-                      </StatusChip>
-                      <p className="text-sm">
-                        {event.prior_status === "rejected" && event.new_status === "pending_review"
-                          ? "Resubmitted for review"
-                          : `${statusLabel[event.prior_status]} → ${statusLabel[event.new_status]}`}
-                      </p>
-                    </div>
-                    <p className="micro text-faint">{formatDate(event.created_at)}</p>
-                  </div>
-                  {event.rejection_reason ? (
-                    <p className="text-coral mt-2 text-sm">Reason: {event.rejection_reason}</p>
-                  ) : null}
-                </li>
-              ))}
-            </ol>
-          )}
+          <p className="text-muted px-5 py-4 text-sm">
+            {positions === null
+              ? "Driving positions couldn't be loaded. Refresh to try again."
+              : positions.length === 0
+                ? "No cars driving right now"
+                : `${positions.length} ${positions.length === 1 ? "car" : "cars"} driving · as of about 15 minutes ago`}
+          </p>
+          <p className="text-muted px-5 pb-4 text-sm">
+            {areas.available ? areas.data.items.map((area) => area.name).join(" · ") : ""}{" "}
+            <Link href={`${base}/map`} className="text-green font-semibold">
+              View coverage history
+            </Link>
+          </p>
         </Panel>
-      ) : (
-        <DataUnavailable
-          className="mt-6"
-          title="Submission and review history unavailable"
-          reason={historyResult.reason}
-          retryHref={retryHref}
-        />
-      )}
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        <Panel className="p-6 lg:col-span-1">
-          <h2 className="micro text-muted mb-4">Campaign details</h2>
-          <dl className="flex flex-col gap-3 text-sm">
-            {campaign.description ? (
+        <Panel>
+          <PerformanceCard {...performance} cars={positions?.length ?? null} />
+        </Panel>
+      </div>
+      {assets}
+      <Panel className="mb-7 flex items-start gap-4 p-5 md:p-6">
+        <IconTile name="wallet" tone="gold" />
+        <div className="min-w-0 flex-1">
+          <BudgetUsed value={bookedBudget(campaign)} />
+        </div>
+      </Panel>
+      <p className="mb-6 text-sm">
+        <Link
+          href={`/advertiser/billing#campaign-${campaignId}`}
+          className="text-green font-semibold"
+        >
+          View invoices in Billing →
+        </Link>
+      </p>
+      <div className="grid gap-4">
+        <details
+          id="details"
+          className="brand-disclosure min-w-0"
+          open={Boolean(query.details || query.commercial_error)}
+        >
+          <summary>
+            Details{" "}
+            <span className="text-muted mr-5 ml-auto hidden text-sm font-normal md:inline">
+              Quotation, dates and artwork
+            </span>
+          </summary>
+          <div className="disclosure-body">
+            <dl className="mb-6 grid gap-5 text-sm sm:grid-cols-2">
               <div>
-                <dt className="micro text-faint">Description</dt>
-                <dd className="mt-1">{campaign.description}</dd>
+                <dt className="text-muted">About this campaign</dt>
+                <dd className="mt-1">{campaign.description || campaign.name}</dd>
               </div>
-            ) : null}
-            <div>
-              <dt className="micro text-faint">Window</dt>
-              <dd className="mt-1 font-mono text-xs">
-                {formatDateRange(campaign.start_at, campaign.end_at)}
-              </dd>
-            </div>
-            <div>
-              <dt className="micro text-faint">Total budget</dt>
-              <dd className="mt-1 font-mono text-xs">
-                {formatMoney(campaign.budget_amount, campaign.currency)}
-              </dd>
-            </div>
-            <div>
-              <dt className="micro text-faint">Daily budget</dt>
-              <dd className="mt-1 font-mono text-xs">
-                {formatMoney(campaign.daily_budget_amount, campaign.currency)}
-              </dd>
-            </div>
-            {summary ? (
               <div>
-                <dt className="micro text-faint">Fleet</dt>
-                <dd className="mt-1 font-mono text-xs">
-                  {formatCount(summary?.assignments.active)} active ·{" "}
-                  {formatCount(summary?.assignments.total)} assigned vehicles
+                <dt className="text-muted">Total budget</dt>
+                <dd className="mt-1 font-semibold">
+                  {formatMoney(campaign.budget_amount, campaign.currency)}
                 </dd>
               </div>
-            ) : null}
-          </dl>
-        </Panel>
-
-        {creativesResult.available ? (
-          <Panel className="overflow-hidden lg:col-span-2">
-            <div className="border-edge flex items-center justify-between border-b px-6 py-4">
-              <h2 className="micro text-muted">Artwork · {creativeItems.length}</h2>
-              {TERMINAL_STATUSES.includes(campaign.status) ? null : (
-                <Link
-                  href={`/advertiser/campaigns/new?campaignId=${campaign.id}`}
-                  className="text-amber text-sm underline"
-                >
-                  Add artwork
-                </Link>
+            </dl>
+            <div id="quotation" className="scroll-mt-24">
+              {commercial.available ? (
+                <CommercialPanel
+                  campaignId={campaign.id}
+                  canRequestQuotation={!terminal}
+                  commercial={commercial.data}
+                  error={
+                    query.commercial_error
+                      ? "That request didn't go through. Please try again."
+                      : undefined
+                  }
+                />
+              ) : (
+                <DataUnavailable
+                  title="Quotation unavailable"
+                  reason={commercial.reason}
+                  retryHref={base}
+                />
               )}
             </div>
-            {creativeItems.length === 0 ? (
-              <p className="text-muted px-6 py-10 text-center text-sm">
-                No artwork yet. Add the files Terrax Media should review for this campaign.
-              </p>
-            ) : (
-              <ul className="divide-edge/60 divide-y">
-                {creativeItems.map((cr) => (
-                  <li key={cr.id} className="flex items-center justify-between gap-4 px-6 py-4">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{cr.name}</p>
-                      <p className="micro text-faint mt-0.5">
-                        {creativeTypeLabel[cr.creative_type] ?? cr.creative_type} ·{" "}
-                        {placementLabel[cr.placement] ?? cr.placement}
-                        {cr.width_px && cr.height_px ? ` · ${cr.width_px}×${cr.height_px}` : ""}
-                        {cr.asset_source === "managed_file"
-                          ? ` · ${scanLabel[cr.scan_status ?? ""] ?? "file check status unavailable"}`
-                          : " · older file link; upload the file again before launch"}
-                      </p>
-                      {cr.status === "rejected" ? (
-                        rejectionReasons.get(cr.id) === undefined ? (
-                          <p className="text-muted mt-1 text-sm">
-                            The rejection reason could not be loaded. Refresh to try again.
-                          </p>
-                        ) : rejectionReasons.get(cr.id) ? (
-                          <p className="text-coral mt-1 text-sm">
-                            Reason: {rejectionReasons.get(cr.id)}
-                          </p>
-                        ) : null
+            {history.available ? (
+              <section className="mt-6">
+                <h2 className="font-semibold">Campaign updates</h2>
+                <ul className="mt-3 grid gap-2 text-sm">
+                  {history.data.items.map((event) => (
+                    <li key={event.id}>
+                      <span>
+                        {statusLabel[event.new_status]} · {formatDate(event.created_at)}
+                      </span>
+                      {event.rejection_reason ? (
+                        <p className="text-coral mt-1">{event.rejection_reason}</p>
                       ) : null}
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-2">
-                      <StatusChip
-                        tone={
-                          cr.status === "approved"
-                            ? "green"
-                            : cr.status === "rejected"
-                              ? "coral"
-                              : cr.status === "archived" || cr.status === "ready"
-                                ? "default"
-                                : "amber"
-                        }
-                      >
-                        {creativeStatusLabel[cr.status] ?? cr.status.replace("_", " ")}
-                      </StatusChip>
-                      <CreativeStatusActions
-                        campaignId={campaign.id}
-                        creativeId={cr.id}
-                        status={cr.status}
-                      />
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : (
+              <DataUnavailable
+                title="Campaign updates unavailable"
+                reason={history.reason}
+                retryHref={base}
+                className="mt-6"
+              />
             )}
-          </Panel>
-        ) : (
-          <DataUnavailable
-            className="lg:col-span-2"
-            title="Creatives unavailable"
-            reason={creativesResult.reason}
-            retryHref={retryHref}
-          />
-        )}
+          </div>
+        </details>
+        {!terminal ? (
+          <details id="manage" className="brand-disclosure" open={Boolean(query.manage)}>
+            <summary>
+              Manage{" "}
+              <span className="text-muted mr-5 ml-auto hidden text-sm font-normal md:inline">
+                Changes and cancellation
+              </span>
+            </summary>
+            <div className="disclosure-body">
+              {editable ? (
+                <StatusActions campaignId={campaign.id} status={campaign.status} />
+              ) : null}
+              {changes.available ? (
+                changeable || changes.data.items.length ? (
+                  <CampaignChangePanel
+                    campaignId={campaign.id}
+                    clientRequestId={randomUUID()}
+                    currency={campaign.currency}
+                    requests={changes.data.items}
+                    editable={changeable}
+                  />
+                ) : null
+              ) : (
+                <DataUnavailable
+                  title="Campaign changes unavailable"
+                  reason={changes.reason}
+                  retryHref={base}
+                />
+              )}
+              {cancellation}
+            </div>
+          </details>
+        ) : null}
       </div>
     </div>
   );

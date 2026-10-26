@@ -25,7 +25,7 @@ async function sha256(file: File): Promise<string> {
 
 export async function uploadInstallationImage(
   file: File,
-  options: { pollDelayMs?: number; maxPolls?: number } = {},
+  options: { pollDelayMs?: number; maxPolls?: number; onStatus?: (message: string) => void } = {},
 ): Promise<string> {
   if (!ACCEPTED_TYPES.has(file.type)) throw new Error("Choose a PNG, JPEG, or WebP image.");
   if (file.size <= 0 || file.size > MAX_IMAGE_BYTES) {
@@ -54,6 +54,7 @@ export async function uploadInstallationImage(
   let stored = await responseJson<StoredFile>(
     await fetch(`/api/driver/files/uploads/${intent.upload_id}/confirm`, { method: "POST" }),
   );
+  options.onStatus?.("Checking file…");
   const maxPolls = options.maxPolls ?? 40;
   const pollDelayMs = options.pollDelayMs ?? 1500;
   for (let attempt = 0; stored.scan_status === "pending" && attempt < maxPolls; attempt += 1) {

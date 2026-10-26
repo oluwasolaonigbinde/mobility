@@ -1,14 +1,5 @@
-import * as Sentry from "@sentry/nextjs";
-import { scrubSentryEvent } from "@/lib/observability";
+import { initializeClientMonitoring } from "@/lib/client-monitoring";
+import { captureApplicationLink } from "@/lib/apply/application-link";
+import { captureAdvertiserInviteLink } from "@/lib/auth/invite-link";
 
-const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN?.trim();
-
-if (dsn) {
-  Sentry.init({
-    dsn,
-    release: process.env.NEXT_PUBLIC_RELEASE_REVISION?.trim() || undefined,
-    tracesSampleRate: 0,
-    sendDefaultPii: false,
-    beforeSend: scrubSentryEvent,
-  });
-}
+if (captureApplicationLink() && captureAdvertiserInviteLink()) void initializeClientMonitoring();

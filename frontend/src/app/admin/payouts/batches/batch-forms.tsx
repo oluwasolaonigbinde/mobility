@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { formatMoneyExact } from "@/lib/format";
 import {
   batchTransitionAction,
-  allocateDebtAction,
   createAndReserveBatchAction,
   maskedDestinationAction,
   pollLineAction,
@@ -15,6 +14,7 @@ import {
 } from "./actions";
 import { moneyHref, type MoneyQuery } from "../../money/navigation";
 import type { EligiblePayment } from "./operation-types";
+import { NegativeAdjustmentForm } from "./negative-adjustment-form";
 import {
   readDraftRecovery,
   recoveryKey,
@@ -29,8 +29,6 @@ const REASONS: Record<string, string> = {
   "A trip source is required": "Not linked to a trip, so it can't be paid in a run",
   "Current successful assessment required": "The trip hasn't passed its latest check yet",
   "Active review hold": "On hold while a trip review is open",
-  "Allocate carry-forward debt before selecting credits":
-    "The driver owes money from earlier pay — allocate it first",
   "Already reserved or in flight": "Already set aside in a payment run or being sent",
   "Use the existing failed-line recovery":
     "An earlier payment of this failed — recover it from that payment run",
@@ -38,40 +36,6 @@ const REASONS: Record<string, string> = {
 };
 export function plainReason(reason: string) {
   return REASONS[reason] ?? reason;
-}
-
-export function AllocateDebtForm({ entry }: { entry: EligiblePayment }) {
-  const [state, action, pending] = useActionState(allocateDebtAction, initialState);
-  return (
-    <form
-      action={action}
-      className="mt-3 space-y-2"
-      onSubmit={(event) => {
-        if (
-          !window.confirm(
-            `Allocate available ${entry.currency} credits to ${entry.driver_name}'s carry-forward debt?`,
-          )
-        )
-          event.preventDefault();
-      }}
-    >
-      <input type="hidden" name="driver_profile_id" value={entry.driver_profile_id} />
-      <input type="hidden" name="currency" value={entry.currency} />
-      <Button type="submit" disabled={pending} variant="ghost">
-        {pending ? "Allocating…" : "Allocate debt"}
-      </Button>
-      {state.error ? (
-        <p role="alert" className="text-coral text-sm">
-          {state.error}
-        </p>
-      ) : null}
-      {state.done ? (
-        <p role="status" className="text-green text-sm">
-          {state.done}
-        </p>
-      ) : null}
-    </form>
-  );
 }
 
 export function MaskedDestination({ versionId }: { versionId: string }) {
@@ -104,14 +68,12 @@ export function MaskedDestination({ versionId }: { versionId: string }) {
           disabled={pending}
           type="button"
           onClick={() => {
-            if (
-              window.confirm("Show masked bank details for payment review? This access is logged.")
-            ) {
+            if (window.confirm("Show this driver's bank details?")) {
               start(async () => setResult(await maskedDestinationAction(versionId)));
             }
           }}
         >
-          {pending ? "Checking…" : "Show bank details (logged)"}
+          {pending ? "Checking…" : "Show bank details"}
         </Button>
       )}
       {result.error ? (
@@ -137,6 +99,7 @@ export function CreateBatchForm({
   query?: MoneyQuery;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
+  const [reason, setReason] = useState("");
   const [recovery, setRecovery] = useState<DraftRecovery | null>(null);
   const [state, setState] = useState<BatchActionState>({});
   const [preview, setPreview] = useState<{
@@ -181,13 +144,19 @@ export function CreateBatchForm({
             return;
           }
           if (!saved && draftId) {
-            saved = { requestId: draftId, currency: draftCurrency!, ledgerEntryIds: selected };
+            saved = {
+              requestId: draftId,
+              currency: draftCurrency!,
+              ledgerEntryIds: selected,
+              reason,
+            };
             localStorage.setItem(recoveryKey(actorId), JSON.stringify(saved));
           }
-          saved ??= retainDraftRecovery(localStorage, actorId, currency!, selected);
+          saved ??= retainDraftRecovery(localStorage, actorId, currency!, selected, reason);
           setRecovery(saved);
           const data = new FormData();
           data.set("request_id", saved.requestId);
+          data.set("reason", saved.reason);
           data.set("currency", saved.currency);
           data.set("ledger_entry_ids", saved.ledgerEntryIds.join(","));
           setState(await createAndReserveBatchAction({}, data));
@@ -203,7 +172,7 @@ export function CreateBatchForm({
     <div className="space-y-4">
       <p className="text-muted text-sm">
         Choose whole earnings records in one currency. These amounts are a guide: saving the run
-        checks review holds, money owed and payment eligibility again.
+        checks review holds, trip adjustments and payment eligibility again.
       </p>
       {recovery ? (
         <div className="border-edge rounded-lg border p-4">
@@ -298,35 +267,34 @@ export function CreateBatchForm({
               Paid to: {entry.payee_name ?? "No bank account on file"} ·{" "}
               {entry.destination_verified ? "Bank details checked" : "Bank details not checked"}
             </p>
-            {entry.debt_deducted !== "0.00" && entry.debt_deducted !== "0" ? (
-              <p className="text-sm">
-                Already taken off for money the driver owed:{" "}
-                {formatMoneyExact(entry.debt_deducted, entry.currency)}
-              </p>
-            ) : null}
             {entry.ineligibility_reasons.map((reason) => (
               <p key={reason} className="text-amber text-sm">
                 {plainReason(reason)}
               </p>
             ))}
-            {entry.carry_forward_debt !== "0.00" && entry.carry_forward_debt !== "0" ? (
-              <>
-                <p className="text-sm">
-                  Driver still owes from earlier pay:{" "}
-                  {formatMoneyExact(entry.carry_forward_debt, entry.currency)}
-                </p>
-                <AllocateDebtForm entry={entry} />
-              </>
-            ) : null}
             {entry.bank_account_version_id ? (
               <MaskedDestination versionId={entry.bank_account_version_id} />
             ) : null}
+            <NegativeAdjustmentForm entryId={entry.ledger_entry_id} currency={entry.currency} />
           </article>
         ))}
       </div>
       {!entries.length ? (
         <p className="text-muted">No available credits match these filters.</p>
       ) : null}
+      <label className="text-muted block text-sm">
+        Preparation reason
+        <textarea
+          aria-label="Preparation reason"
+          minLength={3}
+          maxLength={500}
+          required
+          value={recovery?.reason ?? reason}
+          disabled={!!recovery || pending}
+          onChange={(event) => setReason(event.target.value)}
+          className="border-edge bg-raised text-ink block w-full rounded border p-2"
+        />
+      </label>
       {!recovery && chosen.length ? (
         <Button
           type="button"
@@ -354,7 +322,10 @@ export function CreateBatchForm({
       <Button
         type="button"
         onClick={execute}
-        disabled={pending || (!recovery && (!chosen.length || !preview?.total_amount))}
+        disabled={
+          pending ||
+          (!recovery && (!chosen.length || !preview?.total_amount || reason.trim().length < 3))
+        }
       >
         {pending
           ? "Confirming reservation…"
@@ -415,15 +386,33 @@ export function BatchActions({
       }}
     >
       <input type="hidden" name="batch_id" value={batchId} />
+      <label className="text-muted w-full text-sm">
+        Approval or replacement reason
+        <textarea
+          name="reason"
+          aria-label="Approval or replacement reason"
+          minLength={3}
+          maxLength={500}
+          required
+          className="border-edge bg-raised text-ink block w-full rounded border p-2"
+        />
+      </label>
       {status === "reserved" ? (
         <>
           <Button type="submit" name="intent" value="approve" disabled={pending} variant="ghost">
-            Approve as second reviewer
+            Approve payment run
           </Button>
-          <Button type="submit" name="intent" value="void" disabled={pending} variant="ghost">
+          <Button
+            type="submit"
+            name="intent"
+            value="void"
+            formNoValidate
+            disabled={pending}
+            variant="ghost"
+          >
             Void reservation
           </Button>
-          <Button type="submit" name="intent" value="submit" disabled={pending}>
+          <Button type="submit" name="intent" value="submit" formNoValidate disabled={pending}>
             Queue submission
           </Button>
         </>
@@ -431,8 +420,8 @@ export function BatchActions({
         <>
           <p className="text-muted w-full text-sm">
             Terminally failed payments require a newer verified bank version with a different bank
-            or account number and a separately approved replacement. Ambiguous submissions retain
-            their original recovery key.
+            or account number and an approved replacement. Ambiguous submissions retain their
+            original recovery key.
           </p>
           <Button type="submit" name="intent" value="retry_failed" disabled={pending}>
             Request replacement for failed payments
@@ -471,6 +460,17 @@ export function PollLineAction({ lineId }: { lineId: string }) {
   return (
     <form action={action} className="mt-2">
       <input type="hidden" name="line_id" value={lineId} />
+      <label className="text-muted block text-sm">
+        Reconciliation reason
+        <textarea
+          name="reason"
+          aria-label="Reconciliation reason"
+          minLength={3}
+          maxLength={500}
+          required
+          className="border-edge bg-raised text-ink block w-full rounded border p-2"
+        />
+      </label>
       <Button type="submit" disabled={pending} variant="ghost">
         {pending ? "Verifying…" : "Check provider result"}
       </Button>

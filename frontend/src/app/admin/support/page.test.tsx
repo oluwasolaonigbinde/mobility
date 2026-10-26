@@ -6,7 +6,10 @@ import { ApiError } from "@/lib/api/errors";
 const { get } = vi.hoisted(() => ({ get: vi.fn() }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 vi.mock("../hub-drawer", () => ({
   HubDrawer: ({ children, closeHref }: { children: ReactNode; closeHref: string }) => (
     <section aria-label="Drawer">
@@ -25,6 +28,19 @@ vi.mock("@/components/complaints/forms", () => ({
 vi.mock("@/lib/complaints/actions", () => ({
   replyToComplaintAction: vi.fn(),
   updateComplaintAction: vi.fn(),
+}));
+vi.mock("../campaigns/[campaignId]/cancel-campaign-form", () => ({
+  CancelCampaignForm: ({
+    campaignName,
+    complaintId,
+  }: {
+    campaignName: string;
+    complaintId?: string;
+  }) => (
+    <button>
+      Cancel {campaignName} for {complaintId}
+    </button>
+  ),
 }));
 import Support from "./page";
 
@@ -95,9 +111,9 @@ describe("Support work lists", () => {
       within(screen.getByRole("navigation", { name: "Support lists" })).getByRole("link", {
         current: "page",
       }),
-    ).toHaveTextContent("Complaints");
+    ).toHaveTextContent("Requests and messages");
     expect(
-      within(screen.getByRole("navigation", { name: "Complaint status" })).getByRole("link", {
+      within(screen.getByRole("navigation", { name: "Request status" })).getByRole("link", {
         current: "page",
       }),
     ).toHaveTextContent("Needs a reply");
@@ -145,7 +161,7 @@ describe("Support work lists", () => {
         : { items: [], total: 0 },
     }));
     render(await page({ complaint: "complaint", organization_id: "company" }));
-    expect(screen.getByText("Complaint not found for these filters.")).toBeVisible();
+    expect(screen.getByText("Conversation not found for these filters.")).toBeVisible();
     expect(screen.queryByText("Paid short")).toBeNull();
   });
   it.each([404, 503])("separates a selected complaint %s from an empty list", async (status) => {
@@ -157,7 +173,7 @@ describe("Support work lists", () => {
     render(await page({ complaint: "missing" }));
     expect(
       status === 404
-        ? screen.getByText("Complaint not found for these filters.")
+        ? screen.getByText("Conversation not found for these filters.")
         : screen.getByRole("alert"),
     ).toBeVisible();
   });
@@ -189,5 +205,67 @@ describe("Support work lists", () => {
     render(await page({ tab: "contact" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
     expect(screen.queryByText("No contact tasks match these filters.")).toBeNull();
+  });
+});
+
+describe("Cancellation requests", () => {
+  const request = {
+    ...complaint,
+    category: "campaign_cancellation",
+    party_name: "Marula Kitchens",
+    advertiser_organization_id: "company",
+    reference_type: "campaign",
+    reference_id: "campaign",
+  };
+  const show = (campaign: unknown) =>
+    get.mockImplementation(async (path: string) => ({
+      data: path.endsWith("{complaint_id}")
+        ? request
+        : path === "/api/v1/admin/campaigns/{campaign_id}"
+          ? campaign
+          : { items: [], total: 0 },
+    }));
+  beforeEach(() => {
+    get.mockReset();
+  });
+  it("offers staff cancellation for the linked campaign from the request", async () => {
+    show({ id: "campaign", organization_id: "company", name: "Lunch rush", status: "active" });
+    render(await page({ complaint: "complaint" }));
+    expect(screen.getByRole("button", { name: "Cancel Lunch rush for complaint" })).toBeVisible();
+    expect(get).toHaveBeenCalledWith("/api/v1/admin/campaigns/{campaign_id}", {
+      params: { path: { campaign_id: "campaign" } },
+    });
+  });
+  it("says when the campaign is already cancelled", async () => {
+    show({ id: "campaign", organization_id: "company", name: "Lunch rush", status: "cancelled" });
+    render(await page({ complaint: "complaint" }));
+    expect(screen.getByText("This campaign has already been cancelled.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /^Cancel / })).toBeNull();
+  });
+  it.each(["completed", "draft", "pending_review", "rejected"])(
+    "offers no cancellation for a %s campaign",
+    async (status) => {
+      show({ id: "campaign", organization_id: "company", name: "Lunch rush", status });
+      render(await page({ complaint: "complaint" }));
+      expect(
+        screen.getByText("This campaign can’t be cancelled in its current state."),
+      ).toBeVisible();
+      expect(screen.queryByRole("button", { name: /^Cancel / })).toBeNull();
+    },
+  );
+  it.each([
+    [
+      "another company's campaign",
+      { id: "campaign", organization_id: "other", name: "X", status: "active" },
+    ],
+    [
+      "a different campaign",
+      { id: "different", organization_id: "company", name: "X", status: "active" },
+    ],
+    ["an unreadable campaign", undefined],
+  ])("offers no cancellation for %s", async (_name, campaign) => {
+    show(campaign);
+    render(await page({ complaint: "complaint" }));
+    expect(screen.queryByRole("button", { name: /^Cancel / })).toBeNull();
   });
 });

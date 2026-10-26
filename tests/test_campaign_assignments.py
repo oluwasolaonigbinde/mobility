@@ -13,8 +13,8 @@ from conftest import (
     create_test_campaign_creative,
     create_test_campaign_payout_revision,
     create_test_campaign_zone,
-    create_test_display_proof,
     create_test_driver_profile,
+    create_test_installation_evidence,
     create_test_organization,
     create_test_trip_analytics,
     create_test_trip_session,
@@ -77,7 +77,7 @@ FUTURE = datetime(2099, 1, 1, tzinfo=UTC)
 def create_assignment_ready_graph(
     db_sessionmaker,
     *,
-    campaign_status: CampaignStatus = CampaignStatus.SCHEDULED,
+    campaign_status: CampaignStatus = CampaignStatus.APPROVED,
     driver_status: DriverOnboardingStatus = DriverOnboardingStatus.ACTIVE,
     vehicle_status: VehicleStatus = VehicleStatus.ACTIVE,
     start_at=PAST,
@@ -274,16 +274,6 @@ def update_driver_city(db_sessionmaker, profile_id, service_city: str) -> None:
         async with db_sessionmaker() as session:
             profile = await session.get(DriverProfile, profile_id)
             profile.service_city = service_city
-            await session.commit()
-
-    asyncio.run(update())
-
-
-def update_vehicle_type(db_sessionmaker, vehicle_id, vehicle_type: VehicleType) -> None:
-    async def update() -> None:
-        async with db_sessionmaker() as session:
-            vehicle = await session.get(Vehicle, vehicle_id)
-            vehicle.vehicle_type = vehicle_type
             await session.commit()
 
     asyncio.run(update())
@@ -544,7 +534,7 @@ def test_offer_creation_fails_closed_after_creative_archive_pg_lock(
     assert fetch_assignments(postgis_db_sessionmaker) == []
 
 
-def test_offer_creation_rejects_legacy_ready_creative(
+def test_offer_creation_rejects_unreviewed_draft_creative(
     db_client,
     db_sessionmaker,
 ) -> None:
@@ -553,7 +543,7 @@ def test_offer_creation_rejects_legacy_ready_creative(
         campaign_status=CampaignStatus.APPROVED,
     )
     creative_id = UUID(campaign.campaign_metadata["_test_creative_id"])
-    update_creative_status(db_sessionmaker, creative_id, CreativeStatus.READY)
+    update_creative_status(db_sessionmaker, creative_id, CreativeStatus.DRAFT)
 
     response = post_assignment(db_client, campaign, profile, vehicle)
 
@@ -679,18 +669,11 @@ def test_recommendations_rank_current_car_candidates_and_enforce_rbac(
         plate_number="INA-123",
         vehicle_status=VehicleStatus.ACTIVE,
     )
-    create_test_vehicle(
-        db_sessionmaker,
-        driver_profile_id=activity_profile.id,
-        plate_number="VAN-123",
-        vehicle_status=VehicleStatus.ACTIVE,
-        vehicle_type=VehicleType.VAN,
-    )
     historical_campaign = create_test_campaign(
         db_sessionmaker,
         organization_id=campaign.organization_id,
         created_by_user_id=admin.id,
-        campaign_status=CampaignStatus.SCHEDULED,
+        campaign_status=CampaignStatus.APPROVED,
         end_at=FUTURE,
     )
     historical_assignment = create_test_campaign_assignment(
@@ -846,7 +829,6 @@ def test_recommendations_exclude_ineligible_and_already_assigned_candidates(
     )
     add_candidate("inactive-vehicle", plate_number="IVE-123", vehicle_status=VehicleStatus.INACTIVE)
     add_candidate("wrong-city", plate_number="WCT-123", service_city="Abuja")
-    add_candidate("non-car", plate_number="NCR-123", vehicle_type=VehicleType.VAN)
     assigned_profile, assigned_vehicle = add_candidate("already-assigned", plate_number="AAS-123")
     create_test_campaign_assignment(
         db_sessionmaker,
@@ -870,7 +852,7 @@ def test_recommendations_exclude_ineligible_and_already_assigned_candidates(
 
 @pytest.mark.parametrize(
     "changed_fact",
-    ["driver_status", "service_city", "vehicle_status", "vehicle_type", "activity"],
+    ["driver_status", "service_city", "vehicle_status", "activity"],
 )
 def test_assignment_rejects_each_stale_recommendation_fact(
     db_client, db_sessionmaker, changed_fact
@@ -892,14 +874,12 @@ def test_assignment_rejects_each_stale_recommendation_fact(
         update_driver_city(db_sessionmaker, profile.id, "Abuja")
     elif changed_fact == "vehicle_status":
         update_vehicle_status(db_sessionmaker, vehicle.id, VehicleStatus.INACTIVE)
-    elif changed_fact == "vehicle_type":
-        update_vehicle_type(db_sessionmaker, vehicle.id, VehicleType.VAN)
     else:
         history = create_test_campaign(
             db_sessionmaker,
             organization_id=campaign.organization_id,
             created_by_user_id=admin.id,
-            campaign_status=CampaignStatus.SCHEDULED,
+            campaign_status=CampaignStatus.APPROVED,
             end_at=FUTURE,
         )
         assignment = create_test_campaign_assignment(
@@ -957,7 +937,7 @@ def test_assignment_rejects_stale_recommendation_but_manual_payload_stays_compat
         db_sessionmaker,
         organization_id=campaign.organization_id,
         created_by_user_id=admin.id,
-        campaign_status=CampaignStatus.SCHEDULED,
+        campaign_status=CampaignStatus.APPROVED,
         end_at=FUTURE,
     )
     create_test_campaign_assignment(
@@ -1089,6 +1069,7 @@ def test_admin_can_create_list_read_and_cancel_assignment_with_events_and_audit(
                     select(Notification)
                     .where(
                         Notification.recipient_user_id == profile.user_id,
+                        Notification.channel == "in_app",
                         Notification.type_key.in_(
                             [
                                 NotificationType.ASSIGNMENT_OFFERED.value,
@@ -1154,7 +1135,6 @@ def test_admin_assignment_creation_validates_eligibility_and_duplicates(
 
     for rejected_status in [
         CampaignStatus.DRAFT,
-        CampaignStatus.COMPLETED,
         CampaignStatus.CANCELLED,
     ]:
         _, rejected_campaign, _, rejected_profile, rejected_vehicle = create_assignment_ready_graph(
@@ -1508,7 +1488,7 @@ def test_driver_deactivation_is_audited_atomically(db_client, db_sessionmaker) -
     )
 
     assert response.status_code == http_status.HTTP_200_OK, response.text
-    assert response.json()["status"] == "deactivated"
+    assert response.json()["status"] == "cancelled"
     audit_events = fetch_audit_events(db_sessionmaker)
     assert [event.action for event in audit_events].count(
         "driver.campaign_assignment.deactivated"
@@ -2113,7 +2093,7 @@ def test_admin_activation_checks_campaign_and_driver_gates(
 ) -> None:
     _, scheduled_campaign, _, scheduled_profile, scheduled_vehicle = create_assignment_ready_graph(
         db_sessionmaker,
-        campaign_status=CampaignStatus.SCHEDULED,
+        campaign_status=CampaignStatus.APPROVED,
         start_at=PAST,
         end_at=FUTURE,
     )
@@ -2246,7 +2226,7 @@ def test_admin_activation_rejects_each_built_and_unavailable_gate(
     suffix = gate.replace("_", "-")
     admin, campaign, _, profile, vehicle = create_assignment_ready_graph(
         db_sessionmaker,
-        campaign_status=CampaignStatus.SCHEDULED,
+        campaign_status=CampaignStatus.APPROVED,
         start_at=PAST,
         end_at=FUTURE,
         admin_email=f"gate-admin-{suffix}@example.com",
@@ -2347,7 +2327,7 @@ def test_admin_activation_rejects_each_built_and_unavailable_gate(
             assert current is not None
             return current.status
 
-    assert asyncio.run(unchanged_campaign()) == CampaignStatus.SCHEDULED.value
+    assert asyncio.run(unchanged_campaign()) == CampaignStatus.APPROVED.value
     assert "admin.campaign.activated" not in [
         event.action for event in fetch_audit_events(db_sessionmaker)
     ]
@@ -2380,7 +2360,7 @@ def test_admin_activation_commits_one_immutable_snapshot_and_replay_converges(
         json={"metadata": {}},
     )
     assert accepted.status_code == http_status.HTTP_200_OK
-    create_test_display_proof(
+    create_test_installation_evidence(
         db_sessionmaker,
         assignment_id=assignment_id,
         reviewed_by_user_id=admin.id,
@@ -2544,9 +2524,9 @@ def test_admin_activation_then_driver_trip_uses_real_synthetic_authorities(
             assert current is not None
             return current.status
 
-    assert asyncio.run(current_campaign_status()) == CampaignStatus.SCHEDULED.value
+    assert asyncio.run(current_campaign_status()) == CampaignStatus.APPROVED.value
     audit_actions = [event.action for event in fetch_audit_events(db_sessionmaker)]
-    assert audit_actions.count("admin.campaign.scheduled") == 1
+    assert audit_actions.count("admin.campaign.scheduled") == 0
     assert audit_actions.count("admin.campaign.activated") == 0
     accepted = db_client.post(
         f"/api/v1/driver/campaign-assignments/{assignment_id}/accept",
@@ -2554,7 +2534,7 @@ def test_admin_activation_then_driver_trip_uses_real_synthetic_authorities(
         json={"metadata": {}},
     )
     assert accepted.status_code == http_status.HTTP_200_OK
-    create_test_display_proof(
+    create_test_installation_evidence(
         db_sessionmaker,
         assignment_id=assignment_id,
         reviewed_by_user_id=admin.id,
@@ -2637,7 +2617,7 @@ def test_admin_activation_then_driver_trip_uses_real_synthetic_authorities(
     assert readiness_writes == []
     assert [event.id for event in fetch_audit_events(db_sessionmaker)] == before_readiness
     assert [event.id for event in fetch_activation_events(db_sessionmaker)] == before_events
-    assert asyncio.run(current_campaign_status()) == CampaignStatus.SCHEDULED.value
+    assert asyncio.run(current_campaign_status()) == CampaignStatus.APPROVED.value
 
     async def change_vehicle_status(value):
         async with db_sessionmaker() as session:
@@ -2676,7 +2656,7 @@ def test_admin_activation_then_driver_trip_uses_real_synthetic_authorities(
     assert already_active.json()["ready"] is False
     assert already_active.json()["blocker_code"] == "ASSIGNMENT_ALREADY_ACTIVE"
     audit_actions = [event.action for event in fetch_audit_events(db_sessionmaker)]
-    assert audit_actions.count("admin.campaign.scheduled") == 1
+    assert audit_actions.count("admin.campaign.scheduled") == 0
     assert audit_actions.count("admin.campaign.activated") == 1
     assert audit_actions.count("admin.campaign_assignment.activated") == 1
 
@@ -2693,7 +2673,7 @@ def test_admin_activation_then_driver_trip_uses_real_synthetic_authorities(
     )
     assert trip.status_code == http_status.HTTP_201_CREATED, trip.text
     assert trip.json()["assignment_id"] == str(assignment_id)
-    assert trip.json()["display_proof_id"] is not None
+    assert "display_proof_id" not in trip.json()
 
 
 def test_accept_rejects_cancelled_completed_and_expired_campaigns(
@@ -2702,7 +2682,6 @@ def test_accept_rejects_cancelled_completed_and_expired_campaigns(
 ) -> None:
     for campaign_status, expected_code in [
         (CampaignStatus.CANCELLED, "CAMPAIGN_NOT_ACCEPTABLE"),
-        (CampaignStatus.COMPLETED, "CAMPAIGN_NOT_ACCEPTABLE"),
     ]:
         admin, campaign, _, profile, vehicle = create_assignment_ready_graph(
             db_sessionmaker,

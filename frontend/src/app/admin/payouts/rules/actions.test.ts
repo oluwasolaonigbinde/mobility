@@ -15,10 +15,6 @@ function form(overrides: Record<string, string> = {}): FormData {
     campaign_id: CAMPAIGN_ID,
     daily_rate_naira: "10000",
     daily_target_miles: "70",
-    shortfall_strategy: "per_mile_deduction",
-    deduction_per_mile_naira: "140",
-    minimum_miles: "0",
-    outside_area_weight: "0.5",
     effective_from: new Date(Date.now() + 86_400_000).toISOString().slice(0, 16),
     reason: "synthetic",
     ...overrides,
@@ -40,37 +36,43 @@ describe("publishDailyRateAction", () => {
     expect(request.body).toMatchObject({
       daily_rate_naira: "10000",
       daily_target_miles: "70",
-      shortfall_strategy: "per_mile_deduction",
-      deduction_per_mile_naira: "140",
-      minimum_miles: "0",
-      outside_area_weight: "0.5",
       reason: "synthetic",
     });
     expect(request.body).not.toHaveProperty("campaign_id");
+    expect(Object.keys(request.body).sort()).toEqual([
+      "daily_rate_naira",
+      "daily_target_miles",
+      "effective_from",
+      "reason",
+    ]);
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns");
   });
 
   it("refuses invalid input without calling the API and keeps what was typed", async () => {
-    const result = await publishDailyRateAction({}, form({ deduction_per_mile_naira: "" }));
-    expect(result.field).toBe("deduction_per_mile_naira");
+    const result = await publishDailyRateAction({}, form({ daily_target_miles: "" }));
+    expect(result.field).toBe("daily_target_miles");
     expect(result.values?.daily_rate_naira).toBe("10000");
     expect(mocks.post).not.toHaveBeenCalled();
   });
 
-  it("maps the switched-off 503, other refusals and network failure", async () => {
+  it("hides arbitrary refusal text and preserves entered values without claiming publication", async () => {
     mocks.post.mockRejectedValueOnce(
-      new ApiError(503, { code: "PAYOUT_V4_POLICY_UNAVAILABLE", message: "off" }),
+      new ApiError(400, {
+        code: "INVALID_PAYOUT_RULE_REVISION",
+        message: "private rule validation and account detail",
+      }),
     );
-    expect(await publishDailyRateAction({}, form())).toMatchObject({ notSwitchedOn: true });
-
-    mocks.post.mockRejectedValueOnce(
-      new ApiError(400, { code: "INVALID_PAYOUT_RULE_REVISION", message: "must be later" }),
-    );
-    expect(await publishDailyRateAction({}, form())).toMatchObject({ error: "must be later" });
+    const input = form();
+    expect(await publishDailyRateAction({}, input)).toEqual({
+      error: "The request could not be completed. Check the details and try again.",
+      values: Object.fromEntries(input.entries()),
+    });
 
     mocks.post.mockRejectedValueOnce(new Error("socket hang up"));
-    const failed = await publishDailyRateAction({}, form());
-    expect(failed.error).toBe("Could not reach the server. Try again.");
+    expect(await publishDailyRateAction({}, input)).toEqual({
+      error: "Could not reach the server. Try again.",
+      values: Object.fromEntries(input.entries()),
+    });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });

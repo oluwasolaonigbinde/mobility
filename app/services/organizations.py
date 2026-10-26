@@ -159,10 +159,10 @@ async def _profile_access(
         raise AppError(
             "COMPANY_PROFILE_NOT_FOUND", "Company profile was not found", status_code=404
         )
-    if write and membership.role not in {MembershipRole.OWNER, MembershipRole.MANAGER}:
+    if write and membership.role != MembershipRole.ADVERTISER:
         raise AppError(
             "ORGANIZATION_WRITE_FORBIDDEN",
-            "Owner or manager access is required",
+            "Active advertiser access is required",
             status_code=status.HTTP_403_FORBIDDEN,
         )
     return organization, False
@@ -259,7 +259,7 @@ async def create_advertiser_organization(
         owner_membership = OrganizationMembership(
             organization_id=organization.id,
             user_id=owner.id,
-            role=MembershipRole.OWNER,
+            role=MembershipRole.ADVERTISER,
             status=MembershipStatus.ACTIVE,
         )
         # D29: the partial unique index is the race authority for one active

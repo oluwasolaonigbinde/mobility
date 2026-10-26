@@ -1,17 +1,14 @@
 import type { Metadata } from "next";
 import { productFontVariables } from "@/lib/fonts";
-import { THEME_BOOT_SCRIPT } from "@/lib/themes";
-import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { Providers } from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Cardvert — Aggregate Mobility Measurement",
+    default: "Cardvert · Terrax Media",
     template: "%s · Cardvert",
   },
-  description:
-    "Cardvert campaigns with Terrax aggregate measurement, hourly driver earnings, and fleet trust in one command center.",
+  description: "Manage your vehicle advertising campaigns and driving jobs with Terrax Media.",
 };
 
 export default function RootLayout({
@@ -20,17 +17,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      className="h-full antialiased"
-      data-theme="ivory-ledger"
-      style={productFontVariables}
-    >
+    <html lang="en" className="h-full antialiased" style={productFontVariables}>
       <body className="flex min-h-full flex-col">
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <Providers>{children}</Providers>
-        <ThemeSwitcher />
       </body>
     </html>
   );

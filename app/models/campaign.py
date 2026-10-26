@@ -43,27 +43,19 @@ class CampaignStatus(StrEnum):
     PENDING_REVIEW = "pending_review"
     APPROVED = "approved"
     REJECTED = "rejected"
-    SCHEDULED = "scheduled"
     ACTIVE = "active"
     PAUSED = "paused"
-    COMPLETED = "completed"
     CANCELLED = "cancelled"
 
 
 class CreativeType(StrEnum):
     IMAGE = "image"
-    VIDEO = "video"
-    HTML = "html"
-    TEXT = "text"
-    OTHER = "other"
+    PDF = "pdf"
 
 
 class CreativePlacement(StrEnum):
     VEHICLE_EXTERIOR = "vehicle_exterior"
     VEHICLE_INTERIOR = "vehicle_interior"
-    DIGITAL_SCREEN = "digital_screen"
-    PRINT = "print"
-    OTHER = "other"
 
 
 class CreativeStatus(StrEnum):
@@ -71,8 +63,6 @@ class CreativeStatus(StrEnum):
     PENDING_REVIEW = "pending_review"
     APPROVED = "approved"
     REJECTED = "rejected"
-    # Legacy pre-review state. It remains readable but is never launch authority.
-    READY = "ready"
     ARCHIVED = "archived"
 
 
@@ -81,7 +71,7 @@ class Campaign(Base):
     __table_args__ = (
         CheckConstraint(
             "status IN ('draft', 'pending_review', 'approved', 'rejected', "
-            "'scheduled', 'active', 'paused', 'completed', 'cancelled')",
+            "'active', 'paused', 'cancelled')",
             name="ck_campaigns_status",
         ),
         CheckConstraint(
@@ -208,16 +198,15 @@ class CampaignCreative(Base):
     __tablename__ = "campaign_creatives"
     __table_args__ = (
         CheckConstraint(
-            "creative_type IN ('image', 'video', 'html', 'text', 'other')",
+            "creative_type IN ('image', 'pdf')",
             name="ck_campaign_creatives_creative_type",
         ),
         CheckConstraint(
-            "placement IN ('vehicle_exterior', 'vehicle_interior', "
-            "'digital_screen', 'print', 'other')",
+            "placement IN ('vehicle_exterior', 'vehicle_interior')",
             name="ck_campaign_creatives_placement",
         ),
         CheckConstraint(
-            "status IN ('draft', 'pending_review', 'approved', 'rejected', 'ready', 'archived')",
+            "status IN ('draft', 'pending_review', 'approved', 'rejected', 'archived')",
             name="ck_campaign_creatives_status",
         ),
         CheckConstraint(

@@ -19,11 +19,7 @@ vi.mock("@/lib/api/client", () => ({
   createLoginApiClient: mocks.createLoginClient,
 }));
 
-import {
-  checkDriverApplicationStatusAction,
-  requestDriverOnboardingAccessAction,
-  submitDriverApplicationAction,
-} from "./actions";
+import { requestDriverOnboardingAccessAction, submitDriverApplicationAction } from "./actions";
 
 describe("driver application actions", () => {
   beforeEach(() => {
@@ -31,7 +27,7 @@ describe("driver application actions", () => {
     mocks.createLoginClient.mockReturnValue({ POST: mocks.post });
   });
 
-  it("submits the allowlisted fields and returns the reference", async () => {
+  it("submits allowlisted fields without returning the private application reference", async () => {
     mocks.post.mockResolvedValue({
       data: {
         status: "pending",
@@ -48,7 +44,6 @@ describe("driver application actions", () => {
 
     await expect(submitDriverApplicationAction({}, form)).resolves.toEqual({
       submitted: true,
-      reference: "reference-secret",
     });
     expect(mocks.post).toHaveBeenCalledWith("/api/v1/auth/register-driver", {
       body: {
@@ -61,41 +56,30 @@ describe("driver application actions", () => {
     });
   });
 
-  it("keeps disabled or duplicate responses generic", async () => {
-    mocks.post.mockRejectedValue(
-      new ApiError(404, { code: "APPLICATION_UNAVAILABLE", message: "hidden" }),
-    );
+  it("keeps refused responses generic", async () => {
+    mocks.post.mockRejectedValue(new ApiError(429, { code: "RATE_LIMITED", message: "hidden" }));
     const form = new FormData();
     form.set("email", "driver@example.com");
     form.set("full_name", "Driver Name");
+    form.set("service_city", "Lagos");
 
     await expect(submitDriverApplicationAction({}, form)).resolves.toEqual({
       error: "We couldn't send your application right now. Please try again later.",
     });
   });
 
-  it("shows one pending status envelope for a reference", async () => {
-    mocks.get.mockResolvedValue({
-      data: {
-        status: "pending",
-        message: "Application status is pending review.",
-        person_payee: { status: "rejected" },
-        vehicle: { status: "pending_review" },
-      },
-    });
-    const form = new FormData();
-    form.set("reference", "reference-secret");
-
-    await expect(checkDriverApplicationStatusAction({}, form)).resolves.toEqual({
-      pending: true,
-      reference: "reference-secret",
-      personPayeeStatus: "rejected",
-      vehicleStatus: "pending_review",
-    });
-    expect(mocks.get).toHaveBeenCalledWith("/api/v1/auth/driver-application-status/{reference}", {
-      params: { path: { reference: "reference-secret" } },
-    });
-  });
+  it.each([null, "", "   ", "a".repeat(129)])(
+    "refuses missing, blank or oversized city before calling the API: %s",
+    async (city) => {
+      const form = new FormData();
+      form.set("email", "driver@example.com");
+      form.set("full_name", "Driver Name");
+      if (city !== null) form.set("service_city", city);
+      const result = await submitDriverApplicationAction({}, form);
+      expect(result.fieldErrors?.service_city).toBeTruthy();
+      expect(mocks.post).not.toHaveBeenCalled();
+    },
+  );
 
   it("requests renewed onboarding access without confirming an application exists", async () => {
     mocks.post.mockResolvedValue({ data: { message: "private provider detail" } });
@@ -103,7 +87,7 @@ describe("driver application actions", () => {
     form.set("email", " Driver@Example.com ");
 
     await expect(requestDriverOnboardingAccessAction({}, form)).resolves.toEqual({
-      done: "If your application is still open, we've emailed you a new code.",
+      done: "If your application is still open, we've emailed you a link to continue.",
       email: "driver@example.com",
     });
     expect(mocks.post).toHaveBeenCalledWith("/api/v1/auth/driver-onboarding-access/request", {
@@ -125,7 +109,7 @@ describe("driver application actions", () => {
     const result = await requestDriverOnboardingAccessAction({}, form);
 
     expect(result).toEqual({
-      error: "We couldn't send a new code right now. Try again in a few minutes.",
+      error: "We couldn't send a new link right now. Try again in a few minutes.",
       email: "driver@example.com",
     });
     expect(JSON.stringify(result)).not.toContain("mailbox");

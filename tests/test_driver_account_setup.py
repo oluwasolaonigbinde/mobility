@@ -148,6 +148,7 @@ def test_setup_rechecks_active_admin_before_reading_application(
 def test_driver_account_setup_supersedes_replays_and_activates_atomically(
     db_client, db_sessionmaker, settings
 ) -> None:
+    settings.driver_account_setup_public_url = "https://cardvert.example/driver-account-setup"
     application, admin_headers = _approve(db_client, db_sessionmaker, settings)
     first_request = str(uuid4())
     first = db_client.post(
@@ -204,6 +205,8 @@ def test_driver_account_setup_supersedes_replays_and_activates_atomically(
     setups, tokens, old_version, old_session, notices = asyncio.run(authorities())
     assert setups[0].superseded_at is not None
     assert setups[1].superseded_at is None
+    # D106: the link lasts 24 hours from issue.
+    assert all(s.expires_at - s.created_at == timedelta(hours=24) for s in setups)
     assert len(notices) == 2
     assert {notice.recipient_user_id for notice in notices} == {application.user_id}
     assert all(set(notice.payload) == {"driver_account_setup_id"} for notice in notices)
@@ -232,8 +235,9 @@ def test_driver_account_setup_supersedes_replays_and_activates_atomically(
     assert (superseded_delivery, active_delivery) == ("failed", "sent")
     assert len(messages) == 1
     assert messages[0].recipient == application.email
-    assert messages[0].subject == "Set up your Cardvert driver account"
+    assert messages[0].subject == "Set up your Terrax Media driver account"
     assert tokens[1] in messages[0].text_body
+    assert "This link works once, for 24 hours." in messages[0].text_body
     assert tokens[0] not in messages[0].text_body
 
     superseded = db_client.post(

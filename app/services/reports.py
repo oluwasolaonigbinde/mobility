@@ -1,7 +1,8 @@
 from collections import defaultdict
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,11 +13,9 @@ from app.models.campaign import Campaign, CampaignCreative
 from app.models.campaign_assignment import CampaignAssignment
 from app.models.campaign_zone import CampaignZone
 from app.models.impression import ImpressionEstimate, ImpressionEstimateStatus
-from app.models.measurement import MeasurementRun
 from app.models.payout import EarningsLedgerEntry, PayoutCalculation, PayoutCalculationStatus
 from app.models.trip import TripSession, TripSessionStatus
-from app.models.trip_analytics import FraudFlag, FraudFlagStatus, TripAnalytics
-from app.schemas.measurement import MeasurementResultRead, MeasurementRunSummary
+from app.models.trip_analytics import FraudFlag, TripAnalytics
 from app.schemas.reports import (
     ASSIGNMENT_STATUSES,
     CAMPAIGN_STATUSES,
@@ -30,7 +29,6 @@ from app.schemas.reports import (
     CampaignCostCurrencySummary,
     CampaignCostSummary,
     CampaignReadSummary,
-    CampaignReportResponse,
     CampaignStatusCounts,
     CampaignSummary,
     CampaignTripsResponse,
@@ -46,6 +44,7 @@ from app.schemas.reports import (
     TripStatusCounts,
     ZoneTypeCounts,
 )
+from app.services.campaign_lifecycle import assignment_status_expression, campaign_status_expression
 from app.services.campaigns import get_advertiser_campaign, get_required_advertiser_context
 from app.services.disclosure import (
     lock_trip_disclosure_snapshot,
@@ -111,10 +110,11 @@ async def campaign_status_counts(
     session: AsyncSession,
     organization_id: UUID,
 ) -> CampaignStatusCounts:
+    status_column = campaign_status_expression()
     result = await session.execute(
-        select(Campaign.status, func.count(Campaign.id))
+        select(status_column, func.count(Campaign.id))
         .where(Campaign.organization_id == organization_id)
-        .group_by(Campaign.status)
+        .group_by(status_column)
     )
     return CampaignStatusCounts(**status_counts(result.all(), CAMPAIGN_STATUSES))
 
@@ -141,11 +141,12 @@ async def assignment_counts_for_org(
     session: AsyncSession,
     organization_id: UUID,
 ) -> AssignmentStatusCounts:
+    status_column = assignment_status_expression()
     result = await session.execute(
-        select(CampaignAssignment.status, func.count(CampaignAssignment.id))
+        select(status_column, func.count(CampaignAssignment.id))
         .join(Campaign, Campaign.id == CampaignAssignment.campaign_id)
         .where(Campaign.organization_id == organization_id)
-        .group_by(CampaignAssignment.status)
+        .group_by(status_column)
     )
     return AssignmentStatusCounts(**status_counts(result.all(), ASSIGNMENT_STATUSES))
 
@@ -154,10 +155,11 @@ async def assignment_counts_for_campaign(
     session: AsyncSession,
     campaign_id: UUID,
 ) -> AssignmentStatusCounts:
+    status_column = assignment_status_expression()
     result = await session.execute(
-        select(CampaignAssignment.status, func.count(CampaignAssignment.id))
+        select(status_column, func.count(CampaignAssignment.id))
         .where(CampaignAssignment.campaign_id == campaign_id)
-        .group_by(CampaignAssignment.status)
+        .group_by(status_column)
     )
     return AssignmentStatusCounts(**status_counts(result.all(), ASSIGNMENT_STATUSES))
 
@@ -865,6 +867,70 @@ async def advertiser_campaign_summary(
     return result
 
 
+LAGOS = ZoneInfo("Africa/Lagos")
+
+
+def campaign_daily_series(cohort: ReportCohort, *, start_day: date, end_day: date):
+    """One Nigeria-day calculation for reports and the owned seven-day read (D118).
+
+    Only verified driving contributes. A suppressed day contains no counts or
+    amounts; an empty day has zero measured driving and zero estimated views.
+    """
+    trips = {trip.id: trip for trip in cohort.trips if trip.ended_at is not None}
+    by_day = defaultdict(list)
+    source_days = defaultdict(list)
+    analytics = {row.trip_session_id: row for row in cohort.analytics}
+    for trip in trips.values():
+        ended = trip.ended_at
+        assert ended is not None  # The terminal-trip map excludes open trips.
+        if ended.tzinfo is None:
+            ended = ended.replace(tzinfo=UTC)
+        source_days[ended.astimezone(LAGOS).date()].append(trip)
+    estimates = {r.trip_session_id: r for r in cohort.impressions if r.status == "estimated"}
+    for row in cohort.analytics:
+        trip = trips.get(row.trip_session_id)
+        if (
+            trip is not None
+            and row.status == "computed"
+            and (row.distance_m > 0 or row.moving_seconds > 0)
+        ):
+            ended = trip.ended_at
+            assert ended is not None
+            if ended.tzinfo is None:
+                ended = ended.replace(tzinfo=UTC)
+            by_day[ended.astimezone(LAGOS).date()].append(row)
+    items = []
+    day = start_day
+    while day <= end_day:
+        rows = by_day[day]
+        cars = {row.vehicle_id for row in rows}
+        incomplete = any(
+            trip.id not in analytics or analytics[trip.id].status != "computed"
+            for trip in source_days[day]
+        )
+        suppressed = (incomplete and not rows) or 0 < len(cars) < 3
+        estimate_rows = [
+            estimates[r.trip_session_id] for r in rows if r.trip_session_id in estimates
+        ]
+        items.append(
+            DailyMetricItem(
+                date=day,
+                vehicle_count=None if suppressed else len(cars),
+                trip_count=None if suppressed else len(rows),
+                distance_m=None if suppressed else sum((r.distance_m for r in rows), ZERO_2),
+                driving_seconds=None if suppressed else sum(r.moving_seconds for r in rows),
+                estimated_impressions=(
+                    None
+                    if suppressed or len(estimate_rows) != len(rows)
+                    else sum((r.estimated_impressions for r in estimate_rows), ZERO_2)
+                ),
+                suppressed=suppressed,
+            )
+        )
+        day += timedelta(days=1)
+    return items
+
+
 async def daily_metrics_for_campaign(
     session: AsyncSession,
     *,
@@ -878,6 +944,9 @@ async def daily_metrics_for_campaign(
     cohort: ReportCohort | None = None,
     record_history: bool = True,
 ) -> DailyMetricsResponse:
+    from app.services.disclosure import DisclosureQuery, _canonical_hash, record_disclosure
+    from app.services.payout_rule_serialization import database_clock
+
     organization_id = await require_governed_advertiser_output(
         session,
         settings=settings,
@@ -885,190 +954,85 @@ async def daily_metrics_for_campaign(
         user_id=user_id,
     )
     campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
-    await lock_trip_disclosure_snapshot(
-        session,
-        tenant_id=organization_id,
-        campaign_id=campaign.id,
+    await lock_trip_disclosure_snapshot(session, tenant_id=organization_id, campaign_id=campaign.id)
+    now = await database_clock(session)
+    today = now.astimezone(LAGOS).date()
+    last_day = (
+        min((end_at - timedelta(microseconds=1)).astimezone(LAGOS).date(), today)
+        if end_at
+        else today
     )
-    by_day: dict[date, dict[str, object]] = defaultdict(
-        lambda: {
-            "trip_count": 0,
-            "analyzed_trip_count": 0,
-            "distance_m": ZERO_2,
-            "estimated_impressions": ZERO_2,
-            "confidence_total": ZERO_4,
-            "confidence_count": 0,
-            "final_payout_total": ZERO_2,
-            "gross_payout_total": ZERO_2,
-            "open_fraud_flag_count": 0,
-            "quality_total": ZERO_4,
-            "quality_count": 0,
-        }
-    )
-
-    if cohort is None:
-        trip_filters = [TripSession.campaign_id == campaign.id]
-        apply_range(trip_filters, TripSession.started_at, start_at, end_at)
-        trip_rows = (
-            await session.execute(
-                select(TripSession.id, TripSession.started_at).where(*trip_filters)
-            )
-        ).all()
-    else:
-        trip_rows = [
-            (trip.id, trip.ended_at if cohort.terminal_period else trip.started_at)
-            for trip in cohort.trips
-        ]
-    trip_days = {trip_id: utc_day(started_at) for trip_id, started_at in trip_rows}
-    for day in trip_days.values():
-        by_day[day]["trip_count"] = int(by_day[day]["trip_count"]) + 1
-
-    if trip_days:
-        trip_ids = list(trip_days)
-        analytics_rows = (
-            [(row.trip_session_id, row.distance_m, row.quality_score) for row in cohort.analytics]
-            if cohort is not None
-            else (
-                await session.execute(
-                    select(
-                        TripAnalytics.trip_session_id,
-                        TripAnalytics.distance_m,
-                        TripAnalytics.quality_score,
-                    ).where(TripAnalytics.trip_session_id.in_(trip_ids))
-                )
-            ).all()
+    first_day = start_at.astimezone(LAGOS).date() if start_at else last_day - timedelta(days=6)
+    start = start_at or datetime.combine(first_day, time.min, LAGOS)
+    end = min(end_at, now) if end_at else now
+    if first_day > last_day or start > end:
+        raise AppError(
+            "REPORT_PERIOD_INVALID", "Choose a reporting period that has started", status_code=422
         )
-        for trip_id, distance_m, quality_score in analytics_rows:
-            day = trip_days[trip_id]
-            by_day[day]["analyzed_trip_count"] = int(by_day[day]["analyzed_trip_count"]) + 1
-            by_day[day]["distance_m"] = decimal_2(by_day[day]["distance_m"]) + decimal_2(distance_m)
-            by_day[day]["quality_total"] = decimal_4(by_day[day]["quality_total"]) + decimal_4(
-                quality_score
-            )
-            by_day[day]["quality_count"] = int(by_day[day]["quality_count"]) + 1
-
-        if cohort is None:
-            estimate_rows = list(
-                (
-                    await session.scalars(
-                        select(ImpressionEstimate).where(
-                            ImpressionEstimate.trip_session_id.in_(trip_ids),
-                            ImpressionEstimate.formula_version
-                            == settings.impression_formula_version,
-                            ImpressionEstimate.is_authoritative.is_(True),
-                        )
-                    )
-                ).all()
-            )
-            estimate_rows = await current_authoritative_estimates(
-                session, estimate_rows, settings=settings
-            )
-        else:
-            estimate_rows = list(cohort.impressions)
-        for estimate in estimate_rows:
-            day = trip_days[estimate.trip_session_id]
-            by_day[day]["estimated_impressions"] = decimal_2(
-                by_day[day]["estimated_impressions"]
-            ) + decimal_2(estimate.estimated_impressions)
-            by_day[day]["confidence_total"] = decimal_4(
-                by_day[day]["confidence_total"]
-            ) + decimal_4(estimate.confidence_score)
-            by_day[day]["confidence_count"] = int(by_day[day]["confidence_count"]) + 1
-
-        payout_rows = (
-            [
-                (row.trip_session_id, cohort.final_cost(row), row.gross_payout)
-                for row in cohort.payouts
-            ]
-            if cohort is not None
-            else (
-                await session.execute(
-                    select(
-                        PayoutCalculation.trip_session_id,
-                        PayoutCalculation.final_payout,
-                        PayoutCalculation.gross_payout,
-                    ).where(
-                        PayoutCalculation.trip_session_id.in_(trip_ids),
-                        PayoutCalculation.id.in_(latest_payout_calculation_ids(trip_ids=trip_ids)),
-                    )
-                )
-            ).all()
+    total = (last_day - first_day).days + 1
+    page_start = first_day + timedelta(days=min(offset, total))
+    page_end = min(last_day, page_start + timedelta(days=limit - 1))
+    if cohort is None and offset < total and start < end:
+        cohort = await select_report_cohort(
+            session,
+            campaign_id=campaign.id,
+            start_at=max(start, datetime.combine(page_start, time.min, LAGOS)),
+            end_at=min(end, datetime.combine(page_end + timedelta(days=1), time.min, LAGOS)),
+            settings=settings,
+            terminal_period=True,
+            include_money=False,
         )
-        for trip_id, final_payout, gross_payout in payout_rows:
-            day = trip_days[trip_id]
-            by_day[day]["final_payout_total"] = decimal_2(
-                by_day[day]["final_payout_total"]
-            ) + decimal_2(final_payout)
-            by_day[day]["gross_payout_total"] = decimal_2(
-                by_day[day]["gross_payout_total"]
-            ) + decimal_2(gross_payout)
-
-        fraud_rows = (
-            await session.execute(
-                select(FraudFlag.trip_session_id, func.count(FraudFlag.id))
-                .where(
-                    FraudFlag.trip_session_id.in_(trip_ids),
-                    FraudFlag.status == FraudFlagStatus.OPEN.value,
-                )
-                .group_by(FraudFlag.trip_session_id)
-            )
-        ).all()
-        for trip_id, count in fraud_rows:
-            day = trip_days[trip_id]
-            by_day[day]["open_fraud_flag_count"] = int(by_day[day]["open_fraud_flag_count"]) + int(
-                count or 0
-            )
-
-    sorted_days = sorted(by_day, reverse=True)
-    items = [daily_item(day, by_day[day]) for day in sorted_days[offset : offset + limit]]
+    cohort = cohort or ReportCohort((), (), (), (), terminal_period=True)
+    series = campaign_daily_series(cohort, start_day=page_start, end_day=page_end)
     result = DailyMetricsResponse(
         campaign_id=campaign.id,
-        start_at=start_at,
-        end_at=end_at,
-        items=items,
-        total=len(sorted_days),
+        start_at=start,
+        end_at=end,
+        items=series,
+        total=total,
         limit=limit,
         offset=offset,
     )
     if record_history:
-        await record_governed_trip_output(
+        # Placeholders disclose no contributor facts. Every nonzero measured day
+        # was independently checked; an empty day is the client-requested zero.
+        safe = all(
+            (
+                row.suppressed
+                and all(
+                    value is None
+                    for value in (
+                        row.vehicle_count,
+                        row.trip_count,
+                        row.distance_m,
+                        row.driving_seconds,
+                        row.estimated_impressions,
+                    )
+                )
+            )
+            or (
+                not row.suppressed
+                and row.vehicle_count is not None
+                and (row.vehicle_count == 0 or row.vehicle_count >= 3)
+            )
+            for row in result.items
+        )
+        await record_disclosure(
             session,
             settings=settings,
-            route_id="advertiser.campaign.daily_metrics",
-            principal_id=user_id,
-            tenant_id=organization_id,
-            campaign_id=campaign.id,
-            start_at=start_at,
-            end_at=end_at,
-            filters={"limit": limit, "offset": offset},
-            result=result,
+            query=DisclosureQuery(
+                route_id="advertiser.campaign.daily_metrics",
+                principal_id=user_id,
+                tenant_id=organization_id,
+                campaign_id=campaign.id,
+                start_at=start,
+                end_at=end,
+                filters={"limit": limit, "offset": offset},
+            ),
+            has_releasable_cells=safe,
+            result_hash=_canonical_hash(result.model_dump(mode="json")),
         )
     return result
-
-
-def daily_item(day: date, values: dict[str, object]) -> DailyMetricItem:
-    confidence_count = int(values["confidence_count"])
-    quality_count = int(values["quality_count"])
-    return DailyMetricItem(
-        date=day,
-        trip_count=int(values["trip_count"]),
-        analyzed_trip_count=int(values["analyzed_trip_count"]),
-        distance_m=decimal_2(values["distance_m"]),
-        estimated_impressions=decimal_2(values["estimated_impressions"]),
-        average_confidence_score=(
-            decimal_4(decimal_4(values["confidence_total"]) / confidence_count)
-            if confidence_count
-            else ZERO_4
-        ),
-        final_payout_total=decimal_2(values["final_payout_total"]),
-        gross_payout_total=decimal_2(values["gross_payout_total"]),
-        open_fraud_flag_count=int(values["open_fraud_flag_count"]),
-        average_quality_score=(
-            decimal_4(decimal_4(values["quality_total"]) / quality_count)
-            if quality_count
-            else ZERO_4
-        ),
-    )
 
 
 async def advertiser_campaign_trips(
@@ -1141,189 +1105,37 @@ async def advertiser_campaign_trips(
     return result
 
 
-async def advertiser_campaign_report(
-    session: AsyncSession,
-    *,
-    user_id: UUID,
-    campaign_id: UUID,
-    start_at: datetime | None,
-    end_at: datetime | None,
-    settings: Settings,
-) -> CampaignReportResponse:
+async def advertiser_campaign_report(session, *, user_id, campaign_id, start_at, end_at, settings):
+    from app.services.campaign_performance import PERFORMANCE_POLICY, live_campaign_performance
+    from app.services.disclosure import DisclosureQuery, _canonical_hash, record_disclosure
+    from app.services.payout_rule_serialization import database_clock
+
     organization_id = await require_governed_advertiser_output(
+        session, settings=settings, route_id="advertiser.campaign.performance", user_id=user_id
+    )
+    campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
+    await lock_trip_disclosure_snapshot(session, tenant_id=organization_id, campaign_id=campaign_id)
+    result = await live_campaign_performance(
         session,
+        campaign=campaign,
         settings=settings,
-        route_id="advertiser.campaign.report",
-        user_id=user_id,
-    )
-    await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
-    await lock_trip_disclosure_snapshot(
-        session,
-        tenant_id=organization_id,
-        campaign_id=campaign_id,
-    )
-    filters = [MeasurementRun.campaign_id == campaign_id]
-    if start_at is not None:
-        filters.append(MeasurementRun.period_start_at == start_at)
-    if end_at is not None:
-        filters.append(MeasurementRun.period_end_at == end_at)
-    run = await session.scalar(
-        select(MeasurementRun)
-        .where(
-            *filters,
-            ~MeasurementRun.id.in_(
-                select(MeasurementRun.reissue_of_run_id).where(
-                    MeasurementRun.reissue_of_run_id.is_not(None)
-                )
-            ),
-        )
-        .order_by(MeasurementRun.created_at.desc(), MeasurementRun.id.desc())
-        .limit(1)
-    )
-    if run is None:
-        raise AppError(
-            "CAMPAIGN_REPORT_PENDING",
-            "Your campaign report is being prepared",
-            status_code=409,
-        )
-    from app.services.measurement import measurement_run_reproducible
-
-    if not measurement_run_reproducible(run):
-        raise AppError(
-            "MEASUREMENT_RUN_INTEGRITY_FAILURE",
-            "The frozen measurement run failed reproducibility verification",
-            status_code=409,
-        )
-    report = CampaignReportResponse.model_validate(run.report_snapshot)
-    report.measurement_run = MeasurementRunSummary(
-        id=run.id,
-        mode=run.mode,
-        formula_version=run.formula_version,
-        method_revision=run.method_revision,
-        roi_method_revision=run.roi_method_revision,
-        period_start_at=run.period_start_at,
-        period_end_at=run.period_end_at,
-        input_manifest_sha256=run.input_manifest_sha256,
-        result_manifest_sha256=run.result_manifest_sha256,
-        proof_manifest_sha256=run.proof_manifest_sha256,
-        report_snapshot_sha256=run.report_snapshot_sha256,
-        reissue_of_run_id=run.reissue_of_run_id,
-        created_at=run.created_at,
-    )
-    report.measurement_result = MeasurementResultRead.model_validate(run.result_manifest)
-    from app.models.exposure_score import ExposureScore
-    from app.services.exposure_scores import (
-        advertiser_exposure_score_read,
-        exposure_score_is_stale,
-    )
-
-    score = await session.scalar(
-        select(ExposureScore)
-        .where(ExposureScore.measurement_run_id == run.id)
-        .order_by(ExposureScore.created_at.desc(), ExposureScore.id.desc())
-        .limit(1)
-    )
-    if score is not None:
-        if await exposure_score_is_stale(session, score):
-            raise AppError(
-                "EXPOSURE_SCORE_INTEGRITY_FAILURE",
-                "The issued exposure score no longer matches its immutable measurement run",
-                status_code=409,
-            )
-        report.exposure_score = await advertiser_exposure_score_read(session, score)
-    from app.services.audience import high_exposure_zone_insights
-
-    report.high_exposure_zone_insights = await high_exposure_zone_insights(
-        session,
-        settings=settings,
-        actor_user_id=user_id,
-        campaign_id=campaign_id,
-        measurement_run_id=run.id,
-        record_history=False,
-    )
-    await record_governed_trip_output(
-        session,
-        settings=settings,
-        route_id="advertiser.campaign.report",
-        principal_id=user_id,
-        tenant_id=organization_id,
-        campaign_id=campaign_id,
-        start_at=run.period_start_at,
-        end_at=run.period_end_at,
-        filters={"measurement_run_id": str(run.id)},
-        result=report,
-        contribution_manifest=run.input_manifest,
-    )
-    return report
-
-
-async def build_measurement_report_snapshot(
-    session: AsyncSession,
-    *,
-    user_id: UUID,
-    campaign_id: UUID,
-    start_at: datetime | None,
-    end_at: datetime | None,
-    settings: Settings,
-    cohort: ReportCohort | None = None,
-) -> CampaignReportResponse:
-    organization_id = await require_governed_advertiser_output(
-        session,
-        settings=settings,
-        route_id="advertiser.campaign.report",
-        user_id=user_id,
-    )
-    campaign = await get_advertiser_campaign(
-        session,
-        user_id=user_id,
-        campaign_id=campaign_id,
-    )
-    await lock_trip_disclosure_snapshot(
-        session,
-        tenant_id=organization_id,
-        campaign_id=campaign.id,
-    )
-    if cohort is None:
-        cohort = await select_report_cohort(
-            session,
-            campaign_id=campaign.id,
-            start_at=start_at,
-            end_at=end_at,
-            settings=settings,
-        )
-    summary = await advertiser_campaign_summary(
-        session,
-        user_id=user_id,
-        campaign_id=campaign_id,
+        now=await database_clock(session),
         start_at=start_at,
         end_at=end_at,
-        settings=settings,
-        cohort=cohort,
-        record_history=False,
     )
-    daily_metrics = await daily_metrics_for_campaign(
+    await record_disclosure(
         session,
-        user_id=user_id,
-        campaign_id=campaign_id,
-        start_at=start_at,
-        end_at=end_at,
-        limit=366,
-        offset=0,
+        query=DisclosureQuery(
+            route_id="advertiser.campaign.performance",
+            principal_id=user_id,
+            tenant_id=organization_id,
+            campaign_id=campaign_id,
+            start_at=result.start_at,
+            end_at=result.end_at,
+            filters={"policy": PERFORMANCE_POLICY},
+        ),
         settings=settings,
-        cohort=cohort,
-        record_history=False,
+        has_releasable_cells=True,
+        result_hash=_canonical_hash(result.model_dump(mode="json")),
     )
-    return CampaignReportResponse(
-        campaign_id=summary.campaign.id,
-        start_at=start_at,
-        end_at=end_at,
-        summary=summary.campaign,
-        daily_metrics=daily_metrics.items,
-        creative_summary=summary.creatives,
-        zone_summary=summary.zones,
-        assignment_summary=summary.assignments,
-        trip_summary=summary.trips,
-        impression_summary=summary.impressions,
-        cost_summary=summary.costs,
-        fraud_summary=summary.fraud_flags,
-    )
+    return result

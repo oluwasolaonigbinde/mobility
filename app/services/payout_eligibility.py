@@ -46,6 +46,16 @@ STATIONARY_POLICY_D39 = "d39-stop-5min-v1"
 D39_STOP_OVERLAY = {"stationary_window_min": 5, "stationary_grace_min": 0}
 METRES_PER_MILE = Decimal("1609.344")
 
+# Former PAYOUT_ELIGIBILITY_* defaults; frozen accepted snapshots stay authoritative.
+ELIGIBILITY_DEFAULTS = {
+    "stationary_radius_m": 200,
+    "stationary_window_min": 5,
+    "stationary_grace_min": 4,
+    "max_accuracy_m": 75,
+    "teleport_kmh": 180,
+    "max_ping_gap_seconds": 120,
+}
+
 EARTH_RADIUS_M = 6371000.0
 
 
@@ -76,7 +86,7 @@ class EligibilityPing:
     longitude: float
     accuracy_m: float | None
     in_area: bool
-    # Membership of the binding's frozen target zones, for outside-area weighting.
+    # Membership of the binding's frozen target zones; only in-area distance counts.
     in_premium: bool = False
 
 
@@ -87,7 +97,7 @@ class EligibleSlice:
     Slices are already cut at every ping offset, Lagos midnight, window edge,
     and stay-region boundary, so premium membership — like in_area — is
     constant within a slice: premium iff both governing pings are inside a
-    frozen target zone, used for the daily-rate outside-area distance weight.
+    frozen target zone, so the slice contributes daily-rate distance.
     """
 
     start_offset: int
@@ -430,21 +440,19 @@ def credited_distance_m_by_day(
     *,
     pings: list[EligibilityPing],
     breakdown: EligibilityBreakdown,
-    outside_area_weight: Decimal,
 ) -> dict[str, int]:
     """payout_v4 (D39) distance: whole metres credited to each Lagos day.
 
     Each eligible slice credits its ping interval's great-circle distance in
     proportion to the slice's share of that interval's seconds; a sub-second
     interval that is eligible at its instant credits its whole distance. Miles
-    inside the frozen target zones count in full, others at
-    ``outside_area_weight``. Excluded time (GPS gaps, low accuracy, teleports,
+    inside the frozen target zones count in full; others count zero (D43).
+    Excluded time (GPS gaps, low accuracy, teleports,
     out of window or area, long stops) credits nothing. Sums are exact
     fractions, rounded DOWN to whole metres per day before any pricing.
     ``pings`` must be the same list given to ``classify_session``.
     """
     ordered = sorted(pings, key=lambda ping: _utc(ping.recorded_at))
-    outside = Fraction(outside_area_weight)
 
     def interval_metres(index: int) -> Fraction:
         first, second = ordered[index], ordered[index + 1]
@@ -465,9 +473,9 @@ def credited_distance_m_by_day(
             * Fraction(eligible_slice.length, eligible_slice.interval_length)
             * in_trip
         )
-        weight = 1 if eligible_slice.premium else outside
+        weight = 1 if eligible_slice.premium else 0
         totals[eligible_slice.day] = totals.get(eligible_slice.day, Fraction(0)) + share * weight
     for index, day, premium in breakdown.eligible_instant_intervals:
-        weight = 1 if premium else outside
+        weight = 1 if premium else 0
         totals[day] = totals.get(day, Fraction(0)) + interval_metres(index) * weight
     return {day: math.floor(total) for day, total in sorted(totals.items())}

@@ -1,21 +1,15 @@
-import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
-import { ApiError } from "@/lib/api/errors";
+import { readCampaignPerformance } from "@/lib/api/audit-batch2";
 import { getSessionToken } from "@/lib/auth/session";
-import { statusLabel, statusTone } from "@/lib/campaigns/status";
-import { StatusChip } from "@/components/ui/status-chip";
-import { HighExposureZoneInsights } from "@/components/analytics/high-exposure-zone-insights";
-import {
-  GovernedAnalysisState,
-  isUnissued,
-  validateMeasurementAuthority,
-} from "../report/measurement-authority";
-import { GovernedZoneMap, type GovernedZoneGeometry } from "./heatmap-view";
+import { loadAdvertiserPageData } from "@/lib/advertiser/page-data";
+import { loadCampaignAreas } from "@/lib/advertiser/campaign-visuals";
+import { AreaGraphic } from "@/components/campaigns/area-graphic";
+import { DataUnavailable } from "@/components/ui/data-unavailable";
+import { Panel } from "@/components/ui/panel";
+import { PerformanceAreas } from "../report/performance-areas";
 
-export const metadata: Metadata = { title: "Coverage map" };
-
+export const metadata = { title: "Campaign areas" };
 export default async function CampaignMapPage({
   params,
 }: {
@@ -23,95 +17,50 @@ export default async function CampaignMapPage({
 }) {
   const { campaignId } = await params;
   const api = createApiClient(await getSessionToken());
-
-  let campaign, zones;
-  try {
-    [{ data: campaign }, { data: zones }] = await Promise.all([
-      api.GET("/api/v1/advertiser/campaigns/{campaign_id}", {
-        params: { path: { campaign_id: campaignId } },
-      }),
-      api.GET("/api/v1/advertiser/campaigns/{campaign_id}/zones", {
-        params: { path: { campaign_id: campaignId }, query: { limit: 100 } },
-      }),
-    ]);
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) notFound();
-    return (
-      <GovernedAnalysisState
-        code={error instanceof ApiError ? error.code : "MAP_SOURCE_UNAVAILABLE"}
-      />
-    );
-  }
-  if (!campaign) notFound();
-
-  let report;
-  try {
-    ({ data: report } = await api.GET("/api/v1/advertiser/campaigns/{campaign_id}/report", {
-      params: { path: { campaign_id: campaignId } },
-    }));
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) notFound();
-    return (
-      <GovernedAnalysisState
-        code={error instanceof ApiError ? error.code : "MAP_SOURCE_UNAVAILABLE"}
-      />
-    );
-  }
-  if (!report || isUnissued(report)) {
-    return <GovernedAnalysisState code="CAMPAIGN_REPORT_PENDING" />;
-  }
-  const authority = validateMeasurementAuthority(report);
-  if (!authority.ok) return <GovernedAnalysisState code="MEASUREMENT_RUN_INTEGRITY_FAILURE" />;
-
-  const zoneInsights = report.high_exposure_zone_insights;
-  if (!zoneInsights) return <GovernedAnalysisState code="ZONE_PROJECTION_UNAVAILABLE" />;
-  if (zoneInsights.state === "ready" && zoneInsights.items.length === 0) {
-    return <GovernedAnalysisState code="ZONE_PROJECTION_INTEGRITY_FAILURE" />;
-  }
-  const targetZones = new Map(
-    (zones?.items ?? [])
-      .filter((zone) => zone.zone_type === "target")
-      .map((zone) => [zone.id, zone] as const),
-  );
-  const governedZones: GovernedZoneGeometry[] = [];
-  if (zoneInsights.state === "ready") {
-    for (const item of zoneInsights.items) {
-      const zone = targetZones.get(item.zone_id);
-      if (zone?.name === item.zone_name) {
-        governedZones.push({ rank: item.rank, name: zone.name, geometry: zone.geometry });
-      }
-    }
-  }
-  if (zoneInsights.state === "ready" && governedZones.length !== zoneInsights.items.length) {
-    return <GovernedAnalysisState code="ZONE_PROJECTION_INTEGRITY_FAILURE" />;
-  }
-
+  const [areas, result] = await Promise.all([
+    loadCampaignAreas(api, campaignId),
+    loadAdvertiserPageData(() => readCampaignPerformance(api, campaignId)),
+  ]);
+  if (
+    (!areas.available && areas.reason === "missing") ||
+    (!result.available && result.reason === "missing")
+  )
+    notFound();
+  if (result.available && result.data.campaign_id !== campaignId) notFound();
   return (
-    <div className="animate-rise mx-auto max-w-6xl">
-      <nav aria-label="Breadcrumb" className="micro text-faint mb-4">
-        <Link href="/advertiser/campaigns" className="hover:text-muted">
-          Campaigns
-        </Link>{" "}
-        /{" "}
-        <Link href={`/advertiser/campaigns/${campaign.id}`} className="hover:text-muted">
-          {campaign.name}
-        </Link>{" "}
-        / <span className="text-muted">Campaign coverage map</span>
-      </nav>
-
-      <p className="micro text-amber mb-2">Campaign coverage map</p>
-      <div className="mb-2 flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Campaign areas</h1>
-        <StatusChip tone={statusTone[campaign.status]}>{statusLabel[campaign.status]}</StatusChip>
-      </div>
-      <p className="text-muted mb-6 max-w-2xl text-sm">
-        Areas ranked by estimated ad exposure from this campaign’s trips.
-      </p>
-
-      <div className="flex flex-col gap-4">
-        <HighExposureZoneInsights insight={zoneInsights} surface="map" />
-        {zoneInsights.state === "ready" ? <GovernedZoneMap zones={governedZones} /> : null}
-      </div>
+    <div className="mx-auto max-w-5xl">
+      <h1 className="font-display text-3xl font-semibold">Your campaign areas</h1>
+      <p className="text-muted mt-3 text-sm">The areas chosen for your campaign.</p>
+      {areas.available ? (
+        areas.data.items.length ? (
+          <Panel className="mt-5 overflow-hidden">
+            <div className="h-72">
+              <AreaGraphic areas={areas.data.items} />
+            </div>
+          </Panel>
+        ) : (
+          <p className="text-muted mt-5 text-sm">No campaign areas have been chosen yet.</p>
+        )
+      ) : (
+        <DataUnavailable
+          title="Area picture unavailable"
+          reason={areas.reason}
+          retryHref={`/advertiser/campaigns/${campaignId}/map`}
+        />
+      )}
+      {result.available ? (
+        <>
+          <PerformanceAreas areas={result.data.areas} />
+          <p className="text-muted mt-4 text-sm">{result.data.completeness}</p>
+          <p className="text-muted mt-2 text-sm">{result.data.uncertainty}</p>
+        </>
+      ) : (
+        <DataUnavailable
+          title="Area results unavailable"
+          reason={result.reason}
+          retryHref={`/advertiser/campaigns/${campaignId}/map`}
+        />
+      )}
     </div>
   );
 }

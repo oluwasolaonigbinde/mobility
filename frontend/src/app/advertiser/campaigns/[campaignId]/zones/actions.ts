@@ -1,13 +1,17 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
 import { validateZoneGeometry, type ZoneGeometry } from "@/lib/zones/geometry";
+import type { components } from "@/lib/api/schema";
 
-const ZONE_TYPES = ["target", "bonus", "exclusion"] as const;
+const ZONE_TYPES = ["target", "exclusion"] as const;
 
 const baseFields = {
   campaignId: z.string().uuid(),
@@ -34,11 +38,17 @@ const deleteZoneSchema = z.object({
 
 export interface ZoneActionState {
   error?: string;
+  zone?: components["schemas"]["CampaignZoneRead"];
+  unknownOutcome?: boolean;
 }
 
 function toState(error: unknown): ZoneActionState {
-  if (error instanceof ApiError) return { error: error.message };
-  return { error: "Could not reach the server. Please try again." };
+  if (error instanceof ApiError && error.status < 500) return { error: publicActionError(error) };
+  return {
+    error:
+      "The area change couldn't be confirmed. Reload to check your areas before making another change.",
+    unknownOutcome: true,
+  };
 }
 
 export async function createZoneAction(
@@ -56,7 +66,7 @@ export async function createZoneAction(
   }
   try {
     const api = createApiClient(await getSessionToken());
-    await api.POST("/api/v1/advertiser/campaigns/{campaign_id}/zones", {
+    const { data } = await api.POST("/api/v1/advertiser/campaigns/{campaign_id}/zones", {
       params: { path: { campaign_id: parsed.data.campaignId } },
       body: {
         name: parsed.data.name,
@@ -66,11 +76,19 @@ export async function createZoneAction(
         geometry: parsed.data.geometry as unknown as Record<string, unknown>,
       },
     });
+    if (
+      !data ||
+      data.campaign_id !== parsed.data.campaignId ||
+      !z.uuid().safeParse(data.id).success
+    )
+      return toState(new Error("unconfirmed"));
+    revalidatePath(`/advertiser/campaigns/${parsed.data.campaignId}/zones`);
+    revalidatePath("/advertiser/campaigns/new");
+    return { zone: data };
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
-  revalidatePath(`/advertiser/campaigns/${parsed.data.campaignId}/zones`);
-  return {};
 }
 
 export async function updateZoneAction(
@@ -80,17 +98,21 @@ export async function updateZoneAction(
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   try {
     const api = createApiClient(await getSessionToken());
-    await api.PATCH("/api/v1/advertiser/campaigns/{campaign_id}/zones/{zone_id}", {
+    const { data } = await api.PATCH("/api/v1/advertiser/campaigns/{campaign_id}/zones/{zone_id}", {
       params: {
         path: { campaign_id: parsed.data.campaignId, zone_id: parsed.data.zoneId },
       },
       body: { name: parsed.data.name, zone_type: parsed.data.zoneType },
     });
+    if (!data || data.id !== parsed.data.zoneId || data.campaign_id !== parsed.data.campaignId)
+      return toState(new Error("unconfirmed"));
+    revalidatePath(`/advertiser/campaigns/${parsed.data.campaignId}/zones`);
+    revalidatePath("/advertiser/campaigns/new");
+    return { zone: data };
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
-  revalidatePath(`/advertiser/campaigns/${parsed.data.campaignId}/zones`);
-  return {};
 }
 
 export async function deleteZoneAction(
@@ -106,8 +128,10 @@ export async function deleteZoneAction(
       },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
   revalidatePath(`/advertiser/campaigns/${parsed.data.campaignId}/zones`);
+  revalidatePath("/advertiser/campaigns/new");
   return {};
 }

@@ -56,7 +56,7 @@ export function PauseSwitchForm({ paused }: { paused: boolean }) {
   );
 }
 
-/** Move never-sent automatic payments back to the manual (maker-checker) path. */
+/** Move never-sent automatic payments back to the manual path. */
 export function ReleaseUnsentForm({ count }: { count: number }) {
   const [state, action, pending] = useActionState(releaseUnsentAction, initial);
   return (

@@ -1,5 +1,7 @@
+import { adminReadFailure } from "@/lib/api/admin-read";
 export const metadata = { title: "Campaigns" };
 import Link from "next/link";
+import { campaignDay } from "@/lib/campaigns/day-progress";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { adminStatus } from "@/lib/status/admin";
@@ -9,6 +11,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { ViewTabs, FilterChips } from "@/components/ui/tabs";
 import { QueueSearch, QueueUnavailable } from "../queue-search";
 import type { components } from "@/lib/api/schema";
+import { readAdminCampaigns } from "@/lib/api/navigation";
 
 type Campaign = components["schemas"]["AdminCampaignRead"];
 const tabs = [
@@ -26,28 +29,27 @@ const tabs = [
   {
     id: "getting-ready",
     title: "Getting ready",
-    statuses: ["draft", "approved", "scheduled"],
+    statuses: ["draft", "approved"],
     sources: [
       { id: "draft", title: "Draft" },
       { id: "approved", title: "Approved" },
-      { id: "scheduled", title: "Scheduled" },
     ],
   },
   {
     id: "live",
-    title: "Live",
+    title: "Running",
     statuses: ["active", "paused"],
     sources: [
-      { id: "active", title: "Live" },
+      { id: "active", title: "Running" },
       { id: "paused", title: "Paused" },
     ],
   },
   {
     id: "ended",
     title: "Ended",
-    statuses: ["completed", "cancelled", "rejected"],
+    statuses: ["finished", "cancelled", "rejected"],
     sources: [
-      { id: "completed", title: "Completed" },
+      { id: "finished", title: "Completed" },
       { id: "cancelled", title: "Cancelled" },
       { id: "rejected", title: "Not approved" },
     ],
@@ -115,12 +117,20 @@ async function CampaignList(
   const offset = Number.isFinite(Number(p.offset)) ? Math.max(0, Math.floor(Number(p.offset))) : 0;
   const api = createApiClient(await getSessionToken());
   let items:
-    { key: string; campaign: Campaign; next: string; section: string; job?: string }[] | undefined;
+    | {
+        key: string;
+        campaign: Campaign;
+        next: string;
+        section: string;
+        job?: string;
+        jobCount?: number;
+      }[]
+    | undefined;
   let total: number | undefined;
   if (source.id === "artwork") {
     const { data } = await api
       .GET("/api/v1/admin/creatives/pending-review", { params: { query: { limit: 25, offset } } })
-      .catch(() => ({ data: undefined }));
+      .catch(adminReadFailure);
     total = data?.total;
     if (data) {
       const parents = await Promise.all(
@@ -129,7 +139,7 @@ async function CampaignList(
             .GET("/api/v1/admin/campaigns/{campaign_id}", {
               params: { path: { campaign_id: row.creative.campaign_id } },
             })
-            .catch(() => ({ data: undefined })),
+            .catch(adminReadFailure),
         ),
       );
       if (parents.every((parent) => parent.data))
@@ -143,7 +153,7 @@ async function CampaignList(
   } else if (source.id === "installation") {
     const { data } = await api
       .GET("/api/v1/admin/installation-evidence/pending")
-      .catch(() => ({ data: undefined }));
+      .catch(adminReadFailure);
     if (data) {
       total = data.items.length;
       const selected = data.items.slice(offset, offset + 25);
@@ -154,7 +164,7 @@ async function CampaignList(
               .GET("/api/v1/admin/campaign-assignments/{assignment_id}", {
                 params: { path: { assignment_id: evidence.assignment_id } },
               })
-              .catch(() => ({ data: undefined }))
+              .catch(adminReadFailure)
           ).data;
           if (!job || job.vehicle_id !== evidence.vehicle_id) return undefined;
           const campaign = (
@@ -162,7 +172,7 @@ async function CampaignList(
               .GET("/api/v1/admin/campaigns/{campaign_id}", {
                 params: { path: { campaign_id: job.campaign_id } },
               })
-              .catch(() => ({ data: undefined }))
+              .catch(adminReadFailure)
           ).data;
           return campaign
             ? {
@@ -180,7 +190,7 @@ async function CampaignList(
   } else if (source.id === "changes") {
     const { data } = await api
       .GET("/api/v1/admin/campaign-change-requests/pending")
-      .catch(() => ({ data: undefined }));
+      .catch(adminReadFailure);
     if (data) {
       total = data.items.length;
       const selected = data.items.slice(offset, offset + 25);
@@ -190,7 +200,7 @@ async function CampaignList(
             .GET("/api/v1/admin/campaigns/{campaign_id}", {
               params: { path: { campaign_id: row.campaign_id } },
             })
-            .catch(() => ({ data: undefined })),
+            .catch(adminReadFailure),
         ),
       );
       if (parents.every((parent) => parent.data))
@@ -202,14 +212,16 @@ async function CampaignList(
         }));
     }
   } else {
-    const { data } = await api
-      .GET("/api/v1/admin/campaigns", {
-        params: { query: { status: source.id as Campaign["status"], q: p.q, limit: 25, offset } },
-      })
-      .catch(() => ({ data: undefined }));
+    const { data } = await readAdminCampaigns(api, {
+      status: source.id as Campaign["status"],
+      q: p.q,
+      limit: 25,
+      offset,
+    }).catch(adminReadFailure);
     items = data?.items.map((campaign) => ({
       key: campaign.id,
       campaign,
+      jobCount: campaign.assignment_count,
       next:
         source.id === "pending_review"
           ? "Review campaign details"
@@ -222,20 +234,24 @@ async function CampaignList(
   }
   const summaries = items
     ? await Promise.all(
-        items.map(async ({ campaign }) => ({
-          jobs: (
-            await api
-              .GET("/api/v1/admin/campaign-assignments", {
-                params: { query: { campaign_id: campaign.id, limit: 1 } },
-              })
-              .catch(() => ({ data: undefined }))
-          ).data,
+        items.map(async ({ campaign, jobCount }) => ({
+          jobs: !["artwork", "changes", "installation"].includes(source.id)
+            ? Number.isSafeInteger(jobCount) && jobCount! >= 0
+              ? jobCount
+              : undefined
+            : (
+                await api
+                  .GET("/api/v1/admin/campaign-assignments", {
+                    params: { query: { campaign_id: campaign.id, limit: 1 } },
+                  })
+                  .catch(adminReadFailure)
+              ).data?.total,
           commercial: (
             await api
               .GET("/api/v1/admin/campaigns/{campaign_id}/commercial", {
                 params: { path: { campaign_id: campaign.id } },
               })
-              .catch(() => ({ data: undefined }))
+              .catch(adminReadFailure)
           ).data,
         })),
       )
@@ -269,7 +285,7 @@ async function CampaignList(
           <input type="hidden" name="source" value={source.id} />
         </QueueSearch>
       ) : null}
-      {!items || summaries.some((summary) => !summary.jobs || !summary.commercial) ? (
+      {!items || summaries.some((summary) => summary.jobs === undefined || !summary.commercial) ? (
         <QueueUnavailable />
       ) : (
         <>
@@ -288,7 +304,7 @@ async function CampaignList(
           ) : (
             <div className="grid gap-3">
               {items.map(({ key, campaign, next, section, job }, i) => {
-                const evaluation = summaries[i]?.commercial?.budget_evaluations.at(-1);
+                const evaluation = summaries[i]?.commercial?.budget_check;
                 const spent = evaluation?.billing_spend_amount;
                 const percentage =
                   spent != null &&
@@ -311,14 +327,13 @@ async function CampaignList(
                       <p className="text-muted mt-1 text-sm">
                         {formatDateRange(campaign.start_at, campaign.end_at)}
                       </p>
+                      <p className="text-muted mt-1 text-sm">
+                        {campaignDay(campaign.start_at, campaign.end_at)}
+                      </p>
                     </div>
                     <div>
                       <p className="text-sm">{adminStatus(campaign.status, "campaign")}</p>
-                      <p className="text-muted mt-1 text-sm">
-                        {summaries[i]?.jobs
-                          ? `${summaries[i]!.jobs!.total} driver jobs`
-                          : "No jobs recorded"}
-                      </p>
+                      <p className="text-muted mt-1 text-sm">{summaries[i]?.jobs} driver jobs</p>
                     </div>
                     <div>
                       {percentage !== undefined ? (

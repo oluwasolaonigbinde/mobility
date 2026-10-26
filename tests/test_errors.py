@@ -104,7 +104,9 @@ def test_error_tracking_uses_privacy_safe_defaults(monkeypatch) -> None:
 
     assert len(init_calls) == 1
     before_send = init_calls[0].pop("before_send")
+    before_breadcrumb = init_calls[0].pop("before_breadcrumb")
     assert callable(before_send)
+    assert callable(before_breadcrumb)
     assert init_calls == [
         {
             "dsn": "https://public@example.invalid/1",

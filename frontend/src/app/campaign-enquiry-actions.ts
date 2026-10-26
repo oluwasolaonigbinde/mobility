@@ -1,5 +1,7 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
 import { headers } from "next/headers";
 import { z } from "zod";
 import { createLoginApiClient } from "@/lib/api/client";
@@ -59,6 +61,7 @@ export async function submitCampaignEnquiry(
     });
     if (data?.status === "submitted") return { submitted: true };
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof ApiError && error.status === 429) {
       return { values, error: "Please wait before sending another enquiry, or email us directly." };
     }

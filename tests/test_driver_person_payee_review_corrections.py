@@ -571,6 +571,7 @@ def test_status_references_are_indistinguishable_across_every_mutation_probe(
     duplicate = db_client.post(
         "/api/v1/auth/register-driver",
         json={
+            "service_city": "Abuja",
             "email": "person-payee-probe-red@example.com",
             "full_name": "Duplicate probe",
         },
@@ -637,9 +638,37 @@ def test_fresh_and_duplicate_driver_probes_deliver_separate_non_enumerating_auth
             return set((await session.scalars(select(DriverApplicationAccessToken.id))).all())
 
     prior_ids = asyncio.run(existing_access_ids())
+
+    # Prove key/evidence mismatch while the first link is still current. A resend
+    # now revokes it under D131, so checking this only after resend would mask it.
+    async def reject_wrong_key():
+        async with db_sessionmaker() as session:
+            notice_id = await session.scalar(
+                select(Notification.id).where(
+                    Notification.type_key
+                    == NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED.value
+                )
+            )
+        adapter = RecordingEmailAdapter()
+        result = await process_email_notification(
+            db_sessionmaker,
+            notification_id=notice_id,
+            settings=settings.model_copy(
+                update={"jwt_secret_key": "different-test-secret-key-at-least-32-bytes"}
+            ),
+            email_adapter=adapter,
+            now=datetime.now(UTC),
+        )
+        assert result == "failed" and adapter.messages == []
+        async with db_sessionmaker() as session:
+            notice = await session.get(Notification, notice_id)
+            assert notice.last_error_code == "driver_onboarding_access_evidence_mismatch"
+
+    asyncio.run(reject_wrong_key())
     duplicate = db_client.post(
         "/api/v1/auth/register-driver",
         json={
+            "service_city": "Abuja",
             "email": "person-payee-access-delivery@example.com",
             "full_name": "Probe must remain generic",
         },
@@ -688,26 +717,16 @@ def test_fresh_and_duplicate_driver_probes_deliver_separate_non_enumerating_auth
         assert len(adapter.messages) == 1
         delivered_body = adapter.messages[0].text_body
         assert duplicate_token in delivered_body
-        mismatched_adapter = RecordingEmailAdapter()
-        mismatch_result = await process_email_notification(
-            db_sessionmaker,
-            notification_id=mismatched_notice_id,
-            settings=settings.model_copy(
-                update={"jwt_secret_key": "different-test-secret-key-at-least-32-bytes"}
-            ),
-            email_adapter=mismatched_adapter,
-            now=datetime.now(UTC),
-        )
-        assert mismatch_result == "failed"
-        assert mismatched_adapter.messages == []
         async with db_sessionmaker() as session:
-            first_app = await application_from_access_token(
-                session, token=fresh_token, settings=settings, lock=False
-            )
+            with pytest.raises(AppError) as invalidated:
+                await application_from_access_token(
+                    session, token=fresh_token, settings=settings, lock=False
+                )
+            assert invalidated.value.code == "ONBOARDING_ACCESS_INVALID"
             duplicate_app = await application_from_access_token(
                 session, token=duplicate_token, settings=settings, lock=False
             )
-            assert first_app.id == duplicate_app.id
+            assert duplicate_app.email == "person-payee-access-delivery@example.com"
             new_access = await session.scalar(
                 select(DriverApplicationAccessToken).where(
                     DriverApplicationAccessToken.id.not_in(prior_ids)

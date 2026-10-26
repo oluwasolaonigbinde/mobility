@@ -26,13 +26,8 @@ export function dailyRateSentences(terms: Record<string, unknown>): string[] {
   const sentences = [
     `${naira(payout.daily_rate_naira)} for a full day of ${target} miles.`,
     `Driving more than ${target} miles in a day still earns ${naira(payout.daily_rate_naira)}.`,
-    payout.shortfall_strategy === "per_mile_deduction"
-      ? `Each mile short of ${target} takes ${naira(payout.deduction_per_mile_naira)} off the day's pay.`
-      : "Shorter days are paid in proportion to the miles covered.",
+    "Shorter days are paid in proportion to the miles covered.",
   ];
-  if (Number(payout.minimum_miles) > 0) {
-    sentences.push(`Days under ${number(payout.minimum_miles)} miles are not paid.`);
-  }
   const eligibility = terms.eligibility as Record<string, unknown> | null | undefined;
   const stopMinutes = Number(eligibility?.stationary_window_seconds) / 60;
   if (Number.isFinite(stopMinutes) && stopMinutes > 0) {
@@ -50,14 +45,7 @@ export function dailyRateSentences(terms: Record<string, unknown>): string[] {
       }.`,
     );
   }
-  const weight = Number(payout.outside_area_weight);
-  sentences.push(
-    weight >= 1
-      ? "Miles outside the campaign area count in full."
-      : weight <= 0
-        ? "Only miles inside the campaign area count."
-        : `Miles outside the campaign area count at ${number(Math.round(weight * 1000) / 10)}%.`,
-  );
+  sentences.push("Only miles inside the campaign area count.");
   return sentences;
 }
 

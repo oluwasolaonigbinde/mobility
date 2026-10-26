@@ -7,13 +7,11 @@ recorded_at bound, and the ended-window assignment-gate skip.
 """
 
 import asyncio
-import copy
 import re
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from conftest import create_test_trip_analytics
-from sqlalchemy import select, update
+from sqlalchemy import select
 from starlette import status as http_status
 from test_trips import (
     create_trip_ready_graph,
@@ -27,7 +25,6 @@ from app.models.audit import AuditEvent
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.trip import (
     LocationPing,
-    QuarantinedPingBatch,
     TripSealReason,
     TripSession,
     TripSessionStatus,
@@ -195,7 +192,7 @@ def test_incomplete_end_requires_late_batch_and_reconcile(db_client, db_sessionm
         json=b2_payload,
     )
     assert late.status_code == http_status.HTTP_200_OK
-    assert late.json()["quarantined"] is False
+    assert late.json()["evidence_scope"] == "manifest"
     assert fetch_trip(db_sessionmaker, trip_id).status == TripSessionStatus.ENDED.value
     reconcile = db_client.post(
         f"/api/v1/driver/trips/{trip_id}/evidence/reconcile",
@@ -247,9 +244,7 @@ def test_money_chain_blocks_until_sealed_and_sweep_selects_sealed_only(
 
     async def process():
         async with db_sessionmaker() as session:
-            result = await process_ended_trip(
-                session, trip_id=UUID(trip_id), settings=settings
-            )
+            result = await process_ended_trip(session, trip_id=UUID(trip_id), settings=settings)
             await session.commit()
             return result
 
@@ -264,191 +259,14 @@ def test_money_chain_blocks_until_sealed_and_sweep_selects_sealed_only(
     assert asyncio.run(due()) == []  # ended-but-unsealed is never due work
 
 
-def test_post_seal_batch_is_quarantined_with_ack_semantics(db_client, db_sessionmaker) -> None:
-    _, _, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
-    trip_id = start_trip(db_client, assignment.id).json()["id"]
-    recorded = datetime.now(UTC)
-    assert send_batch(db_client, trip_id, "live-1", recorded_at=recorded).status_code == 200
-    end_trip(db_client, trip_id, watermark={"client_batch_count": 1, "client_complete": True})
-    assert fetch_trip(db_sessionmaker, trip_id).status == TripSessionStatus.SEALED.value
-    pings_before = len(fetch_all(db_sessionmaker, LocationPing))
-
-    # New batch after seal -> quarantined, no pings inserted, client must ACK.
-    late = send_batch(db_client, trip_id, "late-1", recorded_at=recorded)
-    assert late.status_code == http_status.HTTP_200_OK
-    assert late.json()["quarantined"] is True
-    assert late.json()["accepted_count"] == 0
-    assert len(fetch_all(db_sessionmaker, LocationPing)) == pings_before
-    assert "trip.ping_batch.quarantined" in audit_actions(db_sessionmaker)
-
-    # Retrying the same quarantined batch is idempotent (same ACK, one row).
-    retry = send_batch(db_client, trip_id, "late-1", recorded_at=recorded)
-    assert retry.json()["quarantined"] is True
-    assert retry.json()["duplicate"] is True
-    assert len(fetch_all(db_sessionmaker, QuarantinedPingBatch)) == 1
-
-    # Same key, different payload -> conflict, exactly like live batches.
-    conflict = send_batch(db_client, trip_id, "late-1", recorded_at=recorded, lat=6.5)
-    assert conflict.status_code == http_status.HTTP_409_CONFLICT
-
-    # A pre-seal batch retried post-seal returns its ORIGINAL live ACK,
-    # never a quarantine row (RM4 replay across the seal boundary).
-    replay = send_batch(db_client, trip_id, "live-1", recorded_at=recorded)
-    assert replay.status_code == http_status.HTTP_200_OK
-    assert replay.json()["duplicate"] is True
-    assert replay.json()["quarantined"] is False
-
-
-def test_admin_applies_quarantined_batch_with_audit_and_lagos_days(
-    postgis_db_client, postgis_db_sessionmaker, settings
-) -> None:
-    admin, campaign, driver, profile, vehicle, assignment = create_trip_ready_graph(
-        postgis_db_sessionmaker, eligibility_settings=settings
-    )
-    trip_id = start_trip(postgis_db_client, assignment.id).json()["id"]
-    recorded = datetime.now(UTC)
-    end_trip(
-        postgis_db_client, trip_id, watermark={"client_batch_count": 0, "client_complete": True}
-    )
-    late = send_batch(postgis_db_client, trip_id, "late-apply", recorded_at=recorded)
-    quarantine_id = late.json()["batch_id"]
-
-    listing = postgis_db_client.get(
-        "/api/v1/admin/trips/quarantined-batches",
-        headers=admin_headers(postgis_db_client),
-    )
-    assert listing.status_code == http_status.HTTP_200_OK
-    assert listing.json()["total"] == 1
-    assert listing.json()["items"][0]["id"] == quarantine_id
-
-    # RBAC: drivers cannot review quarantine.
-    forbidden = postgis_db_client.post(
-        f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply",
-        headers=driver_headers(postgis_db_client),
-        json={"note": "nope"},
-    )
-    assert forbidden.status_code == http_status.HTTP_403_FORBIDDEN
-
-    # Note is mandatory.
-    missing_note = postgis_db_client.post(
-        f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply",
-        headers=admin_headers(postgis_db_client),
-        json={},
-    )
-    assert missing_note.status_code == http_status.HTTP_422_UNPROCESSABLE_ENTITY
-
-    # Apply is BLOCKED until the trip's initial (write-once) payout exists —
-    # otherwise admin timing would decide whether the applied pings enter the
-    # first computation or wait for recompute-day.
-    blocked = postgis_db_client.post(
-        f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply",
-        headers=admin_headers(postgis_db_client),
-        json={"note": "too early"},
-    )
-    assert blocked.status_code == http_status.HTTP_409_CONFLICT
-    assert blocked.json()["error"]["code"] == "QUARANTINE_APPLY_BLOCKED"
-
-    # Post-seal analytics let the existing accepted payout authority produce
-    # the initial calculation before quarantine can be applied.
-    create_test_trip_analytics(
-        postgis_db_sessionmaker,
-        trip_session_id=fetch_trip(postgis_db_sessionmaker, trip_id).id,
-        assignment_id=assignment.id,
-        campaign_id=campaign.id,
-        driver_profile_id=profile.id,
-        vehicle_id=vehicle.id,
-        formula_version=settings.route_analytics_formula_version,
-        computed_at=datetime.now(UTC) + timedelta(minutes=1),
-    )
-
-    async def process():
-        async with postgis_db_sessionmaker() as session:
-            result = await process_ended_trip(
-                session, trip_id=UUID(trip_id), settings=settings
-            )
-            await session.commit()
-            return result
-
-    assert asyncio.run(process()).overall in {"completed", "partial"}
-
-    pings_before = len(fetch_all(postgis_db_sessionmaker, LocationPing))
-    original_payload = fetch_all(postgis_db_sessionmaker, QuarantinedPingBatch)[0].payload
-    tampered_payload = copy.deepcopy(original_payload)
-    tampered_payload["pings"][0]["lat"] = 7.1
-
-    async def replace_payload(payload: dict) -> None:
-        async with postgis_db_sessionmaker() as session:
-            await session.execute(
-                update(QuarantinedPingBatch)
-                .where(QuarantinedPingBatch.id == UUID(quarantine_id))
-                .values(payload=payload)
-            )
-            await session.commit()
-
-    asyncio.run(replace_payload(tampered_payload))
-    tampered = postgis_db_client.post(
-        f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply",
-        headers=admin_headers(postgis_db_client),
-        json={"note": "tampered payload must fail"},
-    )
-    assert tampered.status_code == http_status.HTTP_409_CONFLICT
-    assert tampered.json()["error"]["code"] == "TRIP_EVIDENCE_RECEIPT_INVALID"
-    asyncio.run(replace_payload(original_payload))
-
-    applied = postgis_db_client.post(
-        f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply",
-        headers=admin_headers(postgis_db_client),
-        json={"note": "verified GPS evidence from support ticket 42"},
-    )
-    assert applied.status_code == http_status.HTTP_200_OK
-    body = applied.json()
-    assert body["accepted_count"] == 1
-    assert body["affected_lagos_days"], "must name the days for recompute-day"
-    assert len(fetch_all(postgis_db_sessionmaker, LocationPing)) == pings_before + 1
-    assert "admin.trip.quarantined_batch.applied" in audit_actions(postgis_db_sessionmaker)
-    # Trip stays sealed; money is corrected via recompute-day, never here.
-    assert fetch_trip(postgis_db_sessionmaker, trip_id).status == TripSessionStatus.SEALED.value
-
-    # A resolved row cannot be re-applied or discarded.
-    again = postgis_db_client.post(
-        f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/discard",
-        headers=admin_headers(postgis_db_client),
-        json={"note": "late"},
-    )
-    assert again.status_code == http_status.HTTP_409_CONFLICT
-
-
-def test_admin_discards_quarantined_batch(db_client, db_sessionmaker) -> None:
-    _, _, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
-    trip_id = start_trip(db_client, assignment.id).json()["id"]
-    end_trip(db_client, trip_id, watermark={"client_batch_count": 0, "client_complete": True})
-    late = send_batch(db_client, trip_id, "late-discard")
-    quarantine_id = late.json()["batch_id"]
-
-    discarded = db_client.post(
-        f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/discard",
-        headers=admin_headers(db_client),
-        json={"note": "spoofed points, confirmed with driver"},
-    )
-    assert discarded.status_code == http_status.HTTP_200_OK
-    assert discarded.json()["status"] == "discarded"
-    assert discarded.json()["resolution_note"]
-    assert "admin.trip.quarantined_batch.discarded" in audit_actions(db_sessionmaker)
-    assert len(fetch_all(db_sessionmaker, LocationPing)) == 0
-
-
 def test_post_end_recorded_at_bound_rejects_points_after_trip(
     db_client, db_sessionmaker, settings
 ) -> None:
     _, _, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
     trip_id = start_trip(db_client, assignment.id).json()["id"]
-    too_late = datetime.now(UTC) + timedelta(
-        seconds=settings.location_ping_end_skew_seconds + 30
-    )
+    too_late = datetime.now(UTC) + timedelta(seconds=settings.location_ping_end_skew_seconds + 30)
     after_payload = make_batch_payload("after-end", recorded_at=too_late, batch_sequence=0)
-    within = datetime.now(UTC) + timedelta(
-        seconds=settings.location_ping_end_skew_seconds - 30
-    )
+    within = datetime.now(UTC) + timedelta(seconds=settings.location_ping_end_skew_seconds - 30)
     within_payload = make_batch_payload("within-skew", recorded_at=within, batch_sequence=1)
     remember_batch(trip_id, after_payload)
     remember_batch(trip_id, within_payload)
@@ -477,9 +295,7 @@ def test_ended_window_ingest_skips_assignment_active_gate(db_client, db_sessionm
     payload = make_batch_payload("post-deactivation")
     remember_batch(trip_id, payload)
     end_trip(db_client, trip_id)
-    update_assignment_status(
-        db_sessionmaker, assignment.id, CampaignAssignmentStatus.DEACTIVATED
-    )
+    update_assignment_status(db_sessionmaker, assignment.id, CampaignAssignmentStatus.CANCELLED)
 
     late = db_client.post(
         f"/api/v1/driver/trips/{trip_id}/pings",
@@ -487,7 +303,7 @@ def test_ended_window_ingest_skips_assignment_active_gate(db_client, db_sessionm
         json=payload,
     )
     assert late.status_code == http_status.HTTP_200_OK
-    assert late.json()["quarantined"] is False
+    assert late.json()["evidence_scope"] == "manifest"
 
 
 def test_preseal_analytics_is_recomputed_before_money(
@@ -501,9 +317,7 @@ def test_preseal_analytics_is_recomputed_before_money(
     )
     trip_id = start_trip(postgis_db_client, assignment.id).json()["id"]
     recorded = datetime.now(UTC)
-    assert (
-        send_batch(postgis_db_client, trip_id, "b1", recorded_at=recorded).status_code == 200
-    )
+    assert send_batch(postgis_db_client, trip_id, "b1", recorded_at=recorded).status_code == 200
     b2_payload = make_batch_payload("b2", recorded_at=recorded, batch_sequence=1)
     remember_batch(trip_id, b2_payload)
     # The exact manifest commits b1+b2 while only b1 is delivered.
@@ -512,9 +326,7 @@ def test_preseal_analytics_is_recomputed_before_money(
         trip_id,
         watermark={"client_batch_count": 2, "client_ping_count": 2, "client_complete": False},
     )
-    assert (
-        fetch_trip(postgis_db_sessionmaker, trip_id).status == TripSessionStatus.ENDED.value
-    )
+    assert fetch_trip(postgis_db_sessionmaker, trip_id).status == TripSessionStatus.ENDED.value
 
     # Analytics computed DURING the recovery window (sees only batch b1).
     async def compute_preseal():
@@ -534,7 +346,7 @@ def test_preseal_analytics_is_recomputed_before_money(
         json=b2_payload,
     )
     assert late.status_code == http_status.HTTP_200_OK
-    assert late.json()["quarantined"] is False
+    assert late.json()["evidence_scope"] == "manifest"
     assert fetch_trip(postgis_db_sessionmaker, trip_id).status == TripSessionStatus.ENDED.value
     reconciled = postgis_db_client.post(
         f"/api/v1/driver/trips/{trip_id}/evidence/reconcile",
@@ -545,12 +357,9 @@ def test_preseal_analytics_is_recomputed_before_money(
     assert trip.status == TripSessionStatus.SEALED.value
     assert preseal_computed_at.replace(tzinfo=UTC) < trip.sealed_at.replace(tzinfo=UTC)
 
-
     async def process():
         async with postgis_db_sessionmaker() as session:
-            result = await process_ended_trip(
-                session, trip_id=UUID(trip_id), settings=settings
-            )
+            result = await process_ended_trip(session, trip_id=UUID(trip_id), settings=settings)
             await session.commit()
             return result
 
@@ -574,3 +383,41 @@ def test_preseal_analytics_is_recomputed_before_money(
     second = asyncio.run(process())
     second_stage = next(stage for stage in second.stages if stage.stage == "analytics")
     assert second_stage.outcome == "reused"
+
+
+def test_post_seal_late_data_is_automatic_and_keeps_original_manifest(db_client, db_sessionmaker):
+    from app.core.config import get_settings
+    from app.models.trip import LocationPingBatch
+    from app.services.trip_evidence import verify_batch_receipt
+
+    _, _, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
+    trip_id = start_trip(db_client, assignment.id).json()["id"]
+    recorded = datetime.now(UTC)
+    live = send_batch(db_client, trip_id, "live-1", recorded_at=recorded)
+    assert live.status_code == 200, live.text
+    ended = end_trip(db_client, trip_id, watermark={"client_complete": True})
+    assert ended.status_code == 200, ended.text
+    original = fetch_trip(db_sessionmaker, trip_id)
+    before = len(fetch_all(db_sessionmaker, LocationPing))
+    late = send_batch(db_client, trip_id, "late-2", recorded_at=recorded, lat=6.4501)
+    assert late.status_code == 200, late.text
+    assert late.json()["evidence_scope"] == "late" and late.json()["outcome"] == "accepted"
+    assert late.json()["accepted_count"] == 1
+    assert len(fetch_all(db_sessionmaker, LocationPing)) == before + 1
+    retry = send_batch(db_client, trip_id, "late-2", recorded_at=recorded, lat=6.4501)
+    assert retry.json() == {**late.json(), "duplicate": True}
+    conflict = send_batch(db_client, trip_id, "late-2", recorded_at=recorded, lat=6.46)
+    assert conflict.status_code == 409
+    sealed = fetch_trip(db_sessionmaker, trip_id)
+    assert sealed.evidence_manifest_root_sha256 == original.evidence_manifest_root_sha256
+    assert (
+        sealed.evidence_manifest_receipt_signature == original.evidence_manifest_receipt_signature
+    )
+    batch = next(
+        row
+        for row in fetch_all(db_sessionmaker, LocationPingBatch)
+        if str(row.id) == late.json()["batch_id"]
+    )
+    assert verify_batch_receipt(batch, get_settings())
+    replay = send_batch(db_client, trip_id, "live-1", recorded_at=recorded)
+    assert replay.json() == {**live.json(), "duplicate": True}

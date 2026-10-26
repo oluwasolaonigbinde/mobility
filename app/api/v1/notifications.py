@@ -1,21 +1,18 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Header, Query
+from fastapi import APIRouter, Query
 
 from app.api.v1.dependencies import (
     AdvertiserUserDependency,
     CurrentUserDependency,
     SessionDependency,
-    SettingsDependency,
 )
 from app.models.notification import Notification, NotificationType
 from app.schemas.notifications import (
     AdvertiserNotificationPreferenceRead,
     AdvertiserNotificationPreferenceUpdate,
     DriverNotificationRead,
-    EmailDeliveryReceiptCreate,
-    EmailDeliveryReceiptRead,
     NotificationFeedItemRead,
     NotificationFeedListRead,
     NotificationUnreadCountRead,
@@ -25,7 +22,6 @@ from app.services.notifications import (
     mark_all_notifications_read,
     mark_notification_read,
     notification_campaign_context,
-    record_email_delivery_receipt,
     unread_notification_count,
 )
 from app.services.organizations import (
@@ -34,34 +30,6 @@ from app.services.organizations import (
 )
 
 router = APIRouter(tags=["Notifications"])
-
-
-@router.post(
-    "/notifications/email/delivery-receipts",
-    response_model=EmailDeliveryReceiptRead,
-)
-async def email_delivery_receipt(
-    payload: EmailDeliveryReceiptCreate,
-    session: SessionDependency,
-    settings: SettingsDependency,
-    x_email_receipt_signature: Annotated[str, Header()],
-    x_email_receipt_key_id: Annotated[str, Header()],
-) -> EmailDeliveryReceiptRead:
-    secret = (
-        settings.email_receipt_signing_secret.get_secret_value().encode()
-        if settings.email_receipt_signing_secret is not None
-        else None
-    )
-    receipt = await record_email_delivery_receipt(
-        session,
-        payload=payload.model_dump(mode="json"),
-        signature=x_email_receipt_signature,
-        signing_key_id=x_email_receipt_key_id,
-        signing_secret=secret,
-        configured_key_id=settings.email_receipt_key_id,
-    )
-    await session.commit()
-    return EmailDeliveryReceiptRead.model_validate(receipt)
 
 
 def driver_notification_response(notice: Notification) -> DriverNotificationRead:
@@ -142,14 +110,6 @@ def notification_feed_response(
             "Campaign cancelled",
             "A campaign cancellation has been recorded.",
         ),
-        NotificationType.EVIDENCE_CHALLENGE_CREATED.value: (
-            "New display photo needed",
-            "Terrax Media asked for a new photo of the advert on your car. Open Jobs to send it.",
-        ),
-        NotificationType.EVIDENCE_VERIFIED.value: (
-            "Photos approved",
-            "Terrax Media approved your photos of the advert.",
-        ),
         NotificationType.PAYOUT_RELEASED.value: (
             "Pay ready",
             "A hold on some of your pay has been lifted. "
@@ -168,21 +128,9 @@ def notification_feed_response(
             "Reply about your trip",
             "Terrax Media replied to what you said about your trip. Open Earnings to read it.",
         ),
-        NotificationType.ACTIVITY_FLOOR_BREACHED.value: (
-            "Not enough driving this week",
-            "You drove less than this job's weekly minimum. Terrax Media will look at your job.",
-        ),
-        NotificationType.ACTIVITY_FLOOR_RECOVERED.value: (
-            "Weekly driving back on track",
-            "You're back above this job's weekly minimum.",
-        ),
         NotificationType.ASSIGNMENT_INACTIVE.value: (
             "No trips for 7 days",
-            "No trips were recorded on your job for 7 days. Terrax Media will look at it.",
-        ),
-        NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED.value: (
-            "Trips started again",
-            "Trips are being recorded on your job again.",
+            "No verified trips were recorded for this job for 7 days. Follow up with the driver.",
         ),
         NotificationType.PAYOUT_AUTOMATIC_ALERT.value: (
             "Automatic payout needs attention",
@@ -209,15 +157,18 @@ def notification_feed_response(
             "Complaint resolved",
             "Terrax Media marked your complaint as resolved. Open Help to read it or reply.",
         ),
-        NotificationType.COMPLAINT_ASSIGNED.value: (
-            "Complaint assigned to you",
-            "A complaint in the Customer Service inbox was assigned to you.",
-        ),
     }
     title, body = rendered.get(
         notice.type_key,
         ("Account notification", "You have a new account notification."),
     )
+    if notice.type_key == NotificationType.REPORT_READY:
+        title = "Report ready"
+        kind = notice.payload.get("report_kind")
+        label = (
+            f"{kind} report" if isinstance(kind, str) and kind in {"weekly", "final"} else "report"
+        )
+        body = f"Your {label} for {context[0]} is ready" if context else "Your report is ready."
     return NotificationFeedItemRead(
         id=notice.id,
         type_key=notice.type_key,
@@ -229,6 +180,27 @@ def notification_feed_response(
         created_at=notice.created_at,
         read_at=notice.read_at,
     )
+
+
+async def current_feed_item(session, notice, user) -> NotificationFeedItemRead:
+    from app.core.errors import AppError
+    from app.services.driver_review_notifications import REVIEW_TYPES, review_notice_context
+
+    review = await review_notice_context(session, notice, user)
+    if notice.type_key in REVIEW_TYPES and review is None:
+        raise AppError("NOTIFICATION_NOT_FOUND", "Notification was not found", status_code=404)
+    item = notification_feed_response(
+        notice, await notification_campaign_context(session, notice=notice, user=user)
+    )
+    if review:
+        return item.model_copy(
+            update={
+                "title": review["title"],
+                "body": review["body"],
+                "action_url": review["action_path"],
+            }
+        )
+    return item
 
 
 @router.get("/notifications", response_model=NotificationFeedListRead)
@@ -245,12 +217,7 @@ async def current_user_notifications(
         offset=offset,
     )
     return NotificationFeedListRead(
-        items=[
-            notification_feed_response(
-                notice, await notification_campaign_context(session, notice=notice, user=user)
-            )
-            for notice in notices
-        ],
+        items=[await current_feed_item(session, notice, user) for notice in notices],
         total=total,
         limit=limit,
         offset=offset,
@@ -278,9 +245,7 @@ async def read_notification(
         notification_id=notification_id,
     )
     await session.commit()
-    return notification_feed_response(
-        notice, await notification_campaign_context(session, notice=notice, user=user)
-    )
+    return await current_feed_item(session, notice, user)
 
 
 @router.post("/notifications/read-all", response_model=NotificationUnreadCountRead)

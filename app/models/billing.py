@@ -53,8 +53,7 @@ class ReceiptMethod(StrEnum):
 
 
 class ReceiptLifecycleStatus(StrEnum):
-    OBSERVED = "observed"
-    RECONCILED = "reconciled"
+    RECORDED = "recorded"
     CONFIRMED = "confirmed"
     REVERSED = "reversed"
 
@@ -73,7 +72,6 @@ class InvoiceStatus(StrEnum):
 class FinancialAuthorityType(StrEnum):
     PREPAID_CASH = "prepaid_cash"
     APPROVED_CREDIT = "approved_credit"
-    SUBSIDY = "subsidy"
 
 
 class LiabilityReservationStatus(StrEnum):
@@ -96,14 +94,6 @@ class InvoiceCorrectionType(StrEnum):
 class SettlementDisposition(StrEnum):
     REFUND_RECORDED = "refund_recorded"
     CREDIT_SETTLEMENT_RECORDED = "credit_settlement_recorded"
-
-
-class BudgetPolicyEvaluationState(StrEnum):
-    BLOCKED_EXTERNAL_POLICY = "blocked_external_policy"
-    WITHIN_BUDGET = "within_budget"
-    ALERT_THRESHOLD = "alert_threshold"
-    URGENT_THRESHOLD = "urgent_threshold"
-    PAUSE_THRESHOLD = "pause_threshold"
 
 
 class BudgetCampaignTransitionAction(StrEnum):
@@ -336,65 +326,39 @@ class PaymentReceipt(Base):
     )
 
 
-class ReceiptReconciliation(Base):
-    __tablename__ = "receipt_reconciliations"
-    __table_args__ = (
-        CheckConstraint(
-            "length(expected_currency) = 3", name="ck_receipt_reconciliations_currency"
-        ),
-        CheckConstraint("expected_amount > 0", name="ck_receipt_reconciliations_amount_positive"),
-        CheckConstraint(
-            "(verification_source = 'manual' AND reconciled_by_user_id IS NOT NULL "
-            "AND provider_event_id IS NULL) OR "
-            "(verification_source = 'provider' AND reconciled_by_user_id IS NULL "
-            "AND provider_event_id IS NOT NULL)",
-            name="ck_receipt_reconciliations_verification_source",
-        ),
-        UniqueConstraint("receipt_id", name="uq_receipt_reconciliations_receipt"),
-        UniqueConstraint("provider_event_id", name="uq_receipt_reconciliations_provider_event"),
-    )
-
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    receipt_id: Mapped[UUID] = mapped_column(
-        ForeignKey("payment_receipts.id", ondelete="RESTRICT"), nullable=False, index=True
-    )
-    expected_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    expected_currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    matched: Mapped[bool] = mapped_column(nullable=False)
-    verification_source: Mapped[str] = mapped_column(
-        String(32), default="manual", server_default=text("'manual'"), nullable=False
-    )
-    provider_event_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("payment_gateway_events.id", ondelete="RESTRICT")
-    )
-    reconciled_by_user_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("users.id", ondelete="RESTRICT")
-    )
-    reconciled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-
 class ReceiptLifecycleEvent(Base):
     __tablename__ = "receipt_lifecycle_events"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('observed', 'reconciled', 'confirmed', 'reversed')",
+            "status IN ('recorded', 'confirmed', 'reversed')",
             name="ck_receipt_lifecycle_events_status",
         ),
-        CheckConstraint("sequence_number BETWEEN 1 AND 4", name="ck_receipt_lifecycle_sequence"),
+        CheckConstraint("sequence_number BETWEEN 1 AND 3", name="ck_receipt_lifecycle_sequence"),
         CheckConstraint(
-            "(status = 'observed' AND sequence_number = 1) OR "
-            "(status = 'reconciled' AND sequence_number = 2) OR "
-            "(status = 'confirmed' AND sequence_number = 3) OR "
-            "(status = 'reversed' AND sequence_number = 4)",
+            "(status = 'recorded' AND sequence_number = 1) OR "
+            "(status = 'confirmed' AND sequence_number = 2) OR "
+            "(status = 'reversed' AND sequence_number = 3)",
             name="ck_receipt_lifecycle_status_sequence",
         ),
         UniqueConstraint("receipt_id", "status", name="uq_receipt_lifecycle_status"),
+        UniqueConstraint("provider_event_id", name="uq_receipt_lifecycle_provider_event"),
+        CheckConstraint(
+            "provider_event_id IS NULL OR (status = 'confirmed' AND actor_user_id IS NULL)",
+            name="ck_receipt_lifecycle_provider_authority",
+        ),
+        CheckConstraint(
+            "status <> 'confirmed' OR actor_user_id IS NOT NULL OR provider_event_id IS NOT NULL",
+            name="ck_receipt_lifecycle_confirmation_authority",
+        ),
         UniqueConstraint("receipt_id", "sequence_number", name="uq_receipt_lifecycle_sequence"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     receipt_id: Mapped[UUID] = mapped_column(
         ForeignKey("payment_receipts.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    provider_event_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("payment_gateway_events.id", ondelete="RESTRICT")
     )
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -611,7 +575,7 @@ class CampaignFinancialAuthorization(Base):
             "revision_number > 0", name="ck_campaign_financial_authorizations_revision"
         ),
         CheckConstraint(
-            "authority_type IN ('prepaid_cash', 'approved_credit', 'subsidy')",
+            "authority_type IN ('prepaid_cash', 'approved_credit')",
             name="ck_campaign_financial_authorizations_type",
         ),
         CheckConstraint(
@@ -625,16 +589,10 @@ class CampaignFinancialAuthorization(Base):
         CheckConstraint(
             "(authority_type = 'prepaid_cash' AND funded_cash_amount = authorized_amount "
             "AND credit_limit IS NULL AND credit_due_at IS NULL AND "
-            "credit_approved_by_user_id IS NULL AND credit_terms IS NULL "
-            "AND subsidy_reference IS NULL) OR "
+            "credit_approved_by_user_id IS NULL AND credit_terms IS NULL) OR "
             "(authority_type = 'approved_credit' AND funded_cash_amount = 0 "
             "AND credit_limit = authorized_amount AND credit_due_at IS NOT NULL AND "
-            "credit_approved_by_user_id IS NOT NULL AND credit_terms IS NOT NULL "
-            "AND subsidy_reference IS NULL) OR "
-            "(authority_type = 'subsidy' AND funded_cash_amount = 0 "
-            "AND credit_limit IS NULL AND credit_due_at IS NULL AND "
-            "credit_approved_by_user_id IS NULL AND credit_terms IS NULL "
-            "AND subsidy_reference IS NOT NULL)",
+            "credit_approved_by_user_id IS NOT NULL AND credit_terms IS NOT NULL)",
             name="ck_campaign_financial_authorizations_evidence",
         ),
         UniqueConstraint(
@@ -663,7 +621,6 @@ class CampaignFinancialAuthorization(Base):
         ForeignKey("users.id", ondelete="RESTRICT")
     )
     credit_terms: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True))
-    subsidy_reference: Mapped[str | None] = mapped_column(Text)
     effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_by_user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
@@ -1010,92 +967,14 @@ class RefundSettlement(Base):
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
-class BudgetPolicyEvaluation(Base):
-    __tablename__ = "budget_policy_evaluations"
-    __table_args__ = (
-        CheckConstraint(
-            "state IN ('blocked_external_policy', 'within_budget', "
-            "'alert_threshold', 'urgent_threshold', 'pause_threshold')",
-            name="ck_budget_policy_evaluations_state",
-        ),
-        CheckConstraint(
-            "(state = 'blocked_external_policy' AND urgent_threshold_amount IS NULL) OR "
-            "(state NOT IN ('blocked_external_policy', 'urgent_threshold') "
-            "AND urgent_threshold_amount IS NULL) OR "
-            "(state <> 'blocked_external_policy' AND urgent_threshold_amount IS NOT NULL "
-            "AND urgent_threshold_amount > alert_threshold_amount "
-            "AND urgent_threshold_amount < pause_threshold_amount)",
-            name="ck_budget_policy_evaluations_urgent",
-        ),
-        CheckConstraint(
-            "(state = 'blocked_external_policy' AND external_gate = 'EXT-BUDGET-POLICY') OR "
-            "(state <> 'blocked_external_policy' AND external_gate IS NULL)",
-            name="ck_budget_policy_evaluations_external_gate",
-        ),
-        CheckConstraint(
-            "(campaign_budget_amount IS NOT NULL OR campaign_daily_budget_amount IS NOT NULL) "
-            "AND (campaign_budget_amount IS NULL OR campaign_budget_amount >= 0) "
-            "AND (campaign_daily_budget_amount IS NULL OR campaign_daily_budget_amount >= 0)",
-            name="ck_budget_policy_evaluations_campaign_budget",
-        ),
-        CheckConstraint("length(currency) = 3", name="ck_budget_policy_evaluations_currency"),
-        CheckConstraint(
-            "(state = 'blocked_external_policy' AND policy_id IS NULL "
-            "AND policy_revision IS NULL AND policy_source IS NULL AND budget_basis IS NULL "
-            "AND billing_fact_source IS NULL "
-            "AND billing_spend_amount IS NULL AND alert_threshold_amount IS NULL "
-            "AND pause_threshold_amount IS NULL AND resume_threshold_amount IS NULL "
-            "AND alert_applied = false AND pause_applied = false AND resume_allowed = false) OR "
-            "(state <> 'blocked_external_policy' AND policy_id IS NOT NULL "
-            "AND policy_revision IS NOT NULL "
-            "AND policy_source IN ('external_approved', 'synthetic_test') "
-            "AND budget_basis IN ('total', 'daily') "
-            "AND billing_fact_source IN ('confirmed_funding', 'production_obligation') "
-            "AND billing_spend_amount >= 0 "
-            "AND alert_threshold_amount >= 0 AND pause_threshold_amount > alert_threshold_amount "
-            "AND resume_threshold_amount <= alert_threshold_amount)",
-            name="ck_budget_policy_evaluations_authority_fields",
-        ),
-        UniqueConstraint("campaign_id", "evaluation_key", name="uq_budget_policy_evaluation_key"),
-    )
-
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    campaign_id: Mapped[UUID] = mapped_column(
-        ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
-    )
-    evaluation_key: Mapped[str] = mapped_column(String(64), nullable=False)
-    state: Mapped[str] = mapped_column(String(40), nullable=False)
-    external_gate: Mapped[str | None] = mapped_column(String(64))
-    campaign_budget_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    campaign_daily_budget_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    policy_id: Mapped[str | None] = mapped_column(String(128))
-    policy_revision: Mapped[str | None] = mapped_column(String(128))
-    policy_source: Mapped[str | None] = mapped_column(String(32))
-    budget_basis: Mapped[str | None] = mapped_column(String(16))
-    billing_fact_source: Mapped[str | None] = mapped_column(String(32))
-    billing_spend_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    alert_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    urgent_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    pause_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    resume_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    alert_applied: Mapped[bool] = mapped_column(
-        nullable=False, default=False, server_default=text("false")
-    )
-    pause_applied: Mapped[bool] = mapped_column(nullable=False, default=False)
-    resume_allowed: Mapped[bool] = mapped_column(
-        nullable=False, default=False, server_default=text("false")
-    )
-    evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-
 class BudgetCampaignTransition(Base):
     __tablename__ = "budget_campaign_transitions"
     __table_args__ = (
         CheckConstraint("action IN ('pause', 'resume')", name="ck_budget_transitions_action"),
         CheckConstraint(
-            "prior_status IN ('scheduled', 'active', 'paused') AND "
-            "new_status IN ('scheduled', 'active', 'paused') AND prior_status <> new_status",
+            "prior_status IN ('approved', 'scheduled', 'active', 'paused') AND "
+            "new_status IN ('approved', 'scheduled', 'active', 'paused') "
+            "AND prior_status <> new_status",
             name="ck_budget_transitions_statuses",
         ),
         CheckConstraint(
@@ -1104,7 +983,12 @@ class BudgetCampaignTransition(Base):
             "AND length(trim(reason)) > 0)",
             name="ck_budget_transitions_authority",
         ),
-        UniqueConstraint("evaluation_id", "action", name="uq_budget_transition_evaluation_action"),
+        UniqueConstraint("pause_transition_id", name="uq_budget_transition_pause_resume"),
+        CheckConstraint(
+            "(action = 'pause' AND pause_transition_id IS NULL) OR (action = 'resume' AND "
+            "pause_transition_id IS NOT NULL)",
+            name="ck_budget_transition_pause_authority",
+        ),
         Index(
             "ix_budget_campaign_transitions_campaign_id",
             "campaign_id",
@@ -1116,9 +1000,11 @@ class BudgetCampaignTransition(Base):
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False
     )
-    evaluation_id: Mapped[UUID] = mapped_column(
-        ForeignKey("budget_policy_evaluations.id", ondelete="RESTRICT"), nullable=False
+    pause_transition_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("budget_campaign_transitions.id", ondelete="RESTRICT")
     )
+    budget_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    funding_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     action: Mapped[str] = mapped_column(String(16), nullable=False)
     prior_status: Mapped[str] = mapped_column(String(32), nullable=False)
     new_status: Mapped[str] = mapped_column(String(32), nullable=False)

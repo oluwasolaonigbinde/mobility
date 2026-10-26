@@ -11,12 +11,11 @@ ACTOR_ONLY_TYPES = frozenset(
     {
         "advertiser_organization",
         "advertiser_organization_notification_preference",
-        "audience_delivery",
-        "audience_delivery_approval",
         "budget_campaign_transition",
         "budget_policy_evaluation",
         "campaign_cancellation",
         "campaign_change_request",
+        "campaign_enquiry",
         "campaign_creative",
         "campaign_financial_authorization",
         "campaign_payout_rule",
@@ -36,8 +35,6 @@ ACTOR_ONLY_TYPES = frozenset(
         "production_start",
         "receipt_allocation",
         "refund_settlement",
-        "retargeting_source",
-        "retargeting_source_link",
         "traffic_density_profile",
     }
 )
@@ -46,6 +43,16 @@ ACTOR_ONLY_TYPES = frozenset(
 # typed target; it also distinguishes a missing historical target from a valid
 # target with no personal subject (for example an organization-scoped file).
 SUBJECT_QUERIES: dict[str, tuple[str, str]] = {
+    "earnings_ledger_entry": (
+        "earnings_ledger_entries",
+        "SELECT driver_user_id FROM earnings_ledger_entries WHERE id=:entity_id",
+    ),
+    "location_ping_batch": (
+        "location_ping_batches",
+        "SELECT d.user_id FROM location_ping_batches b JOIN trip_sessions t "
+        "ON t.id=b.trip_session_id JOIN driver_profiles d ON d.id=t.driver_profile_id "
+        "WHERE b.id=:entity_id",
+    ),
     "notification": (
         "notifications",
         "SELECT recipient_user_id FROM notifications WHERE id=:entity_id",
@@ -67,17 +74,9 @@ SUBJECT_QUERIES: dict[str, tuple[str, str]] = {
         "driver_account_setup_tokens",
         "SELECT user_id FROM driver_account_setup_tokens WHERE id=:entity_id",
     ),
-    "data_subject_request": (
-        "data_subject_requests",
-        "SELECT subject_user_id FROM data_subject_requests WHERE id=:entity_id",
-    ),
     "password_reset_attempt": (
         "password_reset_attempts",
         "SELECT issued_user_id FROM password_reset_attempts WHERE id=:entity_id",
-    ),
-    "driver_currency_debt_account": (
-        "driver_currency_debt_accounts",
-        "SELECT driver_user_id FROM driver_currency_debt_accounts WHERE id=:entity_id",
     ),
     "file_upload_intent": (
         "file_upload_intents",
@@ -106,8 +105,6 @@ for _kind, _table in {
     "fraud_dispute": "fraud_disputes",
     "payout_calculation": "payout_calculations",
     "installation_evidence_submission": "installation_evidence_submissions",
-    "display_proof": "display_proofs",
-    "display_proof_challenge": "display_proof_challenges",
     "evidence_verification": "evidence_verifications",
 }.items():
     SUBJECT_QUERIES[_kind] = (
@@ -128,12 +125,6 @@ SUBJECT_QUERIES.update(
             "phone_verification_challenges",
             "SELECT d.user_id FROM phone_verification_challenges s JOIN driver_phone_versions p "
             "ON p.id=s.phone_version_id JOIN driver_profiles d ON d.id=p.driver_profile_id "
-            "WHERE s.id=:entity_id",
-        ),
-        "quarantined_ping_batch": (
-            "quarantined_ping_batches",
-            "SELECT d.user_id FROM quarantined_ping_batches s JOIN trip_sessions t "
-            "ON t.id=s.trip_session_id JOIN driver_profiles d ON d.id=t.driver_profile_id "
             "WHERE s.id=:entity_id",
         ),
         "campaign_liability_reservation": (
@@ -193,6 +184,10 @@ SUBJECT_QUERIES.update(
             "ON b.measurement_run_id=r.measurement_run_id JOIN campaign_assignments a "
             "ON a.id=b.assignment_id JOIN driver_profiles d ON d.id=a.driver_profile_id "
             "WHERE r.id=:entity_id",
+        ),
+        "campaign_report": (
+            "campaign_reports",
+            "SELECT requested_by_user_id FROM campaign_reports WHERE id=:entity_id",
         ),
     }
 )

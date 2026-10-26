@@ -41,7 +41,6 @@ from app.services.billing.quotes import (
 from app.services.billing.receipts import (
     allocate_payment_receipt,
     confirm_payment_receipt,
-    reconcile_payment_receipt,
     record_payment_receipt,
     reverse_payment_receipt,
 )
@@ -455,14 +454,13 @@ def test_split_receipt_refunds_conserve_each_allocation(db_sessionmaker, refund_
                 evidence_reference="split receipt",
                 observed_at=datetime.now(UTC),
             )
-            await reconcile_payment_receipt(
+            await confirm_payment_receipt(
                 session,
                 receipt_id=receipt.id,
                 actor_user_id=admin.id,
                 expected_amount="100.00",
                 expected_currency="NGN",
             )
-            await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
             for key, amount in (("first", "60.00"), ("second", "40.00")):
                 await allocate_payment_receipt(
                     session,
@@ -476,7 +474,8 @@ def test_split_receipt_refunds_conserve_each_allocation(db_sessionmaker, refund_
                 current.status = CampaignStatus.ACTIVE.value
                 cancellation = await request_campaign_cancellation(
                     session,
-                    actor_user_id=owner.id,
+                    actor_user_id=admin.id,
+                    actor_session_version=admin.session_version,
                     campaign_id=campaigns[key].id,
                     payload=CampaignCancellationCreate(
                         client_request_id=uuid4(),

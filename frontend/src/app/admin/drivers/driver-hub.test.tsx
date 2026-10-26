@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
@@ -11,7 +11,8 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
-vi.mock("next/navigation", () => ({
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
   notFound: mocks.notFound,
   useRouter: () => ({ refresh: vi.fn() }),
 }));
@@ -209,7 +210,7 @@ function reads({
           total: 1,
         },
       };
-    if (path.includes("/debt-balances/"))
+    if (path.includes("/money-balances/"))
       return {
         data: {
           currency: "NGN",
@@ -243,9 +244,8 @@ it("keeps exact audited document identities and blocks generic activation for a 
   expect(mocks.vehicle).toHaveBeenCalledWith(
     expect.objectContaining({ applicationId: appId, vehicleId: "car", submissionId: "car-sub" }),
   );
-  expect(mocks.driverMenu).toHaveBeenCalledWith(
-    expect.objectContaining({ activationBlocked: true }),
-  );
+  // A pending public applicant is approved through the application, not the generic driver menu.
+  expect(mocks.driverMenu).not.toHaveBeenCalled();
   expect(mocks.setup).not.toHaveBeenCalled();
   expect(screen.queryByText(/NIN.*8901/)).toBeNull();
   expect(screen.queryByText("Phone verified")).toBeNull();
@@ -259,6 +259,15 @@ it.each(["approved", "pending_review"])(
   "keeps generic activation blocked for any linked public application (%s)",
   async (status) => {
     reads({ app: { ...application, status } });
+    render(await DriverHub({ driverId }));
+    expect(mocks.driverMenu).not.toHaveBeenCalled();
+    cleanup();
+    const original = mocks.get.getMockImplementation()!;
+    mocks.get.mockImplementation(async (path, options) =>
+      path === "/api/v1/admin/drivers/{driver_profile_id}"
+        ? { data: { ...driver, onboarding_status: "active" } }
+        : original(path, options),
+    );
     render(await DriverHub({ driverId }));
     expect(mocks.driverMenu).toHaveBeenCalledWith(
       expect.objectContaining({ activationBlocked: true }),
@@ -581,6 +590,10 @@ it.each([
     });
     render(await DriverHub({ driverId }));
     expect(screen.getByText(next)).toBeInTheDocument();
+    // The invited account waits on setup only once nothing else needs review.
+    expect(screen.queryByText("Waiting for driver to set a password") !== null).toBe(
+      next === "Next: complete sign-in setup.",
+    );
   },
 );
 it("keeps a known document blocker when the account read fails", async () => {

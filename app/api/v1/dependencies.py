@@ -6,7 +6,6 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from app.adapters.ad_platforms import AdPlatformAdapter, build_ad_platform_adapter
 from app.adapters.banks import BankAdapter, build_bank_adapter
 from app.adapters.storage import StorageProvider, build_storage_provider
 from app.core import clock
@@ -37,15 +36,6 @@ def get_bank_adapter(settings: SettingsDependency) -> BankAdapter:
 
 
 BankAdapterDependency = Annotated[BankAdapter, Depends(get_bank_adapter)]
-
-
-def get_ad_platform_adapter() -> AdPlatformAdapter:
-    return build_ad_platform_adapter()
-
-
-AdPlatformAdapterDependency = Annotated[
-    AdPlatformAdapter, Depends(get_ad_platform_adapter)
-]
 
 
 def get_storage_provider(settings: SettingsDependency) -> StorageProvider:
@@ -91,9 +81,7 @@ def get_payout_event_enqueuer(settings: SettingsDependency) -> PayoutEventEnqueu
     return build_payout_event_enqueuer(settings)
 
 
-PayoutEventEnqueuerDependency = Annotated[
-    PayoutEventEnqueuer, Depends(get_payout_event_enqueuer)
-]
+PayoutEventEnqueuerDependency = Annotated[PayoutEventEnqueuer, Depends(get_payout_event_enqueuer)]
 
 
 async def get_current_user(

@@ -1,14 +1,14 @@
 import logging
 from datetime import UTC, datetime, timedelta
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 from uuid import UUID, uuid4
 
-from sqlalchemy import String, case, cast, func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.adapters.messaging import EmailAdapter, EmailMessage, EmailSendError
-from app.core.config import Settings
-from app.models.audit import AuditEvent
+from app.core.config import LOCAL_ENVIRONMENTS, Settings
+from app.models.campaign_assignment import CampaignAssignment
 from app.models.contact import PasswordResetToken
 from app.models.driver_application import (
     DriverAccountSetupToken,
@@ -34,29 +34,87 @@ from app.services.audit import create_audit_event
 from app.services.email_templates import render_email_template
 
 
+def public_action_url(settings: Settings, path: str) -> str:
+    origin = settings.public_origin.strip()
+    if not origin and settings.environment in LOCAL_ENVIRONMENTS:
+        origin = "http://localhost:3000"
+    parsed = urlsplit(origin)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or parsed.path not in {"", "/"}
+        or not path.startswith("/")
+        or path.startswith("//")
+    ):
+        raise ValueError("email_public_origin_missing")
+    return origin.rstrip("/") + path
+
+
 def _utc(value: datetime) -> datetime:
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
+async def _driver_business_email_allowed(session: AsyncSession, notice: Notification):
+    from app.services.driver_review_notifications import REVIEW_TYPES, review_notice_context
+    from app.services.notifications import notification_campaign_context
+
+    user = await session.get(User, notice.recipient_user_id)
+    if user is None:
+        return False, "email_recipient_inactive"
+    if notice.type_key == NotificationType.ASSIGNMENT_OFFERED:
+        try:
+            assignment_id = UUID(str(notice.payload["assignment_id"]))
+        except (KeyError, TypeError, ValueError):
+            return False, "email_assignment_missing"
+        assignment = await session.get(CampaignAssignment, assignment_id)
+        if (
+            assignment is None
+            or assignment.status != "offered"
+            or (
+                assignment.expires_at is not None
+                and _utc(assignment.expires_at) <= datetime.now(UTC)
+            )
+        ):
+            return False, "email_offer_inactive"
+    context = (
+        await review_notice_context(session, notice, user)
+        if notice.type_key in REVIEW_TYPES
+        else await notification_campaign_context(session, notice=notice, user=user)
+    )
+    if context is None or user.role != UserRole.DRIVER:
+        return False, "email_recipient_or_review_inactive"
+    return True, user.email
 
 
 async def _preference_allows_delivery(
     session: AsyncSession, notice: Notification
 ) -> tuple[bool, str | None]:
+    from app.services.driver_review_notifications import REVIEW_TYPES
+
+    if notice.type_key in REVIEW_TYPES or notice.type_key == NotificationType.ASSIGNMENT_OFFERED:
+        return await _driver_business_email_allowed(session, notice)
     if notice.type_key in {
         NotificationType.PASSWORD_RESET_REQUESTED.value,
+        NotificationType.ADVERTISER_LOGIN_INVITE.value,
         NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED.value,
         NotificationType.DRIVER_ACCOUNT_SETUP_REQUESTED.value,
     }:
         user = await session.get(User, notice.recipient_user_id)
+        from app.services.account_recovery import _recovery_eligible
+
         password_reset_recipient = (
             notice.type_key == NotificationType.PASSWORD_RESET_REQUESTED.value
+            and _recovery_eligible(user)
+        )
+        invite_recipient = (
+            notice.type_key == NotificationType.ADVERTISER_LOGIN_INVITE.value
             and user is not None
-            and (
-                (
-                    user.role in {UserRole.ADMIN.value, UserRole.ADVERTISER.value}
-                    and user.status in {UserStatus.ACTIVE.value, UserStatus.INVITED.value}
-                )
-                or (user.role == UserRole.DRIVER.value and user.status == UserStatus.ACTIVE.value)
-            )
+            and user.role == UserRole.ADVERTISER
+            and user.status == UserStatus.INVITED
         )
         onboarding_recipient = (
             notice.type_key == NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED.value
@@ -70,7 +128,9 @@ async def _preference_allows_delivery(
             and user.role == UserRole.DRIVER.value
             and user.status == UserStatus.INVITED.value
         )
-        if not (password_reset_recipient or onboarding_recipient or setup_recipient):
+        if not (
+            password_reset_recipient or invite_recipient or onboarding_recipient or setup_recipient
+        ):
             return False, "email_recipient_inactive"
         assert user is not None
         return True, user.email
@@ -135,6 +195,15 @@ async def _claim(
             )
         ):
             return None
+        if notice.attempt_count >= settings.email_delivery_max_attempts:
+            notice.status = NotificationStatus.FAILED.value
+            notice.failed_at = now
+            notice.last_error_code = "email_attempts_exhausted"
+            notice.next_attempt_at = None
+            notice.delivery_claim_token = None
+            notice.delivery_claim_expires_at = None
+            await session.commit()
+            return None
         allowed, recipient_or_error = await _preference_allows_delivery(session, notice)
         if not allowed:
             notice.status = NotificationStatus.FAILED.value
@@ -172,8 +241,17 @@ async def process_email_notification(  # noqa: C901
         return "skipped"
     token, notice, recipient = claimed
     try:
-        runtime_payload = dict(notice.payload)
-        if notice.type_key == NotificationType.PASSWORD_RESET_REQUESTED.value:
+        # Display copy and links never come from immutable event payload text.
+        runtime_payload = {
+            key: value
+            for key, value in notice.payload.items()
+            if key not in {"campaign_name", "action_url", "title", "body"}
+        }
+        if notice.type_key in {
+            NotificationType.PASSWORD_RESET_REQUESTED.value,
+            NotificationType.ADVERTISER_LOGIN_INVITE.value,
+        }:
+            is_invite = notice.type_key == NotificationType.ADVERTISER_LOGIN_INVITE.value
             try:
                 reset_id = UUID(str(notice.payload["password_reset_request_id"]))
             except (KeyError, TypeError, ValueError) as exc:
@@ -181,9 +259,19 @@ async def process_email_notification(  # noqa: C901
             async with sessionmaker() as session:
                 reset = await session.get(PasswordResetToken, reset_id)
                 user = await session.get(User, notice.recipient_user_id)
+                from app.services.advertiser_invites import pending_invite_membership
+
+                membership = (
+                    await pending_invite_membership(session, reset, user)
+                    if is_invite and reset and user
+                    else None
+                )
             if (
                 reset is None
                 or user is None
+                or reset.user_id != user.id
+                or reset.purpose != ("advertiser_invite" if is_invite else "password_reset")
+                or (is_invite and membership is None)
                 or reset.used_at is not None
                 or _utc(reset.expires_at) <= _utc(now)
                 or reset.session_version != user.session_version
@@ -192,13 +280,26 @@ async def process_email_notification(  # noqa: C901
             from app.services.account_recovery import password_reset_token_for_delivery
 
             reset_token = password_reset_token_for_delivery(reset, user, settings)
-            if settings.password_reset_public_url:
+            if is_invite:
+                link_settings = settings
+                if not settings.public_origin and settings.password_reset_public_url:
+                    parsed = urlsplit(settings.password_reset_public_url)
+                    link_settings = settings.model_copy(
+                        update={"public_origin": f"{parsed.scheme}://{parsed.netloc}"}
+                    )
+                runtime_payload["reset_action"] = (
+                    public_action_url(link_settings, "/advertiser-invite")
+                    + f"#token={quote(reset_token)}"
+                )
+            elif settings.password_reset_public_url:
                 separator = "&" if "?" in settings.password_reset_public_url else "?"
                 runtime_payload["reset_action"] = (
                     f"{settings.password_reset_public_url}{separator}token={quote(reset_token)}"
                 )
-            elif settings.environment in {"local", "dev", "development", "test", "testing"}:
-                runtime_payload["reset_action"] = reset_token
+            elif settings.environment in LOCAL_ENVIRONMENTS:
+                runtime_payload["reset_action"] = public_action_url(
+                    settings, f"/reset-password?token={quote(reset_token)}"
+                )
             else:
                 raise ValueError("password_reset_public_url_missing")
         elif notice.type_key == NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED.value:
@@ -214,6 +315,13 @@ async def process_email_notification(  # noqa: C901
                     else None
                 )
                 user = await session.get(User, notice.recipient_user_id)
+                from app.services.driver_applications import current_application_step
+
+                step = (
+                    await current_application_step(session, application)
+                    if application
+                    else "details"
+                )
             if (
                 access is None
                 or application is None
@@ -229,8 +337,9 @@ async def process_email_notification(  # noqa: C901
             )
 
             try:
-                runtime_payload["access_code"] = driver_application_access_token_for_delivery(
-                    access, settings
+                access_token = driver_application_access_token_for_delivery(access, settings)
+                runtime_payload["action_url"] = public_action_url(
+                    settings, f"/apply?step={step}#application_access_token={quote(access_token)}"
                 )
             except RuntimeError:
                 raise ValueError("driver_onboarding_access_evidence_mismatch") from None
@@ -272,10 +381,34 @@ async def process_email_notification(  # noqa: C901
                 runtime_payload["setup_action"] = (
                     f"{settings.driver_account_setup_public_url}{separator}token={quote(setup_token)}"
                 )
-            elif settings.environment in {"local", "dev", "development", "test", "testing"}:
-                runtime_payload["setup_action"] = setup_token
             else:
-                raise ValueError("driver_account_setup_public_url_missing")
+                # A bare token is unusable and must never be sent in its place.
+                runtime_payload["setup_action"] = None
+        else:
+            from app.services.driver_review_notifications import REVIEW_TYPES, review_notice_context
+            from app.services.notifications import notification_campaign_context
+
+            async with sessionmaker() as session:
+                user = await session.get(User, notice.recipient_user_id)
+                if notice.type_key in REVIEW_TYPES:
+                    context = await review_notice_context(session, notice, user) if user else None
+                    if context is None:
+                        raise ValueError("driver_review_inactive")
+                    runtime_payload.update(context)
+                    runtime_payload["action_url"] = public_action_url(
+                        settings, context["action_path"]
+                    )
+                else:
+                    context = (
+                        await notification_campaign_context(session, notice=notice, user=user)
+                        if user
+                        else None
+                    )
+                    runtime_payload["action_url"] = public_action_url(
+                        settings, context[1] if context else "/login"
+                    )
+                    if context:
+                        runtime_payload["campaign_name"] = context[0]
         rendered = render_email_template(notice.type_key, notice.template_version, runtime_payload)
         submission = await email_adapter.send(
             EmailMessage(
@@ -326,25 +459,6 @@ async def process_email_notification(  # noqa: C901
 
 
 logger = logging.getLogger(__name__)
-
-
-def email_sweep_visit_order(session: AsyncSession):
-    """Rotate durably failed prefixes without changing uncertain delivery claims."""
-    event_entity_id = AuditEvent.entity_id
-    last_failure_at = (
-        select(func.max(AuditEvent.created_at))
-        .where(
-            AuditEvent.action == "worker.email_delivery.failed",
-            AuditEvent.entity_type == "notification",
-            event_entity_id == cast(Notification.id, String),
-        )
-        .correlate(Notification)
-        .scalar_subquery()
-    )
-    return case(
-        (last_failure_at > Notification.created_at, last_failure_at),
-        else_=Notification.created_at,
-    )
 
 
 async def record_unexpected_email_failure(

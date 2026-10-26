@@ -33,7 +33,7 @@ describe("DriverAssignmentsPage history availability", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent(/campaign history is unavailable/i);
     expect(screen.getByRole("alert")).toHaveTextContent(
-      /couldn't load your current or completed jobs\. Try again shortly\./i,
+      /couldn't load your current or finished jobs\. Try again shortly\./i,
     );
     expect(screen.queryByText("No jobs yet")).not.toBeInTheDocument();
   });
@@ -44,9 +44,15 @@ describe("DriverAssignmentsPage history availability", () => {
         return { data: { assignment: null, photo_status: "ready" } };
       if (path === "/api/v1/driver/campaign-assignments") return { data: { items } };
       if (path === "/api/v1/driver/installation-evidence/policy") {
-        return { data: { configured: false, can_upload: false, required_views: [] } };
+        return {
+          data: {
+            required_views: ["front", "back", "left", "right", "close_up"],
+            evidence_validity_hours: 168,
+          },
+        };
       }
-      if (path === "/api/v1/driver/evidence-verifications/pending") return { data: { items: [] } };
+      if (path === "/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence")
+        return { data: { items: [] } };
       throw new Error(`Unexpected request: ${path}`);
     });
   }
@@ -61,6 +67,37 @@ describe("DriverAssignmentsPage history availability", () => {
     ).toBeInTheDocument();
   });
 
+  it("passes the latest owned rejection reason through to the photo task", async () => {
+    mockJobs([
+      {
+        id: "owned-job",
+        status: "accepted",
+        offered_at: "2026-10-01T09:00:00Z",
+        offer_terms: null,
+      },
+    ]);
+    const normal = mocks.get.getMockImplementation()!;
+    mocks.get.mockImplementation(async (path, options) =>
+      path.endsWith("/installation-evidence")
+        ? {
+            data: {
+              items: [
+                { status: "rejected", rejection_reason: "Older revision reason" },
+                { status: "rejected", rejection_reason: "Retake the branding close-up." },
+              ],
+            },
+          }
+        : normal(path, options),
+    );
+    render(await DriverAssignmentsPage({}));
+    expect(screen.getByText("Retake the branding close-up.")).toBeVisible();
+    expect(screen.queryByText("Older revision reason")).toBeNull();
+    expect(mocks.get).toHaveBeenCalledWith(
+      "/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence",
+      { params: { path: { assignment_id: "owned-job" } } },
+    );
+  });
+
   it("opens the exact owned job from a notification even beyond the first history page", async () => {
     mockJobs([]);
     const original = mocks.get.getMockImplementation()!;
@@ -70,7 +107,7 @@ describe("DriverAssignmentsPage history availability", () => {
             data: {
               id: "selected-job",
               campaign_id: "campaign",
-              status: "completed",
+              status: "finished",
               offered_at: "2026-09-01T09:00:00Z",
               offer_terms: null,
               campaign: { name: "Named selected campaign" },
@@ -149,6 +186,11 @@ describe("DriverAssignmentsPage history availability", () => {
 
     expect(screen.getByText("Accepted")).toBeVisible();
     expect(screen.getByText("Running")).toBeVisible();
+    // The photo rule is built in (REQ-208): every current job can send its photos.
+    expect(screen.getAllByText("Next, send 5 photos of the advert on your car.")).toHaveLength(2);
+    expect(
+      screen.queryByText(/can't be sent yet|Contact Terrax Media about the next step/),
+    ).toBeNull();
     expect(screen.queryByText(/checks you're still ready/)).not.toBeInTheDocument();
     expect(screen.queryByText(/authority|PWA|independent admin/i)).not.toBeInTheDocument();
   });
@@ -193,7 +235,7 @@ describe("DriverAssignmentsPage history availability", () => {
       },
     ]);
     render(await DriverAssignmentsPage({}));
-    expect(screen.getByText("— / day")).toBeInTheDocument();
+    expect(screen.getByText("Pay terms unavailable")).toBeInTheDocument();
     expect(screen.queryByText("₦0.00 / day")).not.toBeInTheDocument();
   });
 
@@ -220,20 +262,20 @@ describe("DriverAssignmentsPage history availability", () => {
     },
   );
 
-  it("dates past jobs by the driver's assignment instead of the campaign window", async () => {
+  it("dates finished jobs by the derived campaign end (S23/D118)", async () => {
     mockJobs([
       {
         id: "past-job",
         campaign_id: "campaign",
-        status: "completed",
+        status: "finished",
         offered_at: "2026-10-01T09:00:00Z",
         activated_at: "2026-10-02T09:00:00Z",
-        completed_at: "2026-10-03T09:00:00Z",
+
         offer_terms: null,
         campaign: {
-          name: "Finished early",
+          name: "Finished on its end date",
           start_at: "2026-10-01T09:00:00Z",
-          end_at: "2026-12-01T09:00:00Z",
+          end_at: "2026-10-03T09:00:00Z",
         },
         vehicle: { plate_number: "ABC-123" },
       },
@@ -269,11 +311,15 @@ describe("DriverAssignmentsPage history availability", () => {
             shortfall_strategy: "proportional",
             deduction_per_mile_naira: null,
             minimum_miles: "0.000",
-            outside_area_weight: "1.0000",
+            outside_area_weight: "0.0000",
           },
           eligibility: { stationary_window_seconds: 300, max_ping_gap_seconds: 120 },
         },
-        campaign: { name: "Abuja daily" },
+        campaign: {
+          name: "Abuja daily",
+          start_at: "2027-01-01T08:00:00Z",
+          end_at: "2027-02-01T08:00:00Z",
+        },
         vehicle: { plate_number: "ABC-125", vehicle_type: "sedan" },
       },
     ]);
@@ -284,6 +330,9 @@ describe("DriverAssignmentsPage history availability", () => {
       screen.queryByText("₦10,000.00 a day for 70 miles; shorter days pay a share."),
     ).not.toBeInTheDocument();
     expect(screen.getByText("₦10,000.00 / day")).toBeVisible();
+    expect(screen.getByText("Wuse II")).toBeVisible();
+    expect(screen.getByText(/1 Oct 2026.*1 Dec 2026/)).toBeVisible();
+    expect(screen.queryByText(/1 Jan 2027|1 Feb 2027/)).toBeNull();
     expect(screen.queryByText(/Answer by|How pay works|full day of 70/)).not.toBeInTheDocument();
     expect(screen.queryByText("Currency: NGN")).not.toBeInTheDocument();
     expect(screen.queryByText(/target · \d+ exclusion/)).not.toBeInTheDocument();

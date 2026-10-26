@@ -2,7 +2,6 @@
 
 import logging
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
 
@@ -28,42 +27,12 @@ from app.services.payout_rule_serialization import acquire_campaign_terms_lock, 
 logger = logging.getLogger(__name__)
 
 INACTIVITY_WINDOW = timedelta(days=7)
-UTC_WEEK = timedelta(days=7)
 
 
 def _utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
-
-
-def utc_completed_week_window(now: datetime) -> tuple[datetime, datetime]:
-    """Return the immediately preceding complete Monday-to-Monday UTC week."""
-    now = _utc(now)
-    current_week_start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(
-        days=now.weekday()
-    )
-    return current_week_start - UTC_WEEK, current_week_start
-
-
-def parse_verified_hours_floor(
-    settings: Settings | None = None,
-) -> tuple[int | None, str | None]:
-    """Parse Q20's explicit setting, failing closed with a stable reason."""
-    settings = settings or get_settings()
-    raw = settings.verified_hours_floor_per_week
-    if raw is None or (isinstance(raw, str) and not raw.strip()):
-        return None, "missing_configuration"
-    try:
-        hours = Decimal(str(raw).strip())
-    except (InvalidOperation, ValueError):
-        return None, "invalid_configuration"
-    if not hours.is_finite() or hours <= 0:
-        return None, "invalid_configuration"
-    seconds = hours * Decimal(3600)
-    if seconds != seconds.to_integral_value():
-        return None, "invalid_configuration"
-    return int(seconds), None
 
 
 def _evidence(
@@ -107,7 +76,9 @@ async def _locked_assignment(
     campaign = await session.scalar(
         select(Campaign).where(Campaign.id == assignment_ref.campaign_id).with_for_update()
     )
-    if campaign is None:
+    if campaign is None or (
+        campaign.end_at and _utc(campaign.end_at) <= _utc(await database_clock(session))
+    ):
         return None
     return await session.scalar(
         select(CampaignAssignment).where(CampaignAssignment.id == assignment_id).with_for_update()
@@ -290,7 +261,7 @@ async def _open_flag(
         if existing is None:
             raise
         return existing, False, False
-    event = await _append_event(
+    await _append_event(
         session,
         flag=flag,
         event_type=AssignmentActivityFlagEventType.OPENED,
@@ -301,13 +272,11 @@ async def _open_flag(
     await create_activity_flag_notice(
         session,
         flag=flag,
-        event_type=AssignmentActivityFlagEventType.OPENED,
-        event_sequence=event.sequence_number,
     )
     return flag, True, True
 
 
-async def _recover_flag(
+async def _close_flag(
     session: AsyncSession,
     *,
     flag: AssignmentActivityFlag,
@@ -319,8 +288,8 @@ async def _recover_flag(
 ) -> tuple[bool, bool]:
     if flag.status != AssignmentActivityFlagStatus.OPEN.value:
         return False, False
-    flag.status = AssignmentActivityFlagStatus.RECOVERED.value
-    flag.recovered_at = now
+    flag.status = AssignmentActivityFlagStatus.CLOSED.value
+    flag.closed_at = now
     flag.last_evaluated_at = now
     flag.observed_seconds = observed_seconds
     flag.last_verified_activity_at = last_verified_activity_at
@@ -336,163 +305,15 @@ async def _recover_flag(
     )
     flag.current_evidence = evidence
     await session.flush()
-    event = await _append_event(
+    await _append_event(
         session,
         flag=flag,
-        event_type=AssignmentActivityFlagEventType.RECOVERED,
+        event_type=AssignmentActivityFlagEventType.CLOSED,
         occurred_at=now,
         observed_seconds=observed_seconds,
         evidence=evidence,
     )
-    await create_activity_flag_notice(
-        session,
-        flag=flag,
-        event_type=AssignmentActivityFlagEventType.RECOVERED,
-        event_sequence=event.sequence_number,
-    )
-    return True, True
-
-
-async def _reopen_flag(
-    session: AsyncSession,
-    *,
-    flag: AssignmentActivityFlag,
-    observed_seconds: int,
-    last_verified_activity_at: datetime | None,
-    eligible_trip_count: int,
-    expected_formula_version: str,
-    now: datetime,
-) -> tuple[bool, bool]:
-    """Reopen one exact recovered occurrence while its row lock is retained."""
-    if flag.status != AssignmentActivityFlagStatus.RECOVERED.value:
-        return False, False
-    flag.status = AssignmentActivityFlagStatus.OPEN.value
-    flag.recovered_at = None
-    flag.last_evaluated_at = now
-    flag.observed_seconds = observed_seconds
-    flag.last_verified_activity_at = last_verified_activity_at
-    evidence = _evidence(
-        flag_type=AssignmentActivityFlagType(flag.flag_type),
-        window_start=flag.window_start,
-        window_end=flag.window_end,
-        threshold_seconds=flag.threshold_seconds,
-        observed_seconds=observed_seconds,
-        last_verified_activity_at=last_verified_activity_at,
-        eligible_trip_count=eligible_trip_count,
-        expected_formula_version=expected_formula_version,
-    )
-    flag.current_evidence = evidence
-    await session.flush()
-    event = await _append_event(
-        session,
-        flag=flag,
-        event_type=AssignmentActivityFlagEventType.OPENED,
-        occurred_at=now,
-        observed_seconds=observed_seconds,
-        evidence=evidence,
-    )
-    await create_activity_flag_notice(
-        session,
-        flag=flag,
-        event_type=AssignmentActivityFlagEventType.OPENED,
-        event_sequence=event.sequence_number,
-    )
-    return True, True
-
-
-async def _evaluate_weekly_floor(
-    session: AsyncSession,
-    *,
-    assignment: CampaignAssignment,
-    settings: Settings,
-    threshold_seconds: int,
-    now: datetime,
-) -> tuple[str, int, int, int]:
-    window_start, window_end = utc_completed_week_window(now)
-    if assignment.activated_at is None or _utc(assignment.activated_at) > window_start:
-        return "skipped_activation_window", 0, 0, 0
-    analytics = await _eligible_analytics(
-        session,
-        assignment=assignment,
-        settings=settings,
-        now=now,
-        window_start=window_start,
-        window_end=window_end,
-    )
-    observed = sum(int(row.active_tracking_seconds) for row in analytics)
-    last_activity = max(
-        (_utc(row.last_ping_at) for row in analytics if row.last_ping_at is not None),
-        default=None,
-    )
-    flag = await _find_flag(
-        session,
-        assignment_id=assignment.id,
-        flag_type=AssignmentActivityFlagType.VERIFIED_HOURS_FLOOR,
-        window_start=window_start,
-        window_end=window_end,
-    )
-    if flag is not None:
-        flag.observed_seconds = observed
-        flag.last_verified_activity_at = last_activity
-        flag.last_evaluated_at = now
-        flag.current_evidence = _evidence(
-            flag_type=AssignmentActivityFlagType.VERIFIED_HOURS_FLOOR,
-            window_start=window_start,
-            window_end=window_end,
-            threshold_seconds=threshold_seconds,
-            observed_seconds=observed,
-            last_verified_activity_at=last_activity,
-            eligible_trip_count=len(analytics),
-            expected_formula_version=settings.route_analytics_formula_version,
-        )
-        await session.flush()
-        if flag.status == AssignmentActivityFlagStatus.OPEN.value and observed >= threshold_seconds:
-            recovered, notice = await _recover_flag(
-                session,
-                flag=flag,
-                observed_seconds=observed,
-                last_verified_activity_at=last_activity,
-                eligible_trip_count=len(analytics),
-                expected_formula_version=settings.route_analytics_formula_version,
-                now=now,
-            )
-            return ("recovered" if recovered else "open"), 0, int(recovered), int(notice)
-        if (
-            flag.status == AssignmentActivityFlagStatus.RECOVERED.value
-            and observed < threshold_seconds
-        ):
-            reopened, notice = await _reopen_flag(
-                session,
-                flag=flag,
-                observed_seconds=observed,
-                last_verified_activity_at=last_activity,
-                eligible_trip_count=len(analytics),
-                expected_formula_version=settings.route_analytics_formula_version,
-                now=now,
-            )
-            return ("reopened" if reopened else "recovered"), int(reopened), 0, int(notice)
-        return (
-            "open" if flag.status == AssignmentActivityFlagStatus.OPEN.value else "recovered",
-            0,
-            0,
-            0,
-        )
-    if observed >= threshold_seconds:
-        return "healthy", 0, 0, 0
-    _, opened, notice = await _open_flag(
-        session,
-        assignment=assignment,
-        flag_type=AssignmentActivityFlagType.VERIFIED_HOURS_FLOOR,
-        window_start=window_start,
-        window_end=window_end,
-        threshold_seconds=threshold_seconds,
-        observed_seconds=observed,
-        last_verified_activity_at=last_activity,
-        eligible_trip_count=len(analytics),
-        expected_formula_version=settings.route_analytics_formula_version,
-        now=now,
-    )
-    return "opened", int(opened), 0, int(notice)
+    return True, False
 
 
 async def _evaluate_inactivity(
@@ -533,12 +354,12 @@ async def _evaluate_inactivity(
             )
         ).all()
     )
-    recovered = 0
+    closed = 0
     notices = 0
     if last_activity is not None:
         for flag in open_flags:
             if last_activity > _utc(flag.window_start):
-                changed, notice = await _recover_flag(
+                changed, notice = await _close_flag(
                     session,
                     flag=flag,
                     observed_seconds=sum(int(row.active_tracking_seconds) for row in analytics),
@@ -547,10 +368,10 @@ async def _evaluate_inactivity(
                     expected_formula_version=settings.route_analytics_formula_version,
                     now=now,
                 )
-                recovered += int(changed)
+                closed += int(changed)
                 notices += int(notice)
     if now < window_end:
-        return ("recovered" if recovered else "waiting"), 0, recovered, notices
+        return ("closed" if closed else "waiting"), 0, closed, notices
     flag = await _find_flag(
         session,
         assignment_id=assignment.id,
@@ -573,20 +394,7 @@ async def _evaluate_inactivity(
             expected_formula_version=settings.route_analytics_formula_version,
         )
         await session.flush()
-        if flag.status == AssignmentActivityFlagStatus.RECOVERED.value:
-            reopened, notice = await _reopen_flag(
-                session,
-                flag=flag,
-                observed_seconds=flag.observed_seconds,
-                last_verified_activity_at=last_activity,
-                eligible_trip_count=len(analytics),
-                expected_formula_version=settings.route_analytics_formula_version,
-                now=now,
-            )
-            return ("reopened" if reopened else "recovered"), int(reopened), recovered, (
-                notices + int(notice)
-            )
-        return ("recovered" if recovered else flag.status), 0, recovered, notices
+        return ("closed" if closed else flag.status), 0, closed, notices
     _, opened, notice = await _open_flag(
         session,
         assignment=assignment,
@@ -612,45 +420,23 @@ async def evaluate_assignment_activity(
 ) -> dict[str, Any]:
     """Evaluate one active assignment under the campaign→assignment lock."""
     settings = settings or get_settings()
-    threshold_seconds, skip_reason = parse_verified_hours_floor(settings)
     evaluation_now = _utc(now or await database_clock(session))
     assignment = await _locked_assignment(session, assignment_id)
     if assignment is None or assignment.status != CampaignAssignmentStatus.ACTIVE.value:
         return {
             "assignment_id": str(assignment_id),
-            "weekly_floor": "skipped_assignment_state",
             "inactivity": "skipped_assignment_state",
             "flags_opened": 0,
-            "flags_recovered": 0,
+            "flags_closed": 0,
             "notices_created": 0,
             "skipped": 1,
             "skip_reason": "assignment_not_active",
             "errors": 0,
         }
-    if threshold_seconds is None:
-        weekly_state, weekly_opened, weekly_recovered, weekly_notices = (
-            "skipped_configuration",
-            0,
-            0,
-            0,
-        )
-    else:
-        (
-            weekly_state,
-            weekly_opened,
-            weekly_recovered,
-            weekly_notices,
-        ) = await _evaluate_weekly_floor(
-            session,
-            assignment=assignment,
-            settings=settings,
-            threshold_seconds=threshold_seconds,
-            now=evaluation_now,
-        )
     (
         inactivity_state,
         inactivity_opened,
-        inactivity_recovered,
+        inactivity_closed,
         inactivity_notices,
     ) = await _evaluate_inactivity(
         session,
@@ -658,18 +444,14 @@ async def evaluate_assignment_activity(
         settings=settings,
         now=evaluation_now,
     )
-    # Counts are derived from the two state transitions; no assignment or
-    # financial table is written by this service.
     return {
         "assignment_id": str(assignment.id),
-        "weekly_floor": weekly_state,
         "inactivity": inactivity_state,
-        "flags_opened": weekly_opened + inactivity_opened,
-        "flags_recovered": weekly_recovered + inactivity_recovered,
-        "notices_created": weekly_notices + inactivity_notices,
-        "skipped": int(weekly_state.startswith("skipped"))
-        + int(inactivity_state.startswith("skipped")),
-        "skip_reason": skip_reason,
+        "flags_opened": inactivity_opened,
+        "flags_closed": inactivity_closed,
+        "notices_created": inactivity_notices,
+        "skipped": int(inactivity_state.startswith("skipped")),
+        "skip_reason": None,
         "errors": 0,
     }
 
@@ -683,12 +465,6 @@ async def sweep_activity_flags(
 ) -> dict[str, Any]:
     """Evaluate one caller-bounded batch in isolated assignment transactions."""
     settings = settings or get_settings()
-    _, skip_reason = parse_verified_hours_floor(settings)
-    if skip_reason is not None:
-        logger.warning(
-            "job=sweep_activity_flags weekly_floor=skipped_configuration reason=%s",
-            skip_reason,
-        )
     if now is None:
         async with sessionmaker() as clock_session:
             evaluation_now = _utc(await database_clock(clock_session))
@@ -698,12 +474,10 @@ async def sweep_activity_flags(
         "selected": len(assignment_ids),
         "evaluated": 0,
         "flags_opened": 0,
-        "flags_recovered": 0,
+        "flags_closed": 0,
         "notices_created": 0,
         "skipped": 0,
         "errors": 0,
-        "config": "skipped_weekly" if skip_reason is not None else "applied",
-        "config_reason": skip_reason,
     }
     for assignment_id in assignment_ids:
         try:
@@ -715,12 +489,9 @@ async def sweep_activity_flags(
                     now=evaluation_now,
                 )
                 await session.commit()
-            # A missing/invalid weekly setting still evaluates the fixed
-            # inactivity rule, so it is an evaluated assignment with one
-            # skipped sub-rule rather than a skipped assignment.
             totals["evaluated"] += int(result.get("skip_reason") != "assignment_not_active")
             totals["flags_opened"] += int(result["flags_opened"])
-            totals["flags_recovered"] += int(result["flags_recovered"])
+            totals["flags_closed"] += int(result["flags_closed"])
             totals["notices_created"] += int(result["notices_created"])
             totals["skipped"] += int(result["skipped"])
         except Exception as exc:  # one assignment cannot poison the sweep
@@ -732,11 +503,11 @@ async def sweep_activity_flags(
             )
     logger.info(
         "job=sweep_activity_flags selected=%d evaluated=%d flags_opened=%d "
-        "flags_recovered=%d notices_created=%d skipped=%d errors=%d",
+        "flags_closed=%d notices_created=%d skipped=%d errors=%d",
         totals["selected"],
         totals["evaluated"],
         totals["flags_opened"],
-        totals["flags_recovered"],
+        totals["flags_closed"],
         totals["notices_created"],
         totals["skipped"],
         totals["errors"],

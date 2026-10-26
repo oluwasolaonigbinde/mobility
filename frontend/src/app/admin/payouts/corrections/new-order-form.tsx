@@ -29,7 +29,7 @@ export function NewOrderForm() {
         </div>
         <div className="flex flex-col gap-1.5">
           <label htmlFor="co-reason" className="micro text-muted">
-            Reason (logged)
+            Reason
           </label>
           <input
             id="co-reason"
@@ -50,7 +50,7 @@ export function NewOrderForm() {
       ) : null}
       {state.created && !state.error ? (
         <p className="border-green/40 bg-green/10 text-green rounded-lg border px-3.5 py-2.5 text-sm">
-          ✓ Pay correction created — open it in the list and submit it for a second approval.
+          ✓ Pay correction created — open it in the list to approve and apply it with a reason.
         </p>
       ) : null}
 
@@ -96,8 +96,8 @@ export function NewOrderForm() {
         </Button>
       </div>
       <p className="micro text-faint">
-        A different staff member must approve each correction. Extra pay becomes available to
-        drivers on the date chosen when the correction runs.
+        Approve and apply the correction with a reason. Extra pay becomes available to drivers on
+        the date chosen when it is approved.
       </p>
     </form>
   );

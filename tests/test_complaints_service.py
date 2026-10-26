@@ -254,40 +254,29 @@ def test_conversation_lifecycle_through_the_service(graph, monkeypatch) -> None:
     assert reopened.complaint.status == ComplaintStatus.OPEN.value
     assert reopened.complaint.resolved_at is None
 
-    async def update(session, fields, status=None, assignee=None, actor=g.admin.id):
+    async def update(session, fields, status=None, actor=g.admin.id):
         return await svc.update_as_staff(
             session,
             actor_user_id=actor,
             complaint_id=complaint.id,
             fields=fields,
             new_status=status,
-            assigned_to_user_id=assignee,
         )
 
     assert not run(sm, lambda s: update(s, set())).changed
     assert not run(sm, lambda s: update(s, {"status"}, "open")).changed
-    assert not run(sm, lambda s: update(s, {"assigned_to_user_id"}, None, None)).changed
-    assert (
-        error_code(sm, lambda s: update(s, {"assigned_to_user_id"}, None, g.viewer.id))
-        == "COMPLAINT_ASSIGNEE_INVALID"
-    )
-    assigned = run(sm, lambda s: update(s, {"assigned_to_user_id"}, None, g.admin2.id))
-    assert assigned.complaint.assigned_to_user_id == g.admin2.id
-    # The assignee alone hears about the next follow-up.
     run(sm, lambda s: follow_up(s, "Hello?", uuid4(), g.advertiser))
-    both = run(sm, lambda s: update(s, {"status", "assigned_to_user_id"}, "resolved", g.admin.id))
-    assert both.complaint.status == ComplaintStatus.RESOLVED.value
+    resolved = run(sm, lambda s: update(s, {"status"}, "resolved"))
+    assert resolved.complaint.status == ComplaintStatus.RESOLVED.value
     reopen = run(sm, lambda s: update(s, {"status"}, "open"))
     assert reopen.complaint.resolved_at is None
-    unassigned = run(sm, lambda s: update(s, {"assigned_to_user_id"}, None, None))
-    assert unassigned.complaint.assigned_to_user_id is None
     assert error_code(sm, lambda s: svc.get_complaint(s, uuid4())) == "COMPLAINT_NOT_FOUND"
 
     async def notices(session):
         return list(await session.scalars(select(Notification)))
 
     received = [n for n in run(sm, notices) if n.type_key == "complaint_received"]
-    assert [n.recipient_user_id for n in received][-1] == g.admin2.id
+    assert {n.recipient_user_id for n in received} == {g.admin.id, g.admin2.id}
 
     # Limits apply to both sides.
     monkeypatch.setattr(svc, "MESSAGE_LIMIT", 1)
@@ -332,13 +321,12 @@ def test_reads_names_labels_and_filters(graph) -> None:
         owned = await svc.list_owned_complaints(session, driver_owner)
         fetched = await svc.get_owned_complaint(session, driver_owner, trip.id)
         everyone, total = await svc.list_staff_complaints(
-            session, complaint_status=None, party=None, assigned_to_user_id=None, limit=10, offset=0
+            session, complaint_status=None, party=None, limit=10, offset=0
         )
         advertisers, advertiser_total = await svc.list_staff_complaints(
             session,
             complaint_status=ComplaintStatus.OPEN.value,
             party=ComplaintParty.ADVERTISER.value,
-            assigned_to_user_id=g.admin.id,
             limit=10,
             offset=0,
         )
@@ -372,7 +360,7 @@ def test_reads_names_labels_and_filters(graph) -> None:
     assert parties[trip.id] == "Dayo Driver" and parties[campaign.id] == "Acme Ads"
     assert {c.id for c in owned} == {trip.id, payout.id, plain.id}
     assert fetched.id == trip.id
-    assert (total, adv_total, names) == (4, 0, {})
+    assert (total, adv_total, names) == (4, 1, {})
     assert [label for _, label in d_opts["campaigns"]] == ["Lagos Launch"]
     assert [item_id for item_id, _ in d_opts["payouts"]] == [g.entry]
     assert a_opts["trips"] == [] and a_opts["payouts"] == []

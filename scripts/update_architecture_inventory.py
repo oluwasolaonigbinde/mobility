@@ -32,6 +32,7 @@ GROUPS = (
     ("/api/v1/driver/*", "/api/v1/driver"),
     ("/api/v1/health*", "/api/v1/health"),
     ("/api/v1/notifications/*", "/api/v1/notifications"),
+    ("/api/v1/qr/*", "/api/v1/qr"),
     ("/api/v1/webhooks/*", "/api/v1/webhooks"),
 )
 EXACT_GROUPS = {"/api/v1/me", "/api/v1/campaign-enquiries", "/health"}
@@ -44,15 +45,6 @@ REQUIRED_ONBOARDING_ROUTES = frozenset(
         "/api/v1/auth/driver-onboarding/person-payee",
         "/api/v1/auth/driver-onboarding/vehicle",
         "/api/v1/auth/register-driver",
-    }
-)
-REQUIRED_DSR_ROUTES = frozenset(
-    {
-        "/api/v1/admin/privacy/dsr-requests",
-        "/api/v1/admin/privacy/dsr-requests/{request_id}/complete",
-        "/api/v1/admin/privacy/dsr-requests/{request_id}/inventory",
-        "/api/v1/admin/privacy/dsr-requests/{request_id}/locations/{location}",
-        "/api/v1/admin/privacy/dsr-requests/{request_id}/verify-identity",
     }
 )
 
@@ -109,7 +101,7 @@ def collect_inventory() -> Inventory:
     if grouped_path_count != len(paths):
         counts = f"{grouped_path_count}/{len(paths)}"
         raise InventoryError(f"expected every OpenAPI path to contain an operation: {counts}")
-    missing_routes = (REQUIRED_ONBOARDING_ROUTES | REQUIRED_DSR_ROUTES) - paths
+    missing_routes = REQUIRED_ONBOARDING_ROUTES - paths
     if missing_routes:
         raise InventoryError(f"required current-state routes are missing: {sorted(missing_routes)}")
 
@@ -177,8 +169,6 @@ def render_inventory(inventory: Inventory) -> str:
         ]
     )
     lines.extend(f"- `{path}`" for path in sorted(REQUIRED_ONBOARDING_ROUTES))
-    lines.extend(["", "Required administrator DSR paths:", ""])
-    lines.extend(f"- `{path}`" for path in sorted(REQUIRED_DSR_ROUTES))
     lines.append(END_MARKER)
     return "\n".join(lines)
 

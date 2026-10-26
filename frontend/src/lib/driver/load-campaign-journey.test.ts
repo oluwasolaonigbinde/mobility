@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/errors";
+import type { components } from "@/lib/api/schema";
 
 const mocks = vi.hoisted(() => ({ get: vi.fn() }));
 vi.mock("server-only", () => ({}));
@@ -11,9 +12,18 @@ import { loadDriverCampaignJourney } from "./load-campaign-journey";
 const ASSIGNMENT_ID = "22222222-2222-4222-8222-222222222222";
 const VEHICLE_ID = "33333333-3333-4333-8333-333333333333";
 const TRIP_ID = "11111111-1111-4111-8111-111111111111";
+const COUNTS = {
+  offered: 0,
+  accepted: 0,
+  active: 1,
+  declined: 0,
+  expired: 0,
+  cancelled: 0,
+  finished: 0,
+};
 
 function installReadyResponses() {
-  mocks.get.mockImplementation(async (path: string, options?: Record<string, unknown>) => {
+  mocks.get.mockImplementation(async (path: string) => {
     if (path === "/api/v1/driver/profile") {
       return { data: { onboarding_status: "active" } };
     }
@@ -29,9 +39,11 @@ function installReadyResponses() {
     if (path === "/api/v1/driver/vehicles") {
       return { data: { items: [{ id: VEHICLE_ID, status: "active" }], total: 1 } };
     }
-    if (path === "/api/v1/driver/campaign-assignments/active") {
+    if (path === "/api/v1/driver/current-job") {
       return {
         data: {
+          counts: { ...COUNTS },
+          photo_status: "ready",
           assignment: {
             id: ASSIGNMENT_ID,
             vehicle_id: VEHICLE_ID,
@@ -43,12 +55,6 @@ function installReadyResponses() {
       };
     }
     if (path === "/api/v1/driver/trips/current") return { data: { trip: null } };
-    if (path === "/api/v1/driver/campaign-assignments") {
-      const query = (options as { params?: { query?: { status?: string } } })?.params?.query;
-      return {
-        data: { items: [], total: query?.status === "active" ? 1 : 0, limit: 1, offset: 0 },
-      };
-    }
     if (path === "/api/v1/driver/vehicles/{vehicle_id}") {
       return { data: { id: VEHICLE_ID, status: "active", plate_number: "ABC-123" } };
     }
@@ -84,6 +90,14 @@ describe("loadDriverCampaignJourney", () => {
     expect(JSON.stringify(result)).not.toMatch(
       /document_file_ids|masked_nin|offer_terms|must-not-cross/,
     );
+    expect(
+      mocks.get.mock.calls.filter(([path]) => path === "/api/v1/driver/current-job"),
+    ).toHaveLength(1);
+    expect(
+      mocks.get.mock.calls.some(([path]) =>
+        String(path).startsWith("/api/v1/driver/campaign-assignments"),
+      ),
+    ).toBe(false);
   });
 
   it.each([401, 403])(
@@ -99,11 +113,41 @@ describe("loadDriverCampaignJourney", () => {
     },
   );
 
+  it("accepts the ended-only current-job read shape without an offer error", async () => {
+    const ready = mocks.get.getMockImplementation();
+    mocks.get.mockImplementation(async (path: string, options?: Record<string, unknown>) => {
+      if (path === "/api/v1/driver/current-job") {
+        return {
+          data: {
+            assignment: null,
+            photo_status: "unavailable",
+            counts: {
+              offered: 0,
+              accepted: 0,
+              active: 0,
+              declined: 1,
+              expired: 1,
+              cancelled: 1,
+              finished: 3,
+            },
+          } satisfies components["schemas"]["DriverCurrentJob"],
+        };
+      }
+      return ready?.(path, options);
+    });
+
+    const result = await loadDriverCampaignJourney();
+    expect(result.journey.standing).toBe("PENDING");
+    expect(result.journey.canStart).toBe(false);
+    expect(result.trackerAssignment).toBeNull();
+    expect(result.journey.steps.find((step) => step.id === "offer")?.state).toBe("pending");
+    expect(result.journey.steps.find((step) => step.id === "activation")?.state).toBe("pending");
+  });
+
   it.each([
     "/api/v1/driver/kyc/current",
     "/api/v1/driver/vehicles",
-    "/api/v1/driver/campaign-assignments",
-    "/api/v1/driver/campaign-assignments/active",
+    "/api/v1/driver/current-job",
     "/api/v1/driver/trips/current",
     "/api/v1/driver/vehicles/{vehicle_id}",
     "/api/v1/driver/vehicles/{vehicle_id}/evidence-current",
@@ -118,20 +162,15 @@ describe("loadDriverCampaignJourney", () => {
     await expect(loadDriverCampaignJourney()).rejects.toMatchObject({ status: 403 });
   });
 
-  it("treats active-assignment 404 as no canonical activation, not a missing profile", async () => {
+  it("uses accepted counts with no current activation without inventing an active job", async () => {
     const ready = mocks.get.getMockImplementation();
     mocks.get.mockImplementation(async (path: string, options?: Record<string, unknown>) => {
-      if (path === "/api/v1/driver/campaign-assignments/active")
-        throw new ApiError(404, { code: "NOT_FOUND", message: "none" });
-      if (path === "/api/v1/driver/campaign-assignments") {
-        const status = (options as { params?: { query?: { status?: string } } })?.params?.query
-          ?.status;
+      if (path === "/api/v1/driver/current-job") {
         return {
           data: {
-            items: [],
-            total: status === "accepted" ? 1 : 0,
-            limit: 1,
-            offset: 0,
+            assignment: null,
+            counts: { ...COUNTS, active: 0, accepted: 1 },
+            photo_status: "unavailable",
           },
         };
       }
@@ -161,18 +200,15 @@ describe("loadDriverCampaignJourney", () => {
     expect(result.journey.steps.find((step) => step.id === "vehicle")?.state).toBe("pending");
   });
 
-  it.each(["/api/v1/driver/vehicles", "/api/v1/driver/campaign-assignments"])(
+  it.each(["/api/v1/driver/vehicles", "/api/v1/driver/current-job"])(
     "degrades instead of inventing absence when collection %s returns 404",
     async (failedPath) => {
       const ready = mocks.get.getMockImplementation();
       mocks.get.mockImplementation(async (path: string, options?: Record<string, unknown>) => {
-        if (
-          path === "/api/v1/driver/campaign-assignments/active" &&
-          failedPath.endsWith("vehicles")
-        ) {
-          return { data: { assignment: null } };
+        if (path === "/api/v1/driver/current-job" && failedPath.endsWith("vehicles")) {
+          return { data: { assignment: null, counts: COUNTS, photo_status: "unavailable" } };
         }
-        if (path === "/api/v1/driver/profile" && failedPath.endsWith("campaign-assignments")) {
+        if (path === "/api/v1/driver/profile" && failedPath.endsWith("current-job")) {
           throw new ApiError(404, { code: "PROFILE_NOT_FOUND", message: "none" });
         }
         if (path === failedPath) {
@@ -211,7 +247,7 @@ describe("loadDriverCampaignJourney", () => {
   it("keeps the current trip identity manageable when activation is unavailable", async () => {
     const ready = mocks.get.getMockImplementation();
     mocks.get.mockImplementation(async (path: string, options?: Record<string, unknown>) => {
-      if (path === "/api/v1/driver/campaign-assignments/active") {
+      if (path === "/api/v1/driver/current-job") {
         throw new ApiError(503, { code: "PROVIDER_UNAVAILABLE", message: "unavailable" });
       }
       if (path === "/api/v1/driver/trips/current") return { data: { trip: { id: TRIP_ID } } };
@@ -224,4 +260,19 @@ describe("loadDriverCampaignJourney", () => {
     expect(result.currentTrip).toEqual({ id: TRIP_ID });
     expect(result.trackerAssignment).toBeNull();
   });
+
+  it.each(["offered", "accepted", "active", "declined", "expired", "cancelled", "finished"])(
+    "does not treat a missing %s count as zero",
+    async (status) => {
+      const ready = mocks.get.getMockImplementation();
+      mocks.get.mockImplementation(async (path: string, options?: Record<string, unknown>) => {
+        const result = await ready?.(path, options);
+        if (path === "/api/v1/driver/current-job") delete result.data.counts[status];
+        return result;
+      });
+      const result = await loadDriverCampaignJourney();
+      expect(result.journey.canStart).toBe(false);
+      expect(result.journey.steps.find((step) => step.id === "offer")?.state).toBe("degraded");
+    },
+  );
 });

@@ -14,9 +14,19 @@ export function psql(sql: string, variables: Record<string, string>) {
   const args = databaseContainer
     ? ["exec", "-i", databaseContainer, "psql"]
     : ["compose", "-f", COMPOSE_FILE, "exec", "-T", "db", "psql"];
-  execFileSync(
+  return execFileSync(
     "docker",
-    [...args, "-v", "ON_ERROR_STOP=1", ...variableArgs, "-U", "mobility", "-d", databaseName],
+    [
+      ...args,
+      "-XAt",
+      "-v",
+      "ON_ERROR_STOP=1",
+      ...variableArgs,
+      "-U",
+      "mobility",
+      "-d",
+      databaseName,
+    ],
     { input: sql, stdio: ["pipe", "pipe", "pipe"] },
   );
 }
@@ -53,6 +63,11 @@ DELETE FROM campaign_cancellation_settlement_revisions WHERE campaign_id = :'cam
 DELETE FROM campaign_change_revisions WHERE campaign_id = :'campaign_id'::uuid;
 DELETE FROM campaign_change_requests WHERE campaign_id = :'campaign_id'::uuid;
 DELETE FROM campaign_cancellations WHERE campaign_id = :'campaign_id'::uuid;
+DELETE FROM complaint_messages WHERE complaint_id IN (
+  SELECT id FROM complaints WHERE campaign_id = :'campaign_id'::uuid
+);
+DELETE FROM complaints WHERE campaign_id = :'campaign_id'::uuid;
+DELETE FROM campaign_zones WHERE campaign_id = :'campaign_id'::uuid;
 DELETE FROM campaigns WHERE id = :'campaign_id'::uuid;
 RESET session_replication_role;
 

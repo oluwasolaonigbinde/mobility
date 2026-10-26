@@ -9,6 +9,7 @@ import { onboardingResponseJson, uploadOnboardingFile } from "@/lib/files/onboar
 import { CarChooser } from "./car-chooser";
 import { useUploadStates } from "./upload-states";
 import { useDocumentUploads } from "@/lib/files/use-document-uploads";
+import type { ApplicationCar } from "./application-journey";
 
 type VehicleStage = {
   status: string;
@@ -19,23 +20,22 @@ type VehicleStage = {
 
 const FILES = ["registration", "insurance", "photo"] as const;
 
-export function VehicleForm() {
+export function VehicleForm({
+  accessToken,
+  cars,
+}: {
+  accessToken: string;
+  cars: ApplicationCar[];
+}) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [result, setResult] = useState<VehicleStage>();
-  const [chooserKey, setChooserKey] = useState(0);
   const uploads = useUploadStates(FILES);
   const submissionRequestId = useRef(crypto.randomUUID());
   const fileUploads = useDocumentUploads();
   const generation = useRef(0);
 
   function changed(event?: FormEvent<HTMLFormElement>) {
-    // A different code may own different cars, so the looked-up list starts over.
-    if ((event?.target as HTMLInputElement | undefined)?.name === "application_access_token") {
-      setChooserKey((key) => key + 1);
-      uploads.reset();
-      fileUploads.clear();
-    }
     if ((event?.target as HTMLInputElement | undefined)?.name === "vehicle_id") {
       fileUploads.clear();
       uploads.reset();
@@ -64,7 +64,8 @@ export function VehicleForm() {
     const form = new FormData(formElement);
     const track = uploads.tracker(isCurrent);
     try {
-      const accessToken = String(form.get("application_access_token") ?? "").trim();
+      if (cars.length && !form.has("vehicle_id"))
+        throw new Error("Choose the car you are updating.");
       const registration = (formElement.elements.namedItem("registration") as HTMLInputElement)
         .files?.[0];
       const insurance = (formElement.elements.namedItem("insurance") as HTMLInputElement)
@@ -84,21 +85,30 @@ export function VehicleForm() {
       const [registrationId, insuranceId, photoId] = await Promise.all([
         track(
           "registration",
-          fileUploads.upload("registration", registration, context, (id, progress) =>
-            uploadOnboardingFile(accessToken, registration, id, "vehicle_evidence", progress),
-          ),
+          fileUploads.upload("registration", registration, context, (id, progress) => {
+            progress.onStatus = uploads.onStatus("registration", isCurrent);
+            return uploadOnboardingFile(
+              accessToken,
+              registration,
+              id,
+              "vehicle_evidence",
+              progress,
+            );
+          }),
         ),
         track(
           "insurance",
-          fileUploads.upload("insurance", insurance, context, (id, progress) =>
-            uploadOnboardingFile(accessToken, insurance, id, "vehicle_evidence", progress),
-          ),
+          fileUploads.upload("insurance", insurance, context, (id, progress) => {
+            progress.onStatus = uploads.onStatus("insurance", isCurrent);
+            return uploadOnboardingFile(accessToken, insurance, id, "vehicle_evidence", progress);
+          }),
         ),
         track(
           "photo",
-          fileUploads.upload("photo", photo, context, (id, progress) =>
-            uploadOnboardingFile(accessToken, photo, id, "vehicle_evidence", progress),
-          ),
+          fileUploads.upload("photo", photo, context, (id, progress) => {
+            progress.onStatus = uploads.onStatus("photo", isCurrent);
+            return uploadOnboardingFile(accessToken, photo, id, "vehicle_evidence", progress);
+          }),
         ),
       ]);
       if (!isCurrent()) return;
@@ -140,6 +150,15 @@ export function VehicleForm() {
     }
   }
 
+  if (result)
+    return (
+      <Panel className="mt-5 p-6">
+        <h2 className="font-display text-2xl font-semibold">Car details sent</h2>
+        <p role="status" className="text-muted mt-3 text-sm">
+          Terrax Media will check your car and email you about the next step.
+        </p>
+      </Panel>
+    );
   return (
     <Panel className="mt-5 p-6">
       <h2 className="font-display text-2xl font-semibold">Your car</h2>
@@ -148,28 +167,10 @@ export function VehicleForm() {
         its papers, we check it again before you can drive.
       </p>
       <form onSubmit={submit} onChange={changed} className="grid gap-4" noValidate>
-        <Field
-          label="Code from your email"
-          name="application_access_token"
-          type="password"
-          autoComplete="one-time-code"
-          aria-describedby="vehicle-code-hint"
-          required
-        />
-        <p id="vehicle-code-hint" className="text-muted -mt-2 text-xs">
-          Check your email for the code we sent you.
-        </p>
-        <CarChooser key={chooserKey} />
+        <CarChooser cars={cars} />
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Plate number" name="plate_number" required />
-          <Field
-            label="Plate country (2 letters)"
-            name="plate_country_code"
-            defaultValue="NG"
-            minLength={2}
-            maxLength={2}
-            required
-          />
+          <input type="hidden" name="plate_country_code" value="NG" />
           <Field label="Year (optional)" name="year" type="number" min={1980} max={2100} />
           <Field label="Make (optional)" name="make" placeholder="Toyota" />
           <Field label="Model (optional)" name="model" placeholder="Corolla" />
@@ -204,13 +205,6 @@ export function VehicleForm() {
         {error ? (
           <p role="alert" className="text-coral text-sm">
             {error}
-          </p>
-        ) : null}
-        {result ? (
-          <p role="status" className="text-green text-sm">
-            Sent. We&apos;ll check your car
-            {result.plate_number ? ` (${result.plate_number})` : ""}. Check your status with your
-            application reference.
           </p>
         ) : null}
         <Button type="submit" disabled={pending}>

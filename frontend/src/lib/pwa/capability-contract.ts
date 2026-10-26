@@ -9,7 +9,7 @@ export const D15_D16_PROTOCOL = {
     singleWriter: "web-locks-exclusive",
     idempotencyKey: "mint-once-at-batch-cut",
     retry: "reuse-identical-key-and-payload",
-    ackDeletes: ["signed-accepted", "signed-duplicate", "signed-quarantined"],
+    ackDeletes: ["signed-accepted", "signed-duplicate", "signed-dropped"],
     terminalHttpStatuses: [400, 409, 422],
     terminalAction: "dead-letter-without-rekey",
   },
@@ -24,11 +24,11 @@ export const D15_D16_PROTOCOL = {
     assignmentActiveGate: "not-required-for-ended-delivery",
     graceSeal: false,
   },
-  quarantine: {
-    postSealBatches: "preserve-never-reject",
-    resolution: "audited-admin-apply-or-discard",
-    applyRequiresInitialPayout: true,
-    applyAutoRecomputesMoney: false,
+  lateSettlement: {
+    admission: "before-any-affected-nigeria-day-pay-is-calculated",
+    afterCalculation: "signed-drop-with-audit-no-gps-payload",
+    staffQueue: false,
+    calculatedMoneyChanges: false,
     preSealAnalyticsReusableForMoney: false,
   },
 } as const;
@@ -113,16 +113,52 @@ function row(
 
 function installability(s: CapabilitySnapshot): CapabilityResult {
   if (!s.secureContext)
-    return row("installability", "Installability", "rejected", "INSECURE_CONTEXT", "HTTPS required.");
+    return row(
+      "installability",
+      "Installability",
+      "rejected",
+      "INSECURE_CONTEXT",
+      "HTTPS required.",
+    );
   if (!s.manifestLinked)
-    return row("installability", "Installability", "rejected", "MANIFEST_MISSING", "Manifest missing.");
+    return row(
+      "installability",
+      "Installability",
+      "rejected",
+      "MANIFEST_MISSING",
+      "Manifest missing.",
+    );
   if (s.serviceWorker === "unavailable")
-    return row("installability", "Installability", "rejected", "SERVICE_WORKER_UNAVAILABLE", "Service workers unavailable.");
+    return row(
+      "installability",
+      "Installability",
+      "rejected",
+      "SERVICE_WORKER_UNAVAILABLE",
+      "Service workers unavailable.",
+    );
   if (s.serviceWorker !== "registered")
-    return row("installability", "Installability", "degraded", `SERVICE_WORKER_${s.serviceWorker.toUpperCase().replace("-", "_")}`, "Registration not proven.");
+    return row(
+      "installability",
+      "Installability",
+      "degraded",
+      `SERVICE_WORKER_${s.serviceWorker.toUpperCase().replace("-", "_")}`,
+      "Registration not proven.",
+    );
   if (s.displayMode !== "standalone")
-    return row("installability", "Installability", "degraded", "NOT_STANDALONE", "Installed standalone PWA required.");
-  return row("installability", "Installability", "supported", "INSTALLED_STANDALONE", "Standalone PWA proven.");
+    return row(
+      "installability",
+      "Installability",
+      "degraded",
+      "NOT_STANDALONE",
+      "Installed standalone PWA required.",
+    );
+  return row(
+    "installability",
+    "Installability",
+    "supported",
+    "INSTALLED_STANDALONE",
+    "Standalone PWA proven.",
+  );
 }
 
 function stateRow(
@@ -133,9 +169,25 @@ function stateRow(
   failures: Record<string, [string, string]>,
   degraded: string[] = [],
 ): CapabilityResult {
-  if (state === pass) return row(id, label, "supported", `${id.toUpperCase().replaceAll("-", "_")}_PROVEN`, `${label} is proven.`);
-  const [code, summary] = failures[state] ?? [`${id.toUpperCase().replaceAll("-", "_")}_UNPROBED`, `${label} requires its explicit probe.`];
-  return row(id, label, state === "unprobed" || degraded.includes(state) ? "degraded" : "rejected", code, summary);
+  if (state === pass)
+    return row(
+      id,
+      label,
+      "supported",
+      `${id.toUpperCase().replaceAll("-", "_")}_PROVEN`,
+      `${label} is proven.`,
+    );
+  const [code, summary] = failures[state] ?? [
+    `${id.toUpperCase().replaceAll("-", "_")}_UNPROBED`,
+    `${label} requires its explicit probe.`,
+  ];
+  return row(
+    id,
+    label,
+    state === "unprobed" || degraded.includes(state) ? "degraded" : "rejected",
+    code,
+    summary,
+  );
 }
 
 export function reconcileLocationPermission(
@@ -156,16 +208,41 @@ export function assessPilotPwa(s: CapabilitySnapshot): CapabilityAssessment {
       unavailable: ["WAKE_LOCK_UNAVAILABLE", "Wake lock unavailable."],
     }),
     s.visibility === "visible"
-      ? row("visibility-background", "Foreground visibility", "supported", "FOREGROUND_VISIBLE", "Visible.")
+      ? row(
+          "visibility-background",
+          "Foreground visibility",
+          "supported",
+          "FOREGROUND_VISIBLE",
+          "Visible.",
+        )
       : s.visibility === "hidden"
-        ? row("visibility-background", "Foreground visibility", "degraded", "BACKGROUND_PAUSED", "Background capture paused.")
-        : row("visibility-background", "Foreground visibility", "rejected", "VISIBILITY_UNKNOWN", "Visibility unknown."),
-    stateRow("location", "Foreground location", s.location, "granted", {
-      prompt: ["LOCATION_UNPROBED", "Explicit location probe required."],
-      denied: ["LOCATION_DENIED", "Location denied."],
-      revoked: ["LOCATION_REVOKED", "Location revoked."],
-      unavailable: ["LOCATION_UNAVAILABLE", "Location unavailable."],
-    }, ["prompt"]),
+        ? row(
+            "visibility-background",
+            "Foreground visibility",
+            "degraded",
+            "BACKGROUND_PAUSED",
+            "Background capture paused.",
+          )
+        : row(
+            "visibility-background",
+            "Foreground visibility",
+            "rejected",
+            "VISIBILITY_UNKNOWN",
+            "Visibility unknown.",
+          ),
+    stateRow(
+      "location",
+      "Foreground location",
+      s.location,
+      "granted",
+      {
+        prompt: ["LOCATION_UNPROBED", "Explicit location probe required."],
+        denied: ["LOCATION_DENIED", "Location denied."],
+        revoked: ["LOCATION_REVOKED", "Location revoked."],
+        unavailable: ["LOCATION_UNAVAILABLE", "Location unavailable."],
+      },
+      ["prompt"],
+    ),
     stateRow("indexeddb-storage", "IndexedDB storage", s.indexedDb, "pass", {
       failed: ["INDEXEDDB_FAILED", "IndexedDB probe failed."],
       unavailable: ["INDEXEDDB_UNAVAILABLE", "IndexedDB unavailable."],
@@ -178,13 +255,33 @@ export function assessPilotPwa(s: CapabilitySnapshot): CapabilityAssessment {
       denied: ["WEB_LOCK_DENIED", "Lock request failed."],
       unavailable: ["WEB_LOCKS_UNAVAILABLE", "Web Locks unavailable."],
     }),
-    stateRow("bff-session", "BFF session", s.session, "valid", {
-      invalid: ["SESSION_INVALID", "Session invalid."],
-      unavailable: ["SESSION_UNAVAILABLE", "Session unavailable."],
-      offline: ["SESSION_OFFLINE", "Session offline."],
-    }, ["unavailable", "offline"]),
-    row("d15-d16-protocol", "D15/D16 protocol", "supported", "D15_D16_FROZEN", "Protocol unchanged."),
-    row("background-capture", "Background capture", "rejected", "BACKGROUND_CAPTURE_OUT_OF_SCOPE", "Foreground-only pilot.", false),
+    stateRow(
+      "bff-session",
+      "BFF session",
+      s.session,
+      "valid",
+      {
+        invalid: ["SESSION_INVALID", "Session invalid."],
+        unavailable: ["SESSION_UNAVAILABLE", "Session unavailable."],
+        offline: ["SESSION_OFFLINE", "Session offline."],
+      },
+      ["unavailable", "offline"],
+    ),
+    row(
+      "d15-d16-protocol",
+      "D15/D16 protocol",
+      "supported",
+      "D15_D16_FROZEN",
+      "Protocol unchanged.",
+    ),
+    row(
+      "background-capture",
+      "Background capture",
+      "rejected",
+      "BACKGROUND_CAPTURE_OUT_OF_SCOPE",
+      "Foreground-only pilot.",
+      false,
+    ),
   ];
 
   const installed = results[0]?.status === "supported";
@@ -229,9 +326,16 @@ export function assessPilotPwa(s: CapabilitySnapshot): CapabilityAssessment {
 }
 
 export type WebLocksLike = {
-  request<T>(name: string, options: { ifAvailable: true }, callback: (lock: object | null) => T | Promise<T>): Promise<T>;
+  request<T>(
+    name: string,
+    options: { ifAvailable: true },
+    callback: (lock: object | null) => T | Promise<T>,
+  ): Promise<T>;
 };
-export async function probeExclusiveWebLock(locks?: WebLocksLike, name = "r14-a-capability-probe"): Promise<CapabilitySnapshot["webLocks"]> {
+export async function probeExclusiveWebLock(
+  locks?: WebLocksLike,
+  name = "r14-a-capability-probe",
+): Promise<CapabilitySnapshot["webLocks"]> {
   if (!locks) return "unavailable";
   try {
     return await locks.request(name, { ifAvailable: true }, async (lock) => {
@@ -244,7 +348,9 @@ export async function probeExclusiveWebLock(locks?: WebLocksLike, name = "r14-a-
 }
 
 export type WakeLockLike = { request(type: "screen"): Promise<{ release(): Promise<void> }> };
-export async function probeScreenWakeLock(wake?: WakeLockLike): Promise<CapabilitySnapshot["wakeLock"]> {
+export async function probeScreenWakeLock(
+  wake?: WakeLockLike,
+): Promise<CapabilitySnapshot["wakeLock"]> {
   if (!wake) return "unavailable";
   try {
     const sentinel = await wake.request("screen");
@@ -256,9 +362,15 @@ export async function probeScreenWakeLock(wake?: WakeLockLike): Promise<Capabili
 }
 
 export type GeolocationLike = {
-  getCurrentPosition(success: PositionCallback, error: PositionErrorCallback, options?: PositionOptions): void;
+  getCurrentPosition(
+    success: PositionCallback,
+    error: PositionErrorCallback,
+    options?: PositionOptions,
+  ): void;
 };
-export function probeForegroundLocation(geo?: GeolocationLike): Promise<CapabilitySnapshot["location"]> {
+export function probeForegroundLocation(
+  geo?: GeolocationLike,
+): Promise<CapabilitySnapshot["location"]> {
   if (!geo) return Promise.resolve("unavailable");
   return new Promise((resolve) =>
     geo.getCurrentPosition(
@@ -269,13 +381,31 @@ export function probeForegroundLocation(geo?: GeolocationLike): Promise<Capabili
   );
 }
 
-export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Pick<Response, "ok" | "status" | "type">>;
-export async function probeBffSession(fetcher: FetchLike, online: boolean, path = R14A_SESSION_PROBE_PATH): Promise<CapabilitySnapshot["session"]> {
+export type FetchLike = (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+) => Promise<Pick<Response, "ok" | "status" | "type">>;
+export async function probeBffSession(
+  fetcher: FetchLike,
+  online: boolean,
+  path = R14A_SESSION_PROBE_PATH,
+): Promise<CapabilitySnapshot["session"]> {
   if (!online) return "offline";
   try {
-    const response = await fetcher(path, { cache: "no-store", credentials: "same-origin", redirect: "manual" });
+    const response = await fetcher(path, {
+      cache: "no-store",
+      credentials: "same-origin",
+      redirect: "manual",
+    });
     if (response.ok) return "valid";
-    if (response.type === "opaqueredirect" || response.status === 0 || response.status === 401 || response.status === 403 || (response.status >= 300 && response.status < 400)) return "invalid";
+    if (
+      response.type === "opaqueredirect" ||
+      response.status === 0 ||
+      response.status === 401 ||
+      response.status === 403 ||
+      (response.status >= 300 && response.status < 400)
+    )
+      return "invalid";
     return "unavailable";
   } catch {
     return "unavailable";

@@ -28,15 +28,11 @@ class AutomaticPayoutRunRead(BaseModel):
     batch_count: int
     line_count: int
     total_amount: Money
-    batch_limit: Money | None = None
 
 
 class AutomaticPayoutStatusRead(BaseModel):
-    switched_on: bool
-    frequency: Literal["daily", "weekly"] | None
-    batch_limit: Money | None
+    frequency: Literal["daily"]
     currency: str
-    missing_settings: list[str]
     paused: bool
     pause_reason: str | None
     pause_changed_by_name: str | None

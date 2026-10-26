@@ -382,24 +382,9 @@ def test_driver_context_resolves_trip_and_denies_another_drivers_assignment(
     ("type_key", "title", "body"),
     [
         (
-            NotificationType.ACTIVITY_FLOOR_BREACHED,
-            "Not enough driving this week",
-            "You drove less than this job's weekly minimum. Terrax Media will look at your job.",
-        ),
-        (
-            NotificationType.ACTIVITY_FLOOR_RECOVERED,
-            "Weekly driving back on track",
-            "You're back above this job's weekly minimum.",
-        ),
-        (
             NotificationType.ASSIGNMENT_INACTIVE,
             "No trips for 7 days",
-            "No trips were recorded on your job for 7 days. Terrax Media will look at it.",
-        ),
-        (
-            NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED,
-            "Trips started again",
-            "Trips are being recorded on your job again.",
+            "No verified trips were recorded for this job for 7 days. Follow up with the driver.",
         ),
         (
             NotificationType.BUDGET_URGENT_ALERT,
@@ -460,7 +445,6 @@ def _insert_notice(
                     payload=payload,
                 ),
                 created_at=created_at,
-                delivered_at=created_at,
             )
             session.add(notice)
             await session.commit()
@@ -493,7 +477,6 @@ def test_notification_creator_replays_exactly_rejects_changed_facts_and_freezes_
             assert first.id == replay.id
             assert first.status == "sent"
             assert first.sent_at is not None
-            assert first.delivered_at is None
             assert first.provider_message_id is None
             with pytest.raises(AppError) as conflict:
                 await create_notification(
@@ -733,7 +716,7 @@ def test_advertiser_notification_preference_is_shared_audited_and_cross_org_hidd
                 OrganizationMembership(
                     organization_id=organization.id,
                     user_id=colleague.id,
-                    role=MembershipRole.MANAGER,
+                    role=MembershipRole.ADVERTISER,
                     status=MembershipStatus.ACTIVE,
                 )
             )

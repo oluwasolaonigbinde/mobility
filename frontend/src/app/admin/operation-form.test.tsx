@@ -8,7 +8,6 @@ vi.mock("./operations-actions", () => ({ resolveOperation: resolve }));
 import { OperationForm } from "./operation-form";
 
 const TASK = "11111111-1111-4111-8111-111111111111";
-const TRIP = "22222222-2222-4222-8222-222222222222";
 
 function submitted(call = 0) {
   return Object.fromEntries((resolve.mock.calls[call]![1] as FormData).entries());
@@ -22,7 +21,7 @@ describe("OperationForm", () => {
       done: "Contact outcome recorded. This does not confirm provider delivery.",
     });
     const user = userEvent.setup();
-    render(<OperationForm id={TASK} contact />);
+    render(<OperationForm id={TASK} />);
     expect(screen.queryByRole("button", { name: "Add to trip" })).toBeNull();
     await user.selectOptions(screen.getByRole("combobox", { name: "Recorded outcome" }), "reached");
     await user.type(screen.getByRole("textbox", { name: "Contact note" }), "Spoke to driver");
@@ -42,33 +41,11 @@ describe("OperationForm", () => {
     expect(screen.getByRole("button", { name: "Record outcome" })).toBeDisabled();
   });
 
-  it("submits the chosen evidence decision with its trip and keeps retry available on error", async () => {
-    resolve.mockResolvedValue({ error: "No result was confirmed. Reload or retry." });
-    const user = userEvent.setup();
-    render(<OperationForm id={TASK} trip={TRIP} />);
-    expect(screen.queryByRole("combobox")).toBeNull();
-    await user.type(screen.getByRole("textbox", { name: "Review reason" }), "Duplicate upload");
-    await user.click(screen.getByRole("checkbox", { name: /does not change earnings/ }));
-    await user.click(screen.getByRole("button", { name: "Ignore" }));
-
-    expect(await screen.findByRole("alert")).toHaveTextContent("No result was confirmed");
-    expect(submitted()).toEqual({
-      id: TASK,
-      trip: TRIP,
-      kind: "discard",
-      note: "Duplicate upload",
-      confirmed: "on",
-    });
-    expect(screen.queryByRole("status")).toBeNull();
-    expect(screen.getByRole("button", { name: "Add to trip" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Ignore" })).toBeEnabled();
-  });
-
   it("does not submit until the reason and confirmation are provided", async () => {
     const user = userEvent.setup();
     const { container } = render(<OperationForm id={TASK} />);
     expect(container.querySelector('input[name="trip"]')).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Add to trip" }));
+    await user.click(screen.getByRole("button", { name: "Record outcome" }));
     expect(resolve).not.toHaveBeenCalled();
   });
 });

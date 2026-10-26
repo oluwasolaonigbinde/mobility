@@ -118,14 +118,19 @@ test("deployed edge enforces the browser security policy without disabling drive
 
   await page.setContent('<iframe title="blocked-frame" src="/login"></iframe>');
   await expect
-    .poll(() => page.frames().some((frame) => frame !== page.mainFrame() && frame.url().endsWith("/login")))
+    .poll(() =>
+      page.frames().some((frame) => frame !== page.mainFrame() && frame.url().endsWith("/login")),
+    )
     .toBe(false);
 });
 
 test("edge policy covers frontend, API, redirect, not-found and failure responses", async ({
   request,
 }, testInfo) => {
-  test.skip(testInfo.project.name !== "chromium", "one deployed-edge response matrix is sufficient");
+  test.skip(
+    testInfo.project.name !== "chromium",
+    "one deployed-edge response matrix is sufficient",
+  );
   test.skip(process.env.R14_DEPLOYED_EDGE_PROBE !== "1", "requires the disposable API oracle");
 
   for (const [path, status] of [
@@ -205,15 +210,21 @@ test("deployed Next server rejects a cross-origin Server Action", async ({
   expect(crossOriginResponse.status()).not.toBe(sameOriginResponse.status());
 });
 
-test("successful production login sets the host-only hardened session cookie", async ({
+test("production login and sign-out set and expire the host-only hardened session cookie", async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "one cookie contract check is sufficient");
   const email = process.env.R14_SECURITY_LOGIN_EMAIL;
   const password = process.env.R14_SECURITY_LOGIN_PASSWORD;
   test.skip(!email || !password, "requires synthetic local login authority");
+  const apiBase = process.env.E2E_API_BASE_URL;
+  expect(
+    apiBase,
+    "the cookie/revocation scenario requires its isolated real backend URL",
+  ).toBeTruthy();
 
   await page.goto("/login");
+  expect(new URL(page.url()).protocol).toBe("https:");
   await page.getByLabel("Email").fill(email!);
   await page.getByLabel("Password").fill(password!);
   await page.getByRole("button", { name: "Sign in" }).click();
@@ -222,13 +233,129 @@ test("successful production login sets the host-only hardened session cookie", a
     (value) => value.name === "__Host-cardvert_session",
   );
 
-  expect(cookie).toMatchObject({
+  expect({
+    domain: cookie?.domain,
+    path: cookie?.path,
+    httpOnly: cookie?.httpOnly,
+    secure: cookie?.secure,
+    sameSite: cookie?.sameSite,
+  }).toEqual({
+    domain: "localhost",
     httpOnly: true,
     secure: true,
     sameSite: "Lax",
     path: "/",
   });
-  expect(cookie?.domain).toBe("localhost");
+  const protectedPath = new URL(page.url()).pathname;
+  if (protectedPath.startsWith("/driver")) await page.goto("/driver/profile");
+  if (process.env.R59_COOKIE_REVOCATION_OUTAGE === "1") {
+    // Import only for this isolated outage invocation: ordinary R14 must not
+    // require an R59 project or acquire control over any Compose service.
+    const { stopService, startService, waitForService } = await import("./support/r59-stack");
+    expect(new URL(apiBase!).origin).toBe(
+      `http://127.0.0.1:${process.env.R59_API_PORT ?? "48159"}`,
+    );
+    const signedInUrl = page.url();
+    await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
+    try {
+      stopService("api");
+      await waitForService("api", "stopped");
+      const failedSignOutResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          Boolean(response.request().headers()["next-action"]),
+      );
+      await page.getByRole("button", { name: "Sign out", exact: true }).click();
+      const failedSignOut = await failedSignOutResponse;
+      expect(failedSignOut.status()).toBe(200);
+      // Compare booleans so assertion output cannot print a retained JWT.
+      const failedCookies = await failedSignOut.headerValues("set-cookie");
+      expect(
+        failedCookies.some((value) => value.startsWith("__Host-cardvert_session=")),
+        "failed revocation does not replace or delete the session cookie",
+      ).toBe(false);
+      await expect(
+        page.getByRole("alert").filter({
+          hasText: "Sign-out on every device could not be confirmed. Please try again.",
+        }),
+      ).toHaveText("Sign-out on every device could not be confirmed. Please try again.");
+      await expect(page).toHaveURL(signedInUrl);
+      await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeEnabled();
+      const retained = (await page.context().cookies()).find(
+        (value) => value.name === "__Host-cardvert_session",
+      );
+      expect(retained?.value === cookie?.value, "the same opaque session is retained").toBe(
+        true,
+      );
+      expect({
+        domain: retained?.domain,
+        path: retained?.path,
+        httpOnly: retained?.httpOnly,
+        secure: retained?.secure,
+        sameSite: retained?.sameSite,
+        expires: retained?.expires,
+      }).toEqual({
+        domain: "localhost",
+        path: "/",
+        httpOnly: true,
+        secure: true,
+        sameSite: "Lax",
+        expires: cookie?.expires,
+      });
+    } finally {
+      startService("api");
+      await waitForService("api", "ready");
+    }
+    const retainedSession = await page.request.get(`${apiBase}/api/v1/me`, {
+      headers: { Authorization: `Bearer ${cookie!.value}` },
+    });
+    expect(retainedSession.status()).toBe(200);
+  }
+  const signOutResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      Boolean(response.request().headers()["next-action"]),
+  );
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  const deletionCookies = await (await signOutResponse).headerValues("set-cookie");
+  const header = deletionCookies.find((value) =>
+    value.startsWith("__Host-cardvert_session="),
+  );
+  expect(Boolean(header), "the session deletion header exists").toBe(true);
+  expect(
+    /^__Host-cardvert_session=;/.test(header ?? ""),
+    "the deleted session has an empty value",
+  ).toBe(true);
+  expect(
+    /(?:^|;)\s*Secure(?:;|$)/i.test(header ?? ""),
+    "the deletion is Secure",
+  ).toBe(true);
+  expect(
+    /(?:^|;)\s*Path=\/(?:;|$)/i.test(header ?? ""),
+    "the deletion uses Path=/",
+  ).toBe(true);
+  expect(
+    /(?:^|;)\s*Max-Age=0(?:;|$)/i.test(header ?? ""),
+    "the deletion expires immediately",
+  ).toBe(true);
+  expect(/(?:^|;)\s*Domain=/i.test(header ?? ""), "the deletion is host-only").toBe(false);
+  await page.waitForURL("**/login");
+  expect(
+    (await page.context().cookies()).some((value) => value.name === "__Host-cardvert_session"),
+  ).toBe(false);
+  const protectedResponse = await page.request.get(protectedPath, { maxRedirects: 0 });
+  expect([301, 302, 303, 307, 308, 401, 403]).toContain(protectedResponse.status());
+  const revoked = await page.request.get(`${apiBase}/api/v1/me`, {
+    headers: { Authorization: `Bearer ${cookie!.value}` },
+  });
+  expect(revoked.status()).toBe(401);
+  await page.getByLabel("Email").fill(email!);
+  await page.getByLabel("Password").fill(password!);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL((url) => url.pathname !== "/login");
+  expect(
+    (await page.context().cookies()).some((value) => value.name === "__Host-cardvert_session"),
+  ).toBe(true);
 });
 
 test("cold production login keeps known-wrong and unknown identities timing-equivalent", async ({

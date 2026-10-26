@@ -623,7 +623,7 @@ async def _require_exact_review_evidence(
     if account_version is None or payout_verification is None:
         raise _error(
             "PERSON_PAYEE_BANK_ACCOUNT_UNVERIFIED",
-            "The exact current bank-account version requires authorized payout verification",
+            "Check and confirm the driver's current bank details before approving",
             status.HTTP_409_CONFLICT,
         )
     account = await session.get(PayeeBankAccount, account_version.bank_account_id)
@@ -844,6 +844,15 @@ async def review_application_person_payee(
     session.add(decision)
     submission.status = payload.decision.value
     await session.flush()
+    from app.services.driver_review_notifications import create_driver_review_notices
+
+    await create_driver_review_notices(
+        session,
+        profile=profile,
+        decision_id=decision.id,
+        vehicle=False,
+        decision=payload.decision,
+    )
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,

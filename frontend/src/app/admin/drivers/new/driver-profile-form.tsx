@@ -36,7 +36,13 @@ export function DriverProfileForm({ users }: { users: Array<{ id: string; label:
 
       <Field label="Licence number" name="license_number" placeholder="e.g. ABJ-DL-042931" />
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Service city" name="service_city" placeholder="e.g. Abuja" />
+        <Field
+          label="Service city"
+          name="service_city"
+          placeholder="e.g. Abuja"
+          required
+          maxLength={128}
+        />
         <Field
           label="Country code"
           name="country_code"

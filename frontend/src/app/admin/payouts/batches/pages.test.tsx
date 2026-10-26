@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api/errors";
 import PayoutBatchesPage from "./content";
 import BatchDetailPage from "./[batchId]/content";
 import LineHistoryPage from "./[batchId]/lines/[lineId]/content";
@@ -7,7 +8,10 @@ import LineHistoryPage from "./[batchId]/lines/[lineId]/content";
 const mocks = vi.hoisted(() => ({ api: vi.fn(), role: vi.fn(), notFound: vi.fn() }));
 vi.mock("./batch-api", () => ({ batchApi: mocks.api }));
 vi.mock("@/lib/auth/current-user", () => ({ requireRole: mocks.role }));
-vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  notFound: mocks.notFound,
+}));
 vi.mock("./batch-forms", () => ({
   CreateBatchForm: ({ draftId }: { draftId?: string }) => <div>Credit selection {draftId}</div>,
   BatchActions: () => <div>Batch actions</div>,
@@ -90,6 +94,39 @@ describe("bounded payout pages", () => {
       expect.stringContaining("credits=1&runs=1"),
     );
   });
+
+  it.each([
+    [
+      "500",
+      new ApiError(500, {
+        code: "PRIVATE_BACKEND_CODE",
+        message: "private bank detail 0123456789",
+        details: { token: "private-token" },
+      }),
+    ],
+    ["transport", new TypeError("private transport URL and token")],
+  ])(
+    "retains the named 125.10 payment run beside an unavailable earnings panel after %s",
+    async (_kind, error) => {
+      mocks.api.mockImplementation(async (path: string) => {
+        if (path.startsWith("/eligible?")) throw error;
+        return { items: [summary], total: 1 };
+      });
+      render(await PayoutBatchesPage({ searchParams: Promise.resolve({}) }));
+      expect(mocks.api).toHaveBeenCalledTimes(2);
+      expect(screen.getAllByRole("alert")).toHaveLength(1);
+      expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
+      expect(screen.getByText("Prepared by: Ada Maker")).toBeVisible();
+      expect(screen.getByText("₦125.10")).toBeVisible();
+      expect(screen.getByRole("link", { name: "Review run" })).toBeVisible();
+      expect(
+        screen.queryByText(
+          /Credit selection|No payment runs match|0 available earnings records|₦0\.00/,
+        ),
+      ).not.toBeInTheDocument();
+      expect(document.body.textContent).not.toMatch(/private|0123456789|PRIVATE_BACKEND_CODE/i);
+    },
+  );
 
   it("bounds invalid query input and shows truthful empty states", async () => {
     mocks.api.mockResolvedValue({ items: [], total: 0 });

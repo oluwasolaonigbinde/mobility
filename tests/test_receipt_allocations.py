@@ -23,7 +23,6 @@ from app.services.billing.quotes import (
 from app.services.billing.receipts import (
     allocate_payment_receipt,
     confirm_payment_receipt,
-    reconcile_payment_receipt,
     record_payment_receipt,
     reverse_payment_receipt,
 )
@@ -117,15 +116,14 @@ def test_receipt_lifecycle_and_allocation_are_canonical_and_idempotent(db_sessio
                 observed_at=observed_at,
             )
             assert duplicate.id == receipt.id
-            reconciliation = await reconcile_payment_receipt(
+            reconciliation = await confirm_payment_receipt(
                 session,
                 receipt_id=receipt.id,
                 actor_user_id=admin.id,
                 expected_amount="100.00",
                 expected_currency="NGN",
             )
-            assert reconciliation.matched is True
-            await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
+            assert reconciliation is True
             allocation = await allocate_payment_receipt(
                 session,
                 receipt_id=receipt.id,
@@ -153,8 +151,7 @@ def test_receipt_lifecycle_and_allocation_are_canonical_and_idempotent(db_sessio
                 )
             )
             assert statuses == [
-                ReceiptLifecycleStatus.OBSERVED,
-                ReceiptLifecycleStatus.RECONCILED,
+                ReceiptLifecycleStatus.RECORDED,
                 ReceiptLifecycleStatus.CONFIRMED,
                 ReceiptLifecycleStatus.REVERSED,
             ]
@@ -183,19 +180,14 @@ def test_mismatched_receipt_cannot_confirm_or_allocate(db_sessionmaker) -> None:
                 evidence_reference="statement-line-18",
                 observed_at=datetime.now(UTC),
             )
-            reconciliation = await reconcile_payment_receipt(
+            reconciliation = await confirm_payment_receipt(
                 session,
                 receipt_id=receipt.id,
                 actor_user_id=admin.id,
                 expected_amount="100.00",
                 expected_currency="NGN",
             )
-            assert reconciliation.matched is False
-            with pytest.raises(AppError) as confirm_error:
-                await confirm_payment_receipt(
-                    session, receipt_id=receipt.id, actor_user_id=admin.id
-                )
-            assert confirm_error.value.code == "RECEIPT_NOT_RECONCILED"
+            assert reconciliation is False
             with pytest.raises(AppError) as allocation_error:
                 await allocate_payment_receipt(
                     session,
@@ -249,14 +241,13 @@ def test_allocation_cannot_exceed_receipt_or_accepted_obligation(db_sessionmaker
                 evidence_reference="statement-line-19",
                 observed_at=datetime.now(UTC),
             )
-            await reconcile_payment_receipt(
+            await confirm_payment_receipt(
                 session,
                 receipt_id=receipt.id,
                 actor_user_id=admin.id,
                 expected_amount="100.00",
                 expected_currency="NGN",
             )
-            await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
             await allocate_payment_receipt(
                 session,
                 receipt_id=receipt.id,
@@ -287,15 +278,12 @@ def test_allocation_cannot_exceed_receipt_or_accepted_obligation(db_sessionmaker
                 evidence_reference="statement-line-20",
                 observed_at=datetime.now(UTC),
             )
-            await reconcile_payment_receipt(
+            await confirm_payment_receipt(
                 session,
                 receipt_id=second_receipt.id,
                 actor_user_id=admin.id,
                 expected_amount="100.00",
                 expected_currency="NGN",
-            )
-            await confirm_payment_receipt(
-                session, receipt_id=second_receipt.id, actor_user_id=admin.id
             )
             with pytest.raises(AppError) as obligation_limit:
                 await allocate_payment_receipt(
@@ -316,7 +304,7 @@ def test_receipt_refusals_and_retries_preserve_canonical_authority(db_sessionmak
     from sqlalchemy import func
 
     from app.models.audit import AuditEvent
-    from app.models.billing import PaymentReceipt, ReceiptAllocation, ReceiptReconciliation
+    from app.models.billing import PaymentReceipt, ReceiptAllocation
 
     admin, owner, organization, campaign = _fixture(db_sessionmaker)
 
@@ -333,7 +321,6 @@ def test_receipt_refusals_and_retries_preserve_canonical_authority(db_sessionmak
                     for model in (
                         PaymentReceipt,
                         ReceiptAllocation,
-                        ReceiptReconciliation,
                         ReceiptLifecycleEvent,
                         AuditEvent,
                     )
@@ -347,7 +334,7 @@ def test_receipt_refusals_and_retries_preserve_canonical_authority(db_sessionmak
                 assert await counts() == before
 
             for operation in (
-                lambda: reconcile_payment_receipt(
+                lambda: confirm_payment_receipt(
                     session,
                     receipt_id=uuid4(),
                     actor_user_id=admin.id,
@@ -355,7 +342,11 @@ def test_receipt_refusals_and_retries_preserve_canonical_authority(db_sessionmak
                     expected_currency="NGN",
                 ),
                 lambda: confirm_payment_receipt(
-                    session, receipt_id=uuid4(), actor_user_id=admin.id
+                    session,
+                    receipt_id=uuid4(),
+                    actor_user_id=admin.id,
+                    expected_amount="100",
+                    expected_currency="NGN",
                 ),
                 lambda: reverse_payment_receipt(
                     session, receipt_id=uuid4(), actor_user_id=admin.id, reason="missing"
@@ -383,14 +374,14 @@ def test_receipt_refusals_and_retries_preserve_canonical_authority(db_sessionmak
             )
             for amount, currency in (("0", "NGN"), ("100", "N")):
                 await refuses(
-                    lambda amount=amount, currency=currency: reconcile_payment_receipt(
+                    lambda amount=amount, currency=currency: confirm_payment_receipt(
                         session,
                         receipt_id=receipt.id,
                         actor_user_id=admin.id,
                         expected_amount=amount,
                         expected_currency=currency,
                     ),
-                    "INVALID_RECONCILIATION_EXPECTATION",
+                    "INVALID_CONFIRMATION_EXPECTATION",
                 )
             args = dict(
                 receipt_id=receipt.id,
@@ -398,15 +389,14 @@ def test_receipt_refusals_and_retries_preserve_canonical_authority(db_sessionmak
                 expected_amount="100",
                 expected_currency="NGN",
             )
-            reconciled = await reconcile_payment_receipt(session, **args)
+            reconciled = await confirm_payment_receipt(session, **args)
             before = await counts()
-            assert (await reconcile_payment_receipt(session, **args)).id == reconciled.id
+            assert (await confirm_payment_receipt(session, **args)) is reconciled is True
             assert await counts() == before
             await refuses(
-                lambda: reconcile_payment_receipt(session, **{**args, "expected_amount": "99"}),
-                "RECONCILIATION_ALREADY_RECORDED",
+                lambda: confirm_payment_receipt(session, **{**args, "expected_amount": "99"}),
+                "RECEIPT_CONFIRMATION_CONFLICT",
             )
-            await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
             allocation_args = dict(
                 receipt_id=receipt.id,
                 commercial_terms_id=terms.id,
@@ -455,7 +445,7 @@ def test_receipt_refusals_and_retries_preserve_canonical_authority(db_sessionmak
                     .order_by(ReceiptLifecycleEvent.sequence_number)
                 )
             )
-            assert statuses == ["observed", "reconciled", "confirmed", "reversed"]
+            assert statuses == ["recorded", "confirmed", "reversed"]
 
     asyncio.run(run())
 
@@ -498,14 +488,13 @@ def test_receipt_missing_actor_invalid_facts_and_currency_cannot_grant_funding(d
                 assert caught.value.code == code
                 assert await session.scalar(select(func.count()).select_from(PaymentReceipt)) == 0
             receipt = await record_payment_receipt(session, **args)
-            await reconcile_payment_receipt(
+            await confirm_payment_receipt(
                 session,
                 receipt_id=receipt.id,
                 actor_user_id=admin.id,
                 expected_amount="100",
                 expected_currency="USD",
             )
-            await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
             with pytest.raises(AppError) as caught:
                 await allocate_payment_receipt(
                     session,

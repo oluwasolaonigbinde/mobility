@@ -19,9 +19,9 @@ from conftest import (
     create_test_campaign_creative,
     create_test_campaign_payout_revision,
     create_test_campaign_zone,
-    create_test_display_proof,
     create_test_driver_profile,
     create_test_frozen_payout_binding,
+    create_test_installation_evidence,
     create_test_organization,
     create_test_trip_analytics,
     create_test_trip_session,
@@ -317,7 +317,7 @@ def test_cancel_and_driver_deactivation_serialize_postgres(
         assert [event.event_type for event in events] == ["deactivated", "cancelled"]
         assert [event.previous_status for event in events] == [
             CampaignAssignmentStatus.ACTIVE.value,
-            CampaignAssignmentStatus.DEACTIVATED.value,
+            CampaignAssignmentStatus.CANCELLED.value,
         ]
     else:
         assert len(events) == 1
@@ -344,7 +344,7 @@ def test_cancel_and_trip_start_serialize_postgres(
     create_test_frozen_payout_binding(
         postgis_db_sessionmaker, campaign=campaigns[0], assignment=assignment, admin=admin
     )
-    create_test_display_proof(
+    create_test_installation_evidence(
         postgis_db_sessionmaker,
         assignment_id=assignment.id,
         reviewed_by_user_id=admin.id,
@@ -572,7 +572,7 @@ def test_lost_trip_start_race_returns_active_trip_envelope(
     create_test_frozen_payout_binding(
         db_sessionmaker, campaign=campaigns[0], assignment=assignment, admin=admin
     )
-    create_test_display_proof(
+    create_test_installation_evidence(
         db_sessionmaker,
         assignment_id=assignment.id,
         reviewed_by_user_id=admin.id,
@@ -608,7 +608,7 @@ def test_lost_trip_start_race_returns_active_trip_envelope(
         driver_profile_id=blocking_profile.id,
         vehicle_id=blocking_vehicle.id,
         assigned_by_user_id=admin.id,
-        assignment_status=CampaignAssignmentStatus.DEACTIVATED,
+        assignment_status=CampaignAssignmentStatus.CANCELLED,
     )
     create_test_trip_session(
         db_sessionmaker,
@@ -699,7 +699,7 @@ def test_concurrent_trip_starts_one_winner_postgis(
     create_test_frozen_payout_binding(
         postgis_db_sessionmaker, campaign=campaigns[0], assignment=assignment, admin=admin
     )
-    create_test_display_proof(
+    create_test_installation_evidence(
         postgis_db_sessionmaker,
         assignment_id=assignment.id,
         reviewed_by_user_id=admin.id,
@@ -754,7 +754,7 @@ def test_postgres_trip_uniqueness_conflict_preserves_outer_write(
         driver_profile_id=profile.id,
         vehicle_id=vehicle.id,
         assigned_by_user_id=admin.id,
-        assignment_status=CampaignAssignmentStatus.DEACTIVATED,
+        assignment_status=CampaignAssignmentStatus.CANCELLED,
     )
 
     if same_driver:
@@ -785,7 +785,7 @@ def test_postgres_trip_uniqueness_conflict_preserves_outer_write(
         driver_profile_id=second_profile.id,
         vehicle_id=second_vehicle.id,
         assigned_by_user_id=admin.id,
-        assignment_status=CampaignAssignmentStatus.DEACTIVATED,
+        assignment_status=CampaignAssignmentStatus.CANCELLED,
     )
     attempts = (
         (first_assignment.id, campaigns[0].id, driver.id, profile.id, vehicle.id),
@@ -822,9 +822,7 @@ def test_postgres_trip_uniqueness_conflict_preserves_outer_write(
                 trip_metadata={},
             )
             try:
-                await trips_service._add_trip_translating_exclusivity_conflict(
-                    session, trip
-                )
+                await trips_service._add_trip_translating_exclusivity_conflict(session, trip)
                 await session.commit()
                 return "created"
             except AppError as exc:
@@ -862,7 +860,7 @@ def test_postgres_trip_savepoint_does_not_translate_unexpected_constraint(
         driver_profile_id=profile.id,
         vehicle_id=vehicle.id,
         assigned_by_user_id=admin.id,
-        assignment_status=CampaignAssignmentStatus.DEACTIVATED,
+        assignment_status=CampaignAssignmentStatus.CANCELLED,
     )
 
     async def exercise() -> int:
@@ -888,9 +886,7 @@ def test_postgres_trip_savepoint_does_not_translate_unexpected_constraint(
                 trip_metadata={},
             )
             with pytest.raises(IntegrityError):
-                await trips_service._add_trip_translating_exclusivity_conflict(
-                    session, trip
-                )
+                await trips_service._add_trip_translating_exclusivity_conflict(session, trip)
             await session.commit()
         async with postgis_db_sessionmaker() as session:
             return int(

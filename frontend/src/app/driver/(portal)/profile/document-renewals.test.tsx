@@ -60,10 +60,11 @@ it.each(["person-submission", "vehicle-submission", "vehicle-id"])(
     );
     render(<DocumentRenewals driverId="driver" />);
     const label = changedPerson ? "Replace Driving licence" : "Replace Insurance";
-    await screen.findByLabelText(label);
-    fireEvent.change(screen.getByLabelText(label), { target: { files: [selectedFile()] } });
+    const oldInput = await screen.findByLabelText(label);
+    fireEvent.change(oldInput, { target: { files: [selectedFile()] } });
     const forms = screen.getAllByRole("button", { name: "Send for review" });
-    fireEvent.submit(forms[changedPerson ? 0 : 1]!.closest("form")!);
+    const oldForm = forms[changedPerson ? 0 : 1]!.closest("form")!;
+    fireEvent.submit(oldForm);
     await waitFor(() => expect(mocks.upload).toHaveBeenCalledTimes(1));
     const next = structuredClone(current);
     if (changedPerson) next.person_payee.submission_id = "new-person-submission";
@@ -71,8 +72,18 @@ it.each(["person-submission", "vehicle-submission", "vehicle-id"])(
     else next.vehicles[0]!.submission_id = "new-car-submission";
     fetchMock.mockResolvedValueOnce(Response.json({ id: "auxiliary-renewal" }));
     fetchMock.mockResolvedValueOnce(Response.json(next));
-    fireEvent.submit(forms[changedPerson ? 1 : 0]!.closest("form")!);
-    await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1));
+    const refreshed = new Promise<void>((resolve) => {
+      mocks.refresh.mockImplementationOnce(() => resolve());
+    });
+    // The refresh signal follows setDocuments, but only act also commits the
+    // keyed form replacement and its cleanup before the old upload completes.
+    await act(async () => {
+      fireEvent.submit(forms[changedPerson ? 1 : 0]!.closest("form")!);
+      await refreshed;
+    });
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(oldForm).not.toBeInTheDocument();
+    expect(screen.getByLabelText(label)).not.toBe(oldInput);
     await act(async () => {
       release("old-record-file");
     });

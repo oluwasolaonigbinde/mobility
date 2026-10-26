@@ -115,12 +115,15 @@ describe("driver trip BFF actions", () => {
     await expect(startTripAction(ASSIGNMENT_ID)).resolves.toMatchObject({ outcome: "unknown" });
   });
 
-  it("turns a missing display photo into a definite refusal with the driver's next step", async () => {
+  it("explains that weekly installation photos need approval before starting", async () => {
     mocks.post.mockRejectedValueOnce(
-      new ApiError(409, { code: "CURRENT_DISPLAY_PROOF_REQUIRED", message: "proof required" }),
+      new ApiError(409, {
+        code: "APPROVED_INSTALLATION_EVIDENCE_REQUIRED",
+        message: "photos required",
+      }),
     );
     await expect(startTripAction(ASSIGNMENT_ID)).resolves.toEqual({
-      error: "Take today's display photo on Jobs, then start again.",
+      error: "Your installation photos need to be approved first. Send them from Jobs.",
       outcome: "failed",
     });
 
@@ -233,7 +236,7 @@ describe("driver trip BFF actions", () => {
         accepted_count: 1,
         ...ACK_FIELDS,
         duplicate: false,
-        quarantined: false,
+        evidence_scope: "manifest",
       },
     });
     await expect(sendPingBatchAction(input)).resolves.toMatchObject({ acknowledged: true });
@@ -250,7 +253,7 @@ describe("driver trip BFF actions", () => {
         trip_id: TRIP_ID,
         accepted_count: 0,
         duplicate: false,
-        quarantined: false,
+        evidence_scope: "manifest",
       },
     });
     await expect(sendPingBatchAction(input)).resolves.toMatchObject({
@@ -272,11 +275,15 @@ describe("driver trip BFF actions", () => {
     });
 
     mocks.post.mockRejectedValueOnce(
-      new ApiError(409, { code: "TRIP_EVIDENCE_INCOMPLETE", message: "incomplete" }),
+      new ApiError(409, {
+        code: "TRIP_EVIDENCE_INCOMPLETE",
+        message: "private evidence receipt and location",
+        details: { latitude: 9.0765 },
+      }),
     );
-    await expect(reconcileTripEvidenceAction(TRIP_ID)).resolves.toMatchObject({
+    await expect(reconcileTripEvidenceAction(TRIP_ID)).resolves.toEqual({
       outcome: "unknown",
-      error: "incomplete",
+      error: "The request could not be completed. Check the details and try again.",
     });
   });
 
@@ -292,7 +299,7 @@ describe("driver trip BFF actions", () => {
         accepted_count: 1,
         rejected_count: 1,
         duplicate: false,
-        quarantined: false,
+        evidence_scope: "manifest",
         sample_results: [
           { index: 0, sequence_number: 0, status: "accepted", rejection_code: null },
           { index: 1, sequence_number: 1, status: "rejected", rejection_code: "INVALID_SPEED" },
@@ -423,9 +430,26 @@ describe("driver trip BFF actions", () => {
   });
 
   it.each([
-    ["accepted", { accepted_count: 1, duplicate: false, quarantined: false }],
-    ["duplicate", { accepted_count: 1, duplicate: true, quarantined: false }],
-    ["quarantined", { accepted_count: 0, duplicate: false, quarantined: true }],
+    ["accepted", { accepted_count: 1, duplicate: false, evidence_scope: "manifest" }],
+    ["duplicate", { accepted_count: 1, duplicate: true, evidence_scope: "manifest" }],
+    [
+      "dropped",
+      {
+        accepted_count: 0,
+        rejected_count: 1,
+        outcome: "dropped",
+        duplicate: false,
+        evidence_scope: "late_dropped",
+        sample_results: [
+          {
+            index: 0,
+            sequence_number: 0,
+            status: "rejected",
+            rejection_code: "PAY_ALREADY_CALCULATED",
+          },
+        ],
+      },
+    ],
   ])("treats a complete %s response as an ACK", async (_label, response) => {
     mocks.post.mockResolvedValueOnce({
       data: {
@@ -458,7 +482,6 @@ describe("driver trip BFF actions", () => {
       acknowledged: true,
       acceptedCount: response.accepted_count,
       duplicate: response.duplicate,
-      quarantined: response.quarantined,
     });
   });
 

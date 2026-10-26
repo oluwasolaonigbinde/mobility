@@ -8,7 +8,10 @@ const mocks = vi.hoisted(() => ({
   session: vi.fn(async () => "session-token"),
 }));
 
-vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  redirect: mocks.redirect,
+}));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ POST: mocks.post }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: mocks.session }));
 

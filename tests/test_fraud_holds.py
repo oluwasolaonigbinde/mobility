@@ -12,7 +12,6 @@ from app.models.trip_analytics import FraudFlag, FraudFlagStatus
 from app.models.user import User
 from app.services.fraud_holds import (
     HOLD_ACTIVE_STATUSES,
-    acknowledge_fraud_flag,
     fraud_hold_counts,
     hold_active,
     resolve_fraud_flag,
@@ -36,7 +35,7 @@ def build_review_graph(db_sessionmaker, tag: str):
 
 
 def test_hold_predicate_has_one_explicit_fail_closed_status_set() -> None:
-    assert HOLD_ACTIVE_STATUSES == {"open", "acknowledged", "confirmed"}
+    assert HOLD_ACTIVE_STATUSES == {"open", "confirmed"}
     for status in FraudFlagStatus:
         assert hold_active(status.value) is (status.value != "dismissed")
 
@@ -49,14 +48,6 @@ def test_review_lifecycle_and_exact_retries_are_idempotent(
     flag = create_flag(db_sessionmaker, graph)
     headers = auth_headers(db_client, graph.admin.email, PASSWORD)
 
-    first_ack = db_client.post(
-        f"/api/v1/admin/fraud-flags/{flag.id}/review/acknowledge",
-        headers=headers,
-    )
-    retry_ack = db_client.post(
-        f"/api/v1/admin/fraud-flags/{flag.id}/review/acknowledge",
-        headers=headers,
-    )
     resolved = db_client.post(
         f"/api/v1/admin/fraud-flags/{flag.id}/review/resolve",
         headers=headers,
@@ -68,11 +59,6 @@ def test_review_lifecycle_and_exact_retries_are_idempotent(
         json={"outcome": "confirmed", "note": "Route evidence verified."},
     )
 
-    assert first_ack.status_code == 200
-    assert first_ack.json()["status"] == "acknowledged"
-    assert first_ack.json()["reviewed_by_user_id"] == str(graph.admin.id)
-    assert retry_ack.status_code == 200
-    assert retry_ack.json()["reviewed_at"] == first_ack.json()["reviewed_at"]
     assert resolved.status_code == 200
     assert resolved.json()["status"] == "confirmed"
     assert resolved.json()["resolution_note"] == "Route evidence verified."
@@ -90,30 +76,21 @@ def test_review_rejects_illegal_transitions_and_non_exact_replays(
     headers = auth_headers(db_client, graph.admin.email, PASSWORD)
     other_headers = auth_headers(db_client, other_admin.email, PASSWORD)
 
-    resolve_open = db_client.post(
-        f"/api/v1/admin/fraud-flags/{flag.id}/review/resolve",
-        headers=headers,
-        json={"outcome": "dismissed", "note": "No anomaly."},
+    assert (
+        db_client.post(
+            f"/api/v1/admin/fraud-flags/{flag.id}/review/resolve",
+            headers=headers,
+            json={"outcome": "dismissed", "note": "Distinct route confirmed."},
+        ).status_code
+        == 200
     )
-    assert resolve_open.status_code == 409
-    assert resolve_open.json()["error"]["code"] == "FRAUD_FLAG_INVALID_TRANSITION"
-
-    assert db_client.post(
-        f"/api/v1/admin/fraud-flags/{flag.id}/review/acknowledge",
-        headers=headers,
-    ).status_code == 200
     other_actor_retry = db_client.post(
-        f"/api/v1/admin/fraud-flags/{flag.id}/review/acknowledge",
+        f"/api/v1/admin/fraud-flags/{flag.id}/review/resolve",
         headers=other_headers,
+        json={"outcome": "dismissed", "note": "Distinct route confirmed."},
     )
     assert other_actor_retry.status_code == 409
     assert other_actor_retry.json()["error"]["code"] == "FRAUD_FLAG_REVIEW_REPLAY_CONFLICT"
-
-    assert db_client.post(
-        f"/api/v1/admin/fraud-flags/{flag.id}/review/resolve",
-        headers=headers,
-        json={"outcome": "dismissed", "note": "Distinct route confirmed."},
-    ).status_code == 200
     changed_note_retry = db_client.post(
         f"/api/v1/admin/fraud-flags/{flag.id}/review/resolve",
         headers=headers,
@@ -138,12 +115,6 @@ def test_dismissed_flag_clears_hold_and_permits_one_new_open_flag(
 
     async def run() -> tuple[dict[str, int], dict[str, int], int]:
         async with db_sessionmaker() as session:
-            await acknowledge_fraud_flag(
-                session,
-                flag_id=flag.id,
-                actor_user_id=graph.admin.id,
-                now=NOW,
-            )
             await resolve_fraud_flag(
                 session,
                 flag_id=flag.id,
@@ -190,7 +161,7 @@ def test_dismissed_flag_clears_hold_and_permits_one_new_open_flag(
     assert row_count == 2
 
 
-@pytest.mark.parametrize("status", ["open", "acknowledged", "confirmed"])
+@pytest.mark.parametrize("status", ["open", "confirmed"])
 def test_nonterminal_unique_index_rejects_duplicate_trip_type(
     db_sessionmaker,
     status: str,
@@ -241,10 +212,12 @@ def test_postgres_two_reviewers_serialize_on_one_flag(postgis_db_sessionmaker) -
     async def review(actor_id):
         async with postgis_db_sessionmaker() as session:
             try:
-                result = await acknowledge_fraud_flag(
+                result = await resolve_fraud_flag(
                     session,
                     flag_id=flag.id,
                     actor_user_id=actor_id,
+                    outcome="confirmed",
+                    resolution_note="Evidence verified",
                     now=NOW,
                 )
                 await session.commit()

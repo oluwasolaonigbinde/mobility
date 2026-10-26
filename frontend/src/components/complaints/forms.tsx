@@ -76,20 +76,20 @@ export function RaiseComplaintForm({
   party,
   action,
   references,
+  initialCategory = "",
+  initialReference = "",
 }: {
   party: ComplaintParty;
   action: Action;
   references: ReferenceGroups | null;
+  initialCategory?: string;
+  initialReference?: string;
 }) {
   const [state, formAction, pending] = useIdempotentAction(action);
   const categoryId = useId();
   const referenceId = useId();
   const groups: Array<[string, "campaign" | "trip" | "payout", ReferenceOption[]]> = references
-    ? [
-        [party === "driver" ? "Jobs" : "Campaigns", "campaign", references.campaigns],
-        ["Trips", "trip", references.trips],
-        ["Payouts", "payout", references.payouts],
-      ]
+    ? [[party === "driver" ? "Jobs" : "Campaigns", "campaign", references.campaigns]]
     : [];
 
   return (
@@ -98,7 +98,13 @@ export function RaiseComplaintForm({
         <label htmlFor={categoryId} className="micro text-muted">
           What is it about?
         </label>
-        <select id={categoryId} name="category" required defaultValue="" className={inputClass}>
+        <select
+          id={categoryId}
+          name="category"
+          required
+          defaultValue={initialCategory}
+          className={inputClass}
+        >
           <option value="" disabled>
             Choose one
           </option>
@@ -111,10 +117,15 @@ export function RaiseComplaintForm({
       </div>
       <div className="flex flex-col gap-1.5">
         <label htmlFor={referenceId} className="micro text-muted">
-          Which {party === "driver" ? "job, trip or payout" : "campaign"}? (optional)
+          Which {party === "driver" ? "job" : "campaign"} is this about? (optional)
         </label>
-        <select id={referenceId} name="reference" defaultValue="" className={inputClass}>
-          <option value="">None — it&apos;s about something else</option>
+        <select
+          id={referenceId}
+          name="reference"
+          defaultValue={initialReference}
+          className={inputClass}
+        >
+          <option value="">It’s about something else</option>
           {groups
             .filter(([, , options]) => options.length > 0)
             .map(([label, type, options]) => (
@@ -129,8 +140,8 @@ export function RaiseComplaintForm({
         </select>
         {references === null ? (
           <p className="text-muted text-xs">
-            Your {party === "driver" ? "jobs, trips and payouts" : "campaigns"} couldn&apos;t be
-            loaded, so you can&apos;t pick one right now. You can still describe it in your message.
+            Your {party === "driver" ? "jobs" : "campaigns"} couldn&apos;t be loaded, so you
+            can&apos;t pick one right now. You can still describe it in your message.
           </p>
         ) : null}
       </div>
@@ -139,7 +150,7 @@ export function RaiseComplaintForm({
         placeholder="Say what went wrong and what you would like Terrax Media to do."
       />
       <Button type="submit" disabled={pending} className="self-start">
-        {pending ? "Sending…" : "Send complaint"}
+        {pending ? "Sending…" : "Send message"}
       </Button>
       <Feedback state={state} />
     </form>
@@ -182,19 +193,16 @@ export function ComplaintMessageForm({
   );
 }
 
-/** Staff status and assignment. */
+/** Staff status. */
 export function ComplaintUpdateForm({
   complaintId,
   action,
-  staff,
 }: {
   complaintId: string;
   action: Action;
-  staff: ReferenceOption[] | null;
 }) {
   const [state, formAction, pending] = useActionState(action, initial);
   const statusId = useId();
-  const assigneeId = useId();
   return (
     <form action={formAction} className="flex flex-col gap-3">
       <input type="hidden" name="complaint_id" value={complaintId} />
@@ -207,29 +215,6 @@ export function ComplaintUpdateForm({
           <option value="open">Reopen (needs a reply)</option>
           <option value="resolved">Mark as resolved</option>
         </select>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor={assigneeId} className="micro text-muted">
-          Assigned to
-        </label>
-        <select
-          id={assigneeId}
-          name="assignee"
-          defaultValue=""
-          disabled={staff === null}
-          className={inputClass}
-        >
-          <option value="">Keep as it is</option>
-          <option value="none">Nobody</option>
-          {(staff ?? []).map((person) => (
-            <option key={person.id} value={person.id}>
-              {person.label}
-            </option>
-          ))}
-        </select>
-        {staff === null ? (
-          <p className="text-muted text-xs">The staff list couldn&apos;t be loaded.</p>
-        ) : null}
       </div>
       <Button type="submit" disabled={pending} className="self-start">
         {pending ? "Saving…" : "Save"}

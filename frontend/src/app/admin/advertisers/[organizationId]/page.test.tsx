@@ -7,7 +7,10 @@ const mocks = vi.hoisted(() => ({
     throw new Error("NOT_FOUND");
   }),
 }));
-vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  notFound: mocks.notFound,
+}));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("./company/actions", () => ({ updateCompanyAction: vi.fn() }));
@@ -65,6 +68,28 @@ it("keeps company details, company-only account and exact scoped reads together"
   expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/audit-events", {
     params: { query: { entity_id: "org", limit: 25, offset: 0 } },
   });
+});
+
+it("shows the explicit invite only when the complete company read permits it", async () => {
+  const original = mocks.get.getMockImplementation()!;
+  mocks.get.mockImplementation(async (path, options) =>
+    path.endsWith("/members")
+      ? { data: { items: [], total: 0, login_invite_available: true } }
+      : path.endsWith("/company")
+        ? {
+            data: {
+              id: "org",
+              name: "Enquiry company",
+              status: "active",
+              currency: "NGN",
+              billing_email: "enquiry@example.invalid",
+            },
+          }
+        : original(path, options),
+  );
+  render(await run());
+  expect(screen.getByRole("button", { name: "Send login invite" })).toBeVisible();
+  expect(screen.getByLabelText("Login email")).toHaveValue("enquiry@example.invalid");
 });
 it("limits company hub reads to four concurrent requests", async () => {
   const original = mocks.get.getMockImplementation()!;
@@ -232,4 +257,32 @@ it("shows separate plain failures when company complaints and activity fail", as
   for (const alert of screen.getAllByRole("alert"))
     expect(alert).toHaveTextContent("Couldn't load this section — try again");
   expect(screen.getByText("Amina Yusuf")).toBeVisible();
+});
+
+it("keeps pending and replaced invites out of the password-account restore controls", async () => {
+  const original = mocks.get.getMockImplementation()!;
+  mocks.get.mockImplementation(async (path, options) =>
+    path.endsWith("/members")
+      ? {
+          data: {
+            items: ["invited", "disabled"].map((status) => ({
+              user: {
+                id: status,
+                full_name: status,
+                email: `${status}@example.invalid`,
+                role: "advertiser",
+                status,
+              },
+              membership: { role: "advertiser", status },
+            })),
+            total: 2,
+            login_invite_available: true,
+          },
+        }
+      : original(path, options),
+  );
+  render(await run());
+  expect(screen.queryByRole("button", { name: "Account actions" })).toBeNull();
+  expect(screen.getByText("Waiting for password setup")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Send login invite" })).toBeInTheDocument();
 });

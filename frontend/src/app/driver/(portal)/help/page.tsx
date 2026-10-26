@@ -17,8 +17,10 @@ export default async function DriverHelpPage() {
       ? (active.data.assignment?.offer_terms?.payout as Record<string, unknown> | undefined)
       : undefined;
   const driverPayText =
-    payout?.formula_version === "payout_v4" && payout.shortfall_strategy === "proportional"
-      ? `Your day rate is ${formatMoney(String(payout.daily_rate_naira))} for ${String(payout.daily_target_miles)} miles${Number(payout.outside_area_weight) === 0 ? " inside the campaign area" : ""}; shorter days earn a proportional share, up to the day rate.`
+    payout?.formula_version === "payout_v4" &&
+    Number(payout.daily_rate_naira) > 0 &&
+    Number(payout.daily_target_miles) > 0
+      ? `Your day rate is ${formatMoney(String(payout.daily_rate_naira))} for ${String(payout.daily_target_miles)} miles inside the campaign area; shorter days earn a proportional share, up to the day rate.`
       : "Your accepted job keeps its agreed pay terms; contact support for help with your calculation.";
   return <ComplaintHelpPage party="driver" driverPayText={driverPayText} />;
 }

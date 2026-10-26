@@ -7,6 +7,8 @@ const drawConstructor = vi.hoisted(() => vi.fn());
 const adapterConstructor = vi.hoisted(() => vi.fn());
 const mapHandlers = vi.hoisted(() => new Map<string, () => void>());
 const deleteZoneAction = vi.hoisted(() => vi.fn());
+const drawHandlers = vi.hoisted(() => new Map<string, (id: string) => void>());
+const createZoneAction = vi.hoisted(() => vi.fn());
 
 vi.mock("maplibre-gl", () => ({
   Map: mapConstructor,
@@ -20,23 +22,21 @@ vi.mock("terra-draw-maplibre-gl-adapter", () => ({
   TerraDrawMapLibreGLAdapter: adapterConstructor,
 }));
 vi.mock("@/lib/map/config", () => ({
-  activeMapStyleUrl: () => ({ version: 8, sources: {}, layers: [] }),
+  LOCAL_SCHEMATIC_STYLE: { version: 8, sources: {}, layers: [] },
   DEFAULT_CENTER: [7.49, 9.07],
   DEFAULT_ZOOM: 11,
   ZONE_COLOR_VARS: {
     target: "var(--color-amber)",
-    bonus: "var(--color-cyan)",
     exclusion: "var(--color-coral)",
   },
   zoneColors: () => ({
     target: "#f90",
-    bonus: "#0cf",
     exclusion: "#f66",
     neutral: "#999",
   }),
 }));
 vi.mock("./actions", () => ({
-  createZoneAction: vi.fn(),
+  createZoneAction,
   updateZoneAction: vi.fn(),
   deleteZoneAction,
 }));
@@ -83,8 +83,8 @@ function fakeMap(source?: { setData: ReturnType<typeof vi.fn> }) {
 function fakeDraw() {
   return {
     clear: vi.fn(),
-    getSnapshot: vi.fn(() => []),
-    on: vi.fn(),
+    getSnapshot: vi.fn(() => [{ id: "drawing", geometry: zone.geometry }]),
+    on: vi.fn((event: string, handler: (id: string) => void) => drawHandlers.set(event, handler)),
     setMode: vi.fn(),
     start: vi.fn(),
     stop: vi.fn(),
@@ -94,12 +94,28 @@ function fakeDraw() {
 describe("ZonesEditor MapLibre compatibility", () => {
   beforeEach(() => {
     mapHandlers.clear();
+    drawHandlers.clear();
+    createZoneAction.mockReset();
     mapConstructor.mockReset();
     navigationControl.mockReset();
     drawConstructor.mockReset();
     adapterConstructor.mockReset();
     deleteZoneAction.mockReset();
     deleteZoneAction.mockResolvedValue({});
+  });
+
+  it("keeps the map and areas readable without mutation controls", () => {
+    mapConstructor.mockImplementation(function () {
+      return fakeMap();
+    });
+    render(<ZonesEditor campaignId={zone.campaign_id} zones={[zone]} editable={false} />);
+    expect(screen.getByText(zone.name)).toBeVisible();
+    expect(screen.getByText("Your saved areas on this preview map.")).toBeVisible();
+    expect(screen.queryByText("Draw your areas on this simple preview map.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Draw area" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: `Delete ${zone.name}` })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
   });
 
   it("initializes the v6 named exports and attaches TerraDraw after map load", () => {
@@ -112,9 +128,10 @@ describe("ZonesEditor MapLibre compatibility", () => {
       return draw;
     });
 
-    render(<ZonesEditor campaignId={zone.campaign_id} zones={[zone]} />);
+    render(<ZonesEditor editable campaignId={zone.campaign_id} zones={[zone]} />);
 
     expect(mapConstructor).toHaveBeenCalledOnce();
+    expect(mapConstructor.mock.calls[0]![0].style).toEqual({ version: 8, sources: {}, layers: [] });
     expect(navigationControl).toHaveBeenCalledWith({ showCompass: false });
     expect(map.addControl).toHaveBeenCalledWith(navigationControl.mock.instances[0], "top-right");
 
@@ -128,7 +145,7 @@ describe("ZonesEditor MapLibre compatibility", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Delete Central Abuja" }));
     expect(screen.getByRole("alertdialog")).toHaveTextContent("Delete Central Abuja?");
-    fireEvent.click(screen.getByRole("button", { name: "Keep zone" }));
+    fireEvent.click(screen.getByRole("button", { name: "Keep area" }));
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
@@ -142,7 +159,7 @@ describe("ZonesEditor MapLibre compatibility", () => {
       return fakeDraw();
     });
 
-    render(<ZonesEditor campaignId={zone.campaign_id} zones={[zone]} />);
+    render(<ZonesEditor editable campaignId={zone.campaign_id} zones={[zone]} />);
     act(() => mapHandlers.get("load")?.());
 
     expect(source.setData).toHaveBeenCalledOnce();
@@ -159,7 +176,7 @@ describe("ZonesEditor MapLibre compatibility", () => {
       return fakeDraw();
     });
 
-    render(<ZonesEditor campaignId={zone.campaign_id} zones={[zone]} />);
+    render(<ZonesEditor editable campaignId={zone.campaign_id} zones={[zone]} />);
     act(() => mapHandlers.get("load")?.());
 
     fireEvent.click(screen.getByRole("button", { name: "Delete Central Abuja" }));
@@ -175,4 +192,80 @@ describe("ZonesEditor MapLibre compatibility", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Zone changed elsewhere");
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
+  it("removes a confirmed deleted area from the local list", async () => {
+    mapConstructor.mockImplementation(function () {
+      return fakeMap();
+    });
+    drawConstructor.mockImplementation(function () {
+      return fakeDraw();
+    });
+    render(<ZonesEditor editable campaignId={zone.campaign_id} zones={[zone]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete Central Abuja" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm deletion" }));
+    await screen.findByText("No areas yet. Draw your first main area on the preview.");
+    expect(screen.queryByRole("button", { name: "Delete Central Abuja" })).toBeNull();
+  });
+  it("blocks repeated non-idempotent area creation after an unknown result until inspection", async () => {
+    createZoneAction.mockResolvedValue({ unknownOutcome: true, error: "Area save not confirmed" });
+    mapConstructor.mockImplementation(function () {
+      return fakeMap();
+    });
+    drawConstructor.mockImplementation(function () {
+      return fakeDraw();
+    });
+    render(<ZonesEditor editable campaignId={zone.campaign_id} zones={[]} />);
+    act(() => mapHandlers.get("load")?.());
+    fireEvent.click(screen.getByRole("button", { name: "Draw area" }));
+    act(() => drawHandlers.get("finish")?.("drawing"));
+    fireEvent.change(screen.getByPlaceholderText("Area name, e.g. Wuse II"), {
+      target: { value: "Wuse" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save area" }));
+    expect(
+      await screen.findByRole("button", { name: "Reload areas to check" }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save area" })).toBeDisabled());
+    expect(createZoneAction).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByText("No areas yet. Draw your first main area on the preview."),
+    ).toBeInTheDocument();
+  });
+  it("does not apply a late created area to a different campaign after remount", async () => {
+    let finish!: (value: { zone: typeof zone }) => void;
+    createZoneAction.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    mapConstructor.mockImplementation(function () {
+      return fakeMap();
+    });
+    drawConstructor.mockImplementation(function () {
+      return fakeDraw();
+    });
+    const view = render(
+      <ZonesEditor editable key={zone.campaign_id} campaignId={zone.campaign_id} zones={[]} />,
+    );
+    act(() => mapHandlers.get("load")?.());
+    fireEvent.click(screen.getByRole("button", { name: "Draw area" }));
+    act(() => drawHandlers.get("finish")?.("drawing"));
+    fireEvent.change(screen.getByPlaceholderText("Area name, e.g. Wuse II"), {
+      target: { value: zone.name },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save area" }));
+    view.rerender(<ZonesEditor editable key="other" campaignId="other" zones={[]} />);
+    await act(async () => finish({ zone }));
+    expect(screen.queryByRole("button", { name: zone.name })).toBeNull();
+  });
+});
+
+it("keeps an empty read-only map honest without drawing instructions", () => {
+  mapConstructor.mockImplementation(function () {
+    return fakeMap();
+  });
+  render(<ZonesEditor campaignId={zone.campaign_id} zones={[]} editable={false} />);
+  expect(screen.getByText("Your saved areas on this preview map.")).toBeVisible();
+  expect(screen.getByText("No areas recorded.")).toBeVisible();
+  expect(screen.queryByText(/Draw your/)).not.toBeInTheDocument();
 });

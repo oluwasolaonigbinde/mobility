@@ -45,10 +45,10 @@ export function AccountSetupAction({
       <ConfirmationDialog
         open={confirming}
         onOpenChange={setConfirming}
-        title={`Start account setup for ${applicantName}?`}
-        description="This creates a one-use setup link and queues delivery to the applicant's stored email. Delivery is not confirmed. It replaces any earlier unused setup link."
-        cancelLabel="Keep current setup state"
-        confirmLabel="Create one-use setup link"
+        title={`Email ${applicantName} a link to set their password?`}
+        description="A new link replaces any earlier unused setup link."
+        cancelLabel="Cancel"
+        confirmLabel="Send link"
         onConfirm={() => actionFormRef.current?.requestSubmit()}
         returnFocusRef={triggerRef}
         pending={pending}

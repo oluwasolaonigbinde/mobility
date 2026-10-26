@@ -1,3 +1,4 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -7,7 +8,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
-import { adminStatus } from "@/lib/status/admin";
+import { adminStatus, adminActivity } from "@/lib/status/admin";
 import { formatDate, formatDateRange } from "@/lib/format";
 import { CATEGORY_LABELS } from "@/lib/complaints/labels";
 import { HubNav, HubSection } from "../../hub-section";
@@ -15,14 +16,28 @@ import { QueueUnavailable } from "../../queue-search";
 import { UserStatusMenu } from "../../users/user-status-menu";
 import { updateCompanyAction } from "./company/actions";
 import { exactCompanyMoney, readCompanyInvoices } from "../company-reads";
+import { readAdvertiserCompany } from "../../entity-reads";
+import { LoginInviteForm } from "./invite-form";
 
-export const metadata: Metadata = { title: "Advertiser" };
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ organizationId: string }>;
+}): Promise<Metadata> {
+  try {
+    const { data } = await readAdvertiserCompany((await params).organizationId);
+    return { title: data?.name ?? "Advertiser" };
+  } catch (error) {
+    adminValueFailure(error);
+    return { title: "Advertiser" };
+  }
+}
 const sections = [
   { id: "details", title: "Details" },
   { id: "people", title: "People" },
   { id: "campaigns", title: "Campaigns" },
   { id: "money", title: "Invoices and payments" },
-  { id: "complaints", title: "Complaints" },
+  { id: "complaints", title: "Messages and requests" },
   { id: "activity", title: "Activity" },
 ];
 export default async function CompanyHub({
@@ -44,12 +59,10 @@ export default async function CompanyHub({
   const offset = (value?: string) =>
     Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : 0;
   const api = createApiClient(await getSessionToken());
-  const company = await api
-    .GET("/api/v1/admin/advertiser-organizations/{organization_id}/company", {
-      params: { path: { organization_id: organizationId } },
-    })
+  const company = await readAdvertiserCompany(organizationId)
     .then(({ data }) => data)
     .catch((error: unknown) => {
+      adminValueFailure(error);
       if (error instanceof ApiError && error.status === 404) notFound();
       return undefined;
     });
@@ -69,7 +82,7 @@ export default async function CompanyHub({
         },
       })
       .then(({ data }) => data)
-      .catch(() => undefined),
+      .catch(adminValueFailure),
     api
       .GET("/api/v1/admin/complaints", {
         params: {
@@ -77,7 +90,7 @@ export default async function CompanyHub({
         },
       })
       .then(({ data }) => data)
-      .catch(() => undefined),
+      .catch(adminValueFailure),
     api
       .GET("/api/v1/admin/audit-events", {
         params: {
@@ -85,9 +98,9 @@ export default async function CompanyHub({
         },
       })
       .then(({ data }) => data)
-      .catch(() => undefined),
+      .catch(adminValueFailure),
   ]);
-  const money = await readCompanyInvoices(api, organizationId).catch(() => undefined);
+  const money = await readCompanyInvoices(api, organizationId).catch(adminValueFailure);
   const href = (key: string, value: number, section: string) => {
     const query = new URLSearchParams();
     for (const field of ["people_offset", "complaint_offset", "activity_offset"] as const) {
@@ -122,6 +135,17 @@ export default async function CompanyHub({
             <QueueUnavailable />
           ) : (
             <>
+              {people.login_invite_available ? (
+                <LoginInviteForm
+                  organizationId={organizationId}
+                  email={
+                    people.items.find(({ membership }) => membership.status === "invited")?.user
+                      .email ??
+                    company.operational_contact_email ??
+                    company.billing_email
+                  }
+                />
+              ) : null}
               <p className="text-muted mb-3 text-sm">
                 {people.total} company sign-in account{people.total === 1 ? "" : "s"}
               </p>
@@ -138,17 +162,20 @@ export default async function CompanyHub({
                         <p className="font-medium">{user.full_name}</p>
                         <p className="text-muted text-sm">{user.email}</p>
                         <p className="text-muted text-sm">
-                          {membership.role === "owner" ? "Company owner" : "Company member"} ·
-                          Membership: {adminStatus(membership.status)} · Login:{" "}
+                          Advertiser · Membership: {adminStatus(membership.status)} · Login:{" "}
                           {adminStatus(user.status)}
                         </p>
                       </div>
-                      <UserStatusMenu
-                        userId={user.id}
-                        userLabel={user.full_name}
-                        role={user.role}
-                        status={user.status}
-                      />
+                      {membership.status === "active" ? (
+                        <UserStatusMenu
+                          userId={user.id}
+                          userLabel={user.full_name}
+                          role={user.role}
+                          status={user.status}
+                        />
+                      ) : membership.status === "invited" ? (
+                        <p className="text-muted text-sm">Waiting for password setup</p>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -248,13 +275,13 @@ export default async function CompanyHub({
             </>
           )}
         </HubSection>
-        <HubSection id="complaints" title="Complaints">
+        <HubSection id="complaints" title="Messages and requests">
           {!complaints ? (
             <QueueUnavailable />
           ) : (
             <>
               {!complaints.items.length ? (
-                <p>No complaints.</p>
+                <p>No messages or requests.</p>
               ) : (
                 <ul className="grid gap-3">
                   {complaints.items.map((item) => (
@@ -293,15 +320,9 @@ export default async function CompanyHub({
                   {activity.items.map((event) => (
                     <li key={event.id}>
                       <p>
-                        {event.actor_email ?? "System"} · {formatDate(event.created_at)}
+                        {event.actor_email ?? "System"} · {adminActivity(event.action)} ·{" "}
+                        {formatDate(event.created_at)}
                       </p>
-                      <details className="text-muted text-sm">
-                        <summary>Technical reference</summary>
-                        <p>{event.action}</p>
-                        <pre className="overflow-auto">
-                          {JSON.stringify(event.metadata, null, 2)}
-                        </pre>
-                      </details>
                     </li>
                   ))}
                 </ul>

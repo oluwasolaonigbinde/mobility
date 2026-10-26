@@ -42,7 +42,7 @@ def _notifications(db_sessionmaker, type_key: NotificationType) -> list[Notifica
 def test_campaign_rejection_notifies_without_copying_the_reason(db_client, db_sessionmaker) -> None:
     admin = create_test_user(db_sessionmaker, email="notify-admin@example.com", password=PASSWORD)
     advertiser, organization = create_advertiser_with_org(
-        db_sessionmaker, email="notify-manager@example.com", role=MembershipRole.MANAGER
+        db_sessionmaker, email="notify-manager@example.com", role=MembershipRole.ADVERTISER
     )
     campaign = create_test_campaign(
         db_sessionmaker, organization_id=organization.id, created_by_user_id=advertiser.id

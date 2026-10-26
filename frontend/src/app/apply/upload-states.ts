@@ -24,7 +24,7 @@ export function useUploadStates<K extends string>(keys: readonly K[]) {
       setStates((current) => {
         const next = { ...current };
         for (const key of Object.keys(next) as K[]) {
-          if (next[key] === "uploading") next[key] = "idle";
+          if (next[key] === "uploading" || next[key] === "checking") next[key] = "idle";
         }
         return next;
       }),
@@ -49,5 +49,8 @@ export function useUploadStates<K extends string>(keys: readonly K[]) {
     [set],
   );
 
-  return { states, set, reset, clearUploading, tracker };
+  const onStatus = (key: K, isCurrent: () => boolean) => () => {
+    if (isCurrent()) set(key, "checking");
+  };
+  return { states, set, reset, clearUploading, tracker, onStatus };
 }

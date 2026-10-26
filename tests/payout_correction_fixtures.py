@@ -20,8 +20,6 @@ from app.models.payout import (
 from app.services.payout_corrections import (
     approve_correction_order,
     create_correction_order,
-    execute_correction_order,
-    submit_correction_order,
 )
 from app.services.payouts.common import lagos_day_for
 
@@ -52,27 +50,12 @@ def create_order(db_sessionmaker, settings, graph, *, reason="test correction"):
     )
 
 
-def submit(db_sessionmaker, order_id, actor_id):
-    return service(
-        db_sessionmaker,
-        lambda session: submit_correction_order(session, order_id=order_id, actor_user_id=actor_id),
-    )
-
-
-def approve(db_sessionmaker, settings, order_id, actor_id):
-    return service(
-        db_sessionmaker,
-        lambda session: approve_correction_order(
-            session, order_id=order_id, actor_user_id=actor_id, settings=settings
-        ),
-    )
-
-
 def execute(db_sessionmaker, settings, order_id, actor_id, *, release_at=RELEASE_AT):
     return service(
         db_sessionmaker,
-        lambda session: execute_correction_order(
+        lambda session: approve_correction_order(
             session,
+            reason="Approve checked correction",
             order_id=order_id,
             actor_user_id=actor_id,
             release_at=release_at,
@@ -84,20 +67,6 @@ def execute(db_sessionmaker, settings, order_id, actor_id, *, release_at=RELEASE
 
 def second_admin(db_sessionmaker, tag):
     return create_test_user(db_sessionmaker, email=f"approver-{tag}@example.com")
-
-
-def submitted_order(db_sessionmaker, settings, graph, tag):
-    """create -> submit, plus a second admin to approve (maker-checker)."""
-    approver = second_admin(db_sessionmaker, tag)
-    order = create_order(db_sessionmaker, settings, graph)
-    submit(db_sessionmaker, order.id, graph.admin.id)
-    return order, approver
-
-
-def approved_order(db_sessionmaker, settings, graph, tag):
-    order, approver = submitted_order(db_sessionmaker, settings, graph, tag)
-    approve(db_sessionmaker, settings, order.id, approver.id)
-    return order, approver
 
 
 def reload_order(db_sessionmaker, order_id) -> PayoutCorrectionOrder:

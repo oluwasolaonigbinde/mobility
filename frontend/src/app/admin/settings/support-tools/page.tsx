@@ -1,4 +1,6 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 import Link from "next/link";
+export const metadata = { title: "Support tools" };
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { PageHeader } from "@/components/ui/page-header";
@@ -8,7 +10,8 @@ import { SearchSelect } from "../../search-select";
 import { ProcessTripForm } from "../../payouts/process-trip-form";
 import { QueueUnavailable } from "../../queue-search";
 import { HubDrawer } from "../../hub-drawer";
-import { completePages, worklistHref } from "../../worklist-reads";
+import { worklistHref } from "../../worklist-reads";
+import { completePages } from "@/lib/complete-pages";
 export default async function SupportTools({
   searchParams,
 }: {
@@ -24,11 +27,11 @@ export default async function SupportTools({
   const trips = p.driver_profile_id
     ? await read(offset)
         .then(({ data }) => data)
-        .catch(() => undefined)
+        .catch(adminValueFailure)
     : undefined;
   const all =
     p.driver_profile_id && p.trip
-      ? await completePages((next) => read(next, 100)).catch(() => undefined)
+      ? await completePages((next) => read(next, 100)).catch(adminValueFailure)
       : undefined;
   const selected = all?.find(
     (row) => row.trip_session_id === p.trip && row.driver_profile_id === p.driver_profile_id,

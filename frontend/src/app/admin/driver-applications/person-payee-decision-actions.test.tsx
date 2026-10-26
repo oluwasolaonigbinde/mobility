@@ -108,7 +108,7 @@ it("discards revealed evidence and bank reference when current record IDs change
   await user.click(photo.getByRole("button", { name: "View" }));
   await photo.findByRole("link");
   await user.type(
-    screen.getByLabelText("Bank check reference, from the bank confirmation"),
+    screen.getByLabelText("Test-transfer reference from your bank"),
     "old-bank-reference",
   );
   rerender(
@@ -123,7 +123,7 @@ it("discards revealed evidence and bank reference when current record IDs change
   expect(current.queryByRole("link")).toBeNull();
   expect(current.getByRole("button", { name: "View" })).toBeEnabled();
   expect(current.queryByRole("checkbox")).toBeNull();
-  expect(screen.getByLabelText("Bank check reference, from the bank confirmation")).toHaveValue("");
+  expect(screen.getByLabelText("Test-transfer reference from your bank")).toHaveValue("");
   expect(mocks.read).toHaveBeenCalledTimes(1);
   await user.click(current.getByRole("button", { name: "View" }));
   await waitFor(() => expect(mocks.read).toHaveBeenCalledTimes(2));
@@ -140,9 +140,9 @@ it("keeps unavailable document rows and the exact bank reference requirements", 
     expect(row.getByRole("button", { name: "View" })).toBeDisabled();
     expect(row.queryByRole("checkbox")).toBeNull();
   }
-  const reference = screen.getByLabelText("Bank check reference, from the bank confirmation");
+  const reference = screen.getByLabelText("Test-transfer reference from your bank");
   expect(reference).toHaveAttribute("type", "password");
-  expect(reference).toHaveAttribute("minlength", "16");
+  expect(reference).toHaveAttribute("minlength", "1");
   expect(reference).toHaveAttribute("maxlength", "512");
   expect(reference).toBeRequired();
   const bank = within(screen.getByRole("region", { name: "Bank account" }));
@@ -214,7 +214,7 @@ it("requires a chosen reason only for Reject and posts the selected reason", asy
   expect(screen.getByLabelText("Rejection reason")).toHaveValue("");
   expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
-  expect(screen.getByRole("button", { name: "Mark expired" })).toBeEnabled();
+  expect(screen.queryByRole("button", { name: "Mark expired" })).toBeNull();
   await user.selectOptions(screen.getByLabelText("Rejection reason"), "identity_mismatch");
   await user.click(screen.getByRole("button", { name: "Reject" }));
   await screen.findByText("Recorded");
@@ -224,7 +224,13 @@ it("requires a chosen reason only for Reject and posts the selected reason", asy
 });
 
 it("shows the accepted agreement version and date without a document read", () => {
-  render(<PersonPayeeDecisionActions {...props} agreementVersion="1" agreementAcceptedAt="2026-10-12T12:00:00Z" />);
+  render(
+    <PersonPayeeDecisionActions
+      {...props}
+      agreementVersion="1"
+      agreementAcceptedAt="2026-10-12T12:00:00Z"
+    />,
+  );
   const agreement = within(screen.getByRole("region", { name: "Driver agreement" }));
   expect(agreement.getByText("Agreed to version 1 on 12 Oct 2026")).toBeVisible();
   expect(agreement.queryByRole("button")).toBeNull();

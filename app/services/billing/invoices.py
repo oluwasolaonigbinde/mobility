@@ -243,13 +243,38 @@ async def _acquire_invoice_number_lock(
     await session.execute(select(func.pg_advisory_xact_lock(lock_key)))
 
 
+async def configured_invoice_issuer(
+    session: AsyncSession, settings: Settings
+) -> InvoiceIssuerProfile | None:
+    reference = settings.invoice_issuer_external_input_reference
+    if not reference:
+        return None
+    issuer = await session.scalar(
+        select(InvoiceIssuerProfile).where(
+            InvoiceIssuerProfile.external_input_reference == reference
+        )
+    )
+    if issuer is None:
+        return None
+    if (
+        settings.environment == "test"
+        and issuer.verification_status == IssuerVerificationStatus.SYNTHETIC
+    ):
+        return issuer
+    if issuer.verification_status == IssuerVerificationStatus.VERIFIED and all(
+        getattr(issuer, field) for field in ISSUER_VERIFIED_FACT_FIELDS
+    ):
+        return issuer
+    return None
+
+
 async def issue_invoice(
     session: AsyncSession,
     *,
     invoice_id: UUID,
-    issuer_profile_id: UUID,
     actor_user_id: UUID,
     settings: Settings,
+    issuer_profile_id: UUID | None = None,  # Test fixtures only; public issuing uses config.
 ) -> Invoice:
     await require_active_admin(session, actor_user_id)
     invoice = await session.scalar(
@@ -265,7 +290,11 @@ async def issue_invoice(
             "Only a draft invoice can be issued",
             status_code=status.HTTP_409_CONFLICT,
         )
-    issuer = await session.get(InvoiceIssuerProfile, issuer_profile_id)
+    issuer = (
+        await session.get(InvoiceIssuerProfile, issuer_profile_id)
+        if issuer_profile_id is not None
+        else await configured_invoice_issuer(session, settings)
+    )
     synthetic_test_authority = (
         issuer is not None
         and settings.environment == "test"
@@ -373,3 +402,38 @@ async def invoice_payment_status(session: AsyncSession, invoice: Invoice) -> tup
     if funded < obligation:
         return "partially_paid", funded
     return "paid", funded
+
+
+async def outstanding_invoice_totals(
+    session: AsyncSession, organization_ids: list[UUID]
+) -> dict[UUID, list[dict[str, str]]]:
+    """Unpaid balance of each company's issued invoices, per currency (staff company list).
+
+    Same figure the company page derives from each invoice's effective obligation and
+    confirmed funding: max(obligation - funded, 0), summed per currency.
+    """
+    totals: dict[UUID, dict[str, Decimal]] = {identity: {} for identity in organization_ids}
+    invoices = await session.scalars(
+        select(Invoice)
+        .where(
+            Invoice.organization_id.in_(organization_ids),
+            Invoice.status == InvoiceStatus.ISSUED,
+        )
+        .order_by(Invoice.id)
+    )
+    for invoice in invoices:
+        obligation = await effective_invoice_obligation(
+            session, commercial_terms_id=invoice.commercial_terms_id
+        )
+        _, funded = await invoice_payment_status(session, invoice)
+        by_currency = totals[invoice.organization_id]
+        by_currency[invoice.currency] = by_currency.get(invoice.currency, Decimal(0)) + max(
+            obligation - funded, Decimal(0)
+        )
+    return {
+        identity: [
+            {"currency": currency, "amount": str(amount.quantize(MONEY_QUANTUM))}
+            for currency, amount in sorted(by_currency.items())
+        ]
+        for identity, by_currency in totals.items()
+    }

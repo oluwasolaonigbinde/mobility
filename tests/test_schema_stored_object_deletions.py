@@ -107,7 +107,6 @@ def trigger_names_expected() -> set[str]:
             "driver_kyc_documents",
             "vehicle_evidence_documents",
             "installation_evidence_photos",
-            "display_proofs",
             "report_artifacts",
         )
     }

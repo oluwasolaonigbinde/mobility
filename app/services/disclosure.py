@@ -4,7 +4,7 @@ import hashlib
 import json
 from collections import Counter
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -21,7 +21,7 @@ from app.core.errors import AppError
 from app.models.campaign import Campaign
 from app.models.campaign_assignment import CampaignAssignment
 from app.models.disclosure import DisclosureQueryDecision
-from app.models.impression import ImpressionEstimate, ImpressionEstimateStatus
+from app.models.impression import ImpressionEstimate
 from app.models.organization import AdvertiserOrganization, OrganizationMembership
 from app.models.payout import EarningsLedgerEntry, PayoutCalculation
 from app.models.trip import TripSession
@@ -34,15 +34,11 @@ DISCLOSURE_ROUTE_INVENTORY = frozenset(
         "advertiser.campaign.daily_metrics",
         "advertiser.campaign.trips",
         "advertiser.campaign.report",
+        "advertiser.campaign.performance",
+        "advertiser.campaign.live_positions",
         "advertiser.campaign.impressions_summary",
         "advertiser.campaign.heatmap",
         "admin.heatmap",
-        "advertiser.audience.recommendations",
-        "admin.audience.recommendations",
-        "advertiser.audience.export",
-        "admin.audience.activation",
-        "advertiser.campaign.zone_insights",
-        "admin.campaign.zone_insights",
     }
 )
 
@@ -191,48 +187,6 @@ def disclosure_suppressed(reason: str) -> AppError:
     )
 
 
-def exposure_cell_meets_disclosure_floor(
-    *,
-    distinct_vehicle_count: int,
-    trip_count: int,
-    distinct_day_count: int,
-    max_contributor_share: float,
-    resolution_m: int,
-    settings: Settings,
-) -> bool:
-    """Apply the complete audience disclosure policy before persistence or release."""
-    return (
-        distinct_vehicle_count >= settings.privacy_min_vehicles_per_cell
-        and trip_count >= settings.privacy_min_trips_per_cell
-        and distinct_day_count >= settings.privacy_min_days_per_cell
-        and max_contributor_share <= settings.privacy_max_contributor_share
-        and resolution_m >= settings.privacy_min_resolution_m
-    )
-
-
-def audience_disclosure_policy(settings: Settings) -> dict[str, int | float | str]:
-    return {
-        "schema_version": "audience-disclosure-policy-v1",
-        "minimum_distinct_vehicles": settings.privacy_min_vehicles_per_cell,
-        "minimum_distinct_trips": settings.privacy_min_trips_per_cell,
-        "minimum_distinct_days": settings.privacy_min_days_per_cell,
-        "maximum_contributor_share": settings.privacy_max_contributor_share,
-        "minimum_resolution_m": settings.privacy_min_resolution_m,
-        "window_alignment": "whole_utc_hours",
-    }
-
-
-def _maximum_contributor_share(
-    contributions: dict[str, Counter[UUID]],
-) -> float:
-    shares = []
-    for by_vehicle in contributions.values():
-        total = sum(by_vehicle.values(), Decimal("0"))
-        if total > 0:
-            shares.append(max(by_vehicle.values()) / total)
-    return float(max(shares, default=Decimal("1")))
-
-
 def _add_contribution(
     contributions: dict[str, Counter[UUID]],
     metric: str,
@@ -244,7 +198,7 @@ def _add_contribution(
         contributions.setdefault(metric, Counter())[vehicle_id] += amount
 
 
-def frozen_manifest_meets_disclosure_floor(manifest: dict[str, Any], *, settings: Settings) -> bool:  # noqa: C901
+def frozen_manifest_meets_disclosure_floor(manifest: dict[str, Any], *, settings: Settings) -> bool:
     authority = manifest.get("disclosure_authority")
     if isinstance(authority, dict):
         frozen_contributions: dict[str, Counter[UUID]] = {}
@@ -260,16 +214,11 @@ def frozen_manifest_meets_disclosure_floor(manifest: dict[str, Any], *, settings
             and authority.get("route_id") == "advertiser.campaign.report"
             and authority.get("passed") is True
             and authority.get("vehicle_count") >= settings.privacy_min_vehicles_per_cell
-            and authority.get("trip_count") >= settings.privacy_min_trips_per_cell
-            and authority.get("day_count") >= settings.privacy_min_days_per_cell
             and all(
                 len(values) >= settings.privacy_min_vehicles_per_cell
-                and sum(values.values(), Decimal("0")) >= settings.privacy_min_trips_per_cell
                 for metric, values in frozen_contributions.items()
                 if metric.startswith("daily:trip_count:")
             )
-            and _maximum_contributor_share(frozen_contributions)
-            <= settings.privacy_max_contributor_share
         )
     sources = manifest.get("sources", {})
     analytics = [
@@ -297,59 +246,99 @@ def frozen_manifest_meets_disclosure_floor(manifest: dict[str, Any], *, settings
     vehicle_by_trip = {
         str(row["trip_session_id"]): UUID(str(row["vehicle_id"])) for row in analytics
     }
-    contributions: dict[str, Counter[UUID]] = {}
-    trip_ids = set(vehicle_by_trip)
-    days = set()
+    # Every released estimate and cost must belong to a trip in the same frozen cohort.
+    if any(
+        str(row.get("trip_session_id")) not in vehicle_by_trip
+        for row in [*estimates, *calculations]
+    ):
+        return False
+    vehicles_by_day: dict[date, set[UUID]] = {}
     for row in analytics:
-        vehicle_id = UUID(str(row["vehicle_id"]))
-        days.add(_utc_date(datetime.fromisoformat(str(row["started_at"]))))
-        _add_contribution(contributions, "analytics:trip_count", vehicle_id, 1)
-        for metric in (
-            "distance_m",
-            "target_zone_distance_m",
-            "bonus_zone_distance_m",
-            "exclusion_zone_distance_m",
-            "active_tracking_seconds",
-            "quality_score",
-        ):
-            _add_contribution(contributions, f"analytics:{metric}", vehicle_id, row[metric])
-    for row in estimates:
-        vehicle_id = vehicle_by_trip.get(str(row.get("trip_session_id")))
-        if vehicle_id is None:
-            return False
-        _add_contribution(contributions, f"impressions:status:{row['status']}", vehicle_id, 1)
-        _add_contribution(
-            contributions,
-            "impressions:estimated_impressions",
-            vehicle_id,
-            row.get("estimated_impressions"),
-        )
-        _add_contribution(
-            contributions,
-            "impressions:confidence_score",
-            vehicle_id,
-            row.get("confidence_score"),
-        )
-    for row in calculations:
-        vehicle_id = vehicle_by_trip.get(str(row.get("trip_session_id")))
-        if vehicle_id is None:
-            return False
-        for metric in ("gross_payout", "final_payout"):
-            _add_contribution(
-                contributions,
-                f"cost:{row['currency']}:{metric}",
-                vehicle_id,
-                row.get(metric),
-            )
-    return (
-        len(set(vehicle_by_trip.values())) >= settings.privacy_min_vehicles_per_cell
-        and len(trip_ids) >= settings.privacy_min_trips_per_cell
-        and len(days) >= settings.privacy_min_days_per_cell
-        and _maximum_contributor_share(contributions) <= settings.privacy_max_contributor_share
+        day = _utc_date(datetime.fromisoformat(str(row["started_at"])))
+        vehicles_by_day.setdefault(day, set()).add(UUID(str(row["vehicle_id"])))
+    return len(set(vehicle_by_trip.values())) >= settings.privacy_min_vehicles_per_cell and all(
+        len(vehicles) >= settings.privacy_min_vehicles_per_cell
+        for vehicles in vehicles_by_day.values()
     )
 
 
-async def trip_cohort_meets_disclosure_floor(  # noqa: C901
+async def _dated_outputs_meet_floor(
+    session: AsyncSession,
+    *,
+    tenant_id: UUID,
+    campaign_id: UUID | None,
+    start_at: datetime | None,
+    end_at: datetime | None,
+    route_id: str,
+    settings: Settings,
+) -> bool:
+    """D107 for a date range: estimates, costs and fraud flags are picked by their own
+    timestamps, not by trip start, so each released set needs three cars of its own."""
+    from app.services.impressions import current_authoritative_estimates
+    from app.services.payouts.ledger import latest_payout_calculation_ids
+
+    def scoped(statement, model, stamp):
+        if campaign_id is not None:
+            statement = statement.where(model.campaign_id == campaign_id)
+        else:
+            statement = statement.join(Campaign, Campaign.id == model.campaign_id).where(
+                Campaign.organization_id == tenant_id
+            )
+        if start_at is not None:
+            statement = statement.where(stamp >= start_at)
+        if end_at is not None:
+            statement = statement.where(stamp <= end_at)
+        return statement
+
+    estimates = await current_authoritative_estimates(
+        session,
+        list(
+            await session.scalars(
+                scoped(
+                    select(ImpressionEstimate).where(
+                        ImpressionEstimate.formula_version == settings.impression_formula_version,
+                        ImpressionEstimate.is_authoritative.is_(True),
+                    ),
+                    ImpressionEstimate,
+                    ImpressionEstimate.estimated_at,
+                )
+            )
+        ),
+        settings=settings,
+    )
+    released = [{row.vehicle_id for row in estimates}]
+    if route_id != "advertiser.campaign.impressions_summary":
+        latest = (
+            latest_payout_calculation_ids(campaign_id=campaign_id)
+            if campaign_id is not None
+            else latest_payout_calculation_ids(organization_id=tenant_id)
+        )
+        released.append(
+            set(
+                await session.scalars(
+                    scoped(
+                        select(PayoutCalculation.vehicle_id).where(
+                            PayoutCalculation.id.in_(latest)
+                        ),
+                        PayoutCalculation,
+                        PayoutCalculation.calculated_at,
+                    )
+                )
+            )
+        )
+        released.append(
+            set(
+                await session.scalars(
+                    scoped(select(FraudFlag.vehicle_id), FraudFlag, FraudFlag.detected_at)
+                )
+            )
+        )
+    return all(
+        len(vehicles) >= settings.privacy_min_vehicles_per_cell for vehicles in released if vehicles
+    )
+
+
+async def trip_cohort_meets_disclosure_floor(
     session: AsyncSession,
     *,
     tenant_id: UUID,
@@ -396,301 +385,39 @@ async def trip_cohort_meets_disclosure_floor(  # noqa: C901
                 "contributions": {},
             }
         return False
-    trip_ids = {row.id for row in rows}
     vehicles = Counter(row.vehicle_id for row in rows)
-    trip_rows = {row.id: row for row in rows}
     daily_metrics = route_id == "advertiser.campaign.daily_metrics"
+    # D107: the only rule is three distinct cars (per day for daily rows). The trip counts
+    # stay in the manifest so a frozen report can re-check its daily rows.
     contributions: dict[str, Counter[UUID]] = {}
-    if route_id in {
-        "advertiser.dashboard.summary",
-        "advertiser.campaign.summary",
-        "advertiser.campaign.report",
-    }:
-        assignment_statement = select(CampaignAssignment).join(
-            Campaign, Campaign.id == CampaignAssignment.campaign_id
+    for row in rows:
+        day = _utc_date(row.started_at)
+        metric = f"trip_count:{day}" if daily_metrics else f"trip_status:{row.status}"
+        _add_contribution(contributions, metric, row.vehicle_id, 1)
+    passed = len(vehicles) >= settings.privacy_min_vehicles_per_cell and (
+        not daily_metrics
+        or all(
+            len(values) >= settings.privacy_min_vehicles_per_cell
+            for values in contributions.values()
         )
-        assignment_filters = [Campaign.organization_id == tenant_id]
-        if campaign_id is not None:
-            assignment_filters.append(CampaignAssignment.campaign_id == campaign_id)
-        assignments = list(await session.scalars(assignment_statement.where(*assignment_filters)))
-        for assignment in assignments:
-            _add_contribution(
-                contributions,
-                f"assignment:status:{assignment.status}",
-                assignment.vehicle_id,
-                1,
-            )
-    if route_id != "advertiser.campaign.impressions_summary":
-        for row in rows:
-            day = _utc_date(row.started_at)
-            metric = f"trip_count:{day}" if daily_metrics else f"trip_status:{row.status}"
-            _add_contribution(contributions, metric, row.vehicle_id, 1)
-
-    include_all_metrics = route_id != "advertiser.campaign.impressions_summary"
-    if include_all_metrics:
-        analytics = list(
-            await session.scalars(
-                select(TripAnalytics).where(
-                    TripAnalytics.trip_session_id.in_(trip_ids),
-                )
-            )
-        )
-        if cohort is not None:
-            analytics = list(cohort.analytics)
-        for row in analytics:
-            for metric in (
-                "distance_m",
-                "target_zone_distance_m",
-                "bonus_zone_distance_m",
-                "exclusion_zone_distance_m",
-                "quality_score",
-            ):
-                group = (
-                    f":{_utc_date(trip_rows[row.trip_session_id].started_at)}"
-                    if daily_metrics
-                    else ""
-                )
-                _add_contribution(
-                    contributions,
-                    f"analytics:{metric}{group}",
-                    row.vehicle_id,
-                    getattr(row, metric),
-                )
-            group = (
-                f":{_utc_date(trip_rows[row.trip_session_id].started_at)}" if daily_metrics else ""
-            )
-            _add_contribution(contributions, f"analytics:count{group}", row.vehicle_id, 1)
-
-    estimate_filters = [
-        ImpressionEstimate.formula_version == settings.impression_formula_version,
-        ImpressionEstimate.is_authoritative.is_(True),
-    ]
-    estimate_statement = select(ImpressionEstimate)
-    if daily_metrics or cohort is not None:
-        estimate_filters.append(ImpressionEstimate.trip_session_id.in_(trip_ids))
-    else:
-        if campaign_id is not None:
-            estimate_filters.append(ImpressionEstimate.campaign_id == campaign_id)
-        else:
-            estimate_statement = estimate_statement.join(
-                Campaign, Campaign.id == ImpressionEstimate.campaign_id
-            )
-            estimate_filters.append(Campaign.organization_id == tenant_id)
-        if start_at is not None:
-            estimate_filters.append(ImpressionEstimate.estimated_at >= start_at)
-        if end_at is not None:
-            estimate_filters.append(ImpressionEstimate.estimated_at <= end_at)
-    estimates = list(await session.scalars(estimate_statement.where(*estimate_filters)))
-    from app.services.impressions import current_authoritative_estimates
-
-    estimates = (
-        list(cohort.impressions)
-        if cohort is not None
-        else await current_authoritative_estimates(session, estimates, settings=settings)
     )
-    for row in estimates:
-        group = f":{_utc_date(trip_rows[row.trip_session_id].started_at)}" if daily_metrics else ""
-        _add_contribution(
-            contributions,
-            f"impressions:trip_count{group}",
-            row.vehicle_id,
-            1,
+    if passed and cohort is None and not daily_metrics and (start_at or end_at):
+        passed = await _dated_outputs_meet_floor(
+            session,
+            tenant_id=tenant_id,
+            campaign_id=campaign_id,
+            start_at=start_at,
+            end_at=end_at,
+            route_id=route_id,
+            settings=settings,
         )
-        _add_contribution(
-            contributions,
-            f"impressions:status:{row.status}{group}",
-            row.vehicle_id,
-            1,
-        )
-        _add_contribution(
-            contributions,
-            f"impressions:estimated_impressions{group}",
-            row.vehicle_id,
-            row.estimated_impressions
-            if row.status == ImpressionEstimateStatus.ESTIMATED.value
-            else 0,
-        )
-        _add_contribution(
-            contributions,
-            f"impressions:confidence_score{group}",
-            row.vehicle_id,
-            row.confidence_score,
-        )
-
-    if include_all_metrics:
-        from app.services.payouts.ledger import latest_payout_calculation_ids
-
-        calculation_filters = []
-        if daily_metrics or cohort is not None:
-            calculation_filters.append(PayoutCalculation.trip_session_id.in_(trip_ids))
-            latest_calculation_ids = latest_payout_calculation_ids(trip_ids=trip_ids)
-        elif campaign_id is not None:
-            calculation_filters.append(PayoutCalculation.campaign_id == campaign_id)
-            latest_calculation_ids = latest_payout_calculation_ids(campaign_id=campaign_id)
-        else:
-            calculation_filters.append(Campaign.organization_id == tenant_id)
-            latest_calculation_ids = latest_payout_calculation_ids(organization_id=tenant_id)
-        if cohort is None and not daily_metrics and start_at is not None:
-            calculation_filters.append(PayoutCalculation.calculated_at >= start_at)
-        if cohort is None and not daily_metrics and end_at is not None:
-            calculation_filters.append(PayoutCalculation.calculated_at <= end_at)
-        calculation_statement = select(PayoutCalculation)
-        if campaign_id is None and not daily_metrics:
-            calculation_statement = calculation_statement.join(
-                Campaign, Campaign.id == PayoutCalculation.campaign_id
-            )
-        calculations = list(
-            await session.scalars(
-                calculation_statement.where(
-                    *calculation_filters,
-                    PayoutCalculation.id.in_(latest_calculation_ids),
-                )
-            )
-        )
-        if cohort is not None:
-            calculations = list(cohort.payouts)
-        for row in calculations:
-            group = (
-                f":{_utc_date(trip_rows[row.trip_session_id].started_at)}" if daily_metrics else ""
-            )
-            for metric in ("gross_payout", "final_payout"):
-                _add_contribution(
-                    contributions,
-                    f"cost:{row.currency}:{metric}{group}",
-                    row.vehicle_id,
-                    abs(cohort.final_cost(row))
-                    if cohort is not None and metric == "final_payout"
-                    else getattr(row, metric),
-                )
-            if route_id != "advertiser.dashboard.summary" and not daily_metrics:
-                _add_contribution(
-                    contributions,
-                    f"cost:{row.currency}:status:{row.status}",
-                    row.vehicle_id,
-                    1,
-                )
-        calculation_ids = {row.id: row for row in calculations}
-        ledger_rows = list(
-            await session.scalars(
-                select(EarningsLedgerEntry).where(
-                    EarningsLedgerEntry.payout_calculation_id.in_(calculation_ids)
-                )
-            )
-        )
-        if cohort is not None and cohort.ledger is not None:
-            ledger_rows = list(cohort.ledger)
-        calculation_by_trip = {row.trip_session_id: row for row in calculations}
-        for ledger in ledger_rows:
-            calculation = calculation_by_trip.get(ledger.trip_session_id)
-            if calculation is None:
-                continue
-            group = (
-                f":{_utc_date(trip_rows[calculation.trip_session_id].started_at)}"
-                if daily_metrics
-                else ""
-            )
-            _add_contribution(
-                contributions,
-                f"cost:{calculation.currency}:ledger_count{group}",
-                calculation.vehicle_id,
-                1,
-            )
-            if (
-                cohort is not None
-                and ledger.status != "voided"
-                and ledger.entry_type != "debt_remainder"
-            ):
-                direction = "reversal" if ledger.entry_type == "reversal" else "credit"
-                _add_contribution(
-                    contributions,
-                    f"cost:{ledger.currency}:{direction}{group}",
-                    calculation.vehicle_id,
-                    ledger.amount,
-                )
-        fraud_filters = (
-            [FraudFlag.trip_session_id.in_(trip_ids)] if daily_metrics or cohort is not None else []
-        )
-        fraud_statement = select(FraudFlag)
-        if daily_metrics:
-            pass
-        elif campaign_id is not None:
-            fraud_filters.append(FraudFlag.campaign_id == campaign_id)
-        else:
-            fraud_statement = fraud_statement.join(Campaign, Campaign.id == FraudFlag.campaign_id)
-            fraud_filters.append(Campaign.organization_id == tenant_id)
-        if not daily_metrics and cohort is None:
-            if start_at is not None:
-                fraud_filters.append(FraudFlag.detected_at >= start_at)
-            if end_at is not None:
-                fraud_filters.append(FraudFlag.detected_at <= end_at)
-        flags = list(await session.scalars(fraud_statement.where(*fraud_filters)))
-        for row in flags:
-            if daily_metrics:
-                if row.status == "open":
-                    day = _utc_date(trip_rows[row.trip_session_id].started_at)
-                    _add_contribution(
-                        contributions,
-                        f"fraud:open:{day}",
-                        row.vehicle_id,
-                        1,
-                    )
-            else:
-                _add_contribution(
-                    contributions,
-                    f"fraud:status:{row.status}",
-                    row.vehicle_id,
-                    1,
-                )
-                _add_contribution(
-                    contributions,
-                    f"fraud:severity:{row.severity}",
-                    row.vehicle_id,
-                    1,
-                )
-    days = {
-        (value if value.tzinfo is not None else value.replace(tzinfo=UTC)).astimezone(UTC).date()
-        for _, _, value, _ in rows
-    }
-    max_contributor_share = _maximum_contributor_share(contributions)
-    if daily_metrics:
-        daily_trip_vehicles: dict[str, Counter[UUID]] = {}
-        for row in rows:
-            _add_contribution(
-                daily_trip_vehicles,
-                str(_utc_date(row.started_at)),
-                row.vehicle_id,
-                1,
-            )
-        if any(
-            len(day_vehicles) < settings.privacy_min_vehicles_per_cell
-            or sum(day_vehicles.values()) < settings.privacy_min_trips_per_cell
-            for day_vehicles in daily_trip_vehicles.values()
-        ):
-            if not return_manifest:
-                return False
-            return {
-                "passed": False,
-                "vehicle_count": len(vehicles),
-                "trip_count": len(trip_ids),
-                "day_count": len(days),
-                "contributions": {
-                    metric: {str(vehicle_id): str(value) for vehicle_id, value in values.items()}
-                    for metric, values in sorted(contributions.items())
-                },
-            }
-    passed = (
-        len(vehicles) >= settings.privacy_min_vehicles_per_cell
-        and len(trip_ids) >= settings.privacy_min_trips_per_cell
-        and len(days) >= settings.privacy_min_days_per_cell
-        and max_contributor_share <= settings.privacy_max_contributor_share
-    )
     if not return_manifest:
         return passed
     return {
         "passed": passed,
         "vehicle_count": len(vehicles),
-        "trip_count": len(trip_ids),
-        "day_count": len(days),
+        "trip_count": len(rows),
+        "day_count": len({_utc_date(row.started_at) for row in rows}),
         "contributions": {
             metric: {str(vehicle_id): str(value) for vehicle_id, value in values.items()}
             for metric, values in sorted(contributions.items())
@@ -791,7 +518,7 @@ async def record_disclosure(
     reason = "privacy_floor_passed"
     if not has_releasable_cells:
         decision = "suppressed"
-        reason = "minimum_counts_or_contributor_cap"
+        reason = "minimum_cars"
     session.add(
         DisclosureQueryDecision(
             principal_hash=principal_hash,

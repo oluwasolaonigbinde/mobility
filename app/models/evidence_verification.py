@@ -10,15 +10,10 @@ from app.db.base import Base, JSONEmptyObjectServerDefault
 
 
 class EvidenceVerificationType(StrEnum):
-    HIGH_EARNER_RENEWAL = "high_earner_renewal"
-    CONCURRENT_SESSION = "concurrent_session"
     PHYSICAL_SPOT_CHECK = "physical_spot_check"
 
 
 class EvidenceVerificationStatus(StrEnum):
-    PENDING = "pending"
-    SATISFIED = "satisfied"
-    MISSED = "missed"
     PASSED = "passed"
     FAILED = "failed"
 
@@ -33,32 +28,18 @@ class EvidenceVerification(Base):
     __tablename__ = "evidence_verifications"
     __table_args__ = (
         CheckConstraint(
-            "verification_type IN ('high_earner_renewal', 'concurrent_session', "
-            "'physical_spot_check')",
+            "verification_type = 'physical_spot_check'",
             name="ck_evidence_verifications_type",
         ),
         CheckConstraint(
-            "status IN ('pending', 'satisfied', 'missed', 'passed', 'failed')",
+            "status IN ('passed', 'failed')",
             name="ck_evidence_verifications_status",
         ),
         CheckConstraint(
-            "(status = 'pending' AND resolved_at IS NULL AND resolved_by_user_id IS NULL "
-            "AND display_proof_id IS NULL AND fraud_flag_id IS NULL) OR "
-            "(status = 'satisfied' AND resolved_at IS NOT NULL "
-            "AND display_proof_id IS NOT NULL AND fraud_flag_id IS NULL) OR "
-            "(status = 'missed' AND resolved_at IS NOT NULL "
-            "AND display_proof_id IS NULL AND fraud_flag_id IS NOT NULL) OR "
-            "(status = 'passed' AND resolved_at IS NOT NULL "
-            "AND resolved_by_user_id IS NOT NULL AND display_proof_id IS NULL "
-            "AND fraud_flag_id IS NULL) OR "
-            "(status = 'failed' AND resolved_at IS NOT NULL "
-            "AND display_proof_id IS NULL AND fraud_flag_id IS NOT NULL)",
+            "resolved_at IS NOT NULL AND resolved_by_user_id IS NOT NULL AND "
+            "((status = 'passed' AND fraud_flag_id IS NULL) OR "
+            "(status = 'failed' AND fraud_flag_id IS NOT NULL))",
             name="ck_evidence_verifications_resolution",
-        ),
-        CheckConstraint(
-            "(verification_type = 'high_earner_renewal' AND due_at IS NOT NULL) OR "
-            "(verification_type <> 'high_earner_renewal' AND due_at IS NULL)",
-            name="ck_evidence_verifications_due_at",
         ),
         CheckConstraint(
             "(verification_type = 'physical_spot_check' AND issued_by_user_id IS NOT NULL "
@@ -70,13 +51,6 @@ class EvidenceVerification(Base):
         Index("ix_evidence_verifications_assignment_status", "assignment_id", "status"),
         Index("ix_evidence_verifications_driver_status", "driver_profile_id", "status"),
         Index("ix_evidence_verifications_type_status", "verification_type", "status"),
-        Index(
-            "uq_evidence_verifications_automatic_source",
-            "verification_type",
-            "source_trip_session_id",
-            unique=True,
-            postgresql_where=text("verification_type <> 'physical_spot_check'"),
-        ),
         Index(
             "uq_evidence_verifications_admin_request",
             "issued_by_user_id",
@@ -115,11 +89,6 @@ class EvidenceVerification(Base):
     )
     client_request_id: Mapped[UUID | None] = mapped_column()
     request_fingerprint: Mapped[str | None] = mapped_column(String(64))
-    result_fingerprint: Mapped[str | None] = mapped_column(String(64))
-    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    display_proof_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("display_proofs.id", ondelete="RESTRICT")
-    )
     fraud_flag_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("fraud_flags.id", ondelete="RESTRICT")
     )

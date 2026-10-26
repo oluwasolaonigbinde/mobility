@@ -1,4 +1,8 @@
 "use server";
+
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
@@ -28,7 +32,10 @@ export async function resumeCampaign(_previous: { error?: string; done?: string 
         body: { reason: parsed.data.reason },
       });
   } catch (error) {
-    return { error: error instanceof ApiError ? error.message : "Could not reach the server." };
+    unstable_rethrow(error);
+    return {
+      error: error instanceof ApiError ? publicActionError(error) : "Could not reach the server.",
+    };
   }
   revalidatePath(`/admin/campaigns/${parsed.data.campaign_id}`);
   return { done: "Campaign resumed" };

@@ -53,16 +53,10 @@ const holdStatus: Record<
 const noticeCopy: Partial<Record<NotificationType, string>> = {
   assignment_offered: "You got a job offer.",
   assignment_accepted: "You accepted the job.",
-  evidence_challenge_created: "Terrax Media asked for a new display photo.",
-  evidence_verified: "Your photos were approved.",
   payout_released: "Pay for this trip was released.",
   fraud_hold_raised: "This trip was put on hold for a check.",
   fraud_review_resolved: "Terrax Media finished checking this trip.",
   fraud_dispute_replied: "Terrax Media replied to you.",
-  activity_floor_breached: "You drove less than the weekly minimum.",
-  activity_floor_recovered: "You're back above the weekly minimum.",
-  assignment_inactive: "No trips were recorded on this job for 7 days.",
-  assignment_activity_recovered: "Trips started again on this job.",
 };
 
 const EXCLUSION_LABELS: Record<string, string> = {

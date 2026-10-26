@@ -11,7 +11,7 @@ this repository template.
 | Scope | `<BACKUP_SCOPE — OWNER APPROVAL REQUIRED>` |
 | Cadence | `<BACKUP_CADENCE — OWNER APPROVAL REQUIRED>` |
 | Schedule authority | `<OPERATIONS_OWNER_ROLE>` — assignment and approval required |
-| Retention source | `<RETENTION_SOURCE — EXT-LEGAL-PRIVACY AND EXT-EVIDENCE-POLICY APPROVAL REQUIRED>` |
+| Retention source | `<RETENTION_SOURCE — EXT-LEGAL-PRIVACY APPROVAL REQUIRED>` |
 | Protected evidence pointer | `<PROTECTED_EVIDENCE_POINTER>` |
 | Recovery verification evidence | `<RECOVERY_VERIFICATION_EVIDENCE — APPROVED ISOLATED RESTORE REQUIRED>` |
 | Approval state | `<NOT APPROVED — EXTERNAL OWNER APPROVAL REQUIRED>` |
@@ -25,8 +25,7 @@ examples, and prior synthetic rehearsals cannot fill either placeholder.
 ## Authority and retention boundary
 
 `<OPERATIONS_OWNER_ROLE>` remains unnamed under `EXT-OPERATIONS-OWNER`.
-Retention must cite an approved source after `EXT-LEGAL-PRIVACY` and
-`EXT-EVIDENCE-POLICY` are resolved. No repository author, release operator, or
+Retention must cite an approved source after `EXT-LEGAL-PRIVACY` is resolved. No repository author, release operator, or
 storage provider may infer that authority.
 
 ## Protected evidence and recovery verification

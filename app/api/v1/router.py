@@ -3,7 +3,6 @@ from fastapi import APIRouter
 from app.api.v1.admin import router as admin_router
 from app.api.v1.advertiser_organizations import router as advertiser_organizations_router
 from app.api.v1.advertiser_reports import router as advertiser_reports_router
-from app.api.v1.audience_delivery import router as audience_delivery_router
 from app.api.v1.audit import router as audit_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.automatic_payouts import router as automatic_payouts_router
@@ -11,7 +10,9 @@ from app.api.v1.billing import router as billing_router
 from app.api.v1.campaign_assignments import router as campaign_assignments_router
 from app.api.v1.campaign_cancellations import router as campaign_cancellations_router
 from app.api.v1.campaign_changes import router as campaign_changes_router
+from app.api.v1.campaign_engagement import router as campaign_engagement_router
 from app.api.v1.campaign_enquiries import router as campaign_enquiries_router
+from app.api.v1.campaign_reports import router as campaign_reports_router
 from app.api.v1.campaign_zones import router as campaign_zones_router
 from app.api.v1.campaigns import router as campaigns_router
 from app.api.v1.complaints import router as complaints_router
@@ -26,41 +27,37 @@ from app.api.v1.impressions import router as impressions_router
 from app.api.v1.installation_evidence import router as installation_evidence_router
 from app.api.v1.kyc import router as kyc_router
 from app.api.v1.me import router as me_router
-from app.api.v1.measurement import router as measurement_router
+from app.api.v1.navigation import router as navigation_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.payees import router as payees_router
 from app.api.v1.payouts import router as payouts_router
-from app.api.v1.privacy_dsr import router as privacy_dsr_router
 from app.api.v1.report_issuances import router as report_issuances_router
-from app.api.v1.retargeting_source_links import router as retargeting_source_links_router
-from app.api.v1.retargeting_sources import router as retargeting_sources_router
 from app.api.v1.stored_files import router as stored_files_router
 from app.api.v1.trip_analytics import router as trip_analytics_router
-from app.api.v1.trips import admin_router as trips_admin_router
 from app.api.v1.trips import router as trips_router
 from app.api.v1.vehicles import router as vehicles_router
 from app.api.v1.webhooks import router as webhooks_router
 
 api_router = APIRouter()
+api_router.include_router(navigation_router)
 api_router.include_router(auth_router)
 api_router.include_router(billing_router)
 api_router.include_router(me_router)
-api_router.include_router(measurement_router)
 api_router.include_router(notifications_router)
-api_router.include_router(privacy_dsr_router)
 api_router.include_router(payees_router)
 api_router.include_router(disbursements_router)
 api_router.include_router(automatic_payouts_router)
 api_router.include_router(admin_router)
 api_router.include_router(audit_router)
-api_router.include_router(audience_delivery_router)
 api_router.include_router(advertiser_organizations_router)
 api_router.include_router(advertiser_reports_router)
+api_router.include_router(campaign_reports_router)
 api_router.include_router(campaigns_router)
 api_router.include_router(campaign_assignments_router)
 api_router.include_router(campaign_cancellations_router)
 api_router.include_router(campaign_changes_router)
 api_router.include_router(campaign_enquiries_router)
+api_router.include_router(campaign_engagement_router)
 api_router.include_router(campaign_zones_router)
 api_router.include_router(complaints_router)
 api_router.include_router(contacts_router)
@@ -69,13 +66,10 @@ api_router.include_router(impressions_router)
 api_router.include_router(installation_evidence_router)
 api_router.include_router(kyc_router)
 api_router.include_router(payouts_router)
-api_router.include_router(retargeting_sources_router)
-api_router.include_router(retargeting_source_links_router)
 api_router.include_router(report_issuances_router)
 api_router.include_router(stored_files_router)
 api_router.include_router(trip_analytics_router)
 api_router.include_router(trips_router)
-api_router.include_router(trips_admin_router)
 api_router.include_router(driver_profiles_router)
 api_router.include_router(driver_documents_router)
 api_router.include_router(fraud_disputes_router)

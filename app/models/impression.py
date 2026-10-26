@@ -1,7 +1,5 @@
-import hashlib
-import json
-from datetime import UTC, datetime
-from decimal import ROUND_HALF_UP, Decimal
+from datetime import datetime
+from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
@@ -12,12 +10,10 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
-    Integer,
     Numeric,
     String,
     Text,
     UniqueConstraint,
-    event,
     func,
     text,
 )
@@ -26,270 +22,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 
-TRAFFIC_PROFILE_FINGERPRINT_FIELDS = (
-    "lineage_id",
-    "revision",
-    "effective_from",
-    "name",
-    "description",
-    "profile_type",
-    "traffic_density_per_km",
-    "dwell_impressions_per_minute",
-    "road_category_weight",
-    "morning_weight",
-    "midday_weight",
-    "evening_weight",
-    "night_weight",
-    "target_zone_weight",
-    "bonus_zone_weight",
-    "exclusion_zone_weight",
-    "profile_metadata",
-)
-TRAFFIC_PROFILE_DECIMAL_FIELDS = frozenset(
-    {
-        "traffic_density_per_km",
-        "dwell_impressions_per_minute",
-        "road_category_weight",
-        "morning_weight",
-        "midday_weight",
-        "evening_weight",
-        "night_weight",
-        "target_zone_weight",
-        "bonus_zone_weight",
-        "exclusion_zone_weight",
-    }
-)
-TRAFFIC_PROFILE_DECIMAL_QUANTUM = Decimal("0.0001")
-
-
-def _profile_fingerprint_value(value: Any) -> Any:
-    if isinstance(value, datetime):
-        if value.tzinfo is None:
-            value = value.replace(tzinfo=UTC)
-        return value.astimezone(UTC).isoformat()
-    if isinstance(value, Decimal):
-        return format(value.normalize(), "f")
-    if isinstance(value, UUID):
-        return str(value)
-    if isinstance(value, dict):
-        return {str(key): _profile_fingerprint_value(item) for key, item in sorted(value.items())}
-    if isinstance(value, list | tuple):
-        return [_profile_fingerprint_value(item) for item in value]
-    return value
-
-
-def traffic_density_profile_fingerprint(profile: Any) -> str:
-    values = {}
-    for field in TRAFFIC_PROFILE_FINGERPRINT_FIELDS:
-        value = profile[field] if isinstance(profile, dict) else getattr(profile, field)
-        values[field] = (
-            Decimal(str(value)).quantize(
-                TRAFFIC_PROFILE_DECIMAL_QUANTUM,
-                rounding=ROUND_HALF_UP,
-            )
-            if field in TRAFFIC_PROFILE_DECIMAL_FIELDS
-            else value
-        )
-    payload = json.dumps(
-        _profile_fingerprint_value(values),
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
-
-
-class TrafficDensityProfileType(StrEnum):
-    DEFAULT = "default"
-    URBAN = "urban"
-    SUBURBAN = "suburban"
-    HIGHWAY = "highway"
-    CUSTOM = "custom"
-
-
-class TrafficDensityProfileStatus(StrEnum):
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-
 
 class ImpressionEstimateStatus(StrEnum):
     ESTIMATED = "estimated"
     INSUFFICIENT_DATA = "insufficient_data"
     EXCLUDED = "excluded"
-
-
-class TrafficDensityProfile(Base):
-    __tablename__ = "traffic_density_profiles"
-    __table_args__ = (
-        CheckConstraint(
-            "profile_type IN ('default', 'urban', 'suburban', 'highway', 'custom')",
-            name="ck_traffic_density_profiles_profile_type",
-        ),
-        CheckConstraint(
-            "status IN ('active', 'inactive')",
-            name="ck_traffic_density_profiles_status",
-        ),
-        CheckConstraint(
-            "traffic_density_per_km >= 0",
-            name="ck_traffic_density_profiles_density_non_negative",
-        ),
-        CheckConstraint(
-            "dwell_impressions_per_minute >= 0",
-            name="ck_traffic_density_profiles_dwell_non_negative",
-        ),
-        CheckConstraint(
-            "road_category_weight >= 0",
-            name="ck_traffic_density_profiles_road_weight_non_negative",
-        ),
-        CheckConstraint(
-            "morning_weight >= 0",
-            name="ck_traffic_density_profiles_morning_weight_non_negative",
-        ),
-        CheckConstraint(
-            "midday_weight >= 0",
-            name="ck_traffic_density_profiles_midday_weight_non_negative",
-        ),
-        CheckConstraint(
-            "evening_weight >= 0",
-            name="ck_traffic_density_profiles_evening_weight_non_negative",
-        ),
-        CheckConstraint(
-            "night_weight >= 0",
-            name="ck_traffic_density_profiles_night_weight_non_negative",
-        ),
-        CheckConstraint(
-            "target_zone_weight >= 0",
-            name="ck_traffic_density_profiles_target_weight_non_negative",
-        ),
-        CheckConstraint(
-            "bonus_zone_weight >= 0",
-            name="ck_traffic_density_profiles_bonus_weight_non_negative",
-        ),
-        CheckConstraint(
-            "exclusion_zone_weight >= 0",
-            name="ck_traffic_density_profiles_exclusion_weight_non_negative",
-        ),
-        CheckConstraint(
-            "revision >= 1",
-            name="ck_traffic_density_profiles_revision_positive",
-        ),
-        CheckConstraint(
-            "length(value_fingerprint) = 64",
-            name="ck_traffic_density_profiles_value_fingerprint_length",
-        ),
-        UniqueConstraint(
-            "lineage_id",
-            "revision",
-            name="uq_traffic_density_profiles_lineage_revision",
-        ),
-        UniqueConstraint(
-            "supersedes_id",
-            name="uq_traffic_density_profiles_supersedes_id",
-        ),
-        Index("ix_traffic_density_profiles_status", "status"),
-        Index("ix_traffic_density_profiles_profile_type", "profile_type"),
-        Index(
-            "ix_traffic_density_profiles_lineage_effective",
-            "lineage_id",
-            "effective_from",
-        ),
-        Index(
-            "uq_traffic_density_profiles_active_default",
-            "is_default",
-            unique=True,
-            postgresql_where=text("is_default = true AND status = 'active'"),
-        ),
-    )
-
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True,
-        default=uuid4,
-        server_default=text("gen_random_uuid()"),
-    )
-    lineage_id: Mapped[UUID] = mapped_column(nullable=False)
-    revision: Mapped[int] = mapped_column(Integer, nullable=False)
-    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    supersedes_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("traffic_density_profiles.id", ondelete="RESTRICT"),
-        nullable=True,
-    )
-    value_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
-    name: Mapped[str] = mapped_column(Text, nullable=False)
-    description: Mapped[str | None] = mapped_column(Text)
-    profile_type: Mapped[str] = mapped_column(String(32), nullable=False)
-    traffic_density_per_km: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
-    dwell_impressions_per_minute: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
-    road_category_weight: Mapped[Decimal] = mapped_column(
-        Numeric(8, 4),
-        default=Decimal("1.0"),
-        server_default=text("1.0"),
-        nullable=False,
-    )
-    morning_weight: Mapped[Decimal] = mapped_column(
-        Numeric(8, 4),
-        default=Decimal("1.0"),
-        server_default=text("1.0"),
-        nullable=False,
-    )
-    midday_weight: Mapped[Decimal] = mapped_column(
-        Numeric(8, 4),
-        default=Decimal("1.0"),
-        server_default=text("1.0"),
-        nullable=False,
-    )
-    evening_weight: Mapped[Decimal] = mapped_column(
-        Numeric(8, 4),
-        default=Decimal("1.0"),
-        server_default=text("1.0"),
-        nullable=False,
-    )
-    night_weight: Mapped[Decimal] = mapped_column(
-        Numeric(8, 4),
-        default=Decimal("0.7"),
-        server_default=text("0.7"),
-        nullable=False,
-    )
-    target_zone_weight: Mapped[Decimal] = mapped_column(
-        Numeric(8, 4),
-        default=Decimal("1.0"),
-        server_default=text("1.0"),
-        nullable=False,
-    )
-    bonus_zone_weight: Mapped[Decimal] = mapped_column(
-        Numeric(8, 4),
-        default=Decimal("1.25"),
-        server_default=text("1.25"),
-        nullable=False,
-    )
-    exclusion_zone_weight: Mapped[Decimal] = mapped_column(
-        Numeric(8, 4),
-        default=Decimal("0.0"),
-        server_default=text("0.0"),
-        nullable=False,
-    )
-    is_default: Mapped[bool] = mapped_column(
-        default=False,
-        server_default=text("false"),
-        nullable=False,
-    )
-    status: Mapped[str] = mapped_column(String(16), nullable=False)
-    profile_metadata: Mapped[dict[str, Any]] = mapped_column(
-        "metadata",
-        JSON().with_variant(postgresql.JSONB(), "postgresql"),
-        default=dict,
-        server_default=text("'{}'"),
-        nullable=False,
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
 
 
 class ImpressionEstimate(Base):
@@ -348,7 +85,13 @@ class ImpressionEstimate(Base):
         Index("ix_impression_estimates_vehicle_id", "vehicle_id"),
         Index("ix_impression_estimates_campaign_estimated_at", "campaign_id", "estimated_at"),
         Index("ix_impression_estimates_campaign_status", "campaign_id", "status"),
-        Index("ix_impression_estimates_traffic_density_profile_id", "traffic_density_profile_id"),
+        Index(
+            "uq_impression_estimates_fixed_trip_formula",
+            "trip_session_id",
+            "formula_version",
+            unique=True,
+            postgresql_where=text("traffic_density_profile_id IS NULL"),
+        ),
         Index(
             "uq_impression_estimates_authoritative_trip_formula",
             "trip_session_id",
@@ -387,10 +130,7 @@ class ImpressionEstimate(Base):
         ForeignKey("vehicles.id", ondelete="CASCADE"),
         nullable=False,
     )
-    traffic_density_profile_id: Mapped[UUID] = mapped_column(
-        ForeignKey("traffic_density_profiles.id", ondelete="RESTRICT"),
-        nullable=False,
-    )
+    traffic_density_profile_id: Mapped[UUID | None] = mapped_column()
     formula_version: Mapped[str] = mapped_column(
         Text,
         default="impressions_v1",
@@ -462,15 +202,4 @@ class ImpressionEstimate(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
-    )
-
-
-@event.listens_for(TrafficDensityProfile, "before_insert")
-def initialize_traffic_density_profile_revision(_, __, profile: TrafficDensityProfile) -> None:
-    profile.id = profile.id or uuid4()
-    profile.lineage_id = profile.lineage_id or profile.id
-    profile.revision = profile.revision or 1
-    profile.effective_from = profile.effective_from or datetime.now(UTC)
-    profile.value_fingerprint = profile.value_fingerprint or traffic_density_profile_fingerprint(
-        profile
     )

@@ -78,17 +78,66 @@ reviews pass, with full branch verification `38539599622` green.
 
 ### Product and brand
 
+**20 October orchestrator screenshot review (D129):** Keep the approved direction,
+with compact Home cards, whole hero vans and wrapped names, Running/Finished state
+words and Dates headings. Refresh belongs inside populated map cards; no Home
+campaign selector. Show map/performance before campaign assets, then the unchanged
+Booked and Details/Manage. Every asset has an image thumbnail or honest PDF tile,
+with one artwork-change entry point. Fill the driver van's panel with the real
+image; show a real job area/Avoid map only from existing frozen geometry, without
+a new endpoint. Use Cardvert's existing mark in the white admin shell. These are
+orchestrator refinements, not new client decisions. Unavailable and privacy-withheld
+figures must have distinct, plain explanations; cars say As of about 15 minutes
+ago, with D118's Nigeria-day chart and no advertiser UTC wording. On the Areas
+page, preserve D116's removal of bonus areas, use the title Areas and the plain
+intro: Draw the areas where you want your advert seen. Mark any places cars
+should avoid. No extra-area legend or pill remains after integration.
+
+**23 October taste round 2 (orchestrator, D129):** Style advertiser and staff
+report presentation with the existing shared cards, stacked fields, buttons,
+headings and download rows. Keep report logic, dates, validation and accessible
+names unchanged; explain charts, spreadsheets and hidden results in plain words.
+Refit Home maps after panel-size changes so every real boundary has padding.
+Staff section tabs sit directly below the header with an opaque background.
+
+**20 October approved additions (D120, D125–128 / REQ-220/221/226–229):** Use
+the approved background-additions look: soft decorative Abuja skyline, faint
+Terrax stripes, cream/green backgrounds and white content. Advertiser Home has
+a fixed Terrax-van hero and actual artwork alongside the real campaign map;
+driver jobs put the actual frozen advert on the same van with Where to drive
+and Avoid chips. Wallet for money figures; megaphone for campaigns. Maps show
+actual areas with the existing component and activeMapStyle; no drawn roads or
+landmarks for a real campaign. MapTiler remains REQ-050. Admin is plain white,
+minimal and spacious through shared styling, with existing behaviour/drawers.
+One Account combines company and sign-in details; invoices live only in Billing,
+linked from campaigns; Billing's approved design stays. Campaigns has a simple
+date timeline and advertiser/staff campaign pages/rows show Day X of Y using
+current campaign dates, including extensions, with no new usage/delivery warning.
+The existing per-campaign Booked figure, bar, percent and over-budget colour stay
+unchanged under D103/D104; its only visual addition is a wallet icon.
+
 **Current rule:** The business is **Terrax Media**; the product and app are
 **Cardvert** (Q29). Signed-in screens say "Terrax Media" when a person acts
 (reviews, approvals, payments) and "Cardvert" for automatic actions; times read
 "Nigeria time (WAT)" (D38a). Advertiser and driver screens never show hashes,
-run IDs or fingerprints; staff screens and downloads may (D38c). Four visual
-directions remain, with Ivory Ledger as the default (D37); two new candidates,
-Directions 5 and 6, are offered for the client's review (REQ-071).
+run IDs or fingerprints; staff screens and downloads may (D38c). One white and
+brand-green signed-in design replaces the switchable directions and picker
+(D98/REQ-181/185). Advertiser and driver screens use friendly sans type and the
+Terrax mark beside Cardvert. Advertisers use a side list and a left phone drawer;
+campaign sub-pages are tabs. Admin uses the minimal white shared styling approved
+on 20 October, retaining its operations and side panels. Operational changes are limited to the owner-approved audit items, including enquiry handling, report re-runs and staff cancellation (D97). The public site's separate styling stays.
 The public website uses **Request a Quote** for its on-site advertiser
 enquiry, **Apply to drive** for `/apply`, and **Sign in** for `/login` (D52,
 REQ-070). Advertiser account setup remains operator-led; the enquiry creates
 neither an account nor a campaign. `/` is the only public landing route.
+Accepted enquiries are saved for staff in New enquiries, and new ones show in
+the staff Work queue. Staff can create an advertiser company from one; the
+submission itself creates no login or membership (D93, REQ-191). The company's
+first login comes from a staff-sent invite: staff type the email on the
+company's People page, and the person sets their own password through a
+one-time link that lasts 24 hours (D130, REQ-232).
+The enquiry form is always on: there is no deployment switch, and its rate
+limits still apply (REQ-208).
 The enquiry keeps the notice explaining use of contact details and that no
 account or campaign is created; the separate ID/bank warning is removed under
 the owner's 8 October review brief (D64, REQ-122). Sign-in welcomes people with
@@ -106,6 +155,12 @@ small labels use sans, and past jobs do not repeat their dated status. Demo
 work days use realistic qualifying mileage and separate next-day payments.
 
 **History:**
+- **2026-10-24** — Owner, after the REQ-209 clean audit: an advertiser's first login comes from a staff-sent invite, including companies made with Add company (D130, REQ-232). Previously enquiry conversion needed an existing owner login, which an empty system did not have, and Add company set a temporary password that staff passed on. Saved enquiries now also appear in the Work queue (REQ-231).
+- **2026-10-20** — Orchestrator screenshot review refines compact cards, hierarchy, hero composition, honest withholding, consistent state words, existing-geometry driver map and the admin mark (D129). Shared worker repair verified in production builds. Local taste, privacy/security and consolidated review PASS; [receipt](../issues/testing/req220-client-feedback-2026-10-20.md). Full CI/merge remain pending.
+- **2026-10-20** — Client approved the background-additions mockups with the above changes (D120/D125–128); the earlier palette-only admin and separate Company/campaign-invoice surfaces are superseded within this work. Local implementation/reviews PASS on Lane B; full CI/merge remain pending.
+- **2026-10-20** — Owner-approved pre-push fix (REQ-208): the website enquiry form no longer needs the `CAMPAIGN_ENQUIRY_ENABLED` switch, which a fresh deployment left off. The staff header reads Terrax Media operations instead of an empty company and currency.
+- **2026-10-18** — D93 / REQ-191 replaces email-only website enquiries with saved staff New enquiries and explicit advertiser-company conversion; public submission creates no account.
+- **2026-10-18** — Terrax's feedback asks for more white, brand colours, graphics and simpler advertiser/driver navigation; the owner directs implementation now without a further client approval step (REQ-181/185, D98). This supersedes D37's Ivory Ledger default and REQ-071's six switchable candidates. Phase 1 is being implemented on `design/brand-look-mockup`; rollout/merge is not yet claimed.
 - **2026-10-10** — Owner review replaces D65's seeded live trip with idle Start and the zero Today headline with latest payment; requires realistic daily amounts and next-day reconciliations, sans labels and nonrepeated job status (REQ-128–132, D66). Earlier D65 demo history had small trips paid together. Built in `b807d341`, with API projections in `affa641c`; final verification in `8f64cdb8` and full branch CI passed on 2026-10-12.
 - **2026-10-10** — Owner replaced the text-heavy driver screens with one job per screen (REQ-127, D65), direct safe Start, honest daily payment labels and settled demo history. D39/D40/D43 money and eligibility rules remain. Built in `b807d341`, with API projections in `affa641c`; final verification in `8f64cdb8` and full branch CI passed on 2026-10-12.
 - **2026-10-08** — Owner approved one consolidated portal clarity pass (REQ-120–REQ-125), including "Request a Quote", the contact-use notice without the separate ID/bank warning, and simpler sign-in/onboarding copy (D64). Built in `b807d341`, with API projections in `affa641c`; final verification in `8f64cdb8` and full branch CI passed on 2026-10-12.
@@ -124,13 +179,20 @@ Compliance, Finance, Customer Service, Admin) are sections of the admin
 "Finance Officer" is whichever admin handles money. One admin may complete all
 driver approval checks; advertiser logins belong to one company (D29).
 For now, set up one advertiser login per company; do not add invitations for
-additional company staff (D47, REQ-060).
+additional company staff (D47, REQ-060). That one login is created by a
+staff-sent invite, which is offered only while the company has no login; staff
+never set an advertiser's password (D130, REQ-232).
+The first staff account on a fresh deployment is created from the server shell
+(`python -m app.operations.create_staff`); it is an active admin with a one-time
+temporary password that must be changed at first sign-in (REQ-208).
 
 **History:**
 - **2026-09-02** — Owner decision on single-company advertiser logins and one admin for driver checks (D29).
 - **2026-09-24** — Client named its departments; owner mapped them to work-queue sections (D38e). Built in `7a9ceb0` (REQ-001).
 - **2026-09-30** — Owner: no named people per department; everyone uses the one admin role (REQ-031).
 - **2026-10-01** — Owner kept one advertiser login per company for the admin redesign; the proposed additional-person invitation is omitted (D47, REQ-060). Existing membership history and access constraints remain.
+- **2026-10-20** — Owner-approved pre-push fix (REQ-208): a shell command creates the first staff admin, refusing an email that already has an account. Previously a fresh deployment had no way to create its first staff login.
+- **2026-10-24** — Owner (D130, REQ-232): the single advertiser login is created by a staff-sent invite. Previously staff created it with a temporary password, and D47 ruled out invitations altogether.
 
 ### Pricing and quotations
 
@@ -160,6 +222,9 @@ REQ-171). Payment confirmation still requires canonical verified evidence.
 An interrupted online checkout is reconciled using its saved reference under
 serialized audited recovery; one ambiguous not-found reply never permits a new
 reference (D85, REQ-173).
+Permanent payment terms or checkout-binding mismatches stop automatic retries
+and remain visible to operators; temporary failures still recover. This changes
+no payment amount or allocation authority (D133, REQ-241).
 
 **Still open:** [REQ-051](requests.md) Paystack activation and developer admin
 access, [REQ-025](requests.md) password and two-step verification,
@@ -167,8 +232,9 @@ access, [REQ-025](requests.md) password and two-step verification,
 
 **History:**
 - **2026-08-14** — Client confirmed payment timing and methods (Q2, Q3, D18).
-- **2026-10-14** — Owner approved bounded public callback buffering (D84/REQ-171); earlier callbacks authenticated only after an unbounded body read. Local declared/chunked/exact-byte regressions pass; batch delivery gates remain pending.
-- **2026-10-14** — D85/REQ-173 recovers saved uncertain checkouts; the earlier implementation refused all initialization retries even after a pre-dispatch interruption. Recovery reuses the exact reference and canonical verification, retaining uncertainty after ambiguous/duplicate responses. Fake-I/O and separate-session checks pass; money review and full batch CI remain pending.
+- **2026-10-25** — D133/REQ-241 stops repeated automatic attempts for proven permanent payment-binding failures, retaining operator evidence and transient recovery. Earlier sweeps repeatedly selected those failures. Verification and integration remain pending.
+- **2026-10-14** — Owner approved bounded public callback buffering (D84/REQ-171); earlier callbacks authenticated only after an unbounded body read. Local declared/chunked/exact-byte regressions pass; security review and full batch CI passed. Built in `2428011f`.
+- **2026-10-14** — D85/REQ-173 recovers saved uncertain checkouts; the earlier implementation refused all initialization retries even after a pre-dispatch interruption. Recovery reuses the exact reference and canonical verification, retaining uncertainty after ambiguous/duplicate responses. Fake-I/O and separate-session checks pass; money review and full batch CI passed. Built in `faa4bb19`.
 - **2026-09-24** — Client chose Paystack with OPay settlement (client answers item 7).
 - **2026-09-28** — Paystack adapters built from the public docs, disabled without keys. Built in `dbd41e1` (REQ-004).
 - **2026-09-29** — Existing test-key access was established and one real ₦101 Test Mode checkout completed, verified and applied once by Cardvert; public webhook, transfer and production approval gates remain open (REQ-027, REQ-035).
@@ -207,23 +273,57 @@ become verified issuer facts or real payment instructions.
 alert at 95 %**, and the campaign **pauses at 100 %**. Alerts go to every
 member of the advertiser company and to Terrax admins. Only a Terrax admin
 raises a budget or restarts a paused campaign, after the increase or payment is
-confirmed (client answers item 3). The ratios are set per deployment in
-configuration (`BUDGET_*_RATIO`) and are blank in the templates. The client
+confirmed (client answers item 3). D92 / REQ-190 makes these fixed defaults,
+removing deployment ratios, the staff policy panel and external policy approval.
+Campaigns are fixed price: accepting the quote raises the budget to the agreed
+price when it is lower (a higher budget is kept), and the warnings and pause
+only cover charges beyond the agreed price. The pause fires above 100 %, not at
+it, and a daily budget is stored but does not pause a campaign (D104, REQ-193).
+Advertisers see the booked amount against their budget, for example
+"₦1,128,750 of your ₦1,128,750 budget" (D103). A warning that follows campaign
+progress needs the client's rule for how spend builds up (REQ-196).
+Resume requires fresh confirmed funding/budget changes and spend at or below
+every applicable 100% limit; it is never automatic. The client
 also wants fixed costs (printing, installation, permits, design and any other
 quoted fixed line) to count towards the budget together with media, for the
 80 %, 95 % and 100 % levels (REQ-037). This already worked; W1-B added tests
-that prove it. Accepted prices never change.
-
-
+that prove it. Accepted prices never change. Each advertiser campaign shows
+**Booked** against its budget rather than driver pay (D103/REQ-193; screen
+wording D100/REQ-182): "Booked: ₦X of your ₦Y budget" on the campaign page and
+"₦X of ₦Y" in its row on the campaigns list. Booked is the figure the
+total-budget alerts use — confirmed funding before production, the invoice
+with corrections from production onwards — not a spent-so-far meter. It is
+never added up across campaigns or currencies, so Home shows only running
+campaigns and cars on the road. A campaign with only a daily budget shows just
+"Booked: ₦X". No funding or terms shows ₦0 of ₦Y; missing or failed data shows
+a quiet dash. Accepting a quotation raises the budget to at least the agreed
+price, so a normal campaign reads at most 100 % (a full green bar); budget
+emails come only when extra charges go past the agreed price (D104).
 
 **History:**
 - **Before 2026-09-24** — One alert level (`budget_alert_ratio`) before the pause.
+- **2026-10-19** — Owner asked for the figure to use a consumed-spend measure shared with the alerts, true ₦0 for no spend, a quiet dash only when missing, and one running total per currency (D100/REQ-182). Worker A then found no consumed-spend measure exists: the alerts use the billing commitment (confirmed funding before production, the full invoice obligation after). The owner then chose option A the same day: show that commitment as "Booked" (D100). Later that day the orchestrator simplified it: no daily figure on screen; a daily-only campaign shows just "Booked: ₦X", and Home shows a budget only when every campaign in that currency has one. Worker A then recorded the backend figure as D103/REQ-193 (never summed across campaigns or currencies) and the alert fix as D104, and on 20 October the owner confirmed Home drops its Booked tile and sum; Booked stays on each campaign's list row and page. Previously (D95) screens said "Spent so far" from recorded total-basis evaluations and showed a sentence when unavailable.
+- **2026-10-19** — Campaigns are fixed price, so warnings only cover charges beyond the agreed price. Owner's choice (D104, REQ-193). Previously a fully paid normal campaign reached 100 % of its budget and paused, and a daily budget paused a prepaid campaign. Advertisers now also see the booked amount against their budget (D103). The 80 %/95 % warnings cannot follow campaign progress until the client gives a rule for how spend builds up (REQ-196).
+- **2026-10-18** — D92 replaces deployment-configured blank ratios and external policy approval with default 80/95/100 enforcement. Controller delegates removal of that obsolete prerequisite (REQ-190); other gates and programme states remain unchanged.
+- **2026-10-18** — Owner accepts audit D5: replace advertiser driver-pay figures with spent so far of the budget (D95/REQ-182). Previous overview/detail screens led with calculated driver payouts. This changes presentation, not prices, financial authority or payout calculation; Phase 2 can add the live spend projection.
 - **2026-10-05** — W1-B added tests proving that printing, installation, permits, design and any other quoted fixed line already count towards the budget together with media, for the 80 %, 95 % and 100 % levels. Accepted prices never change (REQ-037). Owner review requested this plain wording (REQ-116 (renumbered at merge from wording REQ-112)). Built in `308f04a8`, with wording in `81de2f54`.
 - **2026-09-24** — Client asked for 80 % and 95 % warnings and a pause at 100 %; recipients "everybody" (read as all company members plus Terrax admins); fixed costs to count. The three levels and admin recipients were built in `7a9ceb0` (REQ-001); fixed costs were deferred to a money batch.
 
 ### Campaign lifecycle and changes
 
-**Current rule:** Advertisers create a draft and submit it for admin approval
+**Implementation checkpoint (REQ-215):** photo approval runs the full funded
+activation check automatically. Staff see a missing prerequisite and may retry
+starting the approved job after fixing it; no Accepted jobs queue. The campaign
+production-start record locks advertiser artwork changes, with the Terrax
+replacement message. Current artwork is image/PDF, current vehicles are cars,
+and the company login has one advertiser role. Issued report files and money
+history are unchanged. B4 money and security checkpoints PASS (GPT-6.1-Sol,
+high); focused activation, production-race, PDF, tenant, migration, exact-pay
+and frontend checks pass. Final integrated reviews remain pending.
+
+**Current rule:** D116 merges Scheduled into Approved, removes bonus zones/unreachable enums and advertiser company roles. Artwork retains PNG/JPEG/WebP images and PDF using explicit image/pdf types; remove video/html/text/other. Fitted artwork cannot be added/swapped after production starts; replacement goes through Terrax (client, 20 Oct), enforced by a shared create/update production-lock guard. Photo approval activates only after all existing checks. D118 derives Finished from end date. Campaign daily metrics use Nigeria calendar days; the owned seven-day read includes partial today and zero empty days. Funding, cancellations, D104 budget rules and change approvals remain. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
+
+**Previous rule (ended 20 October 2026; retained history):** Advertisers create a draft and submit it for admin approval
 (Q6). A campaign can be submitted only with start and end dates, a total budget
 and at least one target area (D38d). Launch needs funding authority, approved
 artwork, assigned eligible vehicles and approved installation photos; an admin
@@ -249,31 +349,56 @@ payment that authorises production; standard production waits until it
 closes. An advertiser may ask for earlier production through a recorded
 waiver, which ends refund eligibility once production starts. Cancelling stops
 new work at a fixed cutoff, and drivers are paid their verified earnings up to
-that moment (Q24, D20b).
+that moment (Q24, D20b). Advertisers ask Terrax Media to cancel instead of
+performing permanent self-service cancellation (D97/REQ-184). A cancellation
+request requires their own campaign and a reason; sending or resolving it does
+not itself cancel the campaign. Phase 1 removes the old screen control and
+prepares the request form; Phase 2 connects the `campaign_cancellation` support
+category and removes the old endpoint through Worker A. D7 is not complete yet.
+Staff cancel a whole campaign from its page or cancellation-request thread,
+with a required reason and confirmation. The same financial cutoff rules apply;
+a linked request receives a fixed reply atomically and is not auto-resolved.
 
 **History:**
 - **2026-08-14** — Client confirmed the window and waiver (Q24, D18, D20).
+- **2026-10-19** — Owner specifies D97's staff integration: reason1–1000, explicit effect confirmation, same request identity on retry and optional same-campaign cancellation thread; the backend performs the existing cutoff and atomic reply. The request itself and support resolution remain separate from cancellation. Phase 2 source/integration is in progress; no completion or deployment claim.
+- **2026-10-18** — Owner accepts audit D7: Ask Terrax to cancel, with recognisable cancellation-request labels and confirmation that the campaign continues until Terrax confirms (D97/REQ-184). Earlier advertiser UI directly executed permanent cancellation. Cutoff, earnings and refund authority remain unchanged; backend/category integration is Phase 2.
 
 ### Artwork
 
 **Current rule:** Advertisers upload artwork in Cardvert; an admin approves or
 rejects it before production or launch (Q18, D7).
+Owner follow-up under REQ-180 lets an assigned driver preview the exact frozen,
+still-approved artwork while an offer or current job remains live. The preview
+uses the existing clean private file and short signed URL; it exposes no new
+advertiser or campaign information. Screens belong to Worker B.
 
 **History:**
 - **2026-07** — Adopted as an MVP rule (D7); client confirmed 2026-08-14 (Q18, D18).
+- **2026-10-18** — The controller assigns Worker A the missing frozen job-artwork read/API client in Batch 2 (REQ-180), responding to the client's request for more pictures. Previously no driver route could preview the offered advert. Plan review passed; specialist and runtime verification remain pending. No new product decision row is needed for this view of existing offer content.
 
 ### Matching, offers and activity
 
-**Current rule:** Cardvert recommends eligible drivers and vehicles; an admin
+**Current rule:** D109 removes high-earner/concurrent challenges, weekly hours floor and extra notices. Inspector records passed/failed plus note; failure holds pay. Seven-day inactivity flag self-closes with one staff notice. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
+
+**Previous rule (ended 20 October 2026; retained history):** Cardvert recommends eligible drivers and vehicles; an admin
 approves the assignment (Q7). The driver gets a full offer and accepts or
 declines (Q8); accepted terms are frozen. One active campaign per vehicle
 (Q16). A configurable minimum of verified hours applies, and a driver is
 flagged after seven inactive days (Q20).
 
 **History:**
+- **2026-10-20** — D109 removes automatic challenges and the weekly floor; inspectors record passed/failed plus a note, and inactivity produces one initial notice per staff recipient then closes on verified activity. Built locally in `be1fc9de` and `c848e5c0` (REQ-211); final specialist reviews and merge pending.
 - **2026-08-14** — Client confirmed (Q7, Q8, Q16, Q20, D18).
 
 ### Drivers and vehicles
+
+**Bank verification update (D89, REQ-187, 18 October):** When automatic account-name
+checking is unavailable, staff confirm the new driver's account with a small test
+transfer and type its bank reference. Any trimmed nonempty reference up to 512
+characters is accepted, with internal spaces/Unicode and no entropy rule;
+control characters are refused. Only the normalized hash is retained. Exact
+bank-version verification, audited staff approval and first manual payout remain.
 
 **7 Oct owner correction (D72, REQ-144):** Renewals show each document’s own result and ask only for replacements; retained NIN/bank details and accepted documents are reused. Bank choice uses names, uploads match the app, and copy describes the actual new-trip pause while existing trips may finish.
 
@@ -291,6 +416,19 @@ is registered to its driver, who is the payee; no fleet owners (Q23). Vehicle
 approval ends on an admin-entered date (D31). The **pilot is car-only;
 motorcycles deferred** until the owner or client raises them again (Q19, D88,
 REQ-179). Existing roadworthiness and documentation requirements remain.
+Driver Home and Jobs list the agreed job's frozen paying-area names, with
+exclusions separate, until the map account exists (D99/REQ-186/REQ-050). Phase 1
+uses a local vehicle illustration; scoped real artwork follows in Phase 2.
+
+Application emails use a 24-hour continuation link to the current details/car
+step, replacing the pasted code. Expiry, revocation, current approval and
+application ownership remain authoritative (D94, REQ-192). The link also tells
+the applicant whether that step is needed, in review or needs changes, with a
+plain reason when changes are needed (REQ-195). When a new link is sent, only
+the newest one works (D131, REQ-233).
+Apply is always open: there is no deployment switch, and the existing rate
+limits still apply (REQ-208). An approved driver's account set-up link works
+once, for 24 hours (D106).
 
 Signed-in active driver accounts can renew rejected or expired identity, bank
 and vehicle documents in Profile, with the same scanned uploads and audited
@@ -298,9 +436,16 @@ staff review. Work remains blocked until the current reviews pass. Unknown
 renewal periods stay unset (D69, REQ-137). Mark expired retains the recorded outcomes, dates and review history. Actually expired driver or vehicle documents require new clean uploads and audited current approval before work resumes; accepted retained documents remain reusable (D76, REQ-152).
 
 **History:**
-- **2026-10-12** - Owner chose in-app versioned agreement/privacy acceptance in place of a signed-file upload, plus the shared searchable bank picker and confirmed adapter account-name check with unavailable-provider typed-name fallback (D77/D78, REQ-158/159). The previous signed agreement was a required KYC file and Apply asked for a typed 3-digit bank code and account name. Legal wording remains a draft internally (REQ-032); existing payout authority remains. Built in `a349c2e5`, with final repairs/evidence in `9e7f6147`; non-squash master merge `f77870fd`. Final local verification and independent reviews PASS. Under the one-off REQ-160/D79 exception, full CI/source-bound coverage evaluation is deferred until after Waves 3/4; the accepted integrated run failed, not green.
+- **2026-10-24** — Owner (D131, REQ-233): sending a new application link makes the older ones stop working. Previously every link worked until it expired after 24 hours.
+- **2026-10-20** — Owner-approved pre-push fixes (REQ-208): the approved-driver account set-up link lasts 24 hours instead of 30 minutes (D106), and Apply no longer needs the `DRIVER_REGISTRATION_ENABLED` switch, which a fresh deployment left off. Rate limits, expiry and single use are unchanged.
+- **2026-10-19** — Owner follow-up to audit D8 (REQ-195): the continuation link now returns the step's state (needed, in review or changes needed) and a plain reason from the existing applicant wording. Previously it returned only the step, so a rejected or expired applicant saw no reason. Authority and expiry are unchanged.
+- **2026-10-18** — D94 / REQ-192 replaces the pasted application code with a 24-hour link to the current step, preserving capability authority and renewal behavior.
+- **2026-10-18** — Owner accepts audit D9: staff may confirm an account by a small test transfer and type any bank reference (D89, REQ-187). Previously the backend demanded 32–512 bytes with no spaces/high-entropy syntax, and the form required 16 characters. New normalized 1–512-character references retain exact-version verification and first manual payout. Local implementation and specialist verification are in progress; no transfer or provider action authorized.
 
-- **2026-10-14** — Owner chose a car-only pilot; motorcycles are deferred until the owner or client raises them again (D88, REQ-179). The previous current rule permitted roadworthy cars and motorcycles under D43(h)/REQ-034. This supersedes that motorcycle permission for the pilot; current car-only code and vehicle_type plumbing are unchanged.
+- **2026-10-12** - Owner chose in-app versioned agreement/privacy acceptance in place of a signed-file upload, plus the shared searchable bank picker and confirmed adapter account-name check with unavailable-provider typed-name fallback (D77/D78, REQ-158/159). The previous signed agreement was a required KYC file and Apply asked for a typed 3-digit bank code and account name. Legal wording remains a draft internally (REQ-032); existing payout authority remains. Built in `a349c2e5`, with final repairs/evidence in `9e7f6147`; non-squash master merge `f77870fd`. Final local verification and independent reviews PASS. Under the one-off REQ-160/D79 exception, full CI/source-bound coverage evaluation is deferred until after Waves 3/4; the accepted integrated run failed, not green.
+- **2026-10-18** — Owner accepts audit D11: named paying areas from frozen offers replace the proposed driver map until REQ-050 (D99/REQ-186). The earlier Home and Jobs did not show the job geography. Frozen dates/rate/car and existing safe Start/photo blockers remain; no map-provider request is authorised.
+
+- **2026-10-14** — Owner chose a car-only pilot; motorcycles are deferred until the owner or client raises them again (D88, REQ-179). The previous current rule permitted roadworthy cars and motorcycles under D43(h)/REQ-034. This supersedes that motorcycle permission for the pilot; current car-only code and vehicle_type plumbing are unchanged. Built in `e2fdef5b`.
 
 - **2026-10-12** — Owner-delegated orchestrator requires correction of the wave staff-expiry bug: retain original document facts/history and append the expiry event, refuse reuse of an actually expired file, and restore eligibility only after new upload approval (D76, REQ-152). This implements the existing rule; prior staff expiry incorrectly replaced document facts with empty values. Built in `7f374c39`; integrated verification and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass.
 
@@ -313,16 +458,22 @@ renewal periods stay unset (D69, REQ-137). Mark expired retains the recorded out
 
 ### Installation photos
 
-**Current rule:** Before campaign hours can earn, installation photos must be
+**Current rule:** D108 removes all daily display proof; keep weekly five-view seven-day approved installation photos. D116 auto-activates on approval only when every existing check passes, otherwise show missing checks. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
+
+**Previous rule (ended 20 October 2026; retained history):** Before campaign hours can earn, installation photos must be
 approved by an admin (Q17). Views: **front, back, left, right and close-up**.
 The driver or an admin uploads them (there is no installer login); Compliance
 reviews; new photos are required **weekly**; Terrax's inspector makes spot
-checks on top (client answers item 4). Set in configuration
-(`INSTALLATION_EVIDENCE_*`).
+checks on top (client answers item 4). This rule is built into Cardvert, so a
+fresh deployment needs no photo settings (REQ-208). The daily display-photo
+windows remain deployment values (REQ-039); trips need them.
 
-**Still open:** [REQ-039](requests.md) — spot-check and display-proof values.
+REQ-039 is superseded by D108/D109: daily proof is removed and inspectors record
+passed/failed observations with notes, without challenge windows to configure.
 
 **History:**
+- **2026-10-20** — Daily display proof and coupled automatic driver challenges removed under D108/D109 (REQ-211). Weekly approved five-view installation photos remain the trip-start gate. Built in `be1fc9de`; the remaining B1 simplifications are built in `c848e5c0`. Final specialist reviews and merge remain pending.
+- **2026-10-20** — Owner-approved pre-push fix (REQ-208): the installation-photo rule (five views, driver or admin, 7 days) is built into the code instead of three `INSTALLATION_EVIDENCE_*` settings that a fresh deployment left empty, which blocked every photo upload. Display-proof windows are unchanged.
 - **2026-10-06** — The registered temporary development installation/proof values (REQ-094) are integrated. Built in `6879c95`; unanswered client replacement inputs remain REQ-039.
 - **2026-10-02** — Owner authorized temporary installation/proof values in development and preview configuration only (REQ-094); unanswered client values remain REQ-039, with the inventory in `demo-data.md`.
 - **2026-08-14** — Client confirmed approved installation evidence (Q17, D18).
@@ -338,14 +489,16 @@ continuous stop adds no distance (D39b, D43d).
 
 **History:**
 - **2026-08-14** — Client confirmed screen-on tracking with driver Start/End (Q10, D18).
-- **2026-10-14** — REQ-172 corrects browser-to-server transport failures being mistaken for durable-storage failure. Healthy Flush capture retains current session/offline authority and exact v2 batches; End uncertainty retains its frozen manifest and pauses capture until server reconciliation. Existing genuine queue, identity, visibility and writer-lock failures remain closed. Local tracker tests pass; independent money/consolidated review and batch CI remain pending.
+- **2026-10-14** — REQ-172 corrects browser-to-server transport failures being mistaken for durable-storage failure. Healthy Flush capture retains current session/offline authority and exact v2 batches; End uncertainty retains its frozen manifest and pauses capture until server reconciliation. Existing genuine queue, identity, visibility and writer-lock failures remain closed. Local tracker tests pass; money and consolidated reviews passed; full batch CI passed. Built in `01dd46ca`.
 - **2026-08-20** — Owner chose a parked-time detector for hourly pay (120-second windows, 25-metre threshold; D22).
 - **2026-09-25** — Client set the 5-minute stop rule (D39b). Built for daily-rate pay in `e14149d` (REQ-002). Hourly (v1–v3) work keeps D22.
 - **2026-09-30** — Client confirmed the 5 minutes apply to **each** stop, not the whole trip or day (D43d).
 
 ### Driver pay
 
-**Current rule:** A driver earns a **daily rate of ₦10,000** for covering the
+**Current rule:** D111 removes publishing switch, fixes proportional in-area daily pay and identical eligibility values, daily automatic cadence with no run limit under Pause. D112 allows one admin with reasons/audit for manual batches/corrections; stale/add-only/new-bank/hold/provider checks stay. D113 replaces automatic debt with manual negative adjustments. Owner-approved 20 October 2026, REQ-210–218. B6 built in `4dcad44b`; B7 built locally in `79ce736` with money checkpoint PASS; final integrated review/merge pending.
+
+**Previous rule (ended 20 October 2026; retained history):** A driver earns a **daily rate of ₦10,000** for covering the
 **expected daily miles** (70 in the pilot). A shorter day pays **its share of
 the day**: miles counted ÷ expected miles × ₦10,000 (50 of 70 miles =
 ₦7,143), with **no minimum distance**. **Only miles inside the campaign area
@@ -353,8 +506,12 @@ count**. Covering more than the expected miles earns no more than the day rate.
 Rates are set per campaign on an audited revision and frozen when the driver
 accepts; "on request" areas may have their own rate (D39a, D43a–c). D80 removes the obsolete hourly engines: there is no live accepted hourly work. Switching daily-rate pay
 on for real campaigns: [REQ-048](requests.md).
+Driver Home shows today's and this week's earnings (Monday to Sunday, Nigeria
+time). Earnings shows this week, total earned and money on hold: the unpaid part
+of days on hold. Paid money is never counted as on hold (REQ-208).
 
 **History:**
+- **2026-10-20** — Owner-approved pre-push speed fix (REQ-208): one server read now totals each day and the headline figures, replacing the screens' 2,000-entry paging. Amounts and day statuses are unchanged; Home adds this week and Earnings adds this week, total earned and on hold.
 - **2026-10-13, completed 14 October** - Owner approved removal of obsolete development payout v1-v3/evidence v1 and SQLite paths, with no live data; current daily-rate and frozen-evidence protections remain (D80, REQ-161). Built in `18192019`, with daily-rate Jobs completion in `8840fc10`.
 - **2026-07 to 2026-08-04** — Fixed naira amount **per hour** of verified time, with a daily cap on payable hours (D2, D4); built as `payout_v1` and `payout_v2` (D9, 30 Jul); reconfirmed against the proposal (D12, 4 Aug).
 - **2026-08-14** — Client set one platform hourly rate with an admin campaign override, and a higher (premium) hourly rate inside the primary zone (Q4, Q5, D18). Built as `payout_v3`.
@@ -366,7 +523,9 @@ on for real campaigns: [REQ-048](requests.md).
 
 ### Payout approval and timing
 
-**Current rule:** Drivers are paid by **automatic bank transfer** through an
+**Current rule:** D111 fixes daily automatic payouts under Pause, clean earnings only, first new-bank payout human. D112 permits same admin for manual preparation/approval/reconciliation and corrections with reasons/audit and stale checks. D113 removes debt carry-forward; manual negative adjustments are audited. Owner-approved 20 October 2026, REQ-210–218. B6 built in `4dcad44b`; B7 built locally in `79ce736` with money checkpoint PASS; final integrated review/merge pending.
+
+**Previous rule (ended 20 October 2026; retained history):** Drivers are paid by **automatic bank transfer** through an
 approved provider (Q27; Paystack Transfers funded from OPay, client answers
 item 8), **every day** (D43e). **Payouts are approved automatically** for clean
 earnings only: no hold, flag or open dispute; a verified bank account that has
@@ -395,19 +554,24 @@ remain unchanged. Requested hardening: [REQ-036](requests.md), [REQ-040](request
 
 ### Fraud holds and earnings release
 
-**Current rule:** Earnings from flagged trips are held for admin review, with
+**Current rule:** D114 retains only pay-changing flags (speed/stationary/gap/replay/exclusion/failed spot), open to confirmed/dismissed. Never auto-release flagged pay. Late uploads apply before day pay calculation, otherwise audit/drop; corrections remain explicit. D117 fixes seven-day target. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
+
+**Previous rule (ended 20 October 2026; retained history):** Earnings from flagged trips are held for admin review, with
 reasons and a dispute path; thresholds are configurable (Q21). Clean earnings
 become available for the next payout. Flagged earnings stay pending with a
 seven-day review target and are never released automatically; unresolved cases
 escalate after day seven (Q22).
 
 **History:**
+- **2026-10-20** — D117 supersedes operator provisioning and signed email receipts, using the client support number and fixed existing security values; REQ-216. The previous rule required a named approved operator and approval reference for live phone verification.
 - **2026-10-07** — Owner Claude polish review clarifies the earnings presentation: Ready to pay, Waiting for review and Paid consistently, no repeated page-count summary and one short explanation (REQ-142); amount and payment authority are unchanged. Superseded by the later D65/D66 driver design: Paid with its date, Paying tonight, Being checked and On hold – contact support; the pay explanation lives only in Help. Built in `78ad5580`; the superseding master design is retained by `21239a6d`.
 - **2026-07** — Hold-and-review adopted (D5); client confirmed 2026-08-14 (Q21, Q22, D18).
 
 ### Complaints and support
 
-**Current rule:** Drivers and advertisers raise complaints in the app, with a
+**Current rule:** D109 removes named staff assignment and its notification. Existing department handling, messages and cancellation requests stay. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
+
+**Previous rule (ended 20 October 2026; retained history):** Drivers and advertisers raise complaints in the app, with a
 category and an optional reference to one of their own campaigns, trips or
 payouts; Customer Service answers in an inbox that also appears under
 "Waiting for you" (D39d). Until the client decides: categories are a neutral
@@ -421,11 +585,12 @@ target, [REQ-022](requests.md) driver email/WhatsApp, [REQ-023](requests.md)
 company-wide visibility, [REQ-024](requests.md) erasure.
 
 **History:**
+- **2026-10-20** — D109 removes named complaint assignment; active staff handle the shared queue. Built locally in `c848e5c0` (REQ-211); final specialist reviews and merge pending.
 - **2026-09-25** — Client asked for in-app complaints handled by Customer Service (D39d). Built in `7e39c66` (REQ-005).
 
 ### Notifications and contact
 
-**7 Oct demo correction (D73, REQ-145):** Nigerian-format synthetic driver phones; the owner’s +2347068369842 is the temporary local/preview Terrax destination. The PM’s real preview WhatsApp number is [REQ-143](requests.md). Live operator/wording gates remain.
+**Historical 7 Oct demo correction (D73, REQ-145; superseded 20 Oct by D117):** Nigerian-format synthetic driver phones; the owner’s +2347068369842 is the temporary local/preview Terrax destination. The PM’s real preview WhatsApp number is [REQ-143](requests.md). Live operator/wording gates remain.
 
 
 
@@ -439,16 +604,30 @@ Mark all read clears current unread items, including older pages. Read records
 remain stored; notifications arriving afterward appear normally (D54, REQ-075).
 Campaign notices name the campaign and offer Open only when the recipient can
 currently access its campaign or driver assignment; inaccessible context stays
-generic without a name or link (D71, REQ-139).
+generic without a name or link (D71, REQ-139). A weekly or final report that
+becomes ready sends one short "report ready" notice (D132, REQ-234).
 
 For phone verification, only the signed-in driver sees a one-time code and
 sends it by WhatsApp or SMS to the configured Terrax number. Customer Service
 records the received code and sender number; Cardvert verifies the current
 phone once, limits attempts and logs the staff action. No configured number
-means no driver button. Live use waits for approved wording (REQ-032) and a
-named operator (D70, REQ-138).
+means no driver button. D117 (20 October, REQ-216) makes the client support
+number 07074200080 the only phone setting, stored as +2347074200080 for WhatsApp;
+operator-approved/name/reference switches are removed. Code expiry (10 minutes),
+five code attempts, three requests per hour and the staff audit remain.
+
+**20 October implementation checkpoint (REQ-216):** the 45 existing numeric
+security/tracking/infrastructure limits are fixed at identical defaults; email
+uses queued sends and bounded retries with sent/failed outcomes and no signed
+receipts. Queue-only durable outbox recovery never sends mail. Advertiser opt-out
+and active company/user/membership checks still run before dispatch. The fraud
+review target is fixed at seven days and never auto-releases held pay. B5 focused
+runtime verification and independent security checkpoint PASS (gpt-6.1-sol/high).
+Built locally in `f85ffbb8`; final integrated delivery review and merge remain pending.
 
 **History:**
+- **2026-10-24** — Owner (D132, REQ-234): weekly and final reports send a report-ready notice. Previously reports appeared in the portal with no notice.
+- **2026-10-20** — D117 supersedes operator provisioning and signed email receipts, using the client support number and fixed existing security values; REQ-216. The previous rule required a named approved operator and approval reference for live phone verification.
 - **2026-10-07** — Owner Claude polish review requires sentence-case notification titles/body in the body font, retaining capitals for small labels (REQ-139); notification content and access checks are unchanged. Built in `78ad5580` and real integration `21239a6d`.
 - **2026-10-07** — Owner W2-D brief replaces generic campaign notices with currently authorized campaign names and Open links (D71, REQ-139); immutable notification payloads and delivery channels remain. Built in `78ad5580` and real integration `21239a6d`.
 - **2026-10-06** — The earlier Mark read investigation, accessible panel close/focus and simpler company-preference wording are integrated (REQ-073/074/076). Built in `c2ab2d9`; full CI, including the real preference-change browser case, passed. REQ-075 retains its separate unread-inbox walkthrough obligation.
@@ -459,29 +638,66 @@ named operator (D70, REQ-138).
 
 ### Advertiser reporting and privacy
 
-**Current rule:** The standard report is a **Campaign Performance Analysis**:
+**20 October pilot additions (D121–124 / REQ-222–225):** Campaign assets show
+the current thumbnail, upload date, approval status and rejection reason,
+Upload/Replace and See it on a car. Once printed or running, replacement asks
+Terrax through existing support; it never swaps the fitted design. Each artwork
+may have one validated https website URL with a downloadable QR through a
+rate-limited Cardvert short redirect. Count scans per day without retaining IP,
+user agent or other personal scan data. Home/campaign performance shows estimated
+views (labelled), cars, a seven-day distance/cars chart and QR scans when positive;
+no CTR, website visits or pilot ROI. Live maps show anonymous dots for currently
+driving cars only inside campaign areas, delayed at least 15 minutes: no identity,
+car IDs, per-car filters or trails. Only campaign filtering; empty says No cars
+driving right now. Coverage history remains on the existing map. Privacy and
+security review required; no claim of real-use approval. These individual delayed
+dots have no three-car minimum, as confirmed by the owner via orchestrator.
+
+**Current rule:** D118: weekly/final campaign reports with staff Re-run; issued files immutable and old downloads retained (D71). Advertisers choose period and one/all own campaigns, CSV/PDF with charts: dates, three-car areas, cars, verified distance/driving days/trips/time, labelled estimated views, creative previews and status. Measured and estimated sections visibly distinct. No money/budget/CTR/ROI. Fixed estimates; Finished derives from date. D115 removes audience recommendations. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
+When a weekly or final report is ready, the company's active login gets one short notice, in-app and by email unless the company switched email off. It links to the campaign's reports, which need sign-in, and carries no figures, attachment or driver details. Re-runs send no repeat; custom reports send none (D132, REQ-234).
+
+**Previous rule (ended 20 October 2026; retained history):** The standard report is a **Campaign Performance Analysis**:
 verified operations, clearly labelled estimated exposure and target-area
-coverage. Financial ROI appears only when an advertiser supplies conversion or
-revenue data and an approved method exists (Q12, Q30, D20c). Advertisers do not
-see driver names or profiles.
+coverage. Pilot outputs have no CTR, website visits beyond QR scans, or ROI
+(D123, replacing the earlier conditional ROI rule). Advertisers do not see
+driver names or profiles.
 New CSV/PDF issuances say "Not enough data" for unavailable totals. Existing
 issued reports, stored snapshots, bytes and integrity hashes retain their original
 wording; the export snapshot version changes for new issuances (D71, REQ-141).
 New export v3 freezes governed linked-source follow-up recommendations from the
 same issued measurement, with area/time context, uncertainty and disclosure.
 Unavailable/stale/suppressed recommendations release no targets (D86, REQ-175).
+Under D90/D91 (REQ-188/189), every campaign shows distance, completed trips,
+Nigeria driving days and estimated views, including small campaigns. An area
+row needs at least three cars; that is the only area rule, and showing areas
+never blocks the dashboard, summaries, trips, maps or audience exports (D105).
+Three distinct cars is the whole rule for aggregate results, including heatmap and
+audience cells: there are no extra trip, day or largest-contributor conditions,
+so a three-car campaign shows its areas from its first day (D107, REQ-208).
+D124's individual delayed, in-area live dots have no three-car minimum, as
+explicitly confirmed by the owner via orchestrator on 20 October.
+Reports are prepared weekly and at campaign end; staff can re-run them. New v4
+exports freeze the same coarse totals and three-car areas, retaining governed optional
+recommendations; D123 excludes ROI from pilot output.
 
 **Still open:** [REQ-018](requests.md) — confirm no driver identity in reports.
 
 **History:**
+- **2026-10-24** — Owner (D132, REQ-234): weekly and final reports send a short report-ready notice with a link. Previously there was no notice.
+- **2026-10-20** — Client pilot feedback (D123) replaces the earlier conditional ROI rule: ROI was allowed only with advertiser conversion/revenue inputs and an approved method (D20c/Q12/Q30); the pilot now has no CTR, website visits beyond QR scans, or ROI. D124 separately approves individual delayed in-area dots with no three-car minimum, without changing aggregate area rules.
+- **2026-10-20** — Owner-approved pre-push fix (REQ-208): three distinct cars now governs every result (D107). Previously areas and map cells also needed several trips, more than one day and no car above a share of the total, so a three-car, one-day campaign showed no areas despite D105.
+- **2026-10-19** — Owner decision: area results need only three cars (D105, REQ-197). Previously areas also needed "safe composition with other released detail", which hid areas in common cases and, once a report showed areas, made the advertiser dashboard and other results unavailable. The owner keeps rules simple until the client or legal sets real privacy requirements.
+- **2026-10-18** — D90/D91 / REQ-188/189 replace the blanket campaign-total floor with coarse totals for all campaigns and protected three-car areas, plus weekly/final automatic reports and a staff rerun. Earlier reports required manual preparation and small campaigns could have no totals.
 - **2026-10-07** — Owner W2-D brief replaces "Omitted - insufficient frozen evidence" in new export snapshots only; old issuance content and verification remain unchanged (D71, REQ-141). Built in `78ad5580` and real integration `21239a6d`.
-- **2026-10-14** — D86/REQ-175 completes linked-source context in newly frozen CSV/PDF reports; earlier exports contained exposure score/ranked zones alone. Exact-run fake-storage publication/download, denial/tamper and historical-byte checks pass; privacy review and full batch CI remain pending.
+- **2026-10-14** — D86/REQ-175 completes linked-source context in newly frozen CSV/PDF reports; earlier exports contained exposure score/ranked zones alone. Exact-run fake-storage publication/download, denial/tamper and historical-byte checks pass; privacy review and full batch CI passed. Built in `9bd21ecb` and `dfa5f1c3`.
 - **2026-08-14** — Client confirmed the report shape and ROI rule (Q12, Q30, D18, D20).
 - **2026-09-24** — Client's answer mentioned "admin officer & driver profile and the car", which conflicts with the privacy boundary; asked to clarify (client answers item 5).
 
 ### Retargeting and ad platforms
 
-**Current rule:** Retargeting uses anonymised exposure segments, controlled
+**Current rule:** D115 removes pilot retargeting/audience export, sources/links, screens, services, job, ad adapter, audience privacy cells and ROI mode. Owner approved removal 20 October; Git retains old code. Reports work without recommendations. Owner-approved 20 October 2026, REQ-214; implemented locally with the B2 privacy checkpoint PASS. Issued files retain their exact bytes and authorized downloads. Final integrated review and merge pending.
+
+**Previous rule (ended 20 October 2026; retained history):** Retargeting uses anonymised exposure segments, controlled
 export and optional Meta/Google targeting by area, time and context — never
 person-level audiences (Q11, D20a). **Off for the pilot**; Meta Business and
 Google Ads accounts are to be created in Terrax's name later (client answers
@@ -491,10 +707,14 @@ through a retry-safe monitored sweep with durable fair catch-up. Screens show
 governed area/cell, Nigeria-time hours, rationale, uncertainty, provenance and
 disclosure without fingerprints; superseded/stale authority is withheld (D86,
 REQ-174–176). Live activation remains off under the existing account/legal gates.
+Advertisers reach this feature inside each campaign as “Reach these people
+again”, rather than a main-menu Retargeting page (D96/REQ-183). Links and
+mutations stay within the selected campaign; saved audiences remain company-wide.
 
 **History:**
 - **2026-07** — Retargeting entered the MVP (D6); shape confirmed 2026-08-14 (Q11, D18, D20).
-- **2026-10-14** — D86/REQ-174/176 fixes the missing normal segment producer and host-timezone-dependent planning instants. The earlier ready screen showed ranks/dates without usable area/time context. Unseeded worker, fairness/reissue and midnight tests pass; privacy review and full batch CI remain pending.
+- **2026-10-18** — Owner accepts audit D6: move the advanced feature inside the campaign and use plain wording (D96/REQ-183). The previous top-level page combined links for every company campaign. The local view omits company-wide audience deactivation; provider and privacy gates are unchanged.
+- **2026-10-14** — D86/REQ-174/176 fixes the missing normal segment producer and host-timezone-dependent planning instants. The earlier ready screen showed ranks/dates without usable area/time context. Unseeded worker, fairness/reissue and midnight tests pass; privacy review and full batch CI passed. Built in `9bd21ecb` (current-head test correction `7e9f18d8`).
 - **2026-09-24** — Client: off for the pilot (client answers item 18).
 
 ### Pilot shape, permits and launch
@@ -523,11 +743,24 @@ access (Q32). Hosting, database and file storage on **Hetzner**; maps from
 checking; domain **terraxmedia.com** (D44, client answers items 9–16). Bank and
 NIN encryption keys stay in Cardvert's own key ring, because Hetzner has no
 key-management service (D44).
+Every process explicitly selects its environment. Outside local/test operation,
+email transport verifies the server certificate and hostname; diagnostics remain
+useful without Sentry while excluding personal scan data (D133, REQ-239/240).
+Database work has fixed statement, lock and idle-transaction bounds and bounded
+API/worker pools (D134, REQ-242). Replica changes require recalculating the
+connection budget; the measured pilot fixtures do not qualify production load.
+Existing worker recovery redelivers only proven transient transaction aborts
+(`40P01`/`40001`) after rollback and session release, under the existing attempt
+ceiling; sanitized driver error codes keep failure diagnosis private.
 
 **Still open:** [REQ-050](requests.md) Hetzner, Postmark and MapTiler accounts;
 [REQ-043](requests.md) domain connection; [REQ-033](requests.md) which address (for example app.terraxmedia.com); [REQ-032](requests.md) residency and legal prerequisites.
 
 **History:**
+- **2026-10-25** — Owner-approved recovery hardening (D133, REQ-239/240): every process must explicitly identify its environment, and nonlocal email transport verifies the server certificate and hostname. Useful bounded diagnostics remain available without an error-tracking account; scan personal data stays excluded. Earlier startup silently selected local mode, SMTP had no explicit verifying context, and local exception diagnostics were absent or unsafe. Implementation/verification is in progress; no external delivery or deployment is authorized.
+- **2026-10-26** — Recovery source Built in `72a0f084` (including the preceding integrated commits); exact-head run40309956920 passes all runtime/static/browser/audit jobs, including real HTTPS revocation outage and bounded database recovery. Strict same-artifact D33 refresh/admission passes under D135; independent receipt/final review and master promotion are separate pending gates in the recovery record. No deployment, external delivery or production-load qualification is claimed.
+- **2026-10-26** — Within the accepted D133/D134 recovery scope, real PostgreSQL abort/rollback proof qualifies only trusted deadlock/serialization error codes for bounded same-job redelivery. Existing attempt limits, sweep schedule and financial authority are unchanged. Diagnostic codes and bounded caller frames replace unreadable database-wrapper-only failures without exposing SQL, values or messages; historical R59 error classification remains unproven until instrumented execution.
+- **2026-10-25** — D134/REQ-242 records parent-confirmed fixed database budgets after the real PostgreSQL capacity/default and representative pilot-workload probe. Earlier processes inherited unbounded PostgreSQL timers and library pool settings. D117, existing worker execution limit and external gates remain unchanged; final verification is pending.
 - **2026-08-14** — Client confirmed ownership (Q32, D18).
 - **2026-09-24** — Client approved ClamAV, Postmark, Mapbox ("short run", Google Maps later) and terraxmedia.com, and left hosting, storage and region to the developer's recommendation (client answers items 9–16). The recommendation was Render with AWS storage and encryption.
 - **2026-09-29** — Deployment templates for Render, AWS and Mapbox written, with every secret blank and nothing applied (REQ-010). Built in `0b53eab`.
@@ -536,11 +769,14 @@ key-management service (D44).
 
 ### Legal, privacy and retention
 
-**Current rule:** Built GPS, ID collection, results and reports are accessible during development without legal approval switches; tenant isolation, aggregation limits and query recording remain, and legal/privacy plus overlap/differencing protections must be restored before real users (D56, REQ-072/089). For driver-application and vehicle-document review, the View click is the staff acknowledgment; each read keeps its application or vehicle purpose-scoped audit and one-minute/leave-page hiding, and NIN has its separate reveal (D58, REQ-105). Complete canonical UUID whole tokens are never phone numbers in any audit field or free text; phones beside them, broken/partial UUIDs and sensitive fields retain redaction (D61, REQ-111, superseding D60).
+**Current rule:** D110 removes unrequested DSR workflow/no-op disclosure purge; staff handle requests manually pending legal rules. Company isolation, audited access and three-car rule stay. D119 fixes KYC retention at six months (client item 17, owner confirmed 20 October), so purge runs. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
+
+**Previous rule (ended 20 October 2026; retained history):** Built GPS, ID collection, results and reports are accessible during development without legal approval switches; tenant isolation, aggregation limits and query recording remain, and legal/privacy plus overlap/differencing protections must be restored before real users (D56, REQ-072/089). For driver-application and vehicle-document review, the View click is the staff acknowledgment; each read keeps its application or vehicle purpose-scoped audit and one-minute/leave-page hiding, and NIN has its separate reveal (D58, REQ-105). Complete canonical UUID whole tokens are never phone numbers in any audit field or free text; phones beside them, broken/partial UUIDs and sensitive fields retain redaction (D61, REQ-111, superseding D60).
 
 **Still open:** [REQ-031](requests.md) lawyer's name, [REQ-032](requests.md) legal pack.
 
 **History:**
+- **2026-10-20** — D110 replaces the in-app DSR workflow with manual staff handling and removes the no-op history purge. D119 fixes terminal KYC retention at six calendar months with current-reference protection and deletion evidence. Built locally in `c848e5c0` (REQ-211/218); final privacy review and merge pending. The legal pack remains open.
 - **2026-10-05 (superseding decision)** — Owner replaced D60's field-specific exception with one whole-token UUID phone-classification rule after a payout audit approver ID was scrubbed. Real phones and sensitive fields remain redacted; privacy/security and money review are required (D61, REQ-111). Built in `1f91b8a`.
 - **2026-10-05** — Owner approved exact whole-field stored-file review UUID preservation after phone redaction was shown to corrupt valid review evidence. No broader UUID exemption or phone disclosure is permitted (D60, REQ-109). Built in `69655e2`; replaced by `1f91b8a` under D61.
 - **2026-10-04 (vehicle extension)** — Owner extended D58/REQ-105 to driver-page vehicle documents. The earlier separate vehicle purpose/need confirmation ended; each View keeps the existing vehicle-review purpose/reason and individual audit, minute/leave hiding and record isolation. Commit is approved after verification and review. Built in `6eb5ab9`.
@@ -563,7 +799,7 @@ REQ-177).
 
 **History:**
 - **Before 2026-09-26** — One shared 25 MB limit.
-- **2026-10-14** — D87/REQ-177 replaces all-or-nothing browser upload retries with per-file resumable intent/confirmation/scan progress for Apply and renewals. The earlier flow recreated intents after a late failure and discarded successful siblings. Focused retry/fencing checks pass; privacy/security review and full batch CI remain pending.
+- **2026-10-14** — D87/REQ-177 replaces all-or-nothing browser upload retries with per-file resumable intent/confirmation/scan progress for Apply and renewals. The earlier flow recreated intents after a late failure and discarded successful siblings. Focused retry/fencing checks pass; privacy/security review and full batch CI passed. Built in `13171ea6`.
 - **2026-09-24** — Client accepted the developer's recommendation; limits set per purpose and told to the client for information. Built in `7a9ceb0` (REQ-001).
 
 ### Sign-in security and availability
@@ -599,12 +835,27 @@ aggregate runtime provenance and all coverage gates remain unchanged.
 
 **Current rule:** D81 adds separate 85% branch-coverage floors for the money
 and privacy modules. Existing changed-code and backend/frontend/global gates
-remain. D33 refreshes require independent review; this batch uses an approved
-measurement run, receipt commit and final green verification run before merge
-(REQ-163/170). The shared bank picker remains one implementation under D78.
+remain. D33 refreshes require independent review and strict whole-delivery
+measurement with artifact hashes, runtime, candidate, inventory and exact
+nonregression proof. D135/REQ-248 permits a final coverage-receipt-only commit
+plus necessary delivery/policy record docs to reuse completed CI from
+the exact measured source candidate: every noncoverage job passes, and any sole
+stale-receipt inventory/policy guard failure is separately replaced by strict
+same-artifact D33 qualification and independent receipt review. The raw CI
+coverage failure remains recorded as failed, not relabelled green. Reuse also
+requires independent proof that runtime,
+source, dependencies, tests, build, workflows, instrumentation, coverage policy
+and eligible inventory are unchanged. Any such change requires fresh full CI.
+Final consolidated review PASS, non-squash merge and post-merge master green
+remain mandatory. Receipt-only automatic CI is informational after equivalence
+is proved. The shared bank picker remains one implementation under D78.
 
 **History:**
 - **2026-10-13, completed 14 October** - Owner approved Waves 3/4 and the two-run D33/D41 sequence. The earlier policy had no separate 85% money/privacy floor. Built in `115fc505`, with independently reviewed receipt `40e39f4c` and full green verification [38539599622](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38539599622). Whole-range qualification includes REQ-158/159; shared bank picker retained. Non-squash merge `4bbb689d`. Structural refinement Built in `30eadf27`; progress archive/process trim and hosting-scope verification Built in `0b0be762`.
+
+- **2026-10-14** — Final in-house behavior verification Built in `4f41e895` (REQ-171–177), with independently reviewed D33 receipt Built in `8e509f7f` and full green verification [38571889225](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38571889225). All implementing commits reached GitHub master without squashing at `8e509f7f`. Historical request tidy-up Built in `e2655df1` (REQ-178). R3 PASS (gpt-6.1-sol high, review thread mcp:9ccfc0c9), no findings; the owner supplied the verdict covering `4f41e895` and `8e509f7f`. Closure remains on local master only; the owner prohibits further pushes until more work is ready.
+
+- **2026-10-25** — Owner explicitly removed the mandatory second pre-merge full run for independently proven receipt-only final commits (D135/REQ-248). Previously the current rule required measurement, receipt and a second full green verification run. The exception retains all coverage proof, source-change CI, independent/final review and post-merge master verification; it changes no product or external gate. Implementation is pending with the final recovery receipt.
 
 ### Demo and staging external-input placeholders
 

@@ -1,7 +1,8 @@
 "use server";
 
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -14,7 +15,7 @@ export interface AdminActionState {
 }
 
 function toState(error: unknown): AdminActionState {
-  if (error instanceof ApiError) return { error: error.message };
+  if (error instanceof ApiError) return { error: publicActionError(error) };
   return { error: "Could not reach the server." };
 }
 
@@ -27,11 +28,7 @@ const createDriverSchema = z.object({
     .trim()
     .max(64)
     .transform((v) => (v === "" ? null : v)),
-  service_city: z
-    .string()
-    .trim()
-    .max(120)
-    .transform((v) => (v === "" ? null : v)),
+  service_city: z.string().trim().min(1, "Enter the city this driver drives in").max(128),
   country_code: z
     .string()
     .trim()
@@ -59,6 +56,7 @@ export async function createDriverProfileAction(
       body: { ...profile, onboarding_status: "active" },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
   revalidatePath("/admin/drivers");
@@ -84,6 +82,7 @@ export async function updateDriverOnboardingAction(
       body: { onboarding_status: parsed.data.status },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
   revalidatePath("/admin/drivers");
@@ -106,11 +105,7 @@ export async function updateDriverDetailsAction(
         .trim()
         .max(128)
         .transform((v) => (v === "" ? null : v)),
-      service_city: z
-        .string()
-        .trim()
-        .max(128)
-        .transform((v) => (v === "" ? null : v)),
+      service_city: z.string().trim().min(1, "Enter the city this driver drives in").max(128),
     })
     .safeParse({
       user_id: formData.get("driver_profile_id"),
@@ -130,6 +125,7 @@ export async function updateDriverDetailsAction(
       },
     );
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
   revalidatePath("/admin/drivers");
@@ -145,7 +141,7 @@ const createVehicleSchema = z.object({
     .trim()
     .toUpperCase()
     .pipe(z.string().length(2, "Use a 2-letter code (e.g. NG)")),
-  vehicle_type: z.enum(["car", "van", "minibus", "bus", "motorcycle", "tricycle", "other"]),
+  vehicle_type: z.enum(["car"]),
   make: z
     .string()
     .trim()
@@ -193,6 +189,7 @@ export async function createVehicleAction(
     });
     driverProfileId = data?.driver_profile_id;
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
   revalidatePath("/admin/drivers");
@@ -222,6 +219,7 @@ export async function updateVehicleStatusAction(
       body: { status: parsed.data.status },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
   revalidatePath("/admin/drivers");

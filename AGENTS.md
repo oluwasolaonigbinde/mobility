@@ -88,7 +88,13 @@ decisions. For each piece of work:
 4. **Merge only after full CI passes (D41).** With the owner's approval, push
    the branch and merge it into `master` only after the full GitHub CI run on
    that branch passes. Merge without squashing so the implementing commit keeps
-   its SHA. Never leave several branches' full-suite evidence to one later run.
+   its SHA. D135 permits a strictly receipt-only final commit to reuse the exact
+   measured source candidate's completed CI after independent equivalence
+   proof: all noncoverage jobs must pass, and a sole stale-receipt guard failure
+   must be replaced by strict same-artifact D33 qualification and independent
+   receipt review. Record the raw failure honestly. Source changes and
+   post-merge master still require full green CI.
+   Never leave several branches' full-suite evidence to one later run.
 5. **Close it.** Mark the request `DONE` with the implementing commit, and add
    "Built in `<commit>`" to the topic history.
 

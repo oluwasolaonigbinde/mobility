@@ -1,21 +1,4 @@
-"""Maker-checker payout correction orders (MNY-06C, Q22, PR7/PR12).
-
-The PR6 recompute core (services/payouts/corrections.py) is the single computation
-engine; this module wraps it in the correction-order authority: a named
-adjuster projects a campaign/Lagos-day delta (dry-run, no writes), a
-DIFFERENT admin approves, and execution re-verifies the projection
-fingerprint before running the same core in execution mode. All state
-transitions are winner-only guarded UPDATEs (order row FOR UPDATE); an
-executed order replays its recorded execution_result and never recomputes.
-Stale is terminal: input drift at approve or execute marks the order stale
-and a fresh projection (a new order) is required.
-
-Actor policy (Q22): only the creator may submit their own draft; approval
-requires a different admin (service check + DB CHECK); execution may be
-performed by any
-admin including the creator, because independent approval has already
-happened — Q22 forbids only creator-approves-own.
-"""
+"""Audited staff pay corrections: preview, approve and apply, or stale."""
 
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -37,6 +20,7 @@ from app.models.payout import (
 from app.models.trip import TripSession, TripSessionStatus
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
+from app.services.disbursements import _reason
 from app.services.impressions import quantize_2
 from app.services.payouts.common import correction_release_at_required, lagos_day_utc_range, utc_now
 from app.services.payouts.corrections import (
@@ -63,23 +47,6 @@ def correction_order_invalid_state(current: str, action: str) -> AppError:
         f"Cannot {action} a correction order in status '{current}'",
         status_code=status.HTTP_409_CONFLICT,
         details={"status": current, "action": action},
-    )
-
-
-def correction_order_self_approval() -> AppError:
-    return AppError(
-        "CORRECTION_ORDER_SELF_APPROVAL",
-        "A correction order must be approved by a different admin than its"
-        " creator (Q22 maker-checker)",
-        status_code=status.HTTP_403_FORBIDDEN,
-    )
-
-
-def correction_order_creator_only() -> AppError:
-    return AppError(
-        "CORRECTION_ORDER_CREATOR_ONLY",
-        "Only the correction order's creator may submit their own draft",
-        status_code=status.HTTP_403_FORBIDDEN,
     )
 
 
@@ -280,6 +247,7 @@ async def create_correction_order(
     """Project the campaign day and persist it as a draft order (C1: the
     named adjuster's proposal, value-complete before anyone approves)."""
     await require_active_admin(session, created_by_user_id)
+    reason = _reason(reason)
     projection = await project_campaign_day(
         session, campaign_id=campaign_id, lagos_day=lagos_day, settings=settings
     )
@@ -346,25 +314,6 @@ async def list_correction_orders(
     return list(result.scalars().all()), int(total or 0)
 
 
-async def submit_correction_order(
-    session: AsyncSession,
-    *,
-    order_id: UUID,
-    actor_user_id: UUID,
-) -> PayoutCorrectionOrder:
-    await require_active_admin(session, actor_user_id)
-    order = await get_correction_order(session, order_id, for_update=True)
-    if order.status != PayoutCorrectionOrderStatus.DRAFT.value:
-        raise correction_order_invalid_state(order.status, "submit")
-    if actor_user_id != order.created_by_user_id:
-        # "Creator submits own draft": the proposal stays the named
-        # adjuster's until they put it forward for approval.
-        raise correction_order_creator_only()
-    order.status = PayoutCorrectionOrderStatus.PENDING_APPROVAL.value
-    await session.flush()
-    return order
-
-
 async def _mark_stale_and_raise(
     session: AsyncSession,
     order: PayoutCorrectionOrder,
@@ -399,57 +348,6 @@ async def _mark_stale_and_raise(
     )
     await session.commit()
     raise correction_order_stale()
-
-
-async def approve_correction_order(
-    session: AsyncSession,
-    *,
-    order_id: UUID,
-    actor_user_id: UUID,
-    settings: Settings,
-) -> PayoutCorrectionOrder:
-    await require_active_admin(session, actor_user_id)
-    order = await get_correction_order(session, order_id, for_update=True)
-    if order.status != PayoutCorrectionOrderStatus.PENDING_APPROVAL.value:
-        raise correction_order_invalid_state(order.status, "approve")
-    if actor_user_id == order.created_by_user_id:
-        # Service-level maker-checker (C1); the DB CHECK is the backstop.
-        raise correction_order_self_approval()
-    projection = await project_campaign_day(
-        session,
-        campaign_id=order.campaign_id,
-        lagos_day=order.lagos_day,
-        settings=settings,
-    )
-    if projection.fingerprint != order.projection_fingerprint:
-        await _mark_stale_and_raise(
-            session,
-            order,
-            actor_user_id=actor_user_id,
-            action="approve",
-            current_fingerprint=projection.fingerprint,
-        )
-    order.status = PayoutCorrectionOrderStatus.APPROVED.value
-    order.approved_by_user_id = actor_user_id
-    order.decided_at = utc_now()
-    await session.flush()
-    return order
-
-
-async def reject_correction_order(
-    session: AsyncSession,
-    *,
-    order_id: UUID,
-    actor_user_id: UUID,
-) -> PayoutCorrectionOrder:
-    await require_active_admin(session, actor_user_id)
-    order = await get_correction_order(session, order_id, for_update=True)
-    if order.status != PayoutCorrectionOrderStatus.PENDING_APPROVAL.value:
-        raise correction_order_invalid_state(order.status, "reject")
-    order.status = PayoutCorrectionOrderStatus.REJECTED.value
-    order.decided_at = utc_now()
-    await session.flush()
-    return order
 
 
 def _execution_result_payload(
@@ -508,7 +406,7 @@ def _execution_result_payload(
     }
 
 
-async def execute_correction_order(
+async def approve_correction_order(
     session: AsyncSession,
     *,
     order_id: UUID,
@@ -516,20 +414,22 @@ async def execute_correction_order(
     release_at: datetime | None,
     request_metadata: dict,
     settings: Settings,
+    reason: str,
 ) -> tuple[PayoutCorrectionOrder, bool]:
-    """Run the approved order exactly once (C3).
+    """Approve and apply the saved preview exactly once.
 
     Returns (order, executed_now). A concurrent or repeated execute
     serializes on the row lock, observes status 'executed', and returns the
     recorded execution_result without recomputing anything. The status flip,
     execution_result, and every ledger write share one transaction — a crash
-    before commit leaves the order approved and no money written."""
+    before commit leaves the order draft and no money written."""
     await require_active_admin(session, actor_user_id)
+    reason = _reason(reason)
     order = await get_correction_order(session, order_id, for_update=True)
     if order.status == PayoutCorrectionOrderStatus.EXECUTED.value:
         return order, False
-    if order.status != PayoutCorrectionOrderStatus.APPROVED.value:
-        raise correction_order_invalid_state(order.status, "execute")
+    if order.status != PayoutCorrectionOrderStatus.DRAFT.value:
+        raise correction_order_invalid_state(order.status, "approve")
     projection = await project_campaign_day(
         session,
         campaign_id=order.campaign_id,
@@ -541,7 +441,7 @@ async def execute_correction_order(
             session,
             order,
             actor_user_id=actor_user_id,
-            action="execute",
+            action="approve",
             current_fingerprint=projection.fingerprint,
         )
     has_positive_delta = any(
@@ -552,6 +452,25 @@ async def execute_correction_order(
     if has_positive_delta and release_at is None:
         raise correction_release_at_required()
 
+    from app.services.disbursements import lock_payout_chains
+    from app.services.payout_balances import lock_driver_money_scope
+
+    chains = await lock_payout_chains(
+        session,
+        trip_ids=tuple(
+            target.trip_session_id
+            for computation in projection.computations
+            for target in computation.trips
+        ),
+    )
+    for computation in sorted(
+        projection.computations, key=lambda item: str(item.driver_profile_id)
+    ):
+        await lock_driver_money_scope(
+            session,
+            driver_profile_id=computation.driver_profile_id,
+            currency=computation.currency or "",
+        )
     executed_at = utc_now()
     outcomes = [
         await write_day_differentials(
@@ -561,6 +480,7 @@ async def execute_correction_order(
             recompute_at=executed_at,
             correction_order_id=order.id,
             release_at=release_at,
+            chain_authority=chains,
         )
         for computation in projection.computations
     ]
@@ -571,7 +491,22 @@ async def execute_correction_order(
         release_at=release_at,
     )
     order.status = PayoutCorrectionOrderStatus.EXECUTED.value
+    order.approved_by_user_id = actor_user_id
+    order.decided_at = executed_at
     order.executed_by_user_id = actor_user_id
     order.executed_at = executed_at
     await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="admin.payout_correction_order.approved",
+        entity_type="payout_correction_order",
+        entity_id=str(order.id),
+        metadata={
+            "reason": reason,
+            "projection_reason": order.reason,
+            "projection_fingerprint": order.projection_fingerprint,
+            "release_at": release_at.isoformat() if release_at else None,
+        },
+    )
     return order, True

@@ -13,6 +13,9 @@ defaults:
   run:
     working-directory: frontend
 
+env:
+  ENVIRONMENT: test
+
 jobs:
   backend_static:
     name: backend static checks
@@ -34,8 +37,10 @@ jobs:
         with:
           python-version: "3.12.14"
           cache: pip
-          cache-dependency-path: pyproject.toml
-      - run: pip install -e ".[dev,static]"
+          cache-dependency-path: |
+            pyproject.toml
+            requirements-production.txt
+      - run: python scripts/install_ci_dependencies.py --static
       - name: Validate delivery packages and checklist
         run: python scripts/validate_progress.py
       - name: Runtime OpenAPI contract drift check
@@ -114,10 +119,12 @@ jobs:
         with:
           python-version: "3.12.14"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: |
+            pyproject.toml
+            requirements-production.txt
       - name: Install backend test runner dependencies
         run: sudo apt-get update && sudo apt-get install --yes jq
-      - run: pip install -e ".[dev]"
+      - run: python scripts/install_ci_dependencies.py
 
       - name: Plan authoritative backend shard
         id: shard_plan
@@ -509,6 +516,7 @@ jobs:
         working-directory: frontend
       - name: Run the isolated real-stack release journey
         run: |
+          bash -n ./scripts/run_r59_real_stack.sh
           ./scripts/ci_load_minio_images.sh
           ./scripts/run_r59_real_stack.sh
       - uses: actions/upload-artifact@v4

@@ -26,9 +26,7 @@ class CampaignAssignmentStatus(StrEnum):
     DECLINED = "declined"
     EXPIRED = "expired"
     ACTIVE = "active"
-    DEACTIVATED = "deactivated"
     CANCELLED = "cancelled"
-    COMPLETED = "completed"
 
 
 class CampaignActivationEventType(StrEnum):
@@ -46,8 +44,7 @@ class CampaignAssignment(Base):
     __tablename__ = "campaign_assignments"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('offered', 'accepted', 'declined', 'expired', 'active', "
-            "'deactivated', 'cancelled', 'completed')",
+            "status IN ('offered', 'accepted', 'declined', 'expired', 'active', 'cancelled')",
             name="ck_campaign_assignments_status",
         ),
         CheckConstraint(
@@ -63,8 +60,7 @@ class CampaignAssignment(Base):
             name="ck_campaign_assignments_accepted_timestamp",
         ),
         CheckConstraint(
-            "accepted_at IS NULL OR status IN "
-            "('accepted', 'active', 'deactivated', 'cancelled', 'completed')",
+            "accepted_at IS NULL OR status IN ('accepted', 'active', 'cancelled')",
             name="ck_campaign_assignments_accepted_status_coherence",
         ),
         CheckConstraint(
@@ -88,23 +84,11 @@ class CampaignAssignment(Base):
         Index("ix_campaign_assignments_driver_status", "driver_profile_id", "status"),
         Index("ix_campaign_assignments_vehicle_status", "vehicle_id", "status"),
         Index(
-            "uq_campaign_assignments_vehicle_active",
-            "vehicle_id",
-            unique=True,
-            postgresql_where=text("status = 'active'"),
-        ),
-        Index(
-            "uq_campaign_assignments_driver_active",
-            "driver_profile_id",
-            unique=True,
-            postgresql_where=text("status = 'active'"),
-        ),
-        Index(
             "uq_campaign_assignments_campaign_vehicle_non_terminal",
             "campaign_id",
             "vehicle_id",
             unique=True,
-            postgresql_where=text("status IN ('offered', 'accepted', 'active', 'deactivated')"),
+            postgresql_where=text("status IN ('offered', 'accepted', 'active')"),
         ),
     )
 
@@ -135,7 +119,6 @@ class CampaignAssignment(Base):
     activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     notes: Mapped[str | None] = mapped_column(Text)
     assignment_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",

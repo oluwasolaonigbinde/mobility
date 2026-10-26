@@ -1,8 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { watDay } from "@/lib/driver/daily-earnings";
-const mocks = vi.hoisted(() => ({ earnings: vi.fn(), journey: vi.fn(), tracker: vi.fn() }));
-vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({}) }));
+import { frozenJob } from "@/lib/driver/frozen-job";
+const mocks = vi.hoisted(() => ({
+  earnings: vi.fn(),
+  journey: vi.fn(),
+  tracker: vi.fn(),
+  visual: vi.fn(),
+}));
+vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.visual }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("@/lib/auth/current-user", () => ({
   requireRole: async () => ({ user: { id: "driver", full_name: "Ada Driver" } }),
@@ -35,12 +41,24 @@ const ready = {
   trackerAssignment: assignment,
   currentTrip: null,
   photoStatus: "ready",
+  visualAssignment: {
+    id: "job",
+    job: frozenJob({ zones: { target: [{ name: "Wuse II" }], exclusion: [] } }),
+  },
 };
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.setItem("cardvert-phone-intro:driver", "seen");
-  mocks.earnings.mockResolvedValue({ state: "ready", data: [] });
+  mocks.earnings.mockResolvedValue({ state: "ready", data: { totals: [], days: [] } });
   mocks.journey.mockResolvedValue(ready);
+  mocks.visual.mockResolvedValue({
+    data: {
+      assignment: {
+        id: "job",
+        offer_terms: { zones: { target: [{ name: "Wuse II" }], exclusion: [] } },
+      },
+    },
+  });
 });
 it("places the existing safe Start control under today's job and car", async () => {
   render(await Home());
@@ -52,12 +70,104 @@ it("places the existing safe Start control under today's job and car", async () 
   );
   expect(screen.queryByText("Go to Start")).not.toBeInTheDocument();
 });
-it("opens just the photo task when proof is due", async () => {
-  mocks.journey.mockResolvedValue({ ...ready, photoStatus: "display_required" });
+
+it("keeps an unknown offer status quiet and never offers Start without readiness", async () => {
+  mocks.journey.mockResolvedValue({
+    ...ready,
+    trackerAssignment: null,
+    journey: {
+      canStart: false,
+      steps: [
+        {
+          id: "offer",
+          state: "degraded",
+          title: "Offer status unavailable",
+          detail: "Cardvert couldn't check your offers right now.",
+          href: "/driver/assignments",
+        },
+      ],
+    },
+  });
   render(await Home());
-  expect(screen.getByRole("button", { name: "Take today’s photo" })).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Start trip" })).not.toBeInTheDocument();
+  expect(screen.getByText(/Offer status unavailable/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Check details" })).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Offer status unavailable" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Start trip" })).toBeNull();
 });
+
+it("adds only the matching authoritative job's frozen areas", async () => {
+  render(await Home());
+  expect(screen.getByText("Wuse II")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Start trip" })).toBeVisible();
+});
+it("welcomes a waiting driver with the Terrax van and only confirmed completed steps", async () => {
+  mocks.journey.mockResolvedValue({
+    ...ready,
+    activationAssignment: null,
+    needsServiceCity: false,
+    journey: {
+      canStart: false,
+      steps: [
+        { id: "application", state: "complete" },
+        { id: "person_payee", state: "pending" },
+        { id: "vehicle", state: "complete" },
+        { id: "offer", state: "current", title: "No current offer", href: "/driver/assignments" },
+      ],
+    },
+  });
+  // A pending earlier step stays the next action, so don't claim a waiting state.
+  const first = render(await Home());
+  expect(screen.queryByRole("img", { name: "Terrax Media van illustration" })).toBeNull();
+  first.unmount();
+  mocks.journey.mockResolvedValue({
+    ...ready,
+    activationAssignment: null,
+    needsServiceCity: false,
+    journey: {
+      canStart: false,
+      steps: [
+        { id: "application", state: "complete" },
+        { id: "person_payee", state: "complete" },
+        { id: "vehicle", state: "complete" },
+        { id: "offer", state: "current", title: "No current offer", href: "/driver/assignments" },
+      ],
+    },
+  });
+  render(await Home());
+  expect(screen.getByRole("img", { name: "Terrax Media van illustration" })).toBeInTheDocument();
+  expect(screen.getByText("Your driver account is active")).toBeInTheDocument();
+  expect(screen.getByText("Your identity and bank details are approved")).toBeInTheDocument();
+  expect(screen.getByText("Your car is approved")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "See jobs" })).toBeInTheDocument();
+});
+it("never borrows areas from a different job or lets visual failure remove safe Start", async () => {
+  mocks.journey.mockResolvedValue({
+    ...ready,
+    visualAssignment: {
+      id: "different-job",
+      job: frozenJob({ zones: { target: [{ name: "Wrong area" }] } }),
+    },
+  });
+  render(await Home());
+  expect(screen.queryByText("Wrong area")).toBeNull();
+  expect(
+    screen.getByText(/Your job areas couldn’t be loaded|Your job areas couldn't be loaded/),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Start trip" })).toBeVisible();
+});
+it.each([
+  ["Start trip", ready, "button"],
+  ["View live trip", { ...ready, currentTrip: { id: "trip" } }, "link"],
+] as const)(
+  "keeps %s when visual context is unavailable without making another active-job read",
+  async (name, work, role) => {
+    mocks.journey.mockResolvedValue({ ...work, visualAssignment: null });
+    render(await Home());
+    expect(screen.getByRole(role, { name })).toBeVisible();
+    expect(screen.getByText(/Areas to avoid couldn't be loaded/)).toBeInTheDocument();
+    expect(mocks.visual).not.toHaveBeenCalled();
+  },
+);
 it("keeps an active trip on Track", async () => {
   mocks.journey.mockResolvedValue({ ...ready, currentTrip: { id: "trip" } });
   render(await Home());
@@ -89,6 +199,28 @@ it("shows only the blocking next step", async () => {
   );
   expect(screen.queryByText("Getting ready to drive")).not.toBeInTheDocument();
 });
+it.each([
+  ["Here’s your current job.", ready],
+  ["You’re on a trip now.", { ...ready, currentTrip: { id: "trip" } }],
+  [
+    "No job yet.",
+    {
+      ...ready,
+      activationAssignment: null,
+      journey: {
+        canStart: false,
+        steps: [
+          { state: "current", id: "offer", title: "No current offer", href: "/driver/assignments" },
+        ],
+      },
+    },
+  ],
+] as const)("leads with the factual heading %s, never a slogan", async (heading, work) => {
+  mocks.journey.mockResolvedValue(work);
+  render(await Home());
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(heading);
+  expect(document.body).not.toHaveTextContent(/make today count/i);
+});
 it("fails closed for unavailable photo authority", async () => {
   mocks.journey.mockResolvedValue({ ...ready, photoStatus: "unavailable" });
   render(await Home());
@@ -98,16 +230,19 @@ it("fails closed for unavailable photo authority", async () => {
 it("shows compact pay without payment-operation copy or zero checks", async () => {
   mocks.earnings.mockResolvedValue({
     state: "ready",
-    data: [
-      {
-        day: "2026-09-08",
-        amount: "10000.00",
-        currency: "NGN",
-        status: "Paid 9 Sept",
-        paidAt: "2026-09-09T01:00:00Z",
-        tripIds: [],
-      },
-    ],
+    data: {
+      totals: [],
+      days: [
+        {
+          day: "2026-09-08",
+          amount: "10000.00",
+          currency: "NGN",
+          status: "Paid 9 Sept",
+          paidAt: "2026-09-09T01:00:00Z",
+          tripIds: [],
+        },
+      ],
+    },
   });
   render(await Home());
   expect(screen.getByText(/Paid 9 Sept/)).toBeVisible();
@@ -121,23 +256,26 @@ it("leads with the last actual payment when today's amount is zero", async () =>
   try {
     mocks.earnings.mockResolvedValue({
       state: "ready",
-      data: [
-        {
-          day: "2026-10-10",
-          amount: "0.00",
-          currency: "NGN",
-          status: "Being checked",
-          tripIds: [],
-        },
-        {
-          day: "2026-10-08",
-          amount: "10000.00",
-          currency: "NGN",
-          status: "Paid 9 Oct",
-          paidAt: "2026-10-09T01:00:00Z",
-          tripIds: [],
-        },
-      ],
+      data: {
+        totals: [],
+        days: [
+          {
+            day: "2026-10-10",
+            amount: "0.00",
+            currency: "NGN",
+            status: "Being checked",
+            tripIds: [],
+          },
+          {
+            day: "2026-10-08",
+            amount: "10000.00",
+            currency: "NGN",
+            status: "Paid 9 Oct",
+            paidAt: "2026-10-09T01:00:00Z",
+            tripIds: [],
+          },
+        ],
+      },
     });
     render(await Home());
     expect(screen.getByText("Paid yesterday ₦10,000.00")).toBeVisible();
@@ -149,24 +287,27 @@ it("leads with the last actual payment when today's amount is zero", async () =>
 it("orders payments by payment time rather than work day", async () => {
   mocks.earnings.mockResolvedValue({
     state: "ready",
-    data: [
-      {
-        day: "2026-09-08",
-        amount: "7000.00",
-        currency: "NGN",
-        status: "Paid 9 Sept",
-        paidAt: "2026-09-09T01:00:00Z",
-        tripIds: [],
-      },
-      {
-        day: "2026-09-06",
-        amount: "10000.00",
-        currency: "NGN",
-        status: "Paid 10 Sept",
-        paidAt: "2026-09-10T01:00:00Z",
-        tripIds: [],
-      },
-    ],
+    data: {
+      totals: [],
+      days: [
+        {
+          day: "2026-09-08",
+          amount: "7000.00",
+          currency: "NGN",
+          status: "Paid 9 Sept",
+          paidAt: "2026-09-09T01:00:00Z",
+          tripIds: [],
+        },
+        {
+          day: "2026-09-06",
+          amount: "10000.00",
+          currency: "NGN",
+          status: "Paid 10 Sept",
+          paidAt: "2026-09-10T01:00:00Z",
+          tripIds: [],
+        },
+      ],
+    },
   });
   render(await Home());
   expect(screen.getByText("Paid 10 Sept ₦10,000.00")).toBeVisible();
@@ -182,13 +323,46 @@ it.each(["Being checked", "On hold – contact support", "Paying tonight"])(
   async (status) => {
     mocks.earnings.mockResolvedValue({
       state: "ready",
-      data: [{ day: watDay(new Date()), amount: "7143.00", currency: "NGN", status, tripIds: [] }],
+      data: {
+        totals: [],
+        days: [
+          { day: watDay(new Date()), amount: "7143.00", currency: "NGN", status, tripIds: [] },
+        ],
+      },
     });
     render(await Home());
     expect(screen.getByText("Today ₦7,143.00")).toBeVisible();
     expect(screen.getByText(status)).toBeVisible();
   },
 );
+it("adds this week's earnings under today's", async () => {
+  mocks.earnings.mockResolvedValue({
+    state: "ready",
+    data: {
+      totals: [
+        {
+          currency: "NGN",
+          today: "7143.00",
+          this_week: "21429.00",
+          total: "90000.00",
+          on_hold: "0.00",
+        },
+      ],
+      days: [
+        {
+          day: watDay(new Date()),
+          amount: "7143.00",
+          currency: "NGN",
+          status: "Being checked",
+          tripIds: [],
+        },
+      ],
+    },
+  });
+  render(await Home());
+  expect(screen.getByText("Today ₦7,143.00")).toBeVisible();
+  expect(screen.getByText("This week ₦21,429.00")).toBeVisible();
+});
 it("withholds money when complete history is unavailable", async () => {
   mocks.earnings.mockResolvedValue({ state: "unavailable" });
   render(await Home());

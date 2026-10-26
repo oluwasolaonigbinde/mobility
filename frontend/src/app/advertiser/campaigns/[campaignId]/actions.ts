@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
@@ -19,14 +19,7 @@ const creativeSubmitSchema = submitSchema.extend({
 
 const creativeReplaceSchema = creativeSubmitSchema.extend({
   storedFileId: z.string().uuid(),
-  creativeType: z.enum(["image", "video", "other"]),
-});
-
-const cancellationSchema = z.object({
-  campaignId: z.string().uuid(),
-  clientRequestId: z.string().uuid(),
-  reason: z.string().trim().min(1, "A cancellation reason is required").max(1000),
-  confirmed: z.literal("on", "Confirm that you understand cancellation is permanent"),
+  creativeType: z.enum(["image", "pdf"]),
 });
 
 const optionalLagosDateTime = z
@@ -78,6 +71,7 @@ export interface CampaignReviewActionState {
 }
 
 const campaignActionErrors = {
+  CAMPAIGN_ARTWORK_LOCKED: "This campaign's artwork is locked. Ask Terrax to change it.",
   CAMPAIGN_CHANGE_NOOP: "Enter a change that differs from the current campaign.",
   CAMPAIGN_CHANGE_RETROACTIVE_DATE: "Choose a future campaign date.",
   INVALID_CAMPAIGN_WINDOW: "The campaign start must remain before its end.",
@@ -114,7 +108,8 @@ const EDITABLE_FIELDS = [
 const campaignEditErrors = {
   CAMPAIGN_REVIEW_STATE_CONFLICT:
     "This campaign can no longer be edited. Open it again to see its current status.",
-  ORGANIZATION_WRITE_FORBIDDEN: "Only company owners and managers can edit campaigns.",
+  ORGANIZATION_WRITE_FORBIDDEN:
+    "Your advertiser access is unavailable. Ask Terrax to check your account.",
   INVALID_CAMPAIGN_BUDGET: "The daily budget cannot exceed the total budget.",
   INVALID_CAMPAIGN_DATES: "The campaign start must be before its end.",
   INVALID_CAMPAIGN_UPDATE: "Check the campaign details and try again.",
@@ -164,6 +159,7 @@ export async function updateCampaignDetailsAction(
       body: body as components["schemas"]["CampaignUpdate"],
     });
   } catch (error) {
+    unstable_rethrow(error);
     return {
       error: publicActionError(error, campaignEditErrors, "Could not save the changes. Try again."),
       values: submitted,
@@ -172,38 +168,6 @@ export async function updateCampaignDetailsAction(
   revalidatePath(`/advertiser/campaigns/${campaignId}`);
   revalidatePath("/advertiser/campaigns");
   redirect(`/advertiser/campaigns/${campaignId}`);
-}
-
-export async function requestCampaignCancellationAction(
-  _previous: CampaignReviewActionState,
-  formData: FormData,
-): Promise<CampaignReviewActionState> {
-  const parsed = cancellationSchema.safeParse({
-    campaignId: String(formData.get("campaign_id") ?? ""),
-    clientRequestId: String(formData.get("client_request_id") ?? ""),
-    reason: String(formData.get("reason") ?? ""),
-    confirmed: String(formData.get("confirmed") ?? ""),
-  });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid campaign cancellation request." };
-  }
-
-  try {
-    const api = createApiClient(await getSessionToken());
-    await api.POST("/api/v1/advertiser/campaigns/{campaign_id}/cancel", {
-      params: { path: { campaign_id: parsed.data.campaignId } },
-      body: {
-        client_request_id: parsed.data.clientRequestId,
-        reason: parsed.data.reason,
-      },
-    });
-  } catch (error) {
-    return { error: safeCampaignError(error, "Could not cancel the campaign. Try again.") };
-  }
-
-  revalidatePath(`/advertiser/campaigns/${parsed.data.campaignId}`);
-  revalidatePath("/advertiser/campaigns");
-  return { done: "Campaign cancelled at the recorded financial cutoff." };
 }
 
 export async function previewCampaignChangeAction(
@@ -250,6 +214,7 @@ export async function previewCampaignChangeAction(
       },
     };
   } catch (error) {
+    unstable_rethrow(error);
     return { error: safeCampaignError(error, "Could not preview the change. Try again.") };
   }
 }
@@ -302,6 +267,7 @@ export async function confirmCampaignChangeAction(
       confirmedRequest: data,
     };
   } catch (error) {
+    unstable_rethrow(error);
     return { error: safeCampaignError(error, "Could not confirm the change. Try again.") };
   }
 }
@@ -323,6 +289,7 @@ export async function submitCampaignForReviewAction(
       params: { path: { campaign_id: parsed.data.campaignId } },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return { error: safeCampaignError(error, "Could not submit the campaign. Try again.") };
   }
 
@@ -354,6 +321,7 @@ export async function submitCreativeForReviewAction(
       },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return { error: safeCampaignError(error, "Could not submit the creative. Try again.") };
   }
 
@@ -393,6 +361,7 @@ export async function replaceCreativeAndSubmitAction(
       params: { path },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return {
       error: safeCampaignError(
         error,

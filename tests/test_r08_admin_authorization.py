@@ -16,7 +16,6 @@ from sqlalchemy import func, select
 from app.core.errors import AppError
 from app.db.base import Base
 from app.models.user import User, UserRole, UserStatus
-from app.schemas.measurement import MeasurementRunCreate
 from tests.conftest import create_test_user
 
 SERVICE_ROOT = Path(__file__).parents[1] / "app" / "services"
@@ -29,7 +28,6 @@ MIGRATED_CALL_SITES: dict[str, tuple[str, ...]] = {
     ),
     "billing.receipts": (
         "record_payment_receipt",
-        "reconcile_payment_receipt",
         "confirm_payment_receipt",
         "allocate_payment_receipt",
         "reverse_payment_receipt",
@@ -57,15 +55,7 @@ MIGRATED_CALL_SITES: dict[str, tuple[str, ...]] = {
     ),
     "campaign_changes": ("decide_campaign_change",),
     "heatmaps": ("admin_heatmap",),
-    "audience": (
-        "list_admin_retargeting_sources",
-        "get_admin_retargeting_source",
-        "_link_access",
-        "list_retargeting_source_links",
-        "high_exposure_zone_insights",
-    ),
-    "audience_delivery": ("_segment_access",),
-    "measurement": ("issue_measurement_run",),
+    "report_scheduling": ("rerun_campaign_report",),
     "disbursements": (
         "create_payout_batch_draft",
         "reserve_payout_batch",
@@ -95,33 +85,53 @@ def _named_functions(tree: ast.Module) -> dict[str, ast.AsyncFunctionDef]:
     return {node.name: node for node in ast.walk(tree) if isinstance(node, ast.AsyncFunctionDef)}
 
 
-def _canonical_calls(function: ast.AsyncFunctionDef) -> list[ast.Call]:
+def _canonical_calls(
+    function: ast.AsyncFunctionDef, name: str = "require_active_admin"
+) -> list[ast.Call]:
     return [
         node
         for node in ast.walk(function)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "require_active_admin"
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == name
     ]
 
 
-def test_all_44_sites_import_and_call_only_the_canonical_authority() -> None:
-    assert sum(map(len, MIGRATED_CALL_SITES.values())) == 44
+def test_all_retained_sites_import_and_call_only_the_canonical_authority() -> None:
+    assert sum(map(len, MIGRATED_CALL_SITES.values())) == 37
     for service_name, expected_functions in MIGRATED_CALL_SITES.items():
         tree = _service_tree(service_name)
         functions = _named_functions(tree)
+        # Scheduled reports use the existing narrowly reserved automation actor;
+        # human calls still delegate to the same active-admin authority.
+        authority_module, authority_name = (
+            ("report_authorization", "require_report_operator")
+            if service_name == "report_scheduling"
+            else ("admin_authorization", "require_active_admin")
+        )
         imports = [
             node
-            for node in tree.body
+            for node in ast.walk(tree)
             if isinstance(node, ast.ImportFrom)
-            and node.module == "app.services.admin_authorization"
+            and node.module == f"app.services.{authority_module}"
         ]
         assert len(imports) == 1
-        assert [alias.name for alias in imports[0].names] == ["require_active_admin"]
-        assert all(len(_canonical_calls(functions[name])) == 1 for name in expected_functions)
+        expected_imports = (
+            ["REPORT_ACTOR_ID", authority_name]
+            if service_name == "report_scheduling"
+            else [authority_name]
+        )
+        assert [alias.name for alias in imports[0].names] == expected_imports
+        assert all(
+            len(_canonical_calls(functions[name], authority_name)) == 1
+            for name in expected_functions
+        )
         assert not ({"_active_admin", "_require_active_admin"} & functions.keys())
+        if service_name == "report_scheduling":
+            operator = _named_functions(_service_tree("report_authorization"))[
+                "require_report_operator"
+            ]
+            assert len(_canonical_calls(operator)) == 1
 
-    for service_name in ("campaign_assignments", "campaign_changes", "audience_delivery"):
+    for service_name in ("campaign_assignments", "campaign_changes"):
         assert not any(
             isinstance(node, ast.ImportFrom)
             and any(
@@ -211,14 +221,6 @@ def _required_argument(
         return active_admin_id
     if name == "settings":
         return settings
-    if name == "payload" and function.__name__ == "issue_measurement_run":
-        now = datetime.now(UTC)
-        return MeasurementRunCreate(
-            campaign_id=uuid4(),
-            client_request_id=uuid4(),
-            period_start_at=now - timedelta(days=1),
-            period_end_at=now,
-        )
     if name == "source":
         return "poll" if function.__name__ == "_apply_verified_line_evidence" else object()
     if name in {"admin", "require_admin"}:
