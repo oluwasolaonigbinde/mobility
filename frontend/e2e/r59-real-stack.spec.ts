@@ -434,7 +434,8 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
     expect(tripId).toMatch(/^[0-9a-f-]{36}$/);
     for (let retry = 0; retry < 2; retry += 1) {
       // A real stopped-API lookup can take longer than the UI assertion's 5s.
-      // Await its response and complete body before checking the settled UI.
+      // Await its real response, then require the action's settled retry UI.
+      // The Flight stream can remain open after that result has rendered.
       const [checked] = await Promise.all([
         page.waitForResponse((response) => {
           const request = response.request();
@@ -451,12 +452,12 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
         check.click(),
       ]);
       expect(checked.status()).toBe(200);
-      const responseFinished = await checked.finished().then(
-        (error) => error === null,
-        () => false,
-      );
-      expect(responseFinished, "the real status response must finish").toBe(true);
       await expect(check).toBeEnabled();
+      await expect(
+        page.getByRole("alert").filter({
+          hasText: "Could not reach the server. Please try again.",
+        }),
+      ).toBeVisible();
       expect(startRequests).toBe(1);
       expect(r59DriverTripCount()).toBe(beforeTrips + 1);
       expect(await captureCounts()).toEqual({ watches: 0, fixes: 0 });

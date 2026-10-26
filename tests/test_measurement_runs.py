@@ -13,7 +13,6 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
-
 from conftest import (
     create_test_payout_rule,
 )
