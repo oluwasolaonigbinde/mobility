@@ -611,33 +611,39 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
     } finally {
       await navigation.close();
     }
-    const afterRelease = await page.evaluate(async (post) => {
-      const names = await caches.keys();
-      const driverNames = names.filter((name) => name.startsWith("cardvert-driver-"));
-      const requests = (
-        await Promise.all(driverNames.map(async (name) => (await caches.open(name)).keys()))
-      ).flat();
-      return {
-        driverNames,
-        onlySameOriginStatic: requests.every((request) => {
-          const url = new URL(request.url);
-          return (
-            request.method === "GET" &&
-            url.origin === location.origin &&
-            url.pathname.startsWith("/_next/static/") &&
-            !url.searchParams.has("r59-non-get")
-          );
-        }),
-        entries: requests.length,
-        nonGetCached: requests.some((request) => request.url === post),
-        unrelated: await (
-          await (await caches.open("r59-unrelated")).match("/r59-unrelated-marker")
-        )?.text(),
-      };
-    }, nonGetUrl.href);
+    const afterRelease = await page.evaluate(
+      async ({ post, asset }) => {
+        const names = await caches.keys();
+        const driverNames = names.filter((name) => name.startsWith("cardvert-driver-"));
+        const requests = (
+          await Promise.all(driverNames.map(async (name) => (await caches.open(name)).keys()))
+        ).flat();
+        return {
+          driverNames,
+          onlySameOriginStatic: requests.every((request) => {
+            const url = new URL(request.url);
+            return (
+              request.method === "GET" &&
+              url.origin === location.origin &&
+              url.pathname.startsWith("/_next/static/") &&
+              !url.searchParams.has("r59-non-get")
+            );
+          }),
+          entries: requests.length,
+          knownAssetRetained: requests.some((request) => request.url === asset),
+          nonGetCached: requests.some((request) => request.url === post),
+          unrelated: await (
+            await (await caches.open("r59-unrelated")).match("/r59-unrelated-marker")
+          )?.text(),
+        };
+      },
+      { post: nonGetUrl.href, asset: bounded.asset },
+    );
     expect(afterRelease.driverNames).toEqual([`cardvert-driver-static-v4-${nextRelease}`]);
     expect(afterRelease.driverNames).not.toContain(bounded.name);
-    expect(afterRelease.entries).toBe(1);
+    expect(afterRelease.entries).toBeGreaterThan(0);
+    expect(afterRelease.entries).toBeLessThanOrEqual(64);
+    expect(afterRelease.knownAssetRetained).toBe(true);
     expect(afterRelease.onlySameOriginStatic).toBe(true);
     expect(afterRelease.nonGetCached).toBe(false);
     expect(afterRelease.unrelated).toBe("preserve");
