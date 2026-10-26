@@ -20,27 +20,27 @@ dependencies = [
     # Paystack adapters (app/adapters/payments, app/adapters/disbursement).
     "httpx>=0.27,<1.0",
     "PyJWT>=2.9,<3.0",
-    "pydantic==2.13.4",
+    "pydantic==2.14.1",
     "pydantic-settings>=2.4,<3.0",
     "qrcode==8.2",
     "redis>=5,<7",
     # Charts and clean artwork previews in the client-requested PDF reports (D118).
     "reportlab==5.1.0",
     "sentry-sdk[fastapi]>=2,<3",
-    "sqlalchemy[asyncio]>=2.0,<2.1",
+    "sqlalchemy[asyncio]>=2.0,<2.2",
     "uvicorn[standard]>=0.30,<1.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "coverage[toml]==7.16.0",
+    "coverage[toml]==7.17.0",
     "PyYAML>=6,<7",
     "pytest>=8.3,<9.0",
     "ruff>=0.6,<1.0",
 ]
 # Static checks run only in CI's backend_static job, not in every test shard.
 static = [
-    "basedpyright==1.40.1",
+    "basedpyright==1.40.2",
     "pip-audit==2.10.1",
 ]
 
