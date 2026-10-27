@@ -29,6 +29,38 @@ separate evidence-only push is authorized by this amendment.
 
 ### Current resume point — 26 October
 
+**DELIVERY COMPLETE — master green.** Independently verified full master run
+[40332705585](https://github.com/oluwasolaonigbinde/mobility/actions/runs/40332705585)
+is completed/SUCCESS at exact remote master
+`55122b9baea94c915839ef9fbac7dacd66161b83`: all12 jobs pass, including all six
+backend shards, aggregate, static, full frontend quality/build/audits, ordinary
+E2E, R59 with HTTPS and changed-code coverage policy121620144475. The official
+watcher exited0. Fresh `git ls-remote` confirms that exact remote master; measured
+72a0 and receipt2282 remain ancestors, and the merge tree equals2282. C1–C13 are
+all satisfied. Independent named specialist, receipt/deletion/source-equivalence
+and final consolidated medium reviews PASS. PR33 is merged without squashing.
+No deployment, provider/account action, launch-queue promotion or unrelated
+resource/data change was performed. Scanner is restored healthy; own runners
+are stopped with no lease. Historical dirty checkouts/index remain untouched.
+The request closures and this final pointer remain local for the next change
+touching their files, exactly as requests.md rule4 requires; no iterative
+evidence-only commit or new CI run is created merely to record known completion.
+
+**Post-merge checkpoint:** PR33 merged without squashing as remote master
+`55122b9baea94c915839ef9fbac7dacd66161b83`, parents trusted8e509f7f and receipt
+`2282d892d694e2f9a1198374da1503cf20c974c7`. Fresh fetch proves both measured72a0
+and receipt2282 are ancestors; merged tree is identical to2282. Historical dirty
+master/root checkouts remain untouched. The sole full master run is
+`40332705585` at exact55122b9b; its result is PENDING, so delivery is not DONE.
+Existing spawning Claude parent owns one official `gh run watch --exit-status`
+with native background registration and callbacks to this controller and root.
+No second watcher or polling loop exists. Informational receipt-only PR/push
+runs40331117000/40331108561 were cancelled after independent source-equivalence
+PASS under D135. This post-merge pointer is a local next-change tracking update,
+not another evidence-only commit or source push. On master success verify remote
+ancestry/tree/result, close applicable request rows for the next change per the
+register rule4, and notify both parents with the exact green run.
+
 **Current qualification:** strict whole-range D33 refresh and subsequent
 unchanged-checker admission both PASS on candidate72a0 and exact run40309956920
 artifacts. The spawning parent executed the prepared native Windows guard with
@@ -607,7 +639,7 @@ artifacts cannot qualify the changed CI/test head or a final D135 reuse claim.
 | C10 / 245 | Version and bound driver static cache within and across releases. Auth/API/navigation remain network-only, truthful offline and evidence queue/origin rules retained. No Docker HEALTHCHECK task. Retain existing webhook edge 1MiB and real PostGIS checks; verify Redis D45 outage/recovery without changing policy. | PASS: exact72a0 added installed-worker case completes exact64 bound/eviction, cross-release cleanup, network/cache exclusions, unrelated cache and ciphertext preservation; actual backend Redis/PostGIS/webhook suites pass. No physical-device claim. |
 | C11 / 245 | Diagnose each actual remaining E2E failure against D108–D132 on real backend: obsolete assertions vs product bug. No blanket assertion updates, skip/retry/limit inflation or source-only E2E claim. Touched tests, lint/types/build/contracts as applicable. Serial low-load local execution with recovered resource rules; unrelated processes/containers untouched. | PASS: exact72a0 ordinary real-stack E2E121528896758 and full frontend quality; classified current-policy repairs preserve money/privacy/identity/date/confirmation outcomes, without new skips/retries/limits. |
 | C12 / 236 | Supplied independent plan review accepted; fresh named money, security/privacy, client-device and deployment-source checkpoints as new diff requires. One consolidated gpt-6.1-sol/medium minimal-change-review on integrated diff+criterion proof, same reviewer FIX loop to PASS. No duplicate historical reviews. Any API change moves all 3 baselines and R14-B. | PASS: final consolidated gpt-6.1-sol/medium/default minimal-change review found no actionable correctness, scope, minimality or verification issues. Supplied plan and named specialist gates also PASS; exact72a0 runtime evidence complete. All three API baselines unchanged. |
-| C13 / 236 / 248 | After local checks/reviews push existing combined branch. Exact measured-source full GitHub CI qualifies before non-squash master merge; D135 admits only all-noncoverage-green plus a sole stale-receipt guard failure after strict same-artifact qualification. D33: trusted pre-delivery `8e509f7fbdbe8d905a2ed75a1bec2d68ceff24fb` (green38571889225), verify whole integrated range. After noncoverage jobs pass use exact hashed artifacts in isolated clean Linux non-worktree environment; bind candidate/runtime/old receipt/policy/inventory. Changed lines90%/branches80%, D81 money/privacy85%, exact nonregression for refresh (no D41 tolerance). Independently account for63 deleted/renamed paths and review receipt. D135 permits the final receipt plus necessary delivery/policy docs to reuse completed CI only after independent proof of no runtime/source/dependency/test/build/workflow/instrumentation/coverage-policy/inventory change. Any such change invalidates reuse and requires fresh full CI. Record the raw stale-receipt CI failure honestly. Consolidated medium PASS, non-squash merge and remote-master full green remain required. | Strict whole-range D33 refresh/admission and independent receipt/deletion/source-equivalence PASS. Final consolidated medium PASS. PENDING authorized receipt push/non-squash merge and remote-master green. Exact72a0 all noncoverage jobs pass; raw coverage job121541438326 failed only the stale-receipt guard. |
+| C13 / 236 / 248 | After local checks/reviews push existing combined branch. Exact measured-source full GitHub CI qualifies before non-squash master merge; D135 admits only all-noncoverage-green plus a sole stale-receipt guard failure after strict same-artifact qualification. D33: trusted pre-delivery `8e509f7fbdbe8d905a2ed75a1bec2d68ceff24fb` (green38571889225), verify whole integrated range. After noncoverage jobs pass use exact hashed artifacts in isolated clean Linux non-worktree environment; bind candidate/runtime/old receipt/policy/inventory. Changed lines90%/branches80%, D81 money/privacy85%, exact nonregression for refresh (no D41 tolerance). Independently account for63 deleted/renamed paths and review receipt. D135 permits the final receipt plus necessary delivery/policy docs to reuse completed CI only after independent proof of no runtime/source/dependency/test/build/workflow/instrumentation/coverage-policy/inventory change. Any such change invalidates reuse and requires fresh full CI. Record the raw stale-receipt CI failure honestly. Consolidated medium PASS, non-squash merge and remote-master full green remain required. | Strict whole-range D33 refresh/admission and independent receipt/deletion/source-equivalence PASS. PASS: receipt2282 pushed, PR33 merged without squash to55122b9b; full master40332705585 all12jobs SUCCESS including coverage. Raw72a0 coverage old-receipt guard remains historically FAILED and was strictly qualified before merge under D135. |
 
 ## Execution ownership and checkpoints
 
