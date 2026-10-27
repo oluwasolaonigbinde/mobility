@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.154 — 2026-10-26. Canonical source of truth: current state AND target state.**
+**Version 1.155 — 2026-10-26. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -3899,7 +3899,7 @@ failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
 
-- **v1.154 — 26 October 2026 (REQ-251):** Fixes from the live end-to-end test of `55122b9b`. A frozen report's trip cost still needs the calculation's own ledger row when it pays more than zero. A zero-pay calculation posts no `trip_payout` row (`ensure_ledger_entry`), so it now costs nothing plus any corrections posted against its trip, instead of blocking the report with `MEASUREMENT_LEDGER_INCOMPLETE`. The demo seed no longer invents zero-amount ledger rows to work around this. Legacy measurement-result-v2 replay (`historical_measurement.py`) is unchanged; nothing creates new runs there. No other money, privacy or API behaviour changes.
+- **v1.155 — 26 October 2026 (REQ-251):** Fixes from the live end-to-end test of `55122b9b`. A frozen report's trip cost still needs the calculation's own ledger row when it pays more than zero. A zero-pay calculation posts no `trip_payout` row (`ensure_ledger_entry`), so it now costs nothing plus any corrections posted against its trip, instead of blocking the report with `MEASUREMENT_LEDGER_INCOMPLETE`. The demo seed no longer invents zero-amount ledger rows to work around this. Legacy measurement-result-v2 replay (`historical_measurement.py`) is unchanged; nothing creates new runs there. No other money, privacy or API behaviour changes.
 
 - **v1.154 — 26 October 2026 (D136 / REQ-249):** §9 separates receipt-origin lineage from event-base changed-code/floor authority and documents the explicit measurement-policy projection and helper boundary; §10.3 corrects same-base verification wording. Retains D32/D33/D36/D41 protections. All 96 dedicated pure-Python checker tests, touched-file Ruff and basedpyright pass locally; no baseline refresh, full CI, commit or merge is claimed.
 
