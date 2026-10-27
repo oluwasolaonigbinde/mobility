@@ -42,6 +42,7 @@ const FLUSH_AT_COUNT = 20;
 const MAX_BATCH_PINGS = 40;
 const KEEPALIVE_INTERVAL_MS = 10 * 60_000;
 const RECOVERY_INTERVAL_MS = 60_000;
+const GPS_RETRY_INTERVAL_MS = 30_000;
 const TRACKING_LOCK = "cardvert-driver-trip-writer-v2";
 
 function trackingPresentation({
@@ -55,6 +56,7 @@ function trackingPresentation({
   queueHealthy,
   session,
   syncedCount,
+  waitingForGps,
 }: {
   authorityUncertain: boolean;
   bufferedCount: number;
@@ -66,6 +68,7 @@ function trackingPresentation({
   queueHealthy: boolean;
   session: CapabilitySnapshot["session"];
   syncedCount: number;
+  waitingForGps: boolean;
 }) {
   if (authorityUncertain) {
     return {
@@ -111,6 +114,15 @@ function trackingPresentation({
     return {
       label: "Waiting to send",
       detail: "Trip updates are saved and waiting while Cardvert checks the connection.",
+      tone: "text-amber",
+      dot: "bg-amber",
+    } as const;
+  }
+  if (waitingForGps) {
+    return {
+      label: "Waiting for GPS",
+      detail:
+        "The phone has lost its location for now. Cardvert keeps trying and records again when GPS returns.",
       tone: "text-amber",
       dot: "bg-amber",
     } as const;
@@ -229,6 +241,7 @@ export function TripTracker({
   const releaseWriterRef = useRef<(() => void) | null>(null);
   const writerAcquireRef = useRef<Promise<boolean> | null>(null);
   const wakeRef = useRef<WakeSentinel | null>(null);
+  const gpsRetryRef = useRef(false);
   const storageBrokenRef = useRef(false);
   const identityValidRef = useRef(true);
   const startUncertainRef = useRef(false);
@@ -261,6 +274,7 @@ export function TripTracker({
     queueHealthy: runtime.indexedDb === "pass" && runtime.durableQueue === "pass",
     session: runtime.session,
     syncedCount,
+    waitingForGps: gps === "unavailable",
   });
 
   const stopWatch = useCallback(() => {
@@ -753,10 +767,15 @@ export function TripTracker({
             });
         },
         (positionError) => {
-          const denied = positionError.code === positionError.PERMISSION_DENIED;
-          setGps(denied ? "denied" : "unavailable");
+          if (positionError.code !== positionError.PERMISSION_DENIED) {
+            // A lost or slow fix (tunnel, weak signal) is temporary: the browser
+            // keeps this watch alive and the next fix resumes capture.
+            setGps("unavailable");
+            return;
+          }
+          setGps("denied");
           stopWatch();
-          patchRuntime({ location: denied ? "revoked" : "unavailable" });
+          patchRuntime({ location: "revoked" });
         },
         { enableHighAccuracy: true, maximumAge: 5_000, timeout: 20_000 },
       );
@@ -1060,6 +1079,33 @@ export function TripTracker({
     storageReady,
     validateSession,
   ]);
+
+  useEffect(() => {
+    // A start or resume can find no GPS yet (weak signal): keep asking instead of
+    // waiting for the driver to leave and reopen the app.
+    if (gps !== "unavailable" || storageReady !== true) return;
+    const timer = setInterval(() => {
+      if (
+        runtimeRef.current.location !== "unavailable" ||
+        gpsRetryRef.current ||
+        watchRef.current !== null ||
+        !tripRef.current ||
+        !releaseWriterRef.current ||
+        endPhaseRef.current !== "capturing" ||
+        document.visibilityState !== "visible"
+      )
+        return;
+      gpsRetryRef.current = true;
+      void prepareCapture(false)
+        .then((ready) => {
+          if (ready && tripRef.current) beginWatch(tripRef.current.id);
+        })
+        .finally(() => {
+          gpsRetryRef.current = false;
+        });
+    }, GPS_RETRY_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [beginWatch, gps, prepareCapture, storageReady]);
 
   function start() {
     if (!assignment || storageReady !== true || startingRef.current || !identityValidRef.current)
@@ -1416,7 +1462,11 @@ export function TripTracker({
                 ? "Check trip status"
                 : "End trip"}
           </Button>
-          {assessment.health === "active" && !error && !hasEvidenceIssue && !authorityUncertain ? (
+          {assessment.health === "active" &&
+          !error &&
+          !hasEvidenceIssue &&
+          !authorityUncertain &&
+          gps !== "unavailable" ? (
             <p
               className={`text-sm ${presentedTracking.tone}`}
               data-testid="tracking-health"

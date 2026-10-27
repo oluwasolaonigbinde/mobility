@@ -74,7 +74,7 @@ const contexts: Record<string, Record<string, string>> = {
     issued: "Issued report",
   },
   payment_outcome: {
-    reserved: "Waiting for approval",
+    reserved: "Reserved — not sent",
     queued: "Queued — not submitted",
     provider_unknown: "Provider outcome unknown",
     unknown: "Provider outcome unknown",
@@ -86,7 +86,7 @@ const contexts: Record<string, Record<string, string>> = {
   payment_run: {
     completed: "Completed",
     void: "Voided",
-    reserved: "Waiting for approval",
+    reserved: "Reserved — not sent",
     reconciled: "Provider results recorded",
   },
   correction: {
@@ -135,6 +135,11 @@ const contexts: Record<string, Record<string, string>> = {
 export function adminStatus(value: string | null | undefined, context = "record"): string {
   if (!value) return "Not recorded";
   return contexts[context]?.[value] ?? common[value] ?? "Unknown status";
+}
+/** A run stays reserved until it is sent; approval is recorded separately (approved_at). */
+export function paymentRunStatus(run: { status: string; approved_at: string | null }): string {
+  if (run.status !== "reserved") return adminStatus(run.status, "payment_run");
+  return run.approved_at ? "Approved — not sent yet" : "Waiting for approval";
 }
 const documents: Record<string, string> = {
   driver_license: "driving licence",

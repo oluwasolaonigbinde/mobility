@@ -365,13 +365,17 @@ export function CreateBatchForm({
 export function BatchActions({
   batchId,
   status,
+  approved = false,
   query = {},
 }: {
   batchId: string;
   status: "reserved" | "reconciled" | "failed";
+  /** An approved run stays reserved until it is sent; only approval needs a reason. */
+  approved?: boolean;
   query?: MoneyQuery;
 }) {
   const [state, action, pending] = useActionState(batchTransitionAction, initialState);
+  const needsReason = status !== "reserved" || !approved;
   return (
     <form
       action={action}
@@ -386,22 +390,26 @@ export function BatchActions({
       }}
     >
       <input type="hidden" name="batch_id" value={batchId} />
-      <label className="text-muted w-full text-sm">
-        Approval or replacement reason
-        <textarea
-          name="reason"
-          aria-label="Approval or replacement reason"
-          minLength={3}
-          maxLength={500}
-          required
-          className="border-edge bg-raised text-ink block w-full rounded border p-2"
-        />
-      </label>
+      {needsReason ? (
+        <label className="text-muted w-full text-sm">
+          Approval or replacement reason
+          <textarea
+            name="reason"
+            aria-label="Approval or replacement reason"
+            minLength={3}
+            maxLength={500}
+            required
+            className="border-edge bg-raised text-ink block w-full rounded border p-2"
+          />
+        </label>
+      ) : null}
       {status === "reserved" ? (
         <>
-          <Button type="submit" name="intent" value="approve" disabled={pending} variant="ghost">
-            Approve payment run
-          </Button>
+          {approved ? null : (
+            <Button type="submit" name="intent" value="approve" disabled={pending} variant="ghost">
+              Approve payment run
+            </Button>
+          )}
           <Button
             type="submit"
             name="intent"

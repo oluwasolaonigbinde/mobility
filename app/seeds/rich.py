@@ -890,7 +890,9 @@ async def build_rich_seed(
 
     assignment_specs = (
         (0, range(0, 5), CampaignAssignmentStatus.ACTIVE),
-        (1, range(4, 7), CampaignAssignmentStatus.ACTIVE),
+        # Disjoint from campaign 0: both campaigns are still running, and a
+        # driver may hold only one live assignment.
+        (1, range(5, 7), CampaignAssignmentStatus.ACTIVE),
         (2, range(0, 3), CampaignAssignmentStatus.ACTIVE),
         (3, range(0, 2), CampaignAssignmentStatus.OFFERED),
     )
@@ -1997,11 +1999,18 @@ async def ensure_completed_report_contributors(session, *, graph, settings):
                     metadata=demo_metadata(driver_story=True),
                     settings=settings,
                 )
+            if campaign.end_at is not None and campaign.end_at > utc_now():
+                # As for the primary driver, a contributor to a campaign that is
+                # still running finished earlier; it must not stay a second live job.
+                assignment.status = CampaignAssignmentStatus.CANCELLED.value
+                assignment.cancelled_at = max(
+                    (trip.ended_at for trip in trips if trip.ended_at is not None),
+                    default=assignment.activated_at,
+                )
+        await session.flush()
 
 
 async def ensure_portal_reports(session, *, graph, settings):
-    from app.models.payout import EarningsLedgerEntry, PayoutCalculation
-
     campaigns = list(
         await session.scalars(
             select(Campaign).where(
@@ -2016,43 +2025,6 @@ async def ensure_portal_reports(session, *, graph, settings):
         )
     )
     for campaign in campaigns:
-        # Zero-pay trips have no ordinary payment entry, but frozen reports
-        # require a durable zero-cost fact as well as positive-cost authority.
-        calculations = (
-            await session.scalars(
-                select(PayoutCalculation).where(
-                    PayoutCalculation.campaign_id == campaign.id,
-                    PayoutCalculation.status == "calculated",
-                    PayoutCalculation.final_payout == 0,
-                )
-            )
-        ).all()
-        for calculation in calculations:
-            if await session.scalar(
-                select(EarningsLedgerEntry.id).where(
-                    EarningsLedgerEntry.payout_calculation_id == calculation.id
-                )
-            ):
-                continue
-            profile = await session.get(DriverProfile, calculation.driver_profile_id)
-            session.add(
-                EarningsLedgerEntry(
-                    payout_calculation_id=calculation.id,
-                    driver_profile_id=profile.id,
-                    driver_user_id=profile.user_id,
-                    campaign_id=campaign.id,
-                    trip_session_id=calculation.trip_session_id,
-                    vehicle_id=calculation.vehicle_id,
-                    entry_type="trip_payout",
-                    status="pending",
-                    amount=Decimal("0.00"),
-                    currency="NGN",
-                    description="No earnings for this route",
-                    occurred_at=calculation.calculated_at,
-                    ledger_metadata=f7_metadata(formula_version="payout_v4"),
-                )
-            )
-        await session.flush()
         if not await session.scalar(
             select(TripSession.id).where(TripSession.campaign_id == campaign.id).limit(1)
         ):

@@ -14,7 +14,9 @@ vi.mock("next/navigation", async (importOriginal) => ({
 }));
 vi.mock("./batch-forms", () => ({
   CreateBatchForm: ({ draftId }: { draftId?: string }) => <div>Credit selection {draftId}</div>,
-  BatchActions: () => <div>Batch actions</div>,
+  BatchActions: ({ approved }: { approved?: boolean }) => (
+    <div>{approved ? "Approved batch actions" : "Batch actions"}</div>
+  ),
   MaskedDestination: () => <div>Explicit destination review</div>,
   PollLineAction: () => <button>Verify line</button>,
 }));
@@ -185,6 +187,22 @@ describe("bounded payout pages", () => {
     );
     expect(screen.queryByText("Batch actions")).not.toBeInTheDocument();
     expect(screen.queryByText(/Checker:/)).not.toBeInTheDocument();
+  });
+
+  it("shows a run approved by one admin as approved, not waiting, until it is sent", async () => {
+    const approved = { ...summary, checker_name: "Ada Maker", approved_at: summary.created_at };
+    mocks.api
+      .mockResolvedValueOnce({ items: [], total: 0 })
+      .mockResolvedValueOnce({ items: [approved], total: 1 });
+    const list = render(await PayoutBatchesPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByText(/Approved — not sent yet/)).toBeVisible();
+    expect(screen.queryByText(/Waiting for approval/)).not.toBeInTheDocument();
+    list.unmount();
+
+    mocks.api.mockResolvedValue({ summary: approved, lines: [line], total: 1 });
+    render(await BatchDetailPage(detailProps()));
+    expect(screen.getByRole("heading", { name: /Approved — not sent yet/ })).toBeVisible();
+    expect(screen.getByText("Approved batch actions")).toBeVisible();
   });
 
   it("limits existing-draft selection to its maker", async () => {

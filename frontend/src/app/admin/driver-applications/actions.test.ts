@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api/errors";
 
 const mocks = vi.hoisted(() => ({
   post: vi.fn(),
@@ -196,6 +197,32 @@ describe("reviewPersonPayeeAction", () => {
       },
     );
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/drivers");
+  });
+
+  it("says what is missing when approval is refused", async () => {
+    mocks.post.mockRejectedValueOnce(
+      new ApiError(409, { code: "PERSON_PAYEE_REVIEW_EVIDENCE_INCOMPLETE", message: "private" }),
+    );
+    await expect(reviewPersonPayeeAction({}, form("approve"))).resolves.toEqual({
+      error: "Show the NIN and view the bank account and every document before approving.",
+    });
+    const car = form("approve");
+    car.set("vehicle_id", VEHICLE_ID);
+    car.set("valid_until", "2099-01-01T00:00");
+    for (const name of [
+      "owner_match_confirmed",
+      "vehicle_identity_confirmed",
+      "roadworthy_confirmed",
+      "pilot_car_confirmed",
+    ])
+      car.set(name, "on");
+    mocks.post.mockRejectedValueOnce(
+      new ApiError(409, { code: "VEHICLE_REVIEW_EVIDENCE_INCOMPLETE", message: "private" }),
+    );
+    await expect(reviewVehicleAction({}, car)).resolves.toMatchObject({
+      error: "View every car document before approving.",
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
   it("records typed rejection evidence without approval attestations", async () => {

@@ -19,6 +19,7 @@ export function ApplicationJourney({ requestedStep }: { requestedStep?: string }
   const [current, setCurrent] = useState<Continuation>();
   const [checking, setChecking] = useState(requestedStep === "details" || requestedStep === "car");
   const [failed, setFailed] = useState(false);
+  const [linkNeeded, setLinkNeeded] = useState(false);
   const link = useRef<ReturnType<typeof takeApplicationLink>>(null);
   const generation = useRef(0);
   useEffect(() => {
@@ -33,16 +34,18 @@ export function ApplicationJourney({ requestedStep }: { requestedStep?: string }
       setCurrent(undefined);
       const token = link.current?.token;
       if (!token || link.current?.invalid) {
+        const invalid = Boolean(link.current?.invalid);
         setChecking(false);
-        setFailed(
-          Boolean(link.current?.invalid || requestedStep === "details" || requestedStep === "car"),
-        );
+        setFailed(invalid);
+        // Review emails open a step without a link on purpose (D131): ask for one.
+        setLinkNeeded(!invalid && (requestedStep === "details" || requestedStep === "car"));
         return;
       }
       controller = new AbortController();
       const signal = controller.signal;
       setChecking(true);
       setFailed(false);
+      setLinkNeeded(false);
       try {
         const response = await fetch("/api/apply/onboarding/continue", {
           method: "POST",
@@ -175,6 +178,13 @@ export function ApplicationJourney({ requestedStep }: { requestedStep?: string }
             If you’ve been approved, check your email for your account set-up link.
           </p>
           <NewCodePanel />
+        </Panel>
+      ) : linkNeeded ? (
+        <Panel className="mt-5 p-6">
+          <NewCodePanel />
+          <p className="text-muted mt-2 text-sm">
+            If you’ve been approved, check your email for your account set-up link.
+          </p>
         </Panel>
       ) : (
         <DriverApplicationForms />

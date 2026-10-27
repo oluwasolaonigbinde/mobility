@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Panel } from "@/components/ui/panel";
 import { requireRole } from "@/lib/auth/current-user";
 import { formatDateTime, formatMoneyExact } from "@/lib/format";
-import { adminStatus } from "@/lib/status/admin";
+import { adminStatus, paymentRunStatus } from "@/lib/status/admin";
 import { QueueUnavailable } from "../../queue-search";
 import { FilterChips } from "@/components/ui/tabs";
 import { moneyHref, moneyPage, type MoneyQuery } from "../../money/navigation";
@@ -96,7 +96,7 @@ export default async function PaymentRuns({ searchParams }: { searchParams: Prom
                   className="border-edge min-w-0 space-y-2 rounded-xl border p-4"
                 >
                   <p>
-                    {adminStatus(run.status, "payment_run")} ·{" "}
+                    {paymentRunStatus(run)} ·{" "}
                     <strong>{formatMoneyExact(run.total_amount, run.currency)}</strong>
                   </p>
                   {run.approval_mode === "automatic" ? (

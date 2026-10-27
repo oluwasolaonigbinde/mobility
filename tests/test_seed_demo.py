@@ -2163,22 +2163,61 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert second_rich["profiles"] == 9
     assert second_rich["vehicles"] == 9
     assert second_rich["campaigns"] == 4
-    assert second_rich["assignments"] == 19
+    assert second_rich["assignments"] == 18
     assert second_rich["campaign_statuses"] == {"active", "paused", "draft"}
     assert len(second_rich["trip_days"]) >= 25
-    assert second_rich["trips"] == 379
+    assert second_rich["trips"] == 374
     assert all(key.startswith(f"{F7_SEED_VERSION}:f7:") for key in second_rich["batch_keys"])
     assert second_rich["metadata_namespaced"] is True
     assert second_rich["analytics"] == second_rich["trips"]
     assert second_rich["estimates"] == second_rich["trips"]
     assert second_rich["payouts"] == second_rich["trips"]
     assert 0 < second_rich["ledger"] <= second_rich["trips"]
-    assert second_rich["audit_events"] == 21
+    assert second_rich["audit_events"] == 20
     assert len(second_rich["flag_types"]) >= 5
     # Quality-only low flags were removed; the seeded pay-changing flags remain.
     assert second_rich["severities"] == {"medium", "high"}
     assert 10 <= second_rich["fraud_flags"] <= 20
     assert fetch_lifecycle_violation_count(postgis_db_sessionmaker) == 0
+    assert fetch_drivers_with_several_live_assignments(postgis_db_sessionmaker) == []
+    assert fetch_zero_amount_ledger_count(postgis_db_sessionmaker) == 0
+
+
+def fetch_drivers_with_several_live_assignments(
+    sessionmaker: async_sessionmaker[AsyncSession],
+) -> list[UUID]:
+    """Drivers the current-job endpoint would refuse (MULTIPLE_ACTIVE_ASSIGNMENTS)."""
+    from app.services.campaign_lifecycle import assignment_window_open
+
+    async def fetch() -> list[UUID]:
+        async with sessionmaker() as session:
+            return list(
+                await session.scalars(
+                    select(CampaignAssignment.driver_profile_id)
+                    .where(CampaignAssignment.status == "active", assignment_window_open())
+                    .group_by(CampaignAssignment.driver_profile_id)
+                    .having(func.count(CampaignAssignment.id) > 1)
+                )
+            )
+
+    return asyncio.run(fetch())
+
+
+def fetch_zero_amount_ledger_count(sessionmaker: async_sessionmaker[AsyncSession]) -> int:
+    """Real flows never post zero-amount ledger rows; driver earnings refuse them."""
+
+    async def fetch() -> int:
+        async with sessionmaker() as session:
+            return int(
+                await session.scalar(
+                    select(func.count(EarningsLedgerEntry.id)).where(
+                        EarningsLedgerEntry.amount == 0
+                    )
+                )
+                or 0
+            )
+
+    return asyncio.run(fetch())
 
 
 def test_demo_seed_preserves_existing_payout_metadata(

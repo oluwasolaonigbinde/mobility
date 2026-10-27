@@ -274,9 +274,14 @@ export default async function DriverTripEarningsPage({
                     {e.entry_type === "reversal" ? "−" : ""}
                     {formatMoneyExact(e.amount, e.currency)}
                   </span>
-                  <StatusChip tone={statusTone[e.status]}>
-                    {driverEarningsStatus[e.status]?.label ?? "Unknown"}
-                  </StatusChip>
+                  {e.entry_type === "reversal" && e.status !== "voided" ? (
+                    // A correction is taken off pay; its ledger status is not a release.
+                    <StatusChip tone="amber">Deduction</StatusChip>
+                  ) : (
+                    <StatusChip tone={statusTone[e.status]}>
+                      {driverEarningsStatus[e.status]?.label ?? "Unknown"}
+                    </StatusChip>
+                  )}
                 </div>
               </li>
             ))}

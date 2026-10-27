@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.153 — 2026-10-25. Canonical source of truth: current state AND target state.**
+**Version 1.154 — 2026-10-26. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -3852,6 +3852,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.154 — 26 October 2026 (REQ-251):** Fixes from the live end-to-end test of `55122b9b`. A frozen report's trip cost still needs the calculation's own ledger row when it pays more than zero. A zero-pay calculation posts no `trip_payout` row (`ensure_ledger_entry`), so it now costs nothing plus any corrections posted against its trip, instead of blocking the report with `MEASUREMENT_LEDGER_INCOMPLETE`. The demo seed no longer invents zero-amount ledger rows to work around this. Legacy measurement-result-v2 replay (`historical_measurement.py`) is unchanged; nothing creates new runs there. No other money, privacy or API behaviour changes.
 
 - **v1.153 — 25 October 2026 (D135 / REQ-248, clarified 26 October):** Receipt-only final commits may reuse independently proven equivalent measured-source CI: all noncoverage jobs pass and a sole stale-receipt guard failure is separately qualified by strict same-artifact D33 checks. Retain the raw failed CI verdict. Strict artifacts, runtime/hash/inventory binding, floors/exact nonregression, receipt/deletion review, consolidated review, non-squash merge and post-merge master green remain. Source or verification-input changes require full CI; no workflow or coverage-policy computation changed.
 

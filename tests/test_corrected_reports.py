@@ -251,9 +251,13 @@ def test_cohort_cost_reads_only_its_own_trip_ledger_rows():
 
     first_trip, second_trip = uuid4(), uuid4()
 
-    def payout(trip_id, currency="NGN"):
+    def payout(trip_id, currency="NGN", final_payout="100.00"):
         return SimpleNamespace(
-            id=uuid4(), trip_session_id=trip_id, status="calculated", currency=currency
+            id=uuid4(),
+            trip_session_id=trip_id,
+            status="calculated",
+            currency=currency,
+            final_payout=Decimal(final_payout),
         )
 
     first, second = payout(first_trip), payout(second_trip)
@@ -287,6 +291,21 @@ def test_cohort_cost_reads_only_its_own_trip_ledger_rows():
     with pytest.raises(AppError) as missing:
         cohort.final_cost(payout(uuid4()))
     assert missing.value.code == "MEASUREMENT_LEDGER_INCOMPLETE"
+    # A zero-pay calculation posts no trip_payout row: it costs nothing, or only
+    # the corrections later posted against its trip.
+    zero_trip, adjusted_trip = uuid4(), uuid4()
+    zero = payout(zero_trip, final_payout="0.00")
+    adjusted = payout(adjusted_trip, final_payout="0.00")
+    with_zero = ReportCohort(
+        trips=(),
+        analytics=(),
+        impressions=(),
+        payouts=(zero, adjusted),
+        ledger=(row(adjusted_trip, None, "adjustment", "12.50"),),
+        terminal_period=True,
+    )
+    assert with_zero.final_cost(zero) == Decimal("0.00")
+    assert with_zero.final_cost(adjusted) == Decimal("12.50")
     mixed = ReportCohort(
         trips=(),
         analytics=(),

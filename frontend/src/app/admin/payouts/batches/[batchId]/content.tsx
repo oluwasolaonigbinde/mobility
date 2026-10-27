@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/auth/current-user";
 import { Panel } from "@/components/ui/panel";
 import { QueueUnavailable } from "../../../queue-search";
 import { moneyHref, moneyPage, type MoneyQuery } from "../../../money/navigation";
-import { adminStatus } from "@/lib/status/admin";
+import { paymentRunStatus } from "@/lib/status/admin";
 import { formatDateTime, formatMoneyExact } from "@/lib/format";
 import { batchApi } from "../batch-api";
 import { BatchActions, CreateBatchForm, MaskedDestination, PollLineAction } from "../batch-forms";
@@ -59,8 +59,7 @@ export default async function BatchDetailPage({
         Back to payment runs
       </Link>
       <h3 className="font-semibold">
-        {adminStatus(batch.status, "payment_run")} ·{" "}
-        {formatMoneyExact(batch.total_amount, batch.currency)}
+        {paymentRunStatus(batch)} · {formatMoneyExact(batch.total_amount, batch.currency)}
       </h3>
       <Panel className="space-y-3 p-4 sm:p-6">
         {automatic ? (
@@ -102,7 +101,12 @@ export default async function BatchDetailPage({
         {(batch.status === "reserved" && !automatic) ||
         batch.status === "reconciled" ||
         batch.status === "failed" ? (
-          <BatchActions batchId={batchId} status={batch.status} query={query} />
+          <BatchActions
+            batchId={batchId}
+            status={batch.status}
+            approved={Boolean(batch.approved_at)}
+            query={query}
+          />
         ) : null}
         {batch.status === "draft" && batch.created_by_user_id === me.user.id && !credits ? (
           <QueueUnavailable />

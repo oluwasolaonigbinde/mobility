@@ -60,8 +60,12 @@ class ReportCohort:
         if self.ledger is None:
             return payout.final_payout
         rows = self._ledger_by_trip.get(payout.trip_session_id, ())
-        if payout.status == "calculated" and not any(
-            r.payout_calculation_id == payout.id for r in rows
+        # Zero-pay calculations never post a trip_payout row (ensure_ledger_entry),
+        # so only a positive calculation needs its own ledger authority.
+        if (
+            payout.status == "calculated"
+            and payout.final_payout > 0
+            and not any(r.payout_calculation_id == payout.id for r in rows)
         ):
             raise AppError(
                 "MEASUREMENT_LEDGER_INCOMPLETE",

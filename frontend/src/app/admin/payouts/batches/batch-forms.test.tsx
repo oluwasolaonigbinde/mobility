@@ -136,6 +136,16 @@ describe("payout operator forms", () => {
     );
   });
 
+  it("offers no second approval once the run is approved, keeping void and queueing", async () => {
+    render(
+      <BatchActions batchId="11111111-1111-4111-8111-111111111111" status="reserved" approved />,
+    );
+    expect(screen.queryByRole("button", { name: "Approve payment run" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Approval or replacement reason")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Void reservation" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Queue submission" })).toBeVisible();
+  });
+
   it("links terminal-failure replacement separately from ambiguous submission recovery", async () => {
     calls.transition.mockResolvedValue({
       done: "Replacement reserved. Obtain independent approval.",

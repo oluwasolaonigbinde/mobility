@@ -113,13 +113,20 @@ it.each([404, 410])(
     expect(screen.queryByText(/Details form/)).toBeNull();
   },
 );
-it("fails closed for a forged step without a link, making no request", async () => {
-  const fetch = vi.spyOn(window, "fetch");
-  await journey("/apply?step=details", "details");
-  expect(await screen.findByRole("alert")).toBeInTheDocument();
-  expect(screen.queryByText(/Details form/)).toBeNull();
-  expect(fetch).not.toHaveBeenCalled();
-});
+it.each(["details", "car"])(
+  "asks for a new link, without an error or request, when a review email opens the %s step",
+  async (step) => {
+    const fetch = vi.spyOn(window, "fetch");
+    await journey(`/apply?step=${step}`, step);
+    expect(await screen.findByText("New link form")).toBeInTheDocument();
+    expect(
+      screen.getByText("If you’ve been approved, check your email for your account set-up link."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText(/Details form|Car form/)).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  },
+);
 it("shows the normal apply form when no link or step is present", async () => {
   const fetch = vi.spyOn(window, "fetch");
   await journey("/apply");

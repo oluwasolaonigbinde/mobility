@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { adminStatus, adminTone } from "./admin";
+import { adminStatus, adminTone, paymentRunStatus } from "./admin";
 import { advertiserStatus } from "./advertiser";
 it("uses context-specific staff words without leaking internal keys", () => {
   expect(adminStatus("pending", "driver")).toBe("Applicant");
@@ -29,7 +29,14 @@ it("uses context-specific staff words without leaking internal keys", () => {
 
 it("preserves provider payment meanings and hides unrecognized wire outcomes", () => {
   expect(adminStatus("queued", "payment_outcome")).toBe("Queued — not submitted");
-  expect(adminStatus("reserved", "payment_outcome")).toBe("Waiting for approval");
+  expect(adminStatus("reserved", "payment_outcome")).toBe("Reserved — not sent");
+  expect(paymentRunStatus({ status: "reserved", approved_at: null })).toBe("Waiting for approval");
+  expect(paymentRunStatus({ status: "reserved", approved_at: "2026-10-26T12:00:00Z" })).toBe(
+    "Approved — not sent yet",
+  );
+  expect(paymentRunStatus({ status: "reconciled", approved_at: "2026-10-26T12:00:00Z" })).toBe(
+    "Provider results recorded",
+  );
   expect(adminStatus("submitted", "payment_outcome")).toBe("Submitted — awaiting verification");
   expect(adminStatus("provider_unknown", "payment_outcome")).toBe("Provider outcome unknown");
   expect(adminStatus("unknown", "payment_outcome")).toBe("Provider outcome unknown");

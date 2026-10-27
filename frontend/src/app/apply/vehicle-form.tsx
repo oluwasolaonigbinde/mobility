@@ -166,9 +166,9 @@ export function VehicleForm({
         You can add your car after your ID and bank details are approved. If you change your car or
         its papers, we check it again before you can drive.
       </p>
-      <form onSubmit={submit} onChange={changed} className="grid gap-4" noValidate>
+      <form onSubmit={submit} onChange={changed} className="grid grid-cols-1 gap-4" noValidate>
         <CarChooser cars={cars} />
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field label="Plate number" name="plate_number" required />
           <input type="hidden" name="plate_country_code" value="NG" />
           <Field label="Year (optional)" name="year" type="number" min={1980} max={2100} />
@@ -176,7 +176,7 @@ export function VehicleForm({
           <Field label="Model (optional)" name="model" placeholder="Corolla" />
           <Field label="Colour (optional)" name="color" />
         </div>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <FilePicker
             label="Registration papers"
             name="registration"

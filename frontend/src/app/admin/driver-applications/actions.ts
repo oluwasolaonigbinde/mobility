@@ -143,6 +143,22 @@ export async function verifyPersonPayeeAccountAction(
   return { done: "These bank details have been checked for payouts." };
 }
 
+const personPayeeDecisionErrors = {
+  PERSON_PAYEE_REVIEW_EVIDENCE_INCOMPLETE:
+    "Show the NIN and view the bank account and every document before approving.",
+  PERSON_PAYEE_BANK_ACCOUNT_UNVERIFIED: "Check the bank details for payouts before approving.",
+  PERSON_PAYEE_REVISION_STALE: "These details changed. Reload the page and review them again.",
+  PERSON_PAYEE_ALREADY_DECIDED: "These details already have a decision. Reload the page.",
+} as const;
+
+const vehicleDecisionErrors = {
+  VEHICLE_REVIEW_EVIDENCE_INCOMPLETE: "View every car document before approving.",
+  VEHICLE_REVISION_STALE: "This car's details changed. Reload the page and review them again.",
+  VEHICLE_CURRENT_EVIDENCE_MISMATCH:
+    "This car's details changed. Reload the page and review them again.",
+  VEHICLE_ALREADY_DECIDED: "This car already has a decision. Reload the page.",
+} as const;
+
 const schema = z.object({
   submission_id: z.string().uuid(),
   application_id: z.string().uuid(),
@@ -254,7 +270,8 @@ export async function reviewPersonPayeeAction(
     }
   } catch (error) {
     unstable_rethrow(error);
-    if (error instanceof ApiError) return { error: publicActionError(error) };
+    if (error instanceof ApiError)
+      return { error: publicActionError(error, personPayeeDecisionErrors) };
     return { error: "Could not reach the onboarding service." };
   }
   revalidatePath("/admin/drivers");
@@ -454,7 +471,8 @@ async function decideVehicle(
     }
   } catch (error) {
     unstable_rethrow(error);
-    if (error instanceof ApiError) return { error: publicActionError(error) };
+    if (error instanceof ApiError)
+      return { error: publicActionError(error, vehicleDecisionErrors) };
     return { error: "Could not reach the vehicle approval service." };
   }
   revalidatePath("/admin/drivers");

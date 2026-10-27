@@ -143,8 +143,8 @@ export function PersonPayeeForm({ accessToken }: { accessToken: string }) {
         Add your ID, bank details and two files. Read the agreement below. We keep your details
         private.
       </p>
-      <form onSubmit={submit} onChange={changed} className="grid gap-4" noValidate>
-        <div className="grid gap-4 sm:grid-cols-2">
+      <form onSubmit={submit} onChange={changed} className="grid grid-cols-1 gap-4" noValidate>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field
             label="NIN (11 digits)"
             name="nin"
@@ -156,7 +156,7 @@ export function PersonPayeeForm({ accessToken }: { accessToken: string }) {
           />
         </div>
         <ApplicationBankDetails key={bankReset} accessToken={accessToken} />
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FilePicker
             label="Driver's licence"
             name="driver_license"

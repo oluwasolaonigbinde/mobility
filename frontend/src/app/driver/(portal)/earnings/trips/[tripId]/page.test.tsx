@@ -65,6 +65,40 @@ describe("DriverTripEarningsPage", () => {
     expect(screen.queryByText(/payout_v4|d39|stationary/)).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Verified time" })).not.toBeInTheDocument();
   });
+  it("labels an overpayment correction as a deduction, not a release", async () => {
+    const entry = {
+      id: "00000000-0000-4000-8000-0000000000e1",
+      currency: "NGN",
+      description: "Correct overpayment",
+      occurred_at: "2026-10-26T10:00:00Z",
+    };
+    get.mockResolvedValue({
+      data: breakdown({
+        entries: [
+          { ...entry, entry_type: "reversal", status: "available", amount: "100.00" },
+          {
+            ...entry,
+            id: "00000000-0000-4000-8000-0000000000e2",
+            description: "Withdrawn correction",
+            entry_type: "reversal",
+            status: "voided",
+            amount: "40.00",
+          },
+        ] as Breakdown["entries"],
+      }),
+    });
+
+    render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-v4" }) }));
+
+    const deduction = screen.getByText("Correct overpayment").closest("li");
+    if (!deduction) throw new Error("expected the correction entry");
+    expect(within(deduction).getByText("Deduction")).toBeInTheDocument();
+    expect(within(deduction).queryByText("Released")).not.toBeInTheDocument();
+    const withdrawn = screen.getByText("Withdrawn correction").closest("li");
+    if (!withdrawn) throw new Error("expected the voided entry");
+    expect(within(withdrawn).queryByText("Deduction")).not.toBeInTheDocument();
+  });
+
   it("renders only public hold, notice and dispute fields", async () => {
     get.mockImplementation(async (path: string) => {
       if (path.includes("earnings-breakdown")) return { data: breakdown() };

@@ -922,6 +922,80 @@ describe("live runtime truth", () => {
   });
 });
 
+describe("GPS hiccups", () => {
+  const positionError = (code: number) =>
+    ({
+      code,
+      message: "",
+      PERMISSION_DENIED: 1,
+      POSITION_UNAVAILABLE: 2,
+      TIMEOUT: 3,
+    }) as GeolocationPositionError;
+  const fix = {
+    timestamp: Date.now(),
+    coords: { latitude: 9.06, longitude: 7.49, accuracy: 10, speed: 5, heading: 90 },
+  } as GeolocationPosition;
+
+  it.each([2, 3])("keeps watching through a temporary GPS error (code %i)", async (code) => {
+    const runtime = installRuntime();
+    const queue = fakeQueue();
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+    const [capture, fail] = runtime.watchPosition.mock.calls[0]! as [
+      PositionCallback,
+      PositionErrorCallback,
+    ];
+
+    act(() => fail(positionError(code)));
+
+    expect(runtime.clearWatch).not.toHaveBeenCalled();
+    expect(screen.getByTestId("tracking-health")).toHaveTextContent("Waiting for GPS");
+    expect(screen.getByText(/lost its location for now/)).toBeInTheDocument();
+    await act(async () => capture(fix));
+    await waitFor(() => expect(queue.addPing).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId("tracking-health")).not.toHaveTextContent("Waiting for GPS");
+    expect(runtime.watchPosition).toHaveBeenCalledTimes(1);
+  });
+
+  it("still stops capture when location permission is withdrawn", async () => {
+    const runtime = installRuntime();
+    pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+    const fail = runtime.watchPosition.mock.calls[0]![1] as PositionErrorCallback;
+
+    act(() => fail(positionError(1)));
+
+    expect(runtime.clearWatch).toHaveBeenCalledWith(1);
+    expect(screen.getByTestId("tracking-health")).not.toHaveAttribute(
+      "data-runtime-health",
+      "active",
+    );
+  });
+
+  it("retries a trip whose GPS was not ready when tracking began", async () => {
+    const intervals = vi.spyOn(window, "setInterval");
+    const runtime = installRuntime();
+    pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
+    vi.mocked(navigator.geolocation.getCurrentPosition).mockImplementationOnce((_success, fail) =>
+      fail?.(positionError(2)),
+    );
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    await waitFor(() =>
+      expect(screen.getByTestId("tracking-health")).toHaveTextContent("Waiting for GPS"),
+    );
+    expect(runtime.watchPosition).not.toHaveBeenCalled();
+    const retry = intervals.mock.calls.find(([, delay]) => delay === 30_000)?.[0] as
+      (() => void) | undefined;
+    if (!retry) throw new Error("No GPS retry was scheduled");
+
+    await act(async () => retry());
+
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+  });
+});
+
 describe("end watermark honesty (finding 5)", () => {
   it("retains complete receipts and attempts reconciliation when End is only ended", async () => {
     const queue = fakeQueue();
