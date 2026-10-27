@@ -31,14 +31,23 @@ FULL_SHA = re.compile(r"[0-9a-f]{40}\Z")
 HUNK = re.compile(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 LEGACY_RUNTIME_ATTESTATION = "docs/evidence/coverage-runtime-34354263174.json"
 POLICY_FILES = (
-    ".github/workflows/ci.yml",
     LEGACY_RUNTIME_ATTESTATION,
     "scripts/check_changed_coverage.py",
-    "pyproject.toml",
-    "frontend/package.json",
-    "frontend/package-lock.json",
+    "scripts/pytest_shard.py",
+    "scripts/install_ci_dependencies.py",
+    "scripts/ci_load_minio_images.sh",
+    ".github/actions/verify-candidate-sha/action.yml",
+    "requirements-production.txt",
+    "frontend/.nvmrc",
     "frontend/vitest.config.ts",
 )
+FRONTEND_MEASUREMENT_TOOLS = ("vitest", "@vitest/coverage-v8", "@vitejs/plugin-react", "jsdom")
+# Reviewed coverage.py/pytest dependency closure (including conditional Python
+# and platform dependencies). Explicit overrides of these affect the runner.
+PYTHON_MEASUREMENT_TOOLS = {
+    "coverage", "pytest", "greenlet", "pluggy", "packaging", "iniconfig", "pygments",
+    "colorama", "exceptiongroup", "tomli", "typing-extensions",
+}
 
 
 # Separately aggregated absolute branch floors; D32/D36 ratchets still apply.
@@ -419,7 +428,8 @@ def _legacy_attestation(
         raise PolicyError("invalid legacy runtime attestation version")
     if not isinstance(value.get("run_id"), int) or not isinstance(value.get("job_id"), int):
         raise PolicyError("invalid legacy runtime attestation run identity")
-    if not isinstance(value.get("head_sha"), str) or not FULL_SHA.fullmatch(value["head_sha"]):
+    head_sha = value.get("head_sha")
+    if not isinstance(head_sha, str) or not FULL_SHA.fullmatch(head_sha):
         raise PolicyError("invalid legacy runtime attestation head SHA")
     action_sha = value.get("setup_python_action_sha")
     if not isinstance(action_sha, str) or not FULL_SHA.fullmatch(action_sha):
@@ -484,8 +494,10 @@ def _assert_not_regressed(
             raise PolicyError(f"baseline {label}.{metric} counts are invalid")
         floor = Fraction(covered, total) if total else Fraction(1)
         actual_total = actual[f"{metric}_total"]
+        actual_covered = actual[f"{metric}_covered"]
+        assert isinstance(actual_total, int) and isinstance(actual_covered, int)
         measured = (
-            Fraction(actual[f"{metric}_covered"], actual_total) if actual_total else Fraction(1)
+            Fraction(actual_covered, actual_total) if actual_total else Fraction(1)
         )
         if measured < floor - tolerance / 100:
             raise PolicyError(f"{label} {metric} coverage regressed from exact baseline ratio")
@@ -501,12 +513,11 @@ def _assert_not_regressed(
 
 
 def _matches(path: str, patterns: object, label: str) -> bool:
-    valid_patterns = (
-        isinstance(patterns, list)
-        and bool(patterns)
-        and all(isinstance(pattern, str) for pattern in patterns)
-    )
-    if not valid_patterns:
+    if (
+        not isinstance(patterns, list)
+        or not patterns
+        or not all(isinstance(pattern, str) for pattern in patterns)
+    ):
         raise PolicyError(f"baseline {label}.paths must be a non-empty string list")
     if path in patterns:
         return True
@@ -549,6 +560,291 @@ def _hash_git_files(repo_root: Path, revision: str, paths: Iterable[str]) -> str
         digest.update(b"\0")
         digest.update(result.stdout)
     return digest.hexdigest()
+
+
+def _workflow_fields(block: str, indent: int) -> dict[str, str]:
+    """Read the workflow's block-mapping subset, never interpret executable YAML.
+
+    Scalar bodies (notably shell scripts) stay opaque. Relevant mappings are
+    inspected separately; flow mappings, aliases and merges cannot replace them.
+    """
+    lines = [line.rstrip() for line in block.splitlines()]
+    fields: dict[str, str] = {}
+    key = None
+    for line in lines:
+        depth = len(line) - len(line.lstrip(" "))
+        if not line:
+            if key is not None:
+                fields[key] += "\n"
+            continue
+        if line.lstrip().startswith("#") and depth <= indent:
+            continue
+        if "\t" in line[:depth + 1] or depth < indent:
+            raise PolicyError("unsupported measurement workflow indentation")
+        if depth == indent:
+            match = re.fullmatch(r" *([A-Za-z_][\w-]*):(?: (.*))?", line)
+            if match is None or match[1] in fields:
+                raise PolicyError("invalid or duplicate measurement workflow field")
+            key = match[1]
+            fields[key] = line[indent:] + "\n"
+        elif key is None:
+            raise PolicyError("unsupported measurement workflow mapping")
+        else:
+            fields[key] += line[indent:] + "\n"
+    return fields
+
+
+def _workflow_mapping(field: str, *, recursive: bool = True) -> dict[str, str]:
+    head, _, body = field.partition("\n")
+    if not head.endswith(":"):
+        raise PolicyError("measurement workflow requires a static block mapping")
+    fields = _workflow_fields(body, 2)
+    for value in fields.values():
+        scalar = value.split("\n", 1)[0].split(":", 1)[1].strip()
+        if scalar.startswith(("&", "*", "!", "{")):
+            raise PolicyError("unsupported measurement workflow alias or flow mapping")
+        if scalar.startswith("[") and not re.fullmatch(
+            r"\[\s*(?:[\w-]+|\"[^\"\\]*\"|'[^'\\]*')"
+            r"(?:\s*,\s*(?:[\w-]+|\"[^\"\\]*\"|'[^'\\]*'))*\s*\]", scalar
+        ):
+            raise PolicyError("measurement workflow requires static scalar sequences")
+        if not scalar and recursive:
+            _workflow_mapping(value)
+    return fields
+
+
+def _measurement_workflow(repo_root: Path) -> dict[str, object]:
+    """Explicit measurement inputs; upload metadata and scheduling are not policy.
+
+    Keep every producer/preparation step, including unknown new commands, so an
+    earlier GITHUB_ENV/file mutation cannot evade the binding. Lint/typecheck
+    step context remains bound even though their known package script bodies
+    are exempt. Steps after the frontend report upload are outside measurement.
+    """
+    try:
+        root = _workflow_fields(
+            (repo_root / ".github/workflows/ci.yml").read_text(encoding="utf-8"), 0
+        )
+    except (OSError, UnicodeDecodeError) as error:
+        raise PolicyError("missing or invalid measurement workflow") from error
+    jobs = _workflow_mapping(root.get("jobs", ""), recursive=False)
+    policy: dict[str, object] = {}
+    for key in ("env", "defaults"):
+        if key in root:
+            policy[key] = _workflow_mapping(root[key])
+    required = {
+        "backend_tests": ("pytest_shard.py plan", "coverage run", "-m pytest"),
+        "backend": ("pytest_shard.py verify", "coverage combine", "coverage lcov",
+                    'Path("coverage/backend-provenance.json")'),
+        "quality": ("npm ci", "npm run test", "--coverage"),
+        "coverage": ("check_changed_coverage.py", "--verify-baseline-provenance"),
+    }
+    for name, commands in required.items():
+        if name not in jobs:
+            raise PolicyError(f"missing measurement workflow job: {name}")
+        job = _workflow_mapping(jobs[name], recursive=False)
+        allowed_job = {
+            "name", "runs-on", "container", "if", "continue-on-error", "needs", "outputs",
+            "timeout-minutes", "concurrency", "permissions", "env", "defaults", "services",
+            "strategy", "steps",
+        }
+        if set(job) - allowed_job:
+            raise PolicyError(f"unsupported measurement workflow job fields: {name}")
+        definition: dict[str, object] = {}
+        for key in ("env", "defaults", "services", "strategy", "outputs"):
+            if key in job:
+                mapping = _workflow_mapping(job[key])
+                if key == "strategy":
+                    # fail-fast only schedules failures; matrix defines producer membership.
+                    mapping = {"matrix": mapping.get("matrix", "")}
+                definition[key] = mapping
+        for key in ("runs-on", "container", "if", "continue-on-error", "needs"):
+            if key in job:
+                definition[key] = job[key]
+        steps = job.get("steps", "")
+        if not steps.startswith("steps:\n"):
+            raise PolicyError(f"missing static measurement workflow steps: {name}")
+        bodies = re.split(r"(?m)^  - ", steps.removeprefix("steps:\n"))
+        prelude = [line for line in bodies[0].splitlines()
+                   if line.strip() and not line.lstrip().startswith("#")]
+        if prelude or len(bodies) == 1:
+            raise PolicyError(f"unsupported measurement workflow steps: {name}")
+        selected = []
+        for body in bodies[1:]:
+            step = _workflow_fields("    " + body, 4)
+            allowed = {
+                "name", "id", "uses", "with", "run", "env", "if", "shell",
+                "working-directory", "continue-on-error", "timeout-minutes",
+            }
+            if set(step) - allowed or ("uses" in step) == ("run" in step):
+                raise PolicyError(f"unsupported measurement workflow step: {name}")
+            for value in step.values():
+                scalar = value.split("\n", 1)[0].split(":", 1)[1].strip()
+                if scalar.startswith(("&", "*", "!", "{")):
+                    raise PolicyError("unsupported measurement workflow step alias/flow mapping")
+            uses = step.get("uses", "").removeprefix("uses: ").strip()
+            if uses.startswith("./") and uses != "./.github/actions/verify-candidate-sha":
+                raise PolicyError("unreviewed local measurement workflow action")
+            if uses.startswith("actions/upload-artifact@"):
+                if name == "quality":
+                    break  # The frontend report has now been produced and uploaded.
+                continue
+            for helper in re.findall(r"\bscripts/[\w./${}-]+", step.get("run", "")):
+                if helper not in (*POLICY_FILES, "scripts/pytest_shard_durations.json"):
+                    raise PolicyError(f"unreviewed measurement workflow helper: {helper}")
+            for key in ("with", "env"):
+                if key in step:
+                    _workflow_mapping(step[key])
+            if uses.startswith("actions/setup-") and "with" in step:
+                inputs = _workflow_mapping(step["with"])
+                step["with"] = "with:\n" + "".join(
+                    "  " + value.replace("\n", "\n  ").rstrip() + "\n"
+                    for key, value in inputs.items()
+                    if key not in {"cache", "cache-dependency-path"}
+                )
+            selected.append({key: value for key, value in step.items()
+                             if key not in {"name", "timeout-minutes"}})
+        serialized = "\n".join(value for step in selected for value in step.values())
+        if not all(command in serialized for command in commands):
+            raise PolicyError(f"missing required measurement workflow command: {name}")
+        setup = "actions/setup-node@" if name == "quality" else "actions/setup-python@"
+        if setup not in serialized or "verify-candidate-sha" not in serialized:
+            raise PolicyError(f"missing measurement runtime/candidate verification: {name}")
+        definition["steps"] = selected
+        policy[name] = definition
+    return policy
+
+
+def _policy_hash(repo_root: Path) -> str:
+    representation = {
+        "files_sha256": _hash_files(repo_root, POLICY_FILES),
+        "measurement_workflow": _measurement_workflow(repo_root),
+        "measurement_configuration": _measurement_configuration(repo_root),
+    }
+    return hashlib.sha256(json.dumps(representation, sort_keys=True).encode()).hexdigest()
+
+
+def _measurement_configuration(repo_root: Path) -> dict[str, object]:
+    try:
+        project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+        raise PolicyError("invalid measurement pyproject.toml") from error
+    project_metadata = project.get("project", {})
+    tool = project.get("tool", {})
+    if not isinstance(project_metadata, dict) or not isinstance(tool, dict):
+        raise PolicyError("measurement pyproject requires project/tool tables")
+    dependencies = project_metadata.get("dependencies", [])
+    optional_groups = project_metadata.get("optional-dependencies", {})
+    if not isinstance(dependencies, list) or not isinstance(optional_groups, dict):
+        raise PolicyError("invalid measurement Python dependencies")
+    dependencies = list(dependencies)
+    # The measurement jobs invoke install_ci_dependencies without --static;
+    # its hashed implementation installs the dev group, not static tooling.
+    development = optional_groups.get("dev", [])
+    if not isinstance(development, list):
+        raise PolicyError("invalid measurement Python dependency group")
+    dependencies.extend(development)
+    if not all(isinstance(requirement, str) for requirement in dependencies):
+        raise PolicyError("measurement Python requirements must be strings")
+    python_tools = []
+    for requirement in dependencies:
+        match = re.match(r"[A-Za-z0-9_.-]+", requirement)
+        name = re.sub(r"[-_.]+", "-", match[0]).lower() if match else ""
+        if name in PYTHON_MEASUREMENT_TOOLS or name.startswith("pytest-"):
+            python_tools.append(requirement)
+    package = _load_json_object(repo_root / "frontend/package.json", "measurement package")
+    lock = _load_json_object(repo_root / "frontend/package-lock.json", "measurement lock")
+    packages = lock.get("packages")
+    if lock.get("lockfileVersion") != 3 or not isinstance(packages, dict):
+        raise PolicyError("measurement lock requires npm lockfile version 3 packages")
+    declarations = {}
+    for name in FRONTEND_MEASUREMENT_TOOLS:
+        matches = []
+        for section in ("dependencies", "devDependencies", "optionalDependencies"):
+            definition = package.get(section, {})
+            if not isinstance(definition, dict):
+                raise PolicyError(f"invalid measurement package dependencies: {section}")
+            if name in definition:
+                matches.append((section, definition[name]))
+        if len(matches) != 1 or not isinstance(matches[0][1], str):
+            raise PolicyError(f"measurement package requires one tool declaration: {name}")
+        declarations[name] = matches[0]
+
+    # Follow npm's nearest-node_modules resolution, including optional/peer
+    # tooling dependencies. Unrelated lint/build packages and lock metadata
+    # cannot invalidate coverage; a transitive V8/Vite instrumenter change can.
+    def resolve(location: str, name: str, *, optional: bool = False) -> str | None:
+        while True:
+            path = f"{location}/node_modules/{name}" if location else f"node_modules/{name}"
+            if path in packages:
+                return path
+            if not location:
+                break
+            location = (
+                location.rsplit("/node_modules/", 1)[0] if "/node_modules/" in location else ""
+            )
+        if not optional:
+            raise PolicyError(f"measurement lock is missing dependency: {name}")
+        return None
+
+    pending = [resolve("", name) for name in FRONTEND_MEASUREMENT_TOOLS]
+    selected = {}
+    while pending:
+        path = pending.pop()
+        if path is None or path in selected:
+            continue
+        entry = packages[path]
+        if (
+            not isinstance(entry, dict)
+            or not isinstance(entry.get("version"), str)
+            or entry.get("link")
+        ):
+            raise PolicyError(f"invalid measurement lock package: {path}")
+        selected[path] = {
+            key: entry[key] for key in (
+                "version", "resolved", "integrity", "dependencies", "optionalDependencies",
+                "peerDependencies", "peerDependenciesMeta", "engines", "os", "cpu", "bin",
+                "hasInstallScript", "inBundle",
+            ) if key in entry
+        }
+        for section in ("dependencies", "optionalDependencies", "peerDependencies"):
+            requirements = entry.get(section, {})
+            if not isinstance(requirements, dict):
+                raise PolicyError(f"invalid measurement lock dependencies: {path}")
+            peer_metadata = entry.get("peerDependenciesMeta", {})
+            if not isinstance(peer_metadata, dict):
+                raise PolicyError(f"invalid measurement lock peer metadata: {path}")
+            for name in requirements:
+                metadata = peer_metadata.get(name, {})
+                if not isinstance(metadata, dict):
+                    raise PolicyError(f"invalid measurement lock peer metadata: {path}")
+                optional = section == "optionalDependencies" or (
+                    section == "peerDependencies"
+                    and metadata.get("optional") is True
+                )
+                pending.append(resolve(path, name, optional=optional))
+    scripts = package.get("scripts", {})
+    if not isinstance(scripts, dict) or not isinstance(scripts.get("test"), str):
+        raise PolicyError("measurement package requires a test command")
+    return {
+        "python": {
+            "requires-python": project_metadata.get("requires-python"),
+            "coverage": tool.get("coverage", {}),
+            "pytest": tool.get("pytest", {}),
+            "dependencies": sorted(python_tools),
+        },
+        "frontend": {
+            "tools": declarations,
+            "scripts": {key: scripts[key] for key in (
+                "preinstall", "install", "postinstall", "prepublish", "preprepare", "prepare",
+                "postprepare", "pretest", "test", "posttest",
+                "prelint", "lint", "postlint", "pretypecheck", "typecheck", "posttypecheck",
+            ) if key in scripts and (key, scripts[key]) not in (
+                ("lint", "eslint ."), ("typecheck", "tsc --noEmit"),
+            )},
+            "lock_packages": selected,
+        },
+    }
 
 
 def _assert_attested_source_identity(repo_root: Path, revision: str, inventory: list[str]) -> None:
@@ -676,6 +972,34 @@ def _trusted_baseline(
         raise PolicyError("trusted named critical groups must remain backend and frontend")
     inventory = _complete_inventory(repo_root, records)
     candidate = _load_baseline(Path(args.baseline))
+    candidate_global, candidate_critical = candidate["global"], candidate["critical"]
+    assert isinstance(candidate_global, dict) and isinstance(candidate_critical, dict)
+    event_trusted = trusted
+    origin = args.base
+    # JSON types are part of the receipt schema (False is not an integer zero).
+    changed_receipt = json.dumps(candidate, sort_keys=True) != json.dumps(
+        event_trusted, sort_keys=True
+    )
+    admitting = changed_receipt and not (
+        args.refresh_baseline or getattr(args, "reconcile_unprovenanced_runtime", None)
+    )
+    if admitting:
+        origin = candidate.get("source_parent_sha")
+        if not isinstance(origin, str) or not FULL_SHA.fullmatch(origin):
+            raise PolicyError("baseline refresh origin must be a full ancestor SHA")
+        try:
+            _validate_base(repo_root, origin)
+            raw = _run_git(repo_root, "show", f"{origin}:{relative}")
+            trusted = json.loads(raw)
+        except (PolicyError, json.JSONDecodeError) as error:
+            raise PolicyError("baseline refresh origin/previous baseline is invalid") from error
+        if (
+            not isinstance(trusted, dict)
+            or trusted.get("version") not in (1, 2, 3)
+            or not isinstance(trusted.get("critical"), dict)
+            or set(trusted["critical"]) != {"backend", "frontend"}
+        ):
+            raise PolicyError("baseline refresh origin has an invalid previous baseline")
     candidate_refresh = candidate.get("refresh")
     migration_admission = (
         trusted.get("version") in (1, 2)
@@ -685,23 +1009,26 @@ def _trusted_baseline(
     )
     migration_write = bool(getattr(args, "reconcile_unprovenanced_runtime", None))
     runtime_migration = migration_write or migration_admission
+    if runtime_migration and event_trusted.get("version") == 3:
+        raise PolicyError("one-time runtime reconciliation cannot bypass a version 3 event base")
     if migration_write and trusted.get("version") == 3:
         raise PolicyError("one-time runtime reconciliation cannot be reused")
     if runtime_migration and trusted.get("version") not in (1, 2):
         raise PolicyError("one-time runtime reconciliation requires an unprovenanced baseline")
-    if trusted.get("version") == 3:
-        if producer_runtime is None:
-            raise PolicyError("version 3 baseline requires backend producer provenance")
-        trusted_runtime = _runtime(trusted.get("backend_runtime"), "trusted baseline")
-        for key in ("implementation", "major_minor", "coverage_version"):
-            if trusted_runtime[key] != producer_runtime[key]:
-                raise PolicyError(f"backend coverage runtime mismatch: {key}")
+    for authority in (event_trusted, trusted):
+        if authority.get("version") == 3:
+            if producer_runtime is None:
+                raise PolicyError("version 3 baseline requires backend producer provenance")
+            trusted_runtime = _runtime(authority.get("backend_runtime"), "trusted baseline")
+            for key in ("implementation", "major_minor", "coverage_version"):
+                if trusted_runtime[key] != producer_runtime[key]:
+                    raise PolicyError(f"backend coverage runtime mismatch: {key}")
     groups = {
         "backend": sorted(path for path in inventory if path.startswith("app/")),
         "frontend": sorted(path for path in inventory if path.startswith("frontend/")),
     }
     # Eligibility itself is D32 authority, not a configurable coverage exclusion.
-    old_source = _run_git(repo_root, "show", f"{args.base}:scripts/check_changed_coverage.py")
+    old_source = _run_git(repo_root, "show", f"{origin}:scripts/check_changed_coverage.py")
     old_tree = ast.parse(old_source)
     old_eligible = next(
         (
@@ -718,20 +1045,38 @@ def _trusted_baseline(
         compile(ast.Module(body=[old_eligible], type_ignores=[]), "trusted eligibility", "exec"),
         namespace,
     )
-    previous_paths = _run_git(repo_root, "ls-tree", "-r", "--name-only", args.base).splitlines()
+    previous_eligible = namespace["_eligible"]
+    assert callable(previous_eligible)
+    previous_paths = _run_git(repo_root, "ls-tree", "-r", "--name-only", origin).splitlines()
     current_paths = _run_git(
         repo_root, "ls-files", "--cached", "--others", "--exclude-standard", "-z"
     ).split("\0")
     for path in set(previous_paths + current_paths) - {""}:
-        if namespace["_eligible"](path) != _eligible(path):
+        if previous_eligible(path) != _eligible(path):
             raise PolicyError(f"source eligibility drift requires separate D32 authority: {path}")
     if LINE_FLOOR < 90 or BRANCH_FLOOR < 80:
         raise PolicyError("D32 changed-code floors cannot be lowered by baseline refresh")
-    _validate_instrumentation(repo_root, args.base)
+    _validate_instrumentation(repo_root, origin)
+    if origin != args.base:
+        _validate_instrumentation(repo_root, args.base)
+        # Event authority still guards eligibility; the receipt origin cannot
+        # hide an intervening change to the eligible-source definition.
+        event_source = _run_git(
+            repo_root, "show", f"{args.base}:scripts/check_changed_coverage.py"
+        )
+        event_tree = ast.parse(event_source)
+        event_eligible = next(
+            (node for node in event_tree.body
+             if isinstance(node, ast.FunctionDef) and node.name == "_eligible"), None
+        )
+        if event_eligible is None or ast.dump(event_eligible) != ast.dump(old_eligible):
+            raise PolicyError("source eligibility drift requires separate D32 authority")
     actual = _metrics(records.values())
     tolerance = RATCHET_TOLERANCE_POINTS
     if not runtime_migration:
         _assert_not_regressed("global", actual, trusted.get("global"), tolerance=tolerance)
+        _assert_not_regressed("event.global", actual, event_trusted.get("global"),
+                              tolerance=tolerance)
     critical = {}
     for name, paths in groups.items():
         if not paths:
@@ -740,6 +1085,10 @@ def _trusted_baseline(
         if not runtime_migration:
             _assert_not_regressed(
                 f"critical.{name}", metrics, trusted["critical"][name], tolerance=tolerance
+            )
+            _assert_not_regressed(
+                f"event.critical.{name}", metrics, event_trusted["critical"][name],
+                tolerance=tolerance,
             )
         critical[name] = {**metrics, "paths": paths}
     inventory_hash = hashlib.sha256(
@@ -752,10 +1101,10 @@ def _trusted_baseline(
         for path in definition.get("paths", [])
         if isinstance(path, str)
     }
-    policy_hash = _hash_files(repo_root, POLICY_FILES)
+    policy_hash = _policy_hash(repo_root)
     snapshot: dict[str, object] = {
         "version": 3 if runtime_migration or trusted.get("version") == 3 else 2,
-        "source_parent_sha": args.base,
+        "source_parent_sha": origin,
         "eligible_inventory_sha256": inventory_hash,
         "policy_sha256": policy_hash,
         "source_sha256": _hash_files(repo_root, inventory),
@@ -798,7 +1147,9 @@ def _trusted_baseline(
             Path(args.frontend_lcov),
             verify_reports=migration_write,
         )
-        _assert_attested_source_identity(repo_root, attestation["head_sha"], inventory)
+        attested_head = attestation["head_sha"]
+        assert isinstance(attested_head, str)
+        _assert_attested_source_identity(repo_root, attested_head, inventory)
         attested_runtime = attestation["runtime"]
         assert isinstance(attested_runtime, dict)
         if producer_runtime is None:
@@ -827,12 +1178,14 @@ def _trusted_baseline(
         refresh = snapshot["refresh"]
         assert isinstance(refresh, dict)
         refresh["reason"] = reason.strip()
-    elif candidate != trusted:
+    elif admitting:
         refresh = candidate.get("refresh")
         reason = refresh.get("reason") if isinstance(refresh, dict) else None
         if not isinstance(reason, str) or not reason.strip():
             raise PolicyError("baseline refresh receipt requires a reviewable reason")
-        snapshot["refresh"]["reason"] = reason
+        snapshot_refresh = snapshot["refresh"]
+        assert isinstance(snapshot_refresh, dict)
+        snapshot_refresh["reason"] = reason
         if (
             trusted.get("version") == 3
             and not runtime_migration
@@ -844,7 +1197,7 @@ def _trusted_baseline(
                     (
                         f"critical.{name}",
                         critical[name],
-                        candidate["critical"].get(name),
+                        candidate_critical.get(name),
                         trusted["critical"][name],
                     )
                     for name in groups
@@ -867,10 +1220,25 @@ def _trusted_baseline(
                 _assert_not_regressed(label, measured, adopted, tolerance=RATCHET_TOLERANCE_POINTS)
             snapshot["global"] = candidate["global"]
             snapshot["critical"] = {
-                name: {**candidate["critical"][name], "paths": groups[name]} for name in groups
+                name: {**candidate_critical[name], "paths": groups[name]} for name in groups
             }
-        if candidate != snapshot:
-            raise PolicyError("baseline refresh receipt differs from trusted/current evidence")
+        # Origin/previous-baseline lineage is reconstructed at the recorded
+        # ancestor, independently of the event-selected changed-code base.
+        # Every field remains bound; in particular no parent field is ignored.
+        if set(candidate) != set(snapshot):
+            raise PolicyError("baseline refresh receipt has unexpected or missing fields")
+        for key in snapshot:
+            if json.dumps(candidate[key], sort_keys=True) != json.dumps(
+                snapshot[key], sort_keys=True
+            ):
+                raise PolicyError(f"baseline refresh receipt differs from evidence: {key}")
+        if not runtime_migration:
+            _assert_not_regressed("adopted.global", candidate_global, event_trusted["global"])
+            for name in groups:
+                _assert_not_regressed(
+                    f"adopted.critical.{name}", candidate_critical[name],
+                    event_trusted["critical"][name],
+                )
     else:
         if (
             candidate.get("eligible_inventory_sha256") != inventory_hash
@@ -879,10 +1247,10 @@ def _trusted_baseline(
             raise PolicyError("inventory or policy changed; controlled baseline refresh required")
     # Apply the trusted ratios to current group membership, including additions and renames.
     floors = {
-        **(snapshot if runtime_migration else trusted),
+        **(snapshot if runtime_migration else event_trusted),
         "critical": {
             name: {
-                **(critical[name] if runtime_migration else trusted["critical"][name]),
+                **(critical[name] if runtime_migration else event_trusted["critical"][name]),
                 "paths": paths,
             }
             for name, paths in groups.items()
@@ -912,9 +1280,11 @@ def _sensitive_coverage(repo_root: Path, records: dict[str, CoverageRecord]) -> 
             paths.update(selected)
         metrics = _metrics(records[path] for path in sorted(paths))
         total = metrics["branch_total"]
+        covered = metrics["branch_covered"]
+        assert isinstance(total, int) and isinstance(covered, int)
         if not total:
             raise PolicyError(f"sensitive.{name} has no executable branches")
-        if Fraction(metrics["branch_covered"], total) < Fraction(SENSITIVE_BRANCH_FLOOR, 100):
+        if Fraction(covered, total) < Fraction(SENSITIVE_BRANCH_FLOOR, 100):
             raise PolicyError(
                 f"sensitive.{name} branch coverage {metrics['branch_percent']}% "
                 f"is below {SENSITIVE_BRANCH_FLOOR}%"

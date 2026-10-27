@@ -6,6 +6,7 @@ import hashlib
 import importlib.util
 import json
 import platform
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -15,6 +16,7 @@ import pytest
 import coverage as coverage_module
 
 CHECKER = Path(__file__).parents[1] / "scripts" / "check_changed_coverage.py"
+REPOSITORY = CHECKER.parents[1]
 
 
 def test_ci_routes_baseline_changes_through_the_reviewable_provenance_gate():
@@ -40,6 +42,7 @@ def test_ci_runs_when_the_coverage_receipt_changes() -> None:
 
 def test_ratchet_tolerance_absorbs_noise_but_not_real_drops() -> None:
     spec = importlib.util.spec_from_file_location("coverage_policy_tolerance", CHECKER)
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -74,6 +77,7 @@ def test_ratchet_tolerance_absorbs_noise_but_not_real_drops() -> None:
 
 def test_exact_critical_paths_support_next_dynamic_segments() -> None:
     spec = importlib.util.spec_from_file_location("coverage_policy", CHECKER)
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -114,6 +118,7 @@ def _repository(tmp_path: Path, *, renamed: bool = False) -> tuple[Path, str, Pa
     _run(["git", "init", "--quiet"], repo)
     _run(["git", "config", "user.email", "test@example.com"], repo)
     _run(["git", "config", "user.name", "Coverage Test"], repo)
+    _run(["git", "config", "core.autocrlf", "false"], repo)
     _run(["git", "add", "."], repo)
     _run(["git", "commit", "--quiet", "-m", "base"], repo)
     base = _run(["git", "rev-parse", "HEAD"], repo).strip()
@@ -357,12 +362,25 @@ def _refresh_repository(tmp_path: Path):
     (repo / "app" / "__init__.py").write_text('"""Package marker."""\n')
     coverage.mkdir()
     (repo / ".github/workflows").mkdir(parents=True)
-    (repo / ".github/workflows/ci.yml").write_text("name: test\n")
+    (repo / ".github/workflows/ci.yml").write_bytes(
+        (REPOSITORY / ".github/workflows/ci.yml").read_bytes()
+    )
     (repo / "docs/evidence").mkdir(parents=True)
     (repo / "docs/evidence/coverage-runtime-34354263174.json").write_text("{}\n")
     baseline = coverage / "baseline.json"
     (repo / "scripts").mkdir()
     (repo / "scripts" / CHECKER.name).write_bytes(CHECKER.read_bytes())
+    for name in (
+        "scripts/pytest_shard.py",
+        "scripts/install_ci_dependencies.py",
+        "scripts/ci_load_minio_images.sh",
+        ".github/actions/verify-candidate-sha/action.yml",
+        "requirements-production.txt",
+        "frontend/.nvmrc",
+    ):
+        destination = repo / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes((REPOSITORY / name).read_bytes())
     for name in (
         "pyproject.toml",
         "frontend/package.json",
@@ -370,7 +388,20 @@ def _refresh_repository(tmp_path: Path):
         "frontend/vitest.config.ts",
     ):
         (repo / name).write_text("{}\n")
-    (repo / "pyproject.toml").write_text('[tool.coverage.run]\nbranch = true\nsource = ["app"]\n')
+    (repo / "pyproject.toml").write_text(
+        '[project.optional-dependencies]\ndev = ["coverage==7.16.0", "pytest>=8.3,<9.0"]\n'
+        '[tool.coverage.run]\nbranch = true\nsource = ["app"]\n'
+    )
+    tools = {name: "^1.0.0" for name in (
+        "vitest", "@vitest/coverage-v8", "@vitejs/plugin-react", "jsdom"
+    )}
+    (repo / "frontend/package.json").write_text(json.dumps({
+        "scripts": {"test": "vitest run"}, "devDependencies": tools,
+    }))
+    (repo / "frontend/package-lock.json").write_text(json.dumps({
+        "lockfileVersion": 3,
+        "packages": {f"node_modules/{name}": {"version": "1.0.0"} for name in tools},
+    }))
     (repo / "frontend/vitest.config.ts").write_text(
         'export default {coverage: {provider: "v8"}};\n'
     )
@@ -445,7 +476,10 @@ def test_controlled_refresh_accepts_inventory_and_policy_changes(tmp_path: Path,
     elif change == "delete":
         (repo / "app" / "removed.py").unlink()
     else:
-        (repo / "frontend" / "package-lock.json").write_text('{"lockfileVersion": 3}\n')
+        lock = repo / "frontend/package-lock.json"
+        value = json.loads(lock.read_text())
+        value["packages"]["node_modules/vitest"]["version"] = "1.1.0"
+        lock.write_text(json.dumps(value))
     reports()
     result = check(refresh=True)
     assert result.returncode == 0, result.stderr
@@ -495,6 +529,7 @@ def test_refresh_rejects_candidate_source_eligibility_exclusion(tmp_path: Path, 
     repo, base, baseline, reports, _ = _refresh_repository(tmp_path)
     reports()
     spec = importlib.util.spec_from_file_location("coverage_policy_exclusion", CHECKER)
+    assert spec is not None and spec.loader is not None
     policy = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = policy
     spec.loader.exec_module(policy)
@@ -539,7 +574,8 @@ def test_refresh_does_not_authorize_weaker_instrumentation(tmp_path: Path, chang
     ) in result.stderr
 
 
-@pytest.mark.parametrize("tamper", ["floor", "policy", "inventory", "base", "source"])
+@pytest.mark.parametrize("tamper", ["floor", "policy", "inventory", "base", "source",
+                                    "lineage", "nonancestor", "typed_floor"])
 def test_ci_verifies_refresh_receipt_against_current_evidence(tmp_path: Path, tamper: str):
     repo, _, baseline, reports, check = _refresh_repository(tmp_path)
     reports()
@@ -553,6 +589,15 @@ def test_ci_verifies_refresh_receipt_against_current_evidence(tmp_path: Path, ta
         receipt["critical"]["backend"]["paths"].remove("app/removed.py")
     elif tamper == "base":
         receipt["source_parent_sha"] = "0" * 40
+    elif tamper == "lineage":
+        receipt["refresh"]["previous_baseline_sha256"] = "0" * 64
+    elif tamper == "nonancestor":
+        tree = _run(["git", "rev-parse", "HEAD^{tree}"], repo).strip()
+        receipt["source_parent_sha"] = _run(
+            ["git", "commit-tree", tree, "-m", "unrelated receipt origin"], repo
+        ).strip()
+    elif tamper == "typed_floor":
+        receipt["global"]["branch_covered"] = False
     else:
         (repo / "app" / "sample.py").write_text("def value(flag):\n    return 2\n")
     baseline.write_text(json.dumps(receipt))
@@ -592,6 +637,349 @@ def test_unchanged_committed_refresh_allows_no_change_and_covered_edits(tmp_path
             capture_output=True,
         )
         assert result.returncode == 0, result.stderr
+
+
+def _v3_repository(tmp_path: Path):
+    repo, _, baseline, reports, _ = _refresh_repository(tmp_path)
+    runtime = {"implementation": platform.python_implementation(),
+               "major_minor": f"{sys.version_info.major}.{sys.version_info.minor}",
+               "coverage_version": "7.16.0"}
+    prior = json.loads(baseline.read_text())
+    prior.update(version=3, backend_runtime=runtime)
+    prior["global"].update(line_covered=3, line_percent=60.0)
+    prior["critical"]["backend"].update(line_covered=2, line_percent=50.0)
+    baseline.write_text(json.dumps(prior))
+    _run(["git", "add", "."], repo)
+    _run(["git", "commit", "--quiet", "-m", "trusted v3 floors"], repo)
+    origin = _run(["git", "rev-parse", "HEAD"], repo).strip()
+
+    def check(*, refresh=False, comparison_base=None, tamper_producer=None):
+        backend = repo / "coverage/backend.lcov"
+        producer = {"version": 1,
+                    "candidate_sha": _run(["git", "rev-parse", "HEAD"], repo).strip(),
+                    "lcov_sha256": hashlib.sha256(backend.read_bytes()).hexdigest(),
+                    "runtime": runtime}
+        if tamper_producer:
+            producer.update(tamper_producer)
+        provenance = repo / "coverage/backend-provenance.json"
+        provenance.write_text(json.dumps(producer))
+        command = [sys.executable, "-S", str(CHECKER), "--repo-root", str(repo),
+                   "--base", comparison_base or origin, "--backend-lcov", str(backend),
+                   "--frontend-lcov", str(repo / "coverage/frontend.lcov"),
+                   "--baseline", str(baseline), "--verify-baseline-provenance",
+                   "--backend-provenance", str(provenance)]
+        if refresh:
+            command += ["--refresh-baseline", "Reviewed event-independent receipt"]
+        return subprocess.run(command, text=True, capture_output=True)
+
+    return repo, origin, baseline, reports, check
+
+
+def test_committed_v3_receipt_accepts_branch_and_master_ancestor_bases(tmp_path: Path):
+    # 8e509f7f: branch run 38571889225 used 4f41e895; master run
+    # 38578629525 used 966abd3a. Both events measured the same candidate.
+    repo, branch_base, baseline, reports, check = _v3_repository(tmp_path)
+    (repo / "notes.txt").write_text("master ancestor, same prior baseline\n")
+    _run(["git", "add", "notes.txt"], repo)
+    _run(["git", "commit", "--quiet", "-m", "master ancestor"], repo)
+    master_base = _run(["git", "rev-parse", "HEAD"], repo).strip()
+    (repo / "app/sample.py").write_text("def value(flag):\n    return 2\n")
+    reports()
+    refreshed = check(refresh=True)
+    assert refreshed.returncode == 0, refreshed.stderr
+    _run(["git", "add", "app/sample.py", str(baseline)], repo)
+    _run(["git", "commit", "--quiet", "-m", "same source and adopted receipt"], repo)
+    receipt = baseline.read_bytes()
+    for base in (branch_base, master_base):
+        result = check(comparison_base=base)
+        assert result.returncode == 0, result.stderr
+        assert json.loads(result.stdout)["base"] == base
+        assert json.loads(result.stdout)["changed"]["modified"] == ["app/sample.py"]
+        assert baseline.read_bytes() == receipt
+
+
+def test_event_base_still_controls_changed_code_checks(tmp_path: Path):
+    repo, old_base, baseline, reports, check = _v3_repository(tmp_path)
+    (repo / "app/sample.py").write_text("def value(flag):\n    return 2\n")
+    _run(["git", "add", "app/sample.py"], repo)
+    _run(["git", "commit", "--quiet", "-m", "source comparison boundary"], repo)
+    new_base = _run(["git", "rev-parse", "HEAD"], repo).strip()
+    reports(uncovered=True)
+    refreshed = check(refresh=True, comparison_base=new_base)
+    assert refreshed.returncode == 0, refreshed.stderr
+    _run(["git", "add", str(baseline)], repo)
+    _run(["git", "commit", "--quiet", "-m", "adopt existing floors"], repo)
+    assert check(comparison_base=new_base).returncode == 0
+    rejected = check(comparison_base=old_base)
+    assert rejected.returncode == 1
+    assert "changed line coverage 0.0%" in rejected.stderr
+
+
+@pytest.mark.parametrize("measured", [False, True])
+def test_receipt_origin_cannot_bypass_stronger_event_floors(tmp_path: Path, measured: bool):
+    repo, _, baseline, reports, check = _v3_repository(tmp_path)
+    reports(uncovered=True)
+    assert check(refresh=True).returncode == 0
+    adopted = baseline.read_bytes()
+    stronger = json.loads(adopted)
+    for metrics in (stronger["global"], *stronger["critical"].values()):
+        metrics.update(line_covered=metrics["line_total"], line_percent=100.0)
+    baseline.write_text(json.dumps(stronger))
+    _run(["git", "add", str(baseline)], repo)
+    _run(["git", "commit", "--quiet", "-m", "stronger event floors"], repo)
+    event = _run(["git", "rev-parse", "HEAD"], repo).strip()
+    baseline.write_bytes(adopted)
+    reports(uncovered=measured)
+    rejected = check(comparison_base=event)
+    assert rejected.returncode == 1
+    assert ("event.global" if measured else "adopted.global") in rejected.stderr
+
+
+def test_typed_metric_tampering_cannot_masquerade_as_unchanged_receipt(tmp_path: Path):
+    repo, _, baseline, reports, check = _v3_repository(tmp_path)
+    reports()
+    assert check(refresh=True).returncode == 0
+    _run(["git", "add", str(baseline)], repo)
+    _run(["git", "commit", "--quiet", "-m", "trusted receipt"], repo)
+    event = _run(["git", "rev-parse", "HEAD"], repo).strip()
+    altered = json.loads(baseline.read_text())
+    altered["global"]["branch_covered"] = False
+    baseline.write_text(json.dumps(altered))
+    rejected = check(comparison_base=event)
+    assert rejected.returncode == 1
+    assert "invalid adopted coverage metrics" in rejected.stderr
+
+
+@pytest.mark.parametrize("field", ["candidate_sha", "lcov_sha256", "runtime"])
+def test_adopted_receipt_retains_exact_producer_provenance(tmp_path: Path, field: str):
+    repo, _, baseline, reports, check = _v3_repository(tmp_path)
+    reports()
+    assert check(refresh=True).returncode == 0
+    _run(["git", "add", str(baseline)], repo)
+    _run(["git", "commit", "--quiet", "-m", "adopt receipt"], repo)
+    value = {} if field == "runtime" else "0" * (40 if field == "candidate_sha" else 64)
+    rejected = check(tamper_producer={field: value})
+    assert rejected.returncode == 1
+    assert "coverage policy failed:" in rejected.stderr
+    assert "provenance" in rejected.stderr
+
+
+def _policy_module():
+    spec = importlib.util.spec_from_file_location("receipt_policy", CHECKER)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _policy_repository(tmp_path: Path):
+    policy = _policy_module()
+    repo = tmp_path / "policy-inputs"
+    for path in (*policy.POLICY_FILES, ".github/workflows/ci.yml", "pyproject.toml",
+                 "frontend/package.json", "frontend/package-lock.json"):
+        destination = repo / path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes((REPOSITORY / path).read_bytes())
+    return repo, policy
+
+
+def test_unrelated_workflow_edits_do_not_change_measurement_policy(tmp_path: Path):
+    repo, policy = _policy_repository(tmp_path)
+    path = repo / ".github/workflows/ci.yml"
+    before = policy._policy_hash(repo)
+    workflow = path.read_text()
+    workflow = workflow.replace("timeout-minutes: 45", "timeout-minutes: 46")
+    workflow = workflow.replace("fail-fast: false", "fail-fast: false\n      max-parallel: 2")
+    workflow = workflow.replace("cache: pip", "cache: false")
+    workflow = workflow.replace("cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}",
+                                "cancel-in-progress: false")
+    workflow = workflow.replace("- uses: actions/upload-artifact@v4",
+                                "- uses: actions/upload-artifact@v4\n        if: always()")
+    path.write_text(workflow)
+    (repo / "scripts/pytest_shard_durations.json").write_text('{"scheduling": "only"}\n')
+    assert policy._policy_hash(repo) == before
+
+
+def test_basedpyright_config_is_not_measurement_policy(tmp_path: Path):
+    repo, policy = _policy_repository(tmp_path)
+    before = policy._policy_hash(repo)
+    project = repo / "pyproject.toml"
+    content = project.read_text()
+    replacement = '[tool.basedpyright]\nreportUnusedCallResult = false\n'
+    if "[tool.basedpyright]" in content:
+        content = re.sub(r"(?ms)^\[tool\.basedpyright\]\n.*?(?=^\[|\Z)", replacement, content)
+    else:
+        content += "\n" + replacement
+    project.write_text(content)
+    assert policy._policy_hash(repo) == before
+
+
+def test_unrelated_frontend_package_and_lock_edits_preserve_measurement_policy(tmp_path: Path):
+    repo, policy = _policy_repository(tmp_path)
+    before = policy._policy_hash(repo)
+    path = repo / "frontend/package.json"
+    package = json.loads(path.read_text())
+    package["description"] = "Unrelated metadata"
+    package["scripts"]["build"] = "echo unrelated build"
+    package["devDependencies"]["eslint"] = "^99.0.0"
+    path.write_text(json.dumps(package))
+    path = repo / "frontend/package-lock.json"
+    lock = json.loads(path.read_text())
+    lock["name"] = "Unrelated metadata"
+    lock["packages"][""]["devDependencies"]["eslint"] = "^99.0.0"
+    lock["packages"]["node_modules/eslint"]["version"] = "99.0.0"
+    path.write_text(json.dumps(lock))
+    assert policy._policy_hash(repo) == before
+
+
+@pytest.mark.parametrize(("old", "new"), [
+    ('concurrency = ["thread", "greenlet"]', 'concurrency = ["thread"]'),
+    ('testpaths = ["tests"]', 'testpaths = ["tests/unit"]'),
+    ('coverage[toml]==7.16.0', 'coverage[toml]==7.17.0'),
+    ('pytest>=8.3,<9.0', 'pytest>=8.4,<9.0'),
+])
+def test_python_measurement_configuration_changes_policy(tmp_path: Path, old: str, new: str):
+    repo, policy = _policy_repository(tmp_path)
+    before = policy._policy_hash(repo)
+    path = repo / "pyproject.toml"
+    content = path.read_text()
+    assert old in content
+    path.write_text(content.replace(old, new))
+    assert policy._policy_hash(repo) != before
+
+
+@pytest.mark.parametrize(("dependency", "old", "new"), [
+    ("pluggy", "1.5.0", "1.6.0"), ("packaging", "24.2", "25.0"),
+    ("iniconfig", "2.1.0", "2.3.0"),
+])
+def test_explicit_transitive_python_tool_pins_are_measurement_policy(
+    tmp_path: Path, dependency: str, old: str, new: str,
+):
+    repo, policy = _policy_repository(tmp_path)
+    project = repo / "pyproject.toml"
+    project.write_text(
+        '[project.optional-dependencies]\n'
+        f'dev = ["coverage==7.16.0", "pytest>=8.3,<9.0", "{dependency}=={old}"]\n'
+    )
+    before = policy._policy_hash(repo)
+    project.write_text(project.read_text().replace(f"{dependency}=={old}", f"{dependency}=={new}"))
+    assert policy._policy_hash(repo) != before
+
+
+@pytest.mark.parametrize("script", ["prelint", "postlint", "pretypecheck", "posttypecheck",
+                                   "lint", "typecheck"])
+def test_lint_typecheck_preparation_hooks_and_changed_bodies_are_bound(tmp_path: Path, script: str):
+    repo, policy = _policy_repository(tmp_path)
+    before = policy._policy_hash(repo)
+    path = repo / "frontend/package.json"
+    package = json.loads(path.read_text())
+    package["scripts"][script] = 'echo "NODE_ENV=production" >> "$GITHUB_ENV"'
+    path.write_text(json.dumps(package))
+    assert policy._policy_hash(repo) != before
+
+
+@pytest.mark.parametrize("context", [
+    "        env:\n          NODE_OPTIONS: --require=./preload.cjs\n",
+    "        shell: bash\n",
+    "        working-directory: .\n",
+])
+def test_lint_step_measurement_preparation_context_is_bound(tmp_path: Path, context: str):
+    repo, policy = _policy_repository(tmp_path)
+    before = policy._policy_hash(repo)
+    path = repo / ".github/workflows/ci.yml"
+    command = "      - run: npm run lint\n"
+    workflow = path.read_text()
+    assert command in workflow
+    path.write_text(workflow.replace(command, command + context))
+    assert policy._policy_hash(repo) != before
+
+
+@pytest.mark.parametrize("change", ["tool_range", "test_command", "test_hook", "transitive",
+                                   "provider_integrity", "missing_tool", "missing_transitive"])
+def test_frontend_measurement_configuration_and_tool_closure_are_bound(tmp_path: Path, change: str):
+    repo, policy = _policy_repository(tmp_path)
+    before = policy._policy_hash(repo)
+    path = repo / "frontend/package.json"
+    package = json.loads(path.read_text())
+    lock_path = repo / "frontend/package-lock.json"
+    lock = json.loads(lock_path.read_text())
+    if change == "tool_range":
+        package["devDependencies"]["vitest"] = "99.0.0"
+    elif change == "test_command":
+        package["scripts"]["test"] += " --pool=threads"
+    elif change == "test_hook":
+        package["scripts"]["pretest"] = "echo preparation"
+    elif change == "transitive":
+        lock["packages"]["node_modules/vite"]["version"] = "99.0.0"
+    elif change == "provider_integrity":
+        lock["packages"]["node_modules/@vitest/coverage-v8"]["integrity"] = "tampered"
+    else:
+        name = "@vitest/coverage-v8" if change == "missing_tool" else "vite"
+        del lock["packages"][f"node_modules/{name}"]
+    path.write_text(json.dumps(package))
+    lock_path.write_text(json.dumps(lock))
+    if change.startswith("missing_"):
+        with pytest.raises(policy.PolicyError, match="measurement lock is missing dependency"):
+            policy._policy_hash(repo)
+    else:
+        assert policy._policy_hash(repo) != before
+
+
+@pytest.mark.parametrize(("old", "new"), [
+    ("coverage run -m pytest", "coverage run --timid -m pytest"),
+    ("coverage lcov", "coverage lcov --ignore-errors"),
+    ("npm run test -- --coverage", "npm run test -- --coverage --pool=threads"),
+    ('python-version: "3.12.14"', 'python-version: "3.13.0"'),
+    ('REQUIRE_REAL_INTEGRATIONS: "1"', 'REQUIRE_REAL_INTEGRATIONS: "0"'),
+    ("shard: [0, 1, 2, 3, 4, 5]", "shard: [0, 1, 2, 3, 4]"),
+    ("image: redis:7-alpine", "image: redis:8-alpine"),
+    ("coverage combine", "echo mutate >> $GITHUB_ENV\n          coverage combine"),
+])
+def test_measurement_workflow_changes_are_detected(tmp_path: Path, old: str, new: str):
+    repo, policy = _policy_repository(tmp_path)
+    path = repo / ".github/workflows/ci.yml"
+    before = policy._policy_hash(repo)
+    workflow = path.read_text()
+    assert old in workflow
+    path.write_text(workflow.replace(old, new))
+    assert policy._policy_hash(repo) != before
+
+
+@pytest.mark.parametrize("path", ["scripts/pytest_shard.py", "scripts/install_ci_dependencies.py",
+                                 "scripts/ci_load_minio_images.sh",
+                                 ".github/actions/verify-candidate-sha/action.yml",
+                                 "requirements-production.txt", "frontend/.nvmrc"])
+def test_measurement_helper_changes_and_missing_files_fail_closed(tmp_path: Path, path: str):
+    repo, policy = _policy_repository(tmp_path)
+    before = policy._policy_hash(repo)
+    helper = repo / path
+    helper.write_bytes(helper.read_bytes() + b"\n# measurement change\n")
+    assert policy._policy_hash(repo) != before
+    helper.unlink()
+    with pytest.raises(policy.PolicyError, match="missing provenance source"):
+        policy._policy_hash(repo)
+
+
+@pytest.mark.parametrize(("old", "new"), [
+    ("  backend_tests:", "  renamed_producer:"),
+    ("coverage lcov", "echo no report"),
+    ("coverage combine", "python scripts/unreviewed.py\n          coverage combine"),
+    ("./.github/actions/verify-candidate-sha", "./.github/actions/unreviewed"),
+    ("    steps:", "    steps: *dynamic_steps"),
+    ("      REQUIRE_REAL_INTEGRATIONS:", "      <<: *defaults\n      REQUIRE_REAL_INTEGRATIONS:"),
+    ('      REQUIRE_REAL_INTEGRATIONS: "1"',
+     '      REQUIRE_REAL_INTEGRATIONS: "1"\n      REQUIRE_REAL_INTEGRATIONS: "0"'),
+    ("    env:\n", "    env: {REQUIRE_REAL_INTEGRATIONS: 0}\n"),
+])
+def test_unsupported_measurement_workflow_fails_closed(tmp_path: Path, old: str, new: str):
+    repo, policy = _policy_repository(tmp_path)
+    path = repo / ".github/workflows/ci.yml"
+    workflow = path.read_text()
+    assert old in workflow
+    path.write_text(workflow.replace(old, new))
+    with pytest.raises(policy.PolicyError, match="measurement workflow"):
+        policy._policy_hash(repo)
 
 
 def _runtime_reconciliation_evidence(
@@ -756,7 +1144,9 @@ def test_runtime_reconciliation_rejects_tampered_evidence_and_reuse(tmp_path: Pa
     reports()
     backend_lcov = repo / "coverage/backend.lcov"
     frontend_lcov = repo / "coverage/frontend.lcov"
-    attestation, _ = _runtime_reconciliation_evidence(repo, base, backend_lcov, frontend_lcov)
+    attestation, provenance = _runtime_reconciliation_evidence(
+        repo, base, backend_lcov, frontend_lcov
+    )
     evidence = json.loads(attestation.read_text())
     evidence["artifacts"]["backend"]["lcov_sha256"] = "0" * 64
     attestation.write_text(json.dumps(evidence) + "\n")
@@ -778,6 +1168,19 @@ def test_runtime_reconciliation_rejects_tampered_evidence_and_reuse(tmp_path: Pa
     reused = _runtime_reconcile(repo, trusted, baseline, backend_lcov, frontend_lcov, attestation)
     assert reused.returncode == 1
     assert "one-time" in reused.stderr
+    # Ordinary admission cannot use a legacy origin to reopen reconciliation
+    # after the event base has adopted v3, either.
+    candidate = json.loads(baseline.read_text())
+    candidate["refresh"]["reason"] = "Attempt to reuse legacy origin"
+    baseline.write_text(json.dumps(candidate))
+    producer = json.loads(provenance.read_text())
+    producer["candidate_sha"] = trusted
+    provenance.write_text(json.dumps(producer))
+    command = reused.args[:reused.args.index("--reconcile-unprovenanced-runtime")]
+    rejected = subprocess.run(command + ["--backend-provenance", str(provenance)],
+                              text=True, capture_output=True)
+    assert rejected.returncode == 1
+    assert "cannot bypass a version 3 event base" in rejected.stderr
 
 
 def test_policy_only_refresh_preserves_adopted_floors_and_rejects_regression(tmp_path):
@@ -792,7 +1195,10 @@ def test_policy_only_refresh_preserves_adopted_floors_and_rejects_regression(tmp
     _run(["git", "commit", "--quiet", "-m", "trusted runtime floors"], repo)
     base = _run(["git", "rev-parse", "HEAD"], repo).strip()
     trusted = json.loads(baseline.read_text())
-    (repo / ".github/workflows/ci.yml").write_text("name: changed test provisioning\n")
+    lock = repo / "frontend/package-lock.json"
+    value = json.loads(lock.read_text())
+    value["packages"]["node_modules/vitest"]["version"] = "1.1.0"
+    lock.write_text(json.dumps(value))
 
     def check(refresh=False):
         producer = json.loads(provenance.read_text())
@@ -937,6 +1343,7 @@ def test_sensitive_branch_floors_are_separate_and_exact(
     tmp_path, monkeypatch, money_hits, privacy_hits, failure
 ):
     spec = importlib.util.spec_from_file_location("sensitive_policy", CHECKER)
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)

@@ -979,6 +979,50 @@ regenerates. See §9 for the drift gate.
 
 ## 9. API contract discipline
 
+<!-- BEGIN coverage-receipt amendment: REQ-249 / D136 -->
+
+**Coverage receipt semantics (D136 / REQ-249) [TARGET — local checks passed; repository CI pending]**
+
+The caller's explicit ancestor selects changed-code comparison and current trusted
+floors. A changed adopted receipt is reconstructed from its separately validated
+`source_parent_sha` ancestor and that ancestor's exact previous-baseline digest;
+branch and master events may use different comparison bases for identical source.
+Each receipt field must validate: eligible source content and inventory, critical
+membership, measurement policy, origin/previous-baseline lineage, adopted metrics
+and producing runtime. Adopted floors cannot decrease against either applicable
+prior floor; current global/critical measurements must meet both the current-event
+and adopted floors with D41's existing 0.3-percentage-point tolerance. D32's 90/80
+changed-code thresholds, eligibility and guarded instrumentation remain unchanged.
+D36 exact candidate/report-hash/runtime provenance remains mandatory; an older
+origin cannot reopen runtime reconciliation behind a version-3 event baseline.
+The unchanged-baseline path continues to permit covered source edits.
+
+`policy_sha256` binds an explicit workflow measurement projection plus the
+checker, parsed coverage/pytest configuration, measurement-tool dependency versions,
+frontend tooling lock closure, production requirements, Node
+version file, shard/installation helpers and local candidate-verification action.
+The projection covers ordered producer/preparation steps (including new commands),
+effective env/shell/working-directory, runtime setup, shard membership, services,
+coverage flags and report production. It requires the four measurement jobs and
+their report/verification commands, and rejects unsupported relevant mappings,
+aliases and duplicates. Workflow scheduling and setup-cache/artifact-upload
+metadata are excluded; frontend measurement ends at its first report upload.
+Lint/typecheck step context, new lifecycle hooks and changed script bodies stay
+bound; only the known lint/typecheck script bodies are exempt. Existing
+instrumentation validation is reused.
+This amends D33's policy-content meaning and D41(a)'s exact adopted-receipt
+comparison wording only. No schema or baseline refresh is part of REQ-249;
+the changed checker/hash still needs a separately reviewed D33 refresh and full
+CI before actual repository receipt acceptance can be claimed.
+
+Unrelated pyproject tool sections (including basedpyright), package metadata,
+frontend build scripts and packages outside the measurement-tool closure
+are excluded. Python coverage/pytest/pytest-plugin requirements, explicit pins
+on their reviewed tooling dependency closure, and frontend preparation/test/install
+lifecycle hooks remain bound.
+
+<!-- END coverage-receipt amendment -->
+
 D81 adds separately aggregated 85% branch floors for money and privacy to CI,
 using the exact source groups in `check_changed_coverage.py`. Missing required
 modules or executable LCOV fails closed; empty package files add no branches.
@@ -1140,17 +1184,19 @@ and uses the workspace-root local composite action to verify the candidate SHA.
   is permitted only for the unprovenanced baseline and immutable GitHub
   run/job/artifact evidence bound to unchanged eligible source. It cannot be
   reused after v3. CI validates receipts and never rewrites them.
-  After stabilized coverage generation, run the existing checker with the same
-  explicit `--base`, both `--backend-lcov`/`--frontend-lcov` inputs,
+  After stabilized coverage generation, run the checker with the refresh
+  origin as explicit `--base`, both `--backend-lcov`/`--frontend-lcov` inputs,
   `--baseline coverage/baseline.json`, and `--refresh-baseline "review reason"`.
   Review the resulting diff; normal verification uses
-  `--verify-baseline-provenance`. Changes to instrumentation or source eligibility
+  `--verify-baseline-provenance`; D136 permits a different event-selected
+  comparison base while validating the recorded origin and current trusted floors.
+  Changes to instrumentation or source eligibility
   require separate D32 authority, not merely a new receipt. Neither command
   commits or contacts a remote service. D75 grants that separate authority only
   for the exact thread/greenlet option above; every other instrumentation or
   eligibility change still requires it. The unchanged checker does not compare
   concurrency mechanically: explicit D75 authority, independent review and
-  the existing `POLICY_FILES` hash binding of pyproject cover this amendment,
+  D136's parsed `[tool.coverage]` policy binding covers this amendment,
   not a general enforcement claim. Exact trusted refresh floors, D36 runtime
   binding and the closed legacy reconciliation remain; no floor waiver is
   granted if corrected attribution removes false-positive hits.
@@ -3854,6 +3900,8 @@ failure-signal-unavailable log, since neither shared substrate is writable.
 ## 34. Doc changelog
 
 - **v1.154 — 26 October 2026 (REQ-251):** Fixes from the live end-to-end test of `55122b9b`. A frozen report's trip cost still needs the calculation's own ledger row when it pays more than zero. A zero-pay calculation posts no `trip_payout` row (`ensure_ledger_entry`), so it now costs nothing plus any corrections posted against its trip, instead of blocking the report with `MEASUREMENT_LEDGER_INCOMPLETE`. The demo seed no longer invents zero-amount ledger rows to work around this. Legacy measurement-result-v2 replay (`historical_measurement.py`) is unchanged; nothing creates new runs there. No other money, privacy or API behaviour changes.
+
+- **v1.154 — 26 October 2026 (D136 / REQ-249):** §9 separates receipt-origin lineage from event-base changed-code/floor authority and documents the explicit measurement-policy projection and helper boundary; §10.3 corrects same-base verification wording. Retains D32/D33/D36/D41 protections. All 96 dedicated pure-Python checker tests, touched-file Ruff and basedpyright pass locally; no baseline refresh, full CI, commit or merge is claimed.
 
 - **v1.153 — 25 October 2026 (D135 / REQ-248, clarified 26 October):** Receipt-only final commits may reuse independently proven equivalent measured-source CI: all noncoverage jobs pass and a sole stale-receipt guard failure is separately qualified by strict same-artifact D33 checks. Retain the raw failed CI verdict. Strict artifacts, runtime/hash/inventory binding, floors/exact nonregression, receipt/deletion review, consolidated review, non-squash merge and post-merge master green remain. Source or verification-input changes require full CI; no workflow or coverage-policy computation changed.
 
