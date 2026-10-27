@@ -49,7 +49,7 @@ jobs:
         run: python scripts/update_openapi_snapshot.py --check
       - run: ruff check .
       - name: Type check (fails only on errors missing from .basedpyright/baseline.json)
-        run: basedpyright
+        run: basedpyright --baselinemode=discard
       - name: Pre-production static verification
         run: scripts/verify_preprod.sh --static-only
       - name: Python dependency vulnerability audit
@@ -475,6 +475,7 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - name: Run e2e (desktop + mobile viewports)
+        id: e2e
         run: npx playwright test --project=chromium --project=mobile-chrome
         env:
           API_BASE_URL: http://localhost:8000
@@ -484,7 +485,7 @@ jobs:
           LOGIN_RATE_LIMIT_ACCOUNT_MAX_FAILURES: "50"
 
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: ${{ always() && (steps.e2e.outcome == 'failure' || steps.e2e.outcome == 'cancelled') }}
         with:
           name: playwright-report
           path: frontend/test-results

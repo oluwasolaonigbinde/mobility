@@ -275,6 +275,24 @@ def test_every_job_binds_evidence_to_the_candidate_sha(workflow: dict, job_name:
     assert steps.index(checkouts[0]) < steps.index(guards[0])
 
 
+def test_e2e_uploads_diagnostics_after_failure_or_cancellation(workflow: dict) -> None:
+    steps = workflow["jobs"]["e2e"]["steps"]
+    run = next(step for step in steps if step.get("name", "").startswith("Run e2e"))
+    upload = next(
+        step for step in steps if step.get("with", {}).get("name") == "playwright-report"
+    )
+    assert run["id"] == "e2e"
+    assert steps.index(run) < steps.index(upload)
+    assert upload["if"] == (
+        "${{ always() && (steps.e2e.outcome == 'failure' || steps.e2e.outcome == 'cancelled') }}"
+    )
+    assert upload["with"] == {
+        "name": "playwright-report",
+        "path": "frontend/test-results",
+        "retention-days": 7,
+    }
+
+
 def test_backend_matrix_is_six_disjoint_fail_complete_shards(workflow: dict) -> None:
     job = workflow["jobs"]["backend_tests"]
 
