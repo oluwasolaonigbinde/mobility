@@ -90,48 +90,54 @@ describe("DriverTripEarningsPage", () => {
 
     render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-v4" }) }));
 
-    const deduction = screen.getByText("Correct overpayment").closest("li");
+    const deduction = screen.getAllByText("Deduction")[0]?.closest("li");
     if (!deduction) throw new Error("expected the correction entry");
-    expect(within(deduction).getByText("Deduction")).toBeInTheDocument();
+    expect(within(deduction).getAllByText("Deduction")).toHaveLength(2);
     expect(within(deduction).queryByText("Released")).not.toBeInTheDocument();
-    const withdrawn = screen.getByText("Withdrawn correction").closest("li");
+    expect(screen.queryByText("Correct overpayment")).not.toBeInTheDocument();
+    expect(screen.queryByText("Withdrawn correction")).not.toBeInTheDocument();
+    const withdrawn = screen.getByText("Voided").closest("li");
     if (!withdrawn) throw new Error("expected the voided entry");
-    expect(within(withdrawn).queryByText("Deduction")).not.toBeInTheDocument();
+    expect(within(withdrawn).getAllByText("Deduction")).toHaveLength(1);
   });
 
-  it("keeps miles, dates the deduction by its work day and shows cash paid before it", async () => {
-    get.mockResolvedValue({
-      data: breakdown({
-        amount: "9900.00",
-        overpaid: "100.00",
-        daily_rate_days: [{ lagos_day: "2026-10-24", distance_m: 119575, amount: "10000.00" }],
-        entries: [
-          {
-            id: "00000000-0000-4000-8000-0000000000e3",
-            currency: "NGN",
-            description: "Manual negative adjustment",
-            entry_type: "reversal",
-            status: "available",
-            amount: "100.00",
-            occurred_at: "2026-10-27T09:00:00Z",
-            work_days: [{ day: "2026-10-24", amount: "100.00" }],
-          },
-        ] as Breakdown["entries"],
-      }),
-    });
+  it.each(["Manual negative adjustment", "Day true-up reversal"])(
+    "hides %s, keeps miles and dates the deduction by its work day",
+    async (description) => {
+      get.mockResolvedValue({
+        data: breakdown({
+          amount: "9900.00",
+          overpaid: "100.00",
+          daily_rate_days: [{ lagos_day: "2026-10-24", distance_m: 119575, amount: "10000.00" }],
+          entries: [
+            {
+              id: "00000000-0000-4000-8000-0000000000e3",
+              currency: "NGN",
+              description,
+              entry_type: "reversal",
+              status: "available",
+              amount: "100.00",
+              occurred_at: "2026-10-27T09:00:00Z",
+              work_days: [{ day: "2026-10-24", amount: "100.00" }],
+            },
+          ] as Breakdown["entries"],
+        }),
+      });
 
-    render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-v4" }) }));
+      render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-v4" }) }));
 
-    expect(screen.getByText("₦9,900.00")).toBeInTheDocument();
-    expect(screen.getByText("₦10,000.00 paid · ₦100.00 to be deducted")).toBeInTheDocument();
-    expect(screen.getByText(/^74\.3 miles counted on this trip/)).toBeInTheDocument();
-    expect(screen.queryByText("No miles counted on this trip.")).not.toBeInTheDocument();
-    const deduction = screen.getByText("Manual negative adjustment").closest("li");
-    if (!deduction) throw new Error("expected the deduction entry");
-    expect(within(deduction).getByText("Deduction")).toBeInTheDocument();
-    expect(within(deduction).getByText(/24 Oct/)).toBeInTheDocument();
-    expect(within(deduction).queryByText(/27 Oct/)).not.toBeInTheDocument();
-  });
+      expect(screen.getByText("₦9,900.00")).toBeInTheDocument();
+      expect(screen.getByText("₦10,000.00 paid · ₦100.00 to be deducted")).toBeInTheDocument();
+      expect(screen.getByText(/^74\.3 miles counted on this trip/)).toBeInTheDocument();
+      expect(screen.queryByText("No miles counted on this trip.")).not.toBeInTheDocument();
+      expect(screen.queryByText(description)).not.toBeInTheDocument();
+      const deduction = screen.getAllByText("Deduction")[0]?.closest("li");
+      if (!deduction) throw new Error("expected the deduction entry");
+      expect(within(deduction).getAllByText("Deduction")).toHaveLength(2);
+      expect(within(deduction).getByText(/24 Oct/)).toBeInTheDocument();
+      expect(within(deduction).queryByText(/27 Oct/)).not.toBeInTheDocument();
+    },
+  );
 
   it("shows no deduction note once nothing is left to deduct", async () => {
     get.mockResolvedValue({ data: breakdown({ amount: "9900.00", overpaid: "0.00" }) });

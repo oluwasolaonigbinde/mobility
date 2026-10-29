@@ -271,7 +271,9 @@ export default async function DriverTripEarningsPage({
               <li key={e.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
                 <div className="min-w-0">
                   <p className="truncate text-sm">
-                    {e.description ?? e.entry_type.replace(/_/g, " ")}
+                    {e.entry_type === "reversal"
+                      ? "Deduction"
+                      : (e.description ?? e.entry_type.replace(/_/g, " "))}
                   </p>
                   <p className="micro text-faint mt-0.5">
                     {formatDate(e.work_days?.[0]?.day ?? e.occurred_at)}
