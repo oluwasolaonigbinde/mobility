@@ -170,8 +170,28 @@ it.each([
   expect(
     within(screen.getByRole("region", { name: "Bank account" })).getByText(label),
   ).toBeInTheDocument();
-  expect(screen.getByText("Bank details checked")).toBeInTheDocument();
+  expect(
+    within(screen.getByRole("region", { name: "Bank account" })).getByRole("status"),
+  ).toHaveTextContent("Bank details checked.");
   expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+});
+
+it("confirms a successful bank check after the page refreshes as checked", async () => {
+  const user = userEvent.setup();
+  mocks.verify.mockResolvedValue({ done: "These bank details have been checked for payouts." });
+  const { rerender } = render(<PersonPayeeDecisionActions {...props} />);
+  const bank = within(screen.getByRole("region", { name: "Bank account" }));
+  await user.type(bank.getByLabelText("Test-transfer reference from your bank"), "REF-0001");
+  await user.click(bank.getByRole("button", { name: "Check bank details" }));
+  await waitFor(() => expect(mocks.verify).toHaveBeenCalledTimes(1));
+
+  // The successful action refreshes the page, which now reports the account as checked.
+  rerender(<PersonPayeeDecisionActions {...props} bankAccountVerified />);
+
+  const refreshed = within(screen.getByRole("region", { name: "Bank account" }));
+  expect(refreshed.getByRole("status")).toHaveTextContent("Bank details checked.");
+  expect(refreshed.queryByRole("button", { name: "Check bank details" })).toBeNull();
+  expect(refreshed.queryByLabelText("Test-transfer reference from your bank")).toBeNull();
 });
 
 it("does not restore an old response after hide and a newer logged read", async () => {

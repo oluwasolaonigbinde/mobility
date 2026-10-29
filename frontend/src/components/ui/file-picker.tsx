@@ -103,7 +103,7 @@ export function FilePicker({
       />
       <div
         className={cx(
-          "bg-raised flex min-h-14 items-center gap-3 rounded-lg border px-3 py-2",
+          "bg-raised flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-3 py-2",
           error || state === "failed" ? "border-coral/60" : "border-edge",
         )}
       >
@@ -111,9 +111,10 @@ export function FilePicker({
           // eslint-disable-next-line @next/next/no-img-element -- local object URL preview
           <img src={preview} alt="" className="size-10 shrink-0 rounded object-cover" />
         ) : null}
-        <div className="min-w-0 flex-1">
+        {/* On a narrow card the buttons drop below, so the name gets the full width. */}
+        <div className="min-w-0 flex-1 basis-40">
           {file ? (
-            <p className="truncate text-sm" title={file.name}>
+            <p className="line-clamp-2 text-sm [overflow-wrap:anywhere]" title={file.name}>
               {file.name}
             </p>
           ) : (

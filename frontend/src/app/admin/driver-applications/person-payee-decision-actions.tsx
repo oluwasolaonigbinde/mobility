@@ -61,11 +61,19 @@ function EvidenceRead({
   );
 }
 
-function AccountVerification({ versionId }: { versionId: string }) {
+function AccountVerification({ versionId, verified }: { versionId: string; verified: boolean }) {
   const [state, action, pending] = useActionState(
     verifyPersonPayeeAccountAction,
     initialEvidenceState,
   );
+  // Stays mounted after a successful check refreshes the page as verified,
+  // so the confirmation replaces the form instead of vanishing with it.
+  if (verified)
+    return (
+      <p role="status" className="text-green mt-2 text-sm">
+        Bank details checked.
+      </p>
+    );
   return (
     <form action={action} className="border-edge rounded-lg border p-2">
       <input type="hidden" name="bank_account_version_id" value={versionId} />
@@ -149,9 +157,6 @@ export function PersonPayeeDecisionActions({
                     expired: "Expired",
                   }[status] ?? "Status unavailable")}
             </p>
-            {row.kind === "account" && bankAccountVerified ? (
-              <p className="text-green mt-1 text-xs">Bank details checked</p>
-            ) : null}
           </div>
           <div>
             {row.id ? (
@@ -168,8 +173,8 @@ export function PersonPayeeDecisionActions({
                 {row.kind === "nin" ? "Show NIN" : "View"}
               </button>
             )}
-            {row.kind === "account" && row.id && !bankAccountVerified ? (
-              <AccountVerification versionId={row.id} />
+            {row.kind === "account" && row.id ? (
+              <AccountVerification versionId={row.id} verified={bankAccountVerified} />
             ) : null}
           </div>
         </section>

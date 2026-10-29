@@ -6,6 +6,7 @@ import { openPingQueue } from "@/lib/trips/ping-queue";
 import {
   endTripAction,
   getCurrentTripAction,
+  getTripEvidenceAction,
   reconcileTripEvidenceAction,
   sendPingBatchAction,
   startTripAction,
@@ -427,6 +428,84 @@ describe("driver trip BFF actions", () => {
     await expect(endTripAction(TRIP_ID, EMPTY_MANIFEST)).resolves.toMatchObject({
       outcome: "unknown",
     });
+  });
+
+  it.each(["TRIP_EVIDENCE_MANIFEST_INVALID", "TRIP_EVIDENCE_MANIFEST_REQUIRED"])(
+    "reports an End refused for %s as a manifest the caller can rebuild",
+    async (code) => {
+      mocks.post.mockRejectedValueOnce(new ApiError(409, { code, message: "mismatch" }));
+      await expect(endTripAction(TRIP_ID, EMPTY_MANIFEST)).resolves.toMatchObject({
+        outcome: "evidence_mismatch",
+      });
+    },
+  );
+
+  it("keeps a batch whose number the server holds for a resync instead of dead-lettering it", async () => {
+    mocks.post.mockRejectedValueOnce(
+      new ApiError(409, { code: "TRIP_EVIDENCE_BATCH_SEQUENCE_TAKEN", message: "taken" }),
+    );
+    await expect(
+      sendPingBatchAction({
+        tripId: TRIP_ID,
+        evidenceProtocolVersion: 2,
+        idempotencyKey: "fresh-device-key",
+        batchSequence: 0,
+        pings: [
+          {
+            recorded_at: "2026-08-25T00:00:00.000Z",
+            lat: 6.45,
+            lon: 3.39,
+            accuracy_m: 10,
+            speed_mps: 5,
+            heading_degrees: 90,
+            sequence_number: 0,
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({
+      acknowledged: false,
+      retryable: true,
+      sequenceTaken: true,
+    });
+  });
+
+  it("reads the server's signed receipts for the driver's own trip", async () => {
+    const batch = {
+      batch_id: "44444444-4444-4444-8444-444444444444",
+      trip_id: TRIP_ID,
+      idempotency_key: "old-device-key",
+      accepted_count: 1,
+      ...ACK_FIELDS,
+      duplicate: true,
+      evidence_scope: "manifest",
+    };
+    mocks.get.mockResolvedValueOnce({
+      data: { trip_id: TRIP_ID, status: "active", batches: [batch] },
+    });
+
+    await expect(getTripEvidenceAction(TRIP_ID)).resolves.toEqual([
+      expect.objectContaining({
+        tripId: TRIP_ID,
+        batch_sequence: 0,
+        idempotency_key: "old-device-key",
+        payload_hash: "b".repeat(64),
+        submitted_count: 1,
+        acceptedCount: 1,
+        evidenceScope: "manifest",
+        receiptSignature: "signed-receipt",
+      }),
+    ]);
+    expect(mocks.get).toHaveBeenCalledWith("/api/v1/driver/trips/{trip_id}/evidence", {
+      params: { path: { trip_id: TRIP_ID } },
+    });
+
+    mocks.get.mockResolvedValueOnce({
+      data: { trip_id: TRIP_ID, status: "active", batches: [{ ...batch, trip_id: ASSIGNMENT_ID }] },
+    });
+    await expect(getTripEvidenceAction(TRIP_ID)).resolves.toBeUndefined();
+    mocks.get.mockRejectedValueOnce(new ApiError(404, { code: "TRIP_NOT_FOUND", message: "x" }));
+    await expect(getTripEvidenceAction(TRIP_ID)).resolves.toBeUndefined();
+    await expect(getTripEvidenceAction("not-a-trip")).resolves.toBeUndefined();
   });
 
   it.each([

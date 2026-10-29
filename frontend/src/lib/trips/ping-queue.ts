@@ -635,6 +635,152 @@ export class PingQueue {
     return buildEvidenceManifest(tripId, [...entries.values()], complete);
   }
 
+  /** True when this device holds any record of the trip (a fresh device has none). */
+  async hasTripRecord(tripId: string): Promise<boolean> {
+    return (await this.records("meta", tripId)).length > 0;
+  }
+
+  /**
+   * Re-opens a frozen End boundary the server refused before writing anything
+   * (its manifest did not match the server's evidence). Capture stays stopped
+   * by the caller; the next freezeEnd declares the corrected manifest.
+   */
+  reopenEnd(tripId: string): Promise<void> {
+    return this.serializeMutation(async () => {
+      const meta = await this.metaOrDefault(tripId);
+      if (!meta.endManifest) return;
+      const open: TripMeta = { ...meta };
+      delete open.endManifest;
+      await this.persistEndMeta(tripId, open);
+    });
+  }
+
+  /**
+   * Adopts the server's signed receipts for a trip this device has no (or a
+   * partial) record of: cleared site data, a reinstalled app or a new phone.
+   * Unknown receipts are stored like local ones, numbering continues after
+   * the server's highest batch, and local batches or dead letters whose
+   * number the server already holds move to free numbers (the payload hash
+   * does not cover the number). A moved, never-acknowledged batch gets a new
+   * key so a stale in-flight request can never collide with it. No-op once
+   * the End boundary is frozen.
+   */
+  adoptServerEvidence(tripId: string, serverReceipts: EvidenceReceipt[]): Promise<void> {
+    return this.serializeMutation(async () => {
+      const meta = await this.metaOrDefault(tripId);
+      if (meta.endManifest) return;
+      const [receipts, batches, deadRecords] = await Promise.all([
+        this.listReceipts(tripId),
+        this.listBatches(tripId),
+        this.deadLetterRecords(tripId),
+      ]);
+      const deadLetters = await Promise.all(
+        deadRecords.map(async (record) => ({
+          record,
+          batch: await decryptPayload<QueuedBatch>(this.key, record),
+        })),
+      );
+      const knownKeys = new Set(receipts.map((receipt) => receipt.idempotency_key));
+      const heldSequences = new Set(receipts.map((receipt) => receipt.batch_sequence));
+      const adopted: EvidenceReceipt[] = [];
+      const acknowledged = new Set<string>();
+      let adoptedPings = 0;
+      for (const receipt of serverReceipts) {
+        if (receipt.tripId !== tripId || receipt.evidenceScope !== "manifest") continue;
+        if (knownKeys.has(receipt.idempotency_key)) continue;
+        knownKeys.add(receipt.idempotency_key);
+        heldSequences.add(receipt.batch_sequence);
+        adopted.push(receipt);
+        const local = batches.find((batch) => batch.key === receipt.idempotency_key);
+        if (
+          local &&
+          local.cutSeq === receipt.batch_sequence &&
+          local.payloadHash === receipt.payload_hash &&
+          local.pings.length === receipt.submitted_count
+        )
+          acknowledged.add(local.key); // sent before, its reply was lost
+        else adoptedPings += receipt.submitted_count;
+      }
+      let next = Math.max(meta.batchesCut, ...[...heldSequences].map((sequence) => sequence + 1));
+      const writes: EncryptedRecord[] = [];
+      const deletes: string[] = [];
+      for (const receipt of adopted)
+        writes.push(
+          await encryptPayload(
+            this.key,
+            {
+              storageKey: recordKey(this.driverId, "receipt", receipt.idempotency_key),
+              ownerDriverId: this.driverId,
+              tripId,
+              kind: "receipt",
+            },
+            receipt,
+          ),
+        );
+      for (const batch of batches) {
+        if (acknowledged.has(batch.key)) {
+          deletes.push(recordKey(this.driverId, "batch", batch.key));
+          continue;
+        }
+        if (!heldSequences.has(batch.cutSeq) && !knownKeys.has(batch.key)) {
+          heldSequences.add(batch.cutSeq);
+          continue;
+        }
+        const moved: QueuedBatch = { ...batch, key: crypto.randomUUID(), cutSeq: next };
+        heldSequences.add(next);
+        next += 1;
+        deletes.push(recordKey(this.driverId, "batch", batch.key));
+        writes.push(
+          await encryptPayload(
+            this.key,
+            {
+              storageKey: recordKey(this.driverId, "batch", moved.key),
+              ownerDriverId: this.driverId,
+              tripId,
+              kind: "batch",
+            },
+            moved,
+          ),
+        );
+      }
+      const deadWrites: EncryptedRecord[] = [];
+      for (const { record, batch } of deadLetters) {
+        if (!heldSequences.has(batch.cutSeq)) {
+          heldSequences.add(batch.cutSeq);
+          continue;
+        }
+        // Dead letters are only declared, never resent, so they keep their key.
+        deadWrites.push(await encryptPayload(this.key, record, { ...batch, cutSeq: next }));
+        heldSequences.add(next);
+        next += 1;
+      }
+      next = Math.max(next, ...[...heldSequences].map((sequence) => sequence + 1));
+      const nextMeta: TripMeta = {
+        ...meta,
+        batchesCut: next,
+        pingsRecorded: meta.pingsRecorded + adoptedPings,
+      };
+      writes.push(
+        await encryptPayload(
+          this.key,
+          {
+            storageKey: recordKey(this.driverId, "meta", tripId),
+            ownerDriverId: this.driverId,
+            tripId,
+            kind: "meta",
+          },
+          nextMeta,
+        ),
+      );
+      const tx = this.db.transaction([RECORDS, DEAD_LETTERS], "readwrite");
+      const store = tx.objectStore(RECORDS);
+      for (const storageKey of deletes) store.delete(storageKey);
+      for (const record of writes) store.put(record);
+      for (const record of deadWrites) tx.objectStore(DEAD_LETTERS).put(record);
+      await transactionDone(tx);
+    });
+  }
+
   async dropBatch(key: string, diagnostic: { status?: number; code?: string } = {}): Promise<void> {
     const storageKey = recordKey(this.driverId, "batch", key);
     const tx = this.db.transaction([RECORDS, DEAD_LETTERS], "readwrite");

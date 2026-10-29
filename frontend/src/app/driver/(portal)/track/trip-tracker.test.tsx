@@ -16,6 +16,7 @@ const actions = vi.hoisted(() => ({
   startTripAction: vi.fn(),
   getCurrentTripAction: vi.fn(),
   endTripAction: vi.fn(),
+  getTripEvidenceAction: vi.fn(),
   getTripEvidenceAuthorityAction: vi.fn(),
   reconcileTripEvidenceAction: vi.fn(),
   sendPingBatchAction: vi.fn(),
@@ -108,6 +109,9 @@ function fakeQueue(overrides: Record<string, unknown> = {}) {
       .mockResolvedValue({ tripId: TRIP_ID, nextSeq: 3, batchesCut: 2, pingsRecorded: 3 }),
     tripsWithLeftovers: vi.fn().mockResolvedValue([]),
     forgetTrip: vi.fn().mockResolvedValue(undefined),
+    hasTripRecord: vi.fn().mockResolvedValue(true),
+    adoptServerEvidence: vi.fn().mockResolvedValue(undefined),
+    reopenEnd: vi.fn().mockResolvedValue(undefined),
     close: vi.fn(),
     ...overrides,
   };
@@ -182,6 +186,7 @@ beforeEach(() => {
     status: "active",
   });
   actions.reconcileTripEvidenceAction.mockResolvedValue({ outcome: "ended", status: "sealed" });
+  actions.getTripEvidenceAction.mockResolvedValue([]);
   actions.startTripAction.mockResolvedValue({ trip: TRIP, outcome: "started" });
   actions.getCurrentTripAction.mockResolvedValue({ trip: TRIP, outcome: "started" });
   actions.sendPingBatchAction.mockResolvedValue({
@@ -993,6 +998,200 @@ describe("GPS hiccups", () => {
     await act(async () => retry());
 
     await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe("End after location permission is withdrawn (REQ-259)", () => {
+  const denied = {
+    code: 1,
+    message: "",
+    PERMISSION_DENIED: 1,
+    POSITION_UNAVAILABLE: 2,
+    TIMEOUT: 3,
+  } as GeolocationPositionError;
+  const setVisibility = (value: DocumentVisibilityState) => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, value });
+    document.dispatchEvent(new Event("visibilitychange"));
+  };
+
+  it("keeps End available once capture stops", async () => {
+    const runtime = installRuntime();
+    pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+
+    act(() => (runtime.watchPosition.mock.calls[0]![1] as PositionErrorCallback)(denied));
+
+    const endButton = screen.getByRole("button", { name: /End trip/ });
+    expect(endButton).toBeEnabled();
+    await userEvent.click(endButton);
+    await waitFor(() => expect(actions.endTripAction).toHaveBeenCalledTimes(1));
+  });
+
+  it("re-checks the session so one failed check cannot leave End disabled", async () => {
+    const intervals = vi.spyOn(window, "setInterval");
+    const runtime = installRuntime();
+    pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+    act(() => (runtime.watchPosition.mock.calls[0]![1] as PositionErrorCallback)(denied));
+
+    // The driver leaves for settings and returns; that one session check fails.
+    vi.mocked(navigator.geolocation.getCurrentPosition).mockImplementation((_success, fail) =>
+      fail?.(denied),
+    );
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 503, type: "basic" } as Response);
+    act(() => setVisibility("hidden"));
+    act(() => setVisibility("visible"));
+    const endButton = screen.getByRole("button", { name: /End trip/ });
+    await waitFor(() => expect(endButton).toBeDisabled());
+
+    const rechecks = intervals.mock.calls.filter(([, delay]) => delay === 20_000);
+    const recheck = rechecks[rechecks.length - 1]?.[0] as (() => void) | undefined;
+    if (!recheck) throw new Error("No session re-check was scheduled");
+    await act(async () => recheck());
+
+    await waitFor(() => expect(endButton).toBeEnabled());
+  });
+});
+
+describe("trip continued on a device without its record (REQ-259)", () => {
+  const manifest = (entries: unknown[]) => ({
+    version: 2,
+    root_sha256: (entries.length ? "c" : "a").repeat(64),
+    ping_count: entries.length,
+    complete: true,
+    entries,
+  });
+
+  it("adopts the server's receipts before capturing on a device with no record", async () => {
+    const runtime = installRuntime();
+    const queue = fakeQueue({ hasTripRecord: vi.fn().mockResolvedValue(false) });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    actions.getTripEvidenceAction.mockResolvedValue([RECEIPT]);
+
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+    expect(queue.adoptServerEvidence).toHaveBeenCalledWith(TRIP_ID, [RECEIPT]);
+    expect(queue.adoptServerEvidence.mock.invocationCallOrder[0]).toBeLessThan(
+      runtime.watchPosition.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("does not ask the server when this device already holds the trip's record", async () => {
+    const runtime = installRuntime();
+    const queue = fakeQueue();
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+    expect(actions.getTripEvidenceAction).not.toHaveBeenCalled();
+    expect(queue.adoptServerEvidence).not.toHaveBeenCalled();
+  });
+
+  it("resyncs and resends a batch whose number the server already holds", async () => {
+    installRuntime();
+    const moved = { ...BATCH, key: "moved-batch-key", cutSeq: 1 };
+    const queue = fakeQueue({
+      listBatches: vi
+        .fn()
+        .mockResolvedValueOnce([BATCH])
+        .mockResolvedValueOnce([moved])
+        .mockResolvedValue([]),
+    });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    actions.getTripEvidenceAction.mockResolvedValue([RECEIPT]);
+    actions.sendPingBatchAction
+      .mockResolvedValueOnce({
+        error: "taken",
+        acknowledged: false,
+        retryable: true,
+        sequenceTaken: true,
+      })
+      .mockResolvedValue({ acknowledged: true, acceptedCount: 1, receipt: RECEIPT });
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    const endButton = screen.getByRole("button", { name: /End trip/ });
+    await waitFor(() => expect(endButton).toBeEnabled());
+
+    await userEvent.click(endButton);
+
+    await waitFor(() => expect(actions.endTripAction).toHaveBeenCalledTimes(1));
+    expect(queue.adoptServerEvidence).toHaveBeenCalledWith(TRIP_ID, [RECEIPT]);
+    expect(queue.dropBatch).not.toHaveBeenCalled();
+    expect(actions.sendPingBatchAction).toHaveBeenLastCalledWith(
+      expect.objectContaining({ idempotencyKey: "moved-batch-key", batchSequence: 1 }),
+    );
+    expect(queue.acknowledgeBatch).toHaveBeenCalledWith(moved, RECEIPT);
+  });
+
+  it("rebuilds a stored End manifest the server refused and ends the trip", async () => {
+    installRuntime();
+    const stale = manifest([]);
+    const corrected = manifest([{ batch_sequence: 0, idempotency_key: RECEIPT.idempotency_key }]);
+    let reopened = false;
+    const queue = fakeQueue({
+      meta: vi.fn().mockImplementation(async () => ({
+        tripId: TRIP_ID,
+        nextSeq: 0,
+        batchesCut: 0,
+        pingsRecorded: 0,
+        endManifest: reopened ? corrected : stale,
+      })),
+      freezeEnd: vi.fn().mockImplementation(async () => (reopened ? corrected : stale)),
+      reopenEnd: vi.fn().mockImplementation(async () => {
+        reopened = true;
+      }),
+    });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    actions.getTripEvidenceAction.mockResolvedValue([RECEIPT]);
+    actions.endTripAction
+      .mockResolvedValueOnce({ outcome: "evidence_mismatch", error: "mismatch" })
+      .mockResolvedValue({ outcome: "ended", status: "sealed" });
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    const check = await screen.findByRole("button", { name: /Check trip status/ });
+    await waitFor(() => expect(check).toBeEnabled());
+
+    await userEvent.click(check);
+
+    await waitFor(() => expect(actions.endTripAction).toHaveBeenCalledTimes(2));
+    expect(actions.endTripAction).toHaveBeenNthCalledWith(1, TRIP_ID, stale);
+    expect(actions.endTripAction).toHaveBeenNthCalledWith(2, TRIP_ID, corrected);
+    expect(queue.adoptServerEvidence).toHaveBeenCalledWith(TRIP_ID, [RECEIPT]);
+    expect(queue.reopenEnd.mock.invocationCallOrder[0]).toBeLessThan(
+      queue.adoptServerEvidence.mock.invocationCallOrder[0]!,
+    );
+    await waitFor(() => expect(queue.forgetTrip).toHaveBeenCalledWith(TRIP_ID));
+  });
+
+  it("keeps the stored End manifest when the server's receipts can't be read", async () => {
+    installRuntime();
+    const stale = manifest([]);
+    const queue = fakeQueue({
+      meta: vi.fn().mockResolvedValue({
+        tripId: TRIP_ID,
+        nextSeq: 0,
+        batchesCut: 0,
+        pingsRecorded: 0,
+        endManifest: stale,
+      }),
+      freezeEnd: vi.fn().mockResolvedValue(stale),
+    });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    actions.getTripEvidenceAction.mockResolvedValue(undefined);
+    actions.endTripAction.mockResolvedValue({ outcome: "evidence_mismatch", error: "mismatch" });
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    const check = await screen.findByRole("button", { name: /Check trip status/ });
+    await waitFor(() => expect(check).toBeEnabled());
+
+    await userEvent.click(check);
+
+    await waitFor(() => expect(actions.getTripEvidenceAction).toHaveBeenCalled());
+    await waitFor(() => expect(check).toBeEnabled());
+    expect(actions.endTripAction).toHaveBeenCalledTimes(1);
+    expect(queue.reopenEnd).not.toHaveBeenCalled();
+    expect(queue.forgetTrip).not.toHaveBeenCalled();
   });
 });
 

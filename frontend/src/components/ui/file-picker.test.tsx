@@ -25,6 +25,22 @@ it("keeps the selected File for the upload caller and clears removal and form re
   expect(screen.queryByText("licence.pdf")).not.toBeInTheDocument();
 });
 
+it("wraps a long file name instead of cutting it to a few characters on a phone", async () => {
+  render(<FilePicker name="document" label="Registration papers" />);
+  const name = "vehicle-registration-certificate-2026-scan-front.pdf";
+  await userEvent.upload(
+    screen.getByLabelText("Registration papers"),
+    new File(["papers"], name, { type: "application/pdf" }),
+  );
+  const shown = screen.getByText(name);
+  expect(shown).toHaveAttribute("title", name);
+  // The name may wrap onto two lines; the buttons drop below it on a narrow card.
+  expect(shown).not.toHaveClass("truncate");
+  expect(shown).toHaveClass("line-clamp-2", "[overflow-wrap:anywhere]");
+  expect(shown.parentElement).toHaveClass("min-w-0", "basis-40");
+  expect(shown.parentElement?.parentElement).toHaveClass("flex-wrap");
+});
+
 it("shows upload progress and failure without discarding the selection", async () => {
   const { rerender } = render(<FilePicker name="document" label="Licence" />);
   const file = new File(["licence"], "licence.pdf", { type: "application/pdf" });

@@ -153,6 +153,25 @@ class LocationPingBatchResponse(BaseModel):
     sample_results: list[PingSampleResult] = Field(default_factory=list)
 
 
+class TripEvidenceBatchRead(LocationPingBatchResponse):
+    """A server-held batch receipt, replayed so another device can declare it."""
+
+    idempotency_key: str
+
+
+class TripEvidenceBatchesResponse(BaseModel):
+    """Signed receipts the server holds for a trip's manifest evidence.
+
+    Lets a device with no local record of the trip (cleared site data, new
+    phone) continue its batch numbering and declare these batches when it
+    ends the trip. Carries hashes and counts only, never locations.
+    """
+
+    trip_id: UUID
+    status: TripSessionStatus
+    batches: list[TripEvidenceBatchRead]
+
+
 class TripEvidenceReconcileResponse(BaseModel):
     trip_id: UUID
     status: TripSessionStatus

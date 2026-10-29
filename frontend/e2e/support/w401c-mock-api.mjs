@@ -406,6 +406,14 @@ const server = createServer(async (request, response) => {
       ? send(response, 200, { id: ids.trip, status: current.status, evidence_protocol_version: 2 })
       : fail(response, 404, "TRIP_NOT_FOUND", "Trip was not found");
   }
+  if (request.method === "GET" && url.pathname === `/api/v1/driver/trips/${ids.trip}/evidence`) {
+    // A device with no record of the trip reads the server's receipts first.
+    // This synthetic API keeps no per-batch receipts, so it holds none.
+    const current = trips.get(authToken);
+    return current
+      ? send(response, 200, { trip_id: ids.trip, status: current.status, batches: [] })
+      : fail(response, 404, "TRIP_NOT_FOUND", "Trip was not found");
+  }
   if (request.method === "POST" && url.pathname === `/api/v1/driver/trips/${ids.trip}/pings`) {
     const payload = await body(request);
     const current = trips.get(authToken);
