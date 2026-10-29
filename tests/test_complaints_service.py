@@ -215,7 +215,7 @@ def test_conversation_lifecycle_through_the_service(graph, monkeypatch) -> None:
     # A colleague follows up; an exact retry converges; a changed retry conflicts.
     follow = uuid4()
 
-    async def follow_up(session, message="More detail", request=follow, user=g.viewer):
+    async def follow_up(session, message="More detail", request=follow, user=g.member):
         return await svc.add_complainant_message(
             session,
             owner=await owner(session, user),

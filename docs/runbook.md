@@ -28,12 +28,13 @@ scan-data collection is authorized by this feature.
 
 Live campaign maps read a fresh snapshot of active work only. Each dot uses the
 latest delay-eligible point (recorded and received at least 15 minutes ago), is
-no more than 30 minutes old, moving, in a target area and outside exclusions.
+no more than 30 minutes old, from an active trip (stopped or moving), in a target
+area and outside exclusions.
 Responses contain no driver/car identity or stable dot identifier and are not
 cached. Refresh replaces the dots; there is no historical query, trail or per-car
 filter. Disclosure history keeps only policy/window and salted result hashes,
 not coordinates. This reduces disclosure; legal real-use approval remains open.
-An empty snapshot says No cars driving right now; a failed read stays unavailable.
+An empty snapshot says No cars on the road right now; a failed read stays unavailable.
 The basemap stays schematic until the MapTiler account/style (REQ-050) is ready;
 never add invented streets or landmarks to a campaign map.
 

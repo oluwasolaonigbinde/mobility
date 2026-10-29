@@ -1,8 +1,8 @@
 """In-app complaints answered by Terrax Media Customer Service (D39(d), Batch E).
 
 Drivers own complaints through their driver profile; advertisers through their
-active organization (any active member, viewers included: raising a complaint is
-support, not a campaign write). Every reference is resolved inside the caller's
+active organization (any active member: raising a complaint is support, not a
+campaign write). Every reference is resolved inside the caller's
 own scope, and unknown and foreign identifiers fail identically. Message text is
 never copied into audit metadata or notification payloads.
 """

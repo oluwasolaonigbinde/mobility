@@ -163,7 +163,7 @@ def test_staff_cancel_requires_active_admin_and_valid_same_campaign_request(
         db_client, db_sessionmaker, settings, category="other"
     )
     before = economic_snapshot(db_sessionmaker)
-    for user in (graph.advertiser, graph.viewer, graph.driver):
+    for user in (graph.advertiser, graph.member, graph.driver):
         assert (
             db_client.post(
                 cancel_path(graph), headers=headers(user, settings), json=cancel_body()

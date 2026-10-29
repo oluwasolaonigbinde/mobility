@@ -24,7 +24,7 @@ from app.services.disclosure import (
 from app.services.payout_rule_serialization import database_clock
 
 ROUTE = "advertiser.campaign.live_positions"
-POLICY = "delayed_in_area_dots_v1"
+POLICY = "delayed_in_area_live_dots_v2"
 
 
 async def live_positions(
@@ -70,7 +70,6 @@ async def _delayed_points(session: AsyncSession, *, campaign_id: UUID, now, cuto
             LocationPing.latitude,
             LocationPing.geom,
             LocationPing.recorded_at,
-            LocationPing.speed_mps,
             func.row_number()
             .over(
                 partition_by=TripSession.vehicle_id,
@@ -112,11 +111,11 @@ async def _delayed_points(session: AsyncSession, *, campaign_id: UUID, now, cuto
             func.ST_Covers(CampaignZone.geom, latest.c.geom),
         )
     )
+    # Every live car shows, stopped or moving; a car in traffic is still live.
     rows = await session.execute(
         select(latest.c.longitude, latest.c.latitude).where(
             latest.c.rank == 1,
             latest.c.recorded_at >= oldest,
-            latest.c.speed_mps > 0,
             inside_target,
             ~inside_exclusion,
         )
