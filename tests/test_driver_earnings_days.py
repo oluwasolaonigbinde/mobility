@@ -35,13 +35,17 @@ def row(
     paid_at=None,
     paying_tonight=False,
     payment_on_hold=False,
+    occurred_at=datetime(2026, 10, 9, 12, tzinfo=UTC),
 ):
     entry = SimpleNamespace(
+        id=uuid4(),
         amount=Decimal(amount),
         currency=currency,
         entry_type=entry_type,
         status=status,
         trip_session_id=trip,
+        occurred_at=occurred_at,
+        created_at=occurred_at,
     )
     response = SimpleNamespace(
         work_days=[
@@ -265,6 +269,148 @@ def test_net_adjusted_credit_is_paid_when_actual_cash_covers_net_award():
         cash={(TRIP, "NGN"): Decimal("80.00")},
     )
     assert (day["amount"], day["status"], day["paid_at"]) == (Decimal("80.00"), "paid", paid_at)
+    # The deduction came off before the money went out: nothing left to deduct.
+    assert day["overpaid"] == 0
+
+
+PAID_AT = datetime(2026, 10, 25, 20, tzinfo=UTC)
+
+
+def paid_credit(amount="10000.00", day="2026-10-24", trip=TRIP):
+    return row(amount=amount, status="paid", paid_at=PAID_AT, trip=trip, work_days=[(day, amount)])
+
+
+def deduction(amount="100.00", day="2026-10-24", trip=TRIP, occurred_at=None):
+    return row(
+        amount=amount,
+        entry_type="reversal",
+        trip=trip,
+        work_days=[(day, amount)],
+        occurred_at=occurred_at or datetime(2026, 10, 27, 9, tzinfo=UTC),
+    )
+
+
+def test_deduction_after_payment_keeps_the_net_and_reports_the_cash_above_it():
+    # REQ-256: ₦10,000 reached the bank, then staff recorded a ₦100 deduction.
+    [day] = show(paid_credit(), deduction(), cash={(TRIP, "NGN"): Decimal("10000.00")})
+    assert (day["day"], day["amount"], day["status"], day["overpaid"]) == (
+        date(2026, 10, 24),
+        Decimal("9900.00"),
+        "paid",
+        Decimal("100.00"),
+    )
+
+
+def test_cash_above_the_award_without_a_deduction_is_not_called_one():
+    [day] = show(paid_credit("100.00"), cash={(TRIP, "NGN"): Decimal("200.00")})
+    assert (day["amount"], day["overpaid"]) == (Decimal("100.00"), 0)
+
+
+def test_day_mixing_an_overpaid_trip_and_an_unpaid_trip():
+    other = uuid4()
+    [day] = show(
+        paid_credit(),
+        deduction(),
+        row(amount="500.00", trip=other, work_days=[("2026-10-24", "500.00")]),
+        cash={(TRIP, "NGN"): Decimal("10000.00"), (other, "NGN"): Decimal("0.00")},
+    )
+    assert (day["amount"], day["status"], day["overpaid"]) == (
+        Decimal("10400.00"),
+        "being_checked",
+        Decimal("100.00"),
+    )
+    assert set(day["trip_ids"]) == {TRIP, other}
+
+
+def test_deduction_on_a_day_without_pay_lands_on_its_own_day():
+    days = show(
+        paid_credit(day="2026-10-24"),
+        deduction(day="2026-10-25"),
+        cash={(TRIP, "NGN"): Decimal("10000.00")},
+    )
+    assert [(d["day"].isoformat(), d["amount"], d["overpaid"]) for d in days] == [
+        ("2026-10-25", Decimal("-100.00"), Decimal("100.00")),
+        ("2026-10-24", Decimal("10000.00"), 0),
+    ]
+
+
+def test_newest_deduction_is_the_one_still_to_come():
+    days = show(
+        paid_credit("100.00", day="2026-10-24"),
+        deduction("20.00", day="2026-10-24", occurred_at=datetime(2026, 10, 26, tzinfo=UTC)),
+        deduction("30.00", day="2026-10-25", occurred_at=datetime(2026, 10, 27, tzinfo=UTC)),
+        # 70 paid against a net 50: only 20 of the deductions is still to come.
+        cash={(TRIP, "NGN"): Decimal("70.00")},
+    )
+    assert {d["day"].isoformat(): d["overpaid"] for d in days} == {
+        "2026-10-25": Decimal("20.00"),
+        "2026-10-24": 0,
+    }
+
+
+def test_trip_breakdown_keeps_miles_after_a_deduction_and_hides_staff_metadata(
+    db_client, db_sessionmaker, settings, monkeypatch
+):
+    graph = build_v4_graph(
+        db_sessionmaker, settings, "deduction-miles", daily_rate_naira="600", daily_target_miles="1"
+    )
+    drive(db_sessionmaker, settings, graph.trip)
+    admin = auth_headers(db_client, graph.admin.email, PASSWORD)
+    calculated = db_client.post(
+        f"/api/v1/admin/trips/{graph.trip.id}/calculate-payout", headers=admin, json={}
+    )
+    assert calculated.status_code == 200, calculated.text
+    driver = auth_headers(db_client, graph.driver.email, PASSWORD)
+    endpoint = f"/api/v1/driver/trips/{graph.trip.id}/earnings-breakdown"
+    before = db_client.get(endpoint, headers=driver).json()
+    assert before["daily_rate_days"], before
+    work_day = before["daily_rate_days"][0]
+    [credit] = before["entries"]
+    net = Decimal(before["amount"]) - Decimal("100.00")
+
+    recorded = db_client.post(
+        f"/api/v1/admin/earnings-ledger/{credit['id']}/negative-adjustments",
+        headers=admin,
+        json={
+            "request_id": str(uuid4()),
+            "amount": "100.00",
+            "currency": "NGN",
+            "reason": "Correct verified overpayment",
+            "lagos_day": work_day["lagos_day"],
+        },
+    )
+    assert recorded.status_code == 201, recorded.text
+    # Staff still see who recorded it and why.
+    assert recorded.json()["metadata"]["actor_user_id"] == str(graph.admin.id)
+
+    after = db_client.get(endpoint, headers=driver)
+    assert after.status_code == 200, after.text
+    body = after.json()
+    assert body["amount"] == str(net)
+    assert body["daily_rate_days"] == before["daily_rate_days"]
+    assert body["overpaid"] == "0.00"
+    deduction_entry = next(e for e in body["entries"] if e["entry_type"] == "reversal")
+    assert deduction_entry["work_days"] == [{"day": work_day["lagos_day"], "amount": "100.00"}]
+    ledger = db_client.get("/api/v1/driver/earnings/ledger", headers=driver)
+    assert ledger.status_code == 200, ledger.text
+    for text, items in ((after.text, body["entries"]), (ledger.text, ledger.json()["items"])):
+        assert all("metadata" not in item for item in items)
+        assert str(graph.admin.id) not in text
+        assert "Correct verified overpayment" not in text
+
+    # Had the full award already gone out, the ₦100 would still be to come.
+    from app.services.payouts import breakdown as breakdown_module
+
+    async def paid_in_full(session, entries):
+        return {
+            (graph.trip.id, "NGN"): TripMoneyPosition(
+                earned_net=net, cash_paid=net + Decimal("100.00")
+            )
+        }
+
+    monkeypatch.setattr(breakdown_module, "trip_money_positions", paid_in_full)
+    overpaid = db_client.get(endpoint, headers=driver).json()
+    assert (overpaid["amount"], overpaid["overpaid"]) == (str(net), "100.00")
 
 
 def test_partial_multi_day_cash_has_no_invented_allocation():

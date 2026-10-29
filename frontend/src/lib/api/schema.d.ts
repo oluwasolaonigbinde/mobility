@@ -8404,6 +8404,8 @@ export interface components {
              * Format: date
              */
             day: string;
+            /** Overpaid */
+            overpaid?: string;
             /** Paid At */
             paid_at: string | null;
             /**
@@ -8423,6 +8425,65 @@ export interface components {
             days: components["schemas"]["DriverEarningsDayRead"][];
             /** Totals */
             totals: components["schemas"]["DriverEarningsTotalsRead"][];
+        };
+        /**
+         * DriverEarningsLedgerEntryRead
+         * @description Driver view: no staff metadata; the work days and payment state instead.
+         */
+        DriverEarningsLedgerEntryRead: {
+            /** Amount */
+            amount: string | null;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /** Description */
+            description: string | null;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            entry_type: components["schemas"]["EarningsLedgerEntryType"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Paid At */
+            paid_at?: string | null;
+            /**
+             * Paying Tonight
+             * @default false
+             */
+            paying_tonight: boolean;
+            /**
+             * Payment On Hold
+             * @default false
+             */
+            payment_on_hold: boolean;
+            /** Payout Calculation Id */
+            payout_calculation_id: string | null;
+            status: components["schemas"]["EarningsLedgerEntryStatus"];
+            /** Trip Session Id */
+            trip_session_id: string | null;
+            /** Vehicle Id */
+            vehicle_id: string | null;
+            /** Work Days */
+            work_days?: components["schemas"]["EarningsWorkDayRead"][];
         };
         /** DriverEarningsSummary */
         DriverEarningsSummary: {
@@ -8846,13 +8907,15 @@ export interface components {
             /** Eligible Seconds */
             eligible_seconds: number | null;
             /** Entries */
-            entries: components["schemas"]["EarningsLedgerEntryRead"][];
+            entries: components["schemas"]["DriverEarningsLedgerEntryRead"][];
             /** Excluded Seconds By Reason */
             excluded_seconds_by_reason: {
                 [key: string]: number;
             } | null;
             /** Formula Version */
             formula_version: string;
+            /** Overpaid */
+            overpaid?: string | null;
             /** Superseded By Recompute */
             superseded_by_recompute: boolean;
             /**
@@ -8864,7 +8927,7 @@ export interface components {
         /** EarningsLedgerEntryListResponse */
         EarningsLedgerEntryListResponse: {
             /** Items */
-            items: components["schemas"]["EarningsLedgerEntryRead"][];
+            items: components["schemas"]["DriverEarningsLedgerEntryRead"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -8872,7 +8935,10 @@ export interface components {
             /** Total */
             total: number;
         };
-        /** EarningsLedgerEntryRead */
+        /**
+         * EarningsLedgerEntryRead
+         * @description Staff view: includes the audit metadata (actor, reason).
+         */
         EarningsLedgerEntryRead: {
             /** Amount */
             amount: string | null;
@@ -8910,18 +8976,6 @@ export interface components {
              * Format: date-time
              */
             occurred_at: string;
-            /** Paid At */
-            paid_at?: string | null;
-            /**
-             * Paying Tonight
-             * @default false
-             */
-            paying_tonight: boolean;
-            /**
-             * Payment On Hold
-             * @default false
-             */
-            payment_on_hold: boolean;
             /** Payout Calculation Id */
             payout_calculation_id: string | null;
             status: components["schemas"]["EarningsLedgerEntryStatus"];
@@ -8929,8 +8983,6 @@ export interface components {
             trip_session_id: string | null;
             /** Vehicle Id */
             vehicle_id: string | null;
-            /** Work Days */
-            work_days?: components["schemas"]["EarningsWorkDayRead"][];
         };
         /**
          * EarningsLedgerEntryStatus

@@ -11,6 +11,7 @@ import { DriverDataUnavailable } from "@/components/driver/data-unavailable";
 import { FreshDriverAuthority } from "@/components/driver/fresh-authority";
 import { readDriverApi } from "@/lib/driver/api-read";
 import { driverEarningsStatus } from "@/lib/status/driver";
+import { paidBeforeDeduction } from "@/lib/driver/daily-earnings";
 import { DisputeForm } from "./dispute-form";
 
 export const metadata: Metadata = { title: "Trip earnings" };
@@ -155,6 +156,11 @@ export default async function DriverTripEarningsPage({
           <p className="font-display text-green mt-1 text-3xl font-semibold">
             {formatMoneyExact(data.amount, data.currency)}
           </p>
+          {data.amount && data.overpaid && Number(data.overpaid) > 0 ? (
+            <p className="micro text-amber mt-2">
+              {paidBeforeDeduction(data.amount, data.overpaid, data.currency)}
+            </p>
+          ) : null}
           {data.superseded_by_recompute ? (
             <p className="micro text-amber mt-2">
               Updated after a Terrax Media review — the entries below show every change.
@@ -267,7 +273,9 @@ export default async function DriverTripEarningsPage({
                   <p className="truncate text-sm">
                     {e.description ?? e.entry_type.replace(/_/g, " ")}
                   </p>
-                  <p className="micro text-faint mt-0.5">{formatDate(e.occurred_at)}</p>
+                  <p className="micro text-faint mt-0.5">
+                    {formatDate(e.work_days?.[0]?.day ?? e.occurred_at)}
+                  </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <span className="font-mono text-sm">

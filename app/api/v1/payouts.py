@@ -38,6 +38,7 @@ from app.schemas.payouts import (
     CampaignPayoutV4RevisionCreate,
     DriverEarningsCurrencySummary,
     DriverEarningsDaysRead,
+    DriverEarningsLedgerEntryRead,
     DriverEarningsSummary,
     DriverTripDailyRateDay,
     DriverTripEarningsBreakdown,
@@ -201,6 +202,25 @@ def ledger_entry_response(entry: EarningsLedgerEntry) -> EarningsLedgerEntryRead
         description=entry.description,
         occurred_at=entry.occurred_at,
         metadata=entry.ledger_metadata,
+        created_at=entry.created_at,
+    )
+
+
+def driver_ledger_entry_response(entry: EarningsLedgerEntry) -> DriverEarningsLedgerEntryRead:
+    """A driver's entry never carries staff metadata (actor, reason, request)."""
+    return DriverEarningsLedgerEntryRead(
+        id=entry.id,
+        payout_calculation_id=entry.payout_calculation_id,
+        driver_profile_id=entry.driver_profile_id,
+        campaign_id=entry.campaign_id,
+        trip_session_id=entry.trip_session_id,
+        vehicle_id=entry.vehicle_id,
+        entry_type=entry.entry_type,
+        status=entry.status,
+        amount=entry.amount,
+        currency=entry.currency,
+        description=entry.description,
+        occurred_at=entry.occurred_at,
         created_at=entry.created_at,
     )
 
@@ -490,7 +510,10 @@ async def driver_get_earnings_days(
 
     return DriverEarningsDaysRead.model_validate(
         await driver_earnings_days(
-            session, user_id=current_user.id, settings=settings, respond=ledger_entry_response
+            session,
+            user_id=current_user.id,
+            settings=settings,
+            respond=driver_ledger_entry_response,
         )
     )
 
@@ -523,7 +546,7 @@ async def driver_list_earnings_ledger(
 
     return EarningsLedgerEntryListResponse(
         items=await enrich_driver_ledger(
-            session, entries, [ledger_entry_response(entry) for entry in entries], settings
+            session, entries, [driver_ledger_entry_response(entry) for entry in entries], settings
         ),
         total=total,
         limit=limit,
@@ -820,11 +843,20 @@ async def driver_get_trip_earnings_breakdown(
     current_user: DriverUserDependency,
     session: SessionDependency,
 ) -> DriverTripEarningsBreakdown:
+    from app.services.driver_earnings_presentation import work_days
+
     breakdown = await driver_trip_earnings_breakdown(
         session,
         user_id=current_user.id,
         trip_id=trip_id,
     )
+    entries = []
+    for entry in breakdown.entries:
+        response = driver_ledger_entry_response(entry)
+        # A correction is dated by the work day it corrects, not when it was recorded.
+        if entry.entry_type != EarningsLedgerEntryType.TRIP_PAYOUT.value:
+            response.work_days = work_days(entry, None)
+        entries.append(response)
     return DriverTripEarningsBreakdown(
         trip_session_id=breakdown.trip_session_id,
         formula_version=breakdown.formula_version,
@@ -833,7 +865,8 @@ async def driver_get_trip_earnings_breakdown(
         eligible_seconds=breakdown.eligible_seconds,
         excluded_seconds_by_reason=breakdown.excluded_seconds_by_reason,
         superseded_by_recompute=breakdown.superseded_by_recompute,
-        entries=[ledger_entry_response(entry) for entry in breakdown.entries],
+        entries=entries,
+        overpaid=breakdown.overpaid,
         daily_rate_days=(
             [
                 DriverTripDailyRateDay(lagos_day=day, distance_m=metres, amount=amount)

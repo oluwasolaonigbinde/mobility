@@ -18,6 +18,7 @@ from app.schemas.payouts import EarningsWorkDayRead
 from app.services.automatic_payouts import _clean_reason, automatic_payout_status
 from app.services.drivers import get_required_driver_profile_with_user_by_user_id
 from app.services.payout_balances import trip_money_positions
+from app.services.payouts.breakdown import overpaid_deductions
 from app.services.payouts.read import driver_earnings_summary
 
 
@@ -124,7 +125,8 @@ def group_earnings_days(
 
     A partial transfer has no invented allocation across a multi-day trip. Its
     days remain unsettled until actual verified cash covers the trip's net award.
-    Headline held money counts each trip's unpaid award once.
+    Headline held money counts each trip's unpaid award once. A day's amount stays
+    net; `overpaid` is cash already paid above it, pending a recorded deduction.
     """
     trip_members = {}
     groups = {}
@@ -138,7 +140,8 @@ def group_earnings_days(
         sign = -1 if entry.entry_type == "reversal" else 1
         for allocation in response.work_days:
             group = groups.setdefault(
-                (allocation.day, entry.currency), {"amount": Decimal(0), "scopes": set()}
+                (allocation.day, entry.currency),
+                {"amount": Decimal(0), "overpaid": Decimal(0), "scopes": set()},
             )
             group["amount"] += sign * allocation.amount
             if allocation.amount:
@@ -147,6 +150,11 @@ def group_earnings_days(
     held_amounts = {}
     for scope, members in trip_members.items():
         position = positions[scope]
+        # Cash paid before a later deduction shows on that deduction's work day.
+        work_days_by_entry = {id(entry): response.work_days for entry, response in members}
+        for entry, part in overpaid_deductions([entry for entry, _ in members], position):
+            [allocation] = work_days_by_entry[id(entry)]
+            groups[(allocation.day, entry.currency)]["overpaid"] += part
         outstanding = max(position.earned_net - position.cash_paid, Decimal(0))
         dates = [response.paid_at for entry, response in members if response.paid_at]
         held = outstanding > 0 and any(
@@ -183,6 +191,7 @@ def group_earnings_days(
                 else "being_checked",
                 "paid_at": max(states[scope][3] for scope in scopes) if paid and not held else None,
                 "trip_ids": sorted({scope[0] for scope in scopes if scope[0]}, key=str),
+                "overpaid": group["overpaid"],
             }
         )
     days.sort(key=lambda row: row["day"], reverse=True)
