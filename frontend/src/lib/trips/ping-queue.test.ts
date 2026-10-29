@@ -611,3 +611,116 @@ it("refuses an inconsistent signed partial disposition without deleting its batc
   expect(await queue.listBatches(TRIP)).toEqual([batch]);
   expect(await queue.listReceipts(TRIP)).toEqual([]);
 });
+
+describe("adoptServerEvidence (REQ-259 fresh device)", () => {
+  function serverReceipt(sequence: number, overrides: Record<string, unknown> = {}) {
+    return {
+      tripId: TRIP,
+      batchId: `34000000-0000-0000-0000-0000000001${String(sequence).padStart(2, "0")}`,
+      batch_sequence: sequence,
+      idempotency_key: `old-device-${sequence}`,
+      payload_hash_version: 2 as const,
+      payload_hash: String(sequence + 1).padStart(64, "0"),
+      submitted_count: 2,
+      acceptedCount: 2,
+      rejectedCount: 0,
+      outcome: "accepted",
+      evidenceScope: "manifest" as const,
+      receiptFormatVersion: 2,
+      receiptKeyVersion: 1,
+      receiptSignature: `signed-${sequence}`,
+      ...overrides,
+    };
+  }
+
+  it("stores the server's receipts on an empty device and continues numbering after them", async () => {
+    expect(await queue.hasTripRecord(TRIP)).toBe(false);
+
+    await queue.adoptServerEvidence(TRIP, [serverReceipt(0), serverReceipt(1)]);
+
+    expect(await queue.hasTripRecord(TRIP)).toBe(true);
+    expect((await queue.listReceipts(TRIP)).map((r) => r.idempotency_key)).toEqual([
+      "old-device-0",
+      "old-device-1",
+    ]);
+    expect(await queue.meta(TRIP)).toMatchObject({ batchesCut: 2, pingsRecorded: 4 });
+    await queue.addPing(TRIP, ping(0));
+    expect((await queue.cutBatch(TRIP))!.cutSeq).toBe(2);
+    const manifest = await queue.evidenceManifest(TRIP, true);
+    expect(manifest.entries.map((entry) => entry.batch_sequence)).toEqual([0, 1, 2]);
+    expect(manifest.ping_count).toBe(5);
+  });
+
+  it("moves a local batch whose number the server holds, with a new key and the same hash", async () => {
+    await queue.addPing(TRIP, ping(0));
+    const local = (await queue.cutBatch(TRIP))!;
+    expect(local.cutSeq).toBe(0);
+
+    await queue.adoptServerEvidence(TRIP, [serverReceipt(0)]);
+
+    const [moved] = await queue.listBatches(TRIP);
+    expect(moved).toMatchObject({ cutSeq: 1, payloadHash: local.payloadHash, pings: local.pings });
+    expect(moved!.key).not.toBe(local.key);
+    expect((await queue.meta(TRIP)).batchesCut).toBe(2);
+    const manifest = await queue.evidenceManifest(TRIP, true);
+    expect(manifest.entries.map((entry) => [entry.batch_sequence, entry.idempotency_key])).toEqual([
+      [0, "old-device-0"],
+      [1, moved!.key],
+    ]);
+  });
+
+  it("moves a dead letter whose number the server holds so the manifest stays buildable", async () => {
+    await queue.addPing(TRIP, ping(0));
+    const local = (await queue.cutBatch(TRIP))!;
+    await queue.dropBatch(local.key, { status: 409, code: "TRIP_EVIDENCE_BATCH_SEQUENCE_TAKEN" });
+
+    await queue.adoptServerEvidence(TRIP, [serverReceipt(0)]);
+
+    const [dead] = await queue.listDeadLetters(TRIP);
+    expect(dead).toMatchObject({ key: local.key, cutSeq: 1, terminalStatus: 409 });
+    const manifest = await queue.evidenceManifest(TRIP, false);
+    expect(manifest.entries.map((entry) => entry.batch_sequence)).toEqual([0, 1]);
+  });
+
+  it("treats a sent batch whose reply was lost as acknowledged", async () => {
+    await queue.addPing(TRIP, ping(0));
+    const local = (await queue.cutBatch(TRIP))!;
+
+    await queue.adoptServerEvidence(TRIP, [
+      serverReceipt(0, {
+        idempotency_key: local.key,
+        payload_hash: local.payloadHash,
+        submitted_count: 1,
+        acceptedCount: 1,
+      }),
+    ]);
+
+    expect(await queue.listBatches(TRIP)).toEqual([]);
+    expect(await queue.unsyncedCount(TRIP)).toBe(0);
+    expect(await queue.meta(TRIP)).toMatchObject({ batchesCut: 1, pingsRecorded: 1 });
+  });
+
+  it("is idempotent and leaves a frozen End boundary untouched", async () => {
+    await queue.adoptServerEvidence(TRIP, [serverReceipt(0)]);
+    await queue.adoptServerEvidence(TRIP, [serverReceipt(0)]);
+    expect(await queue.listReceipts(TRIP)).toHaveLength(1);
+    expect(await queue.meta(TRIP)).toMatchObject({ batchesCut: 1, pingsRecorded: 2 });
+
+    const frozen = await queue.freezeEnd(TRIP, true);
+    await queue.adoptServerEvidence(TRIP, [serverReceipt(0), serverReceipt(1)]);
+    expect(await queue.listReceipts(TRIP)).toHaveLength(1);
+    expect((await queue.meta(TRIP)).endManifest).toEqual(frozen);
+  });
+
+  it("re-opens a refused End boundary so the corrected manifest can be frozen", async () => {
+    const stale = await queue.freezeEnd(TRIP, true);
+    expect(stale.entries).toEqual([]);
+
+    await queue.reopenEnd(TRIP);
+    await queue.adoptServerEvidence(TRIP, [serverReceipt(0)]);
+    const corrected = await queue.freezeEnd(TRIP, true);
+
+    expect(corrected.entries.map((entry) => entry.idempotency_key)).toEqual(["old-device-0"]);
+    expect((await queue.meta(TRIP)).endManifest).toEqual(corrected);
+  });
+});

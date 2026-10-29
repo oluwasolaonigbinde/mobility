@@ -1,4 +1,4 @@
-from typing import Literal, cast
+from typing import Any, Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, status
@@ -10,12 +10,15 @@ from app.api.v1.dependencies import (
     TripEnqueuerDependency,
 )
 from app.core.gps_health import GPSAttempt, record_gps_attempt
+from app.models.trip import LocationPingBatch
 from app.schemas.trips import (
     CurrentTripResponse,
     LocationPingBatchCreate,
     LocationPingBatchResponse,
     PingSampleResult,
     TripEndRequest,
+    TripEvidenceBatchesResponse,
+    TripEvidenceBatchRead,
     TripEvidenceReconcileResponse,
     TripRead,
     TripStartRequest,
@@ -28,6 +31,7 @@ from app.services.trips import (
     get_current_driver_trip,
     get_driver_trip,
     ingest_location_ping_batch,
+    list_manifest_batches,
     reconcile_trip_evidence,
     start_driver_trip,
     summarize_trip,
@@ -137,25 +141,51 @@ async def driver_ingest_location_pings(
     row = result.batch
     if not result.duplicate and row.evidence_scope == "late" and row.pings_accepted:
         await enqueuer.enqueue_trip_processing(trip_id)
-    return LocationPingBatchResponse(
-        batch_id=row.id,
-        trip_id=row.trip_session_id,
-        accepted_count=row.pings_accepted,
-        submitted_count=row.pings_submitted,
-        rejected_count=row.pings_rejected,
-        batch_sequence=row.batch_sequence,
-        payload_hash_version=row.payload_hash_version,
-        payload_hash=row.payload_hash,
-        outcome=row.receipt_outcome,
-        evidence_scope=cast(Literal["manifest", "late", "late_dropped"], row.evidence_scope),
-        receipt_format_version=row.receipt_format_version,
-        receipt_key_version=row.receipt_key_version,
-        receipt_signature=row.receipt_signature,
-        duplicate=result.duplicate,
+    return LocationPingBatchResponse(**batch_receipt_fields(row), duplicate=result.duplicate)
+
+
+def batch_receipt_fields(row: LocationPingBatch) -> dict[str, Any]:
+    return {
+        "batch_id": row.id,
+        "trip_id": row.trip_session_id,
+        "accepted_count": row.pings_accepted,
+        "submitted_count": row.pings_submitted,
+        "rejected_count": row.pings_rejected,
+        "batch_sequence": row.batch_sequence,
+        "payload_hash_version": row.payload_hash_version,
+        "payload_hash": row.payload_hash,
+        "outcome": row.receipt_outcome,
+        "evidence_scope": cast(Literal["manifest", "late", "late_dropped"], row.evidence_scope),
+        "receipt_format_version": row.receipt_format_version,
+        "receipt_key_version": row.receipt_key_version,
+        "receipt_signature": row.receipt_signature,
         # Replayed from the stored manifest, so a retry of a partially
         # accepted batch returns byte-identical dispositions.
-        sample_results=[
+        "sample_results": [
             PingSampleResult(**entry) for entry in manifest_sample_results(row.rejection_manifest)
+        ],
+    }
+
+
+@router.get(
+    "/{trip_id}/evidence",
+    response_model=TripEvidenceBatchesResponse,
+    summary="List the signed evidence receipts the server holds for a trip",
+)
+async def driver_get_trip_evidence(
+    trip_id: UUID,
+    current_user: DriverUserDependency,
+    session: SessionDependency,
+) -> TripEvidenceBatchesResponse:
+    trip, batches = await list_manifest_batches(session, user_id=current_user.id, trip_id=trip_id)
+    return TripEvidenceBatchesResponse(
+        trip_id=trip.id,
+        status=trip.status,
+        batches=[
+            TripEvidenceBatchRead(
+                **batch_receipt_fields(row), idempotency_key=row.idempotency_key, duplicate=True
+            )
+            for row in batches
         ],
     )
 

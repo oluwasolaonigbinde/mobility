@@ -180,8 +180,19 @@ const evidenceManifestSchema = z.object({
   entries: z.array(manifestEntrySchema),
 });
 
+/**
+ * End refusals raised before the server writes anything: the manifest does
+ * not match the evidence it holds (e.g. this device lost its local record).
+ * The caller may rebuild the manifest from the server's receipts and retry.
+ */
+const MANIFEST_MISMATCH_CODES = new Set([
+  "TRIP_EVIDENCE_MANIFEST_INVALID",
+  "TRIP_EVIDENCE_MANIFEST_REQUIRED",
+]);
+
 export interface EndTripResult extends DriverActionState {
-  outcome: "ended" | "failed" | "unknown";
+  /** `evidence_mismatch`: refused before any write; rebuild the manifest and retry. */
+  outcome: "ended" | "failed" | "unknown" | "evidence_mismatch";
   status?: "ended" | "sealed";
   /**
    * Set when the server finally adjudicated a trip whose declared evidence can
@@ -223,6 +234,12 @@ export async function endTripAction(
     return { outcome: "ended", status: returnedStatus };
   } catch (error) {
     unstable_rethrow(error);
+    if (
+      error instanceof ApiError &&
+      error.status === 409 &&
+      MANIFEST_MISMATCH_CODES.has(error.code ?? "")
+    )
+      return { ...toState(error), outcome: "evidence_mismatch" };
     const outcome =
       error instanceof ApiError && [400, 403, 404, 422].includes(error.status)
         ? "failed"
@@ -292,6 +309,67 @@ const pingBatchAckSchema = basePingBatchAckSchema.extend({
  * dead-lettering it here would destroy valid evidence the server would take.
  */
 const DEFERRABLE_REJECTION_CODES = new Set(["CAMPAIGN_ASSIGNMENT_NOT_ACTIVE"]);
+const SEQUENCE_TAKEN_CODE = "TRIP_EVIDENCE_BATCH_SEQUENCE_TAKEN";
+
+function receiptFromAck(
+  ack: z.infer<typeof pingBatchAckSchema>,
+  idempotencyKey: string,
+): EvidenceReceipt {
+  return {
+    tripId: ack.trip_id,
+    batchId: ack.batch_id,
+    batch_sequence: ack.batch_sequence,
+    idempotency_key: idempotencyKey,
+    payload_hash_version: ack.payload_hash_version,
+    payload_hash: ack.payload_hash,
+    submitted_count: ack.submitted_count,
+    acceptedCount: ack.accepted_count,
+    rejectedCount: ack.rejected_count,
+    outcome: ack.outcome,
+    evidenceScope: ack.evidence_scope,
+    receiptFormatVersion: ack.receipt_format_version,
+    receiptKeyVersion: ack.receipt_key_version,
+    receiptSignature: ack.receipt_signature,
+    sampleResults: ack.sample_results,
+  };
+}
+
+const serverEvidenceSchema = z.object({
+  trip_id: z.string().uuid(),
+  batches: z.array(pingBatchAckSchema.extend({ idempotency_key: z.string().min(1) })),
+});
+
+/**
+ * The signed receipts the server holds for this driver's trip. A device with
+ * no local record of the trip adopts them so it can continue numbering and
+ * declare them when it ends the trip. Undefined when they can't be read.
+ */
+export async function getTripEvidenceAction(
+  tripId: string,
+): Promise<EvidenceReceipt[] | undefined> {
+  if (!z.string().uuid().safeParse(tripId).success) return undefined;
+  try {
+    const api = createApiClient(await getSessionToken());
+    const { data } = await api.GET("/api/v1/driver/trips/{trip_id}/evidence", {
+      params: { path: { trip_id: tripId } },
+    });
+    const parsed = serverEvidenceSchema.safeParse(data);
+    if (!parsed.success || parsed.data.trip_id !== tripId) return undefined;
+    if (
+      parsed.data.batches.some(
+        (batch) =>
+          batch.trip_id !== tripId ||
+          batch.accepted_count + batch.rejected_count !== batch.submitted_count ||
+          (batch.rejected_count > 0 && batch.sample_results.length !== batch.submitted_count),
+      )
+    )
+      return undefined;
+    return parsed.data.batches.map((batch) => receiptFromAck(batch, batch.idempotency_key));
+  } catch (error) {
+    unstable_rethrow(error);
+    return undefined;
+  }
+}
 
 export interface PingBatchResult extends DriverActionState {
   /** True only when the backend returned its complete D15/D16 ACK envelope. */
@@ -313,6 +391,8 @@ export interface PingBatchResult extends DriverActionState {
   deferred?: boolean;
   terminalStatus?: number;
   terminalCode?: string;
+  /** The server already holds this batch number: resync, renumber, resend. */
+  sequenceTaken?: boolean;
   /** Per-sample disposition of a durably acknowledged batch (OFF-005). */
   sampleResults?: Array<{
     index: number;
@@ -362,26 +442,20 @@ export async function sendPingBatchAction(
       acceptedCount: acknowledgement.data.accepted_count,
       duplicate: acknowledgement.data.duplicate,
       sampleResults: acknowledgement.data.sample_results,
-      receipt: {
-        tripId: acknowledgement.data.trip_id,
-        batchId: acknowledgement.data.batch_id,
-        batch_sequence: acknowledgement.data.batch_sequence,
-        idempotency_key: parsed.data.idempotencyKey,
-        payload_hash_version: acknowledgement.data.payload_hash_version,
-        payload_hash: acknowledgement.data.payload_hash,
-        submitted_count: acknowledgement.data.submitted_count,
-        acceptedCount: acknowledgement.data.accepted_count,
-        rejectedCount: acknowledgement.data.rejected_count,
-        outcome: acknowledgement.data.outcome,
-        evidenceScope: acknowledgement.data.evidence_scope,
-        receiptFormatVersion: acknowledgement.data.receipt_format_version,
-        receiptKeyVersion: acknowledgement.data.receipt_key_version,
-        receiptSignature: acknowledgement.data.receipt_signature,
-        sampleResults: acknowledgement.data.sample_results,
-      },
+      receipt: receiptFromAck(acknowledgement.data, parsed.data.idempotencyKey),
     };
   } catch (error) {
     unstable_rethrow(error);
+    if (error instanceof ApiError && error.code === SEQUENCE_TAKEN_CODE) {
+      // This device's batch number is already used on the server (it lost
+      // its local record). Not terminal: resync and renumber, then resend.
+      return {
+        error: publicActionError(error),
+        acknowledged: false,
+        retryable: true,
+        sequenceTaken: true,
+      };
+    }
     if (error instanceof ApiError) {
       const deferred = DEFERRABLE_REJECTION_CODES.has(error.code ?? "");
       const terminal = !deferred && [400, 409, 422].includes(error.status);

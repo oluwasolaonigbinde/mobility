@@ -20039,6 +20039,161 @@
         "title": "TripEndRequest",
         "type": "object"
       },
+      "TripEvidenceBatchRead": {
+        "description": "A server-held batch receipt, replayed so another device can declare it.",
+        "properties": {
+          "accepted_count": {
+            "title": "Accepted Count",
+            "type": "integer"
+          },
+          "batch_id": {
+            "format": "uuid",
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "batch_sequence": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Sequence"
+          },
+          "duplicate": {
+            "title": "Duplicate",
+            "type": "boolean"
+          },
+          "evidence_scope": {
+            "enum": [
+              "manifest",
+              "late",
+              "late_dropped"
+            ],
+            "title": "Evidence Scope",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "payload_hash": {
+            "title": "Payload Hash",
+            "type": "string"
+          },
+          "payload_hash_version": {
+            "title": "Payload Hash Version",
+            "type": "integer"
+          },
+          "receipt_format_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Format Version"
+          },
+          "receipt_key_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Key Version"
+          },
+          "receipt_signature": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Signature"
+          },
+          "rejected_count": {
+            "default": 0,
+            "title": "Rejected Count",
+            "type": "integer"
+          },
+          "sample_results": {
+            "items": {
+              "$ref": "#/components/schemas/PingSampleResult"
+            },
+            "title": "Sample Results",
+            "type": "array"
+          },
+          "submitted_count": {
+            "title": "Submitted Count",
+            "type": "integer"
+          },
+          "trip_id": {
+            "format": "uuid",
+            "title": "Trip Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "batch_id",
+          "trip_id",
+          "accepted_count",
+          "submitted_count",
+          "payload_hash_version",
+          "payload_hash",
+          "duplicate",
+          "evidence_scope",
+          "idempotency_key"
+        ],
+        "title": "TripEvidenceBatchRead",
+        "type": "object"
+      },
+      "TripEvidenceBatchesResponse": {
+        "description": "Signed receipts the server holds for a trip's manifest evidence.\n\nLets a device with no local record of the trip (cleared site data, new\nphone) continue its batch numbering and declare these batches when it\nends the trip. Carries hashes and counts only, never locations.",
+        "properties": {
+          "batches": {
+            "items": {
+              "$ref": "#/components/schemas/TripEvidenceBatchRead"
+            },
+            "title": "Batches",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TripSessionStatus"
+          },
+          "trip_id": {
+            "format": "uuid",
+            "title": "Trip Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trip_id",
+          "status",
+          "batches"
+        ],
+        "title": "TripEvidenceBatchesResponse",
+        "type": "object"
+      },
       "TripEvidenceManifestCreate": {
         "additionalProperties": false,
         "properties": {
@@ -38196,6 +38351,54 @@
           }
         ],
         "summary": "End a driver trip",
+        "tags": [
+          "Trips"
+        ]
+      }
+    },
+    "/api/v1/driver/trips/{trip_id}/evidence": {
+      "get": {
+        "operationId": "driver_get_trip_evidence_api_v1_driver_trips__trip_id__evidence_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trip_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Trip Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripEvidenceBatchesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List the signed evidence receipts the server holds for a trip",
         "tags": [
           "Trips"
         ]

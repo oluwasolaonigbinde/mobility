@@ -7,6 +7,7 @@ import type { DriverTrackerAssignment, DriverTrackerTrip } from "@/lib/driver/ca
 import {
   endTripAction,
   getCurrentTripAction,
+  getTripEvidenceAction,
   getTripEvidenceAuthorityAction,
   reconcileTripEvidenceAction,
   sendPingBatchAction,
@@ -14,6 +15,7 @@ import {
   verifyDriverTripOwnershipAction,
 } from "@/app/driver/actions";
 import { UNREADABLE_EVIDENCE_CODE, openPingQueue, type PingQueue } from "@/lib/trips/ping-queue";
+import type { EvidenceManifest } from "@/lib/trips/trip-evidence";
 import {
   EMPTY_CAPABILITY_SNAPSHOT,
   assessPilotPwa,
@@ -41,6 +43,9 @@ const FLUSH_INTERVAL_MS = 15_000;
 const FLUSH_AT_COUNT = 20;
 const MAX_BATCH_PINGS = 40;
 const KEEPALIVE_INTERVAL_MS = 10 * 60_000;
+// While a trip is open and the last session check could not complete, check
+// again soon: End needs a confirmed session and must not wait ten minutes.
+const SESSION_RECHECK_INTERVAL_MS = 20_000;
 const RECOVERY_INTERVAL_MS = 60_000;
 const GPS_RETRY_INTERVAL_MS = 30_000;
 const TRACKING_LOCK = "cardvert-driver-trip-writer-v2";
@@ -235,7 +240,6 @@ export function TripTracker({
   const queueRef = useRef<PingQueue | null>(null);
   const watchRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const keepaliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recoveryRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const flushPromiseRef = useRef<Promise<void> | null>(null);
   const releaseWriterRef = useRef<(() => void) | null>(null);
@@ -285,8 +289,6 @@ export function TripTracker({
     }
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
-    if (keepaliveRef.current) clearInterval(keepaliveRef.current);
-    keepaliveRef.current = null;
   }, []);
 
   const releaseWake = useCallback(
@@ -573,6 +575,24 @@ export function TripTracker({
     setDeadLetterCount(deadLetters.length);
   }, []);
 
+  // Learns the server's signed receipts for a trip this device has no full
+  // record of (cleared site data, reinstalled app, new phone), so numbering
+  // continues after them and End declares them. False when they can't be read.
+  // `reopenEnd` re-opens an End boundary the server refused before writing
+  // anything, but only once the receipts are in hand to correct it.
+  const syncServerEvidence = useCallback(
+    async (tripId: string, { reopenEnd = false } = {}): Promise<boolean> => {
+      const queue = queueRef.current;
+      if (!queue || !identityValidRef.current) return false;
+      const receipts = await getTripEvidenceAction(tripId).catch(() => undefined);
+      if (!receipts || queueRef.current !== queue) return false;
+      if (reopenEnd) await queue.reopenEnd(tripId);
+      await queue.adoptServerEvidence(tripId, receipts);
+      return true;
+    },
+    [],
+  );
+
   const flush = useCallback(
     async (tripId: string) => {
       while (flushPromiseRef.current) await flushPromiseRef.current;
@@ -594,7 +614,8 @@ export function TripTracker({
             protocolVersion = authority.protocolVersion;
             protocolByTripRef.current.set(tripId, protocolVersion);
           }
-          const backlog = await queue.listBatches(tripId);
+          let backlog = await queue.listBatches(tripId);
+          let resynced = false;
           for (;;) {
             const batch = backlog.shift() ?? (await queue.cutBatch(tripId, MAX_BATCH_PINGS));
             if (!batch) break;
@@ -612,6 +633,20 @@ export function TripTracker({
               acknowledged: false,
             }));
             if (result.error) {
+              if (result.sequenceTaken) {
+                // This device lost its record of the trip: adopt the server's
+                // receipts (which renumbers this batch), then resend once.
+                if (!resynced && (await syncServerEvidence(tripId))) {
+                  resynced = true;
+                  backlog = await queue.listBatches(tripId);
+                  continue;
+                }
+                if (mountedRef.current)
+                  setError(
+                    "Cardvert couldn't match this trip's saved locations. They are kept on this phone and will be tried again.",
+                  );
+                break;
+              }
               if (result.deferred) {
                 // OFF-006: already captured evidence refused only because the
                 // assignment was deactivated. End commits its manifest and the
@@ -682,7 +717,7 @@ export function TripTracker({
         }
       }
     },
-    [patchRuntime, refreshCounts, stopWatch],
+    [patchRuntime, refreshCounts, stopWatch, syncServerEvidence],
   );
 
   const beginWatch = useCallback(
@@ -780,10 +815,24 @@ export function TripTracker({
         { enableHighAccuracy: true, maximumAge: 5_000, timeout: 20_000 },
       );
       timerRef.current = setInterval(() => void flush(tripId), FLUSH_INTERVAL_MS);
-      keepaliveRef.current = setInterval(() => void validateSession(), KEEPALIVE_INTERVAL_MS);
     },
-    [flush, patchRuntime, refreshCounts, stopWatch, validateSession],
+    [flush, patchRuntime, refreshCounts, stopWatch],
   );
+
+  // The session check runs for as long as a trip is open, not only while
+  // location is being captured: once capture stops (location withdrawn, page
+  // hidden) End still depends on it, and one failed check must not leave End
+  // disabled until the driver happens to leave and return to the page.
+  const sessionState = runtime.session;
+  useEffect(() => {
+    if (!trip || storageReady !== true) return;
+    const unconfirmed = sessionState === "unavailable" || sessionState === "offline";
+    const timer = setInterval(
+      () => void validateSession(),
+      unconfirmed ? SESSION_RECHECK_INTERVAL_MS : KEEPALIVE_INTERVAL_MS,
+    );
+    return () => clearInterval(timer);
+  }, [sessionState, storageReady, trip, validateSession]);
 
   const prepareCapture = useCallback(
     async (validate: boolean) => {
@@ -998,7 +1047,17 @@ export function TripTracker({
           patchRuntime({ activeTrip: true });
           if (current.trip.id !== trip.id) setTrip(current.trip);
         }
-        const meta = await queueRef.current?.meta(tripRef.current?.id ?? trip.id);
+        const activeTripId = tripRef.current?.id ?? trip.id;
+        const queue = queueRef.current;
+        // A device with no record of this open trip (cleared site data,
+        // reinstalled app, new phone) adopts the server's receipts before it
+        // captures, so its batch numbers continue after them.
+        if (queue && !(await queue.hasTripRecord(activeTripId))) {
+          await syncServerEvidence(activeTripId).catch(() => false);
+          if (cancelled) return;
+          await refreshCounts(activeTripId).catch(() => undefined);
+        }
+        const meta = await queueRef.current?.meta(activeTripId);
         if (meta?.endManifest) {
           endPhaseRef.current = "submitted";
           authorityUncertainRef.current = true;
@@ -1022,9 +1081,11 @@ export function TripTracker({
     drainLeftovers,
     patchRuntime,
     prepareCapture,
+    refreshCounts,
     releaseWriter,
     stopWatch,
     storageReady,
+    syncServerEvidence,
     trip,
   ]);
 
@@ -1299,6 +1360,30 @@ export function TripTracker({
     [beginWatch, finishEndedTrip, flush, patchRuntime, prepareCapture, releaseWake, stopWatch],
   );
 
+  // Sends the frozen End manifest. If the server refuses it before writing
+  // anything because it doesn't match the evidence the server holds (this
+  // device lost part of its record), rebuild it from the server's receipts
+  // and send once more.
+  // A stored manifest is resent exactly as frozen.
+  async function submitEnd(
+    queue: PingQueue,
+    tripId: string,
+    complete: boolean,
+    stored?: EvidenceManifest,
+  ) {
+    const send = (manifest: EvidenceManifest) =>
+      endTripAction(tripId, manifest).catch((): Awaited<ReturnType<typeof endTripAction>> => ({
+        outcome: "unknown",
+      }));
+    const result = await send(stored ?? (await queue.freezeEnd(tripId, complete)));
+    if (
+      result.outcome !== "evidence_mismatch" ||
+      !(await syncServerEvidence(tripId, { reopenEnd: true }))
+    )
+      return result;
+    return send(await queue.freezeEnd(tripId, complete));
+  }
+
   function end() {
     const activeTrip = tripRef.current;
     if (
@@ -1314,13 +1399,12 @@ export function TripTracker({
     stopWatch();
     void (async () => {
       if (authorityUncertainRef.current) {
-        const meta = await queueRef.current?.meta(activeTrip.id);
-        if (meta?.endManifest) {
+        const uncertainQueue = queueRef.current;
+        const meta = await uncertainQueue?.meta(activeTrip.id);
+        if (uncertainQueue && meta?.endManifest) {
           endPhaseRef.current = "submitted";
           const complete = meta.endManifest.complete;
-          const result = await endTripAction(activeTrip.id, meta.endManifest).catch(
-            (): Awaited<ReturnType<typeof endTripAction>> => ({ outcome: "unknown" }),
-          );
+          const result = await submitEnd(uncertainQueue, activeTrip.id, complete, meta.endManifest);
           if (result.outcome === "ended" && result.status === "sealed") {
             await finishEndedTrip(complete);
             return;
@@ -1368,11 +1452,8 @@ export function TripTracker({
           setError("Cardvert couldn't check how this trip's locations should be saved. Try again.");
         return;
       }
-      const manifest = await queue.freezeEnd(activeTrip.id, complete);
       endPhaseRef.current = "submitted";
-      const result = await endTripAction(activeTrip.id, manifest).catch(
-        (): Awaited<ReturnType<typeof endTripAction>> => ({ outcome: "unknown" }),
-      );
+      const result = await submitEnd(queue, activeTrip.id, complete);
       if (result.outcome !== "ended") {
         if (mountedRef.current)
           setError(result.error ?? "Cardvert could not confirm whether the trip ended.");

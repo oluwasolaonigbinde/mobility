@@ -1003,6 +1003,25 @@ async def ingest_location_ping_batch(  # noqa: C901
         trip.status == TripSessionStatus.SEALED.value or trip.evidence_adjudicated_at is not None
     )
     scope = "late_dropped" if dropped else "late" if closed else "manifest"
+    if scope == "manifest":
+        # A device that lost its local record (cleared site data, new phone)
+        # restarts numbering with new keys. Refuse it as a typed conflict the
+        # client can recover from by reading the server's receipts, instead of
+        # letting the unique index fail the request. The trip row lock above
+        # makes this check race-free against concurrent uploads.
+        taken = await session.scalar(
+            select(LocationPingBatch.id).where(
+                LocationPingBatch.trip_session_id == trip.id,
+                LocationPingBatch.evidence_scope == "manifest",
+                LocationPingBatch.batch_sequence == payload.batch_sequence,
+            )
+        )
+        if taken is not None:
+            raise AppError(
+                "TRIP_EVIDENCE_BATCH_SEQUENCE_TAKEN",
+                "This batch number is already used for this trip",
+                status_code=status.HTTP_409_CONFLICT,
+            )
 
     # OFF-005 partial acknowledgement: adjudicate every sample, then keep the
     # valid ones. A wholly invalid batch is still refused outright, so an
@@ -1108,6 +1127,24 @@ async def ingest_location_ping_batch(  # noqa: C901
     await session.refresh(batch)
 
     return PingBatchResult(batch=batch, duplicate=False)
+
+
+async def list_manifest_batches(
+    session: AsyncSession, *, user_id: UUID, trip_id: UUID
+) -> tuple[TripSession, list[LocationPingBatch]]:
+    """The owner's manifest-scope batches in sequence order (receipts only)."""
+    trip = await get_driver_trip(session, user_id=user_id, trip_id=trip_id)
+    batches = (
+        await session.scalars(
+            select(LocationPingBatch)
+            .where(
+                LocationPingBatch.trip_session_id == trip.id,
+                LocationPingBatch.evidence_scope == "manifest",
+            )
+            .order_by(LocationPingBatch.batch_sequence)
+        )
+    ).all()
+    return trip, list(batches)
 
 
 async def reconcile_trip_evidence(

@@ -4130,6 +4130,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/driver/trips/{trip_id}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the signed evidence receipts the server holds for a trip */
+        get: operations["driver_get_trip_evidence_api_v1_driver_trips__trip_id__evidence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/driver/trips/{trip_id}/evidence/reconcile": {
         parameters: {
             query?: never;
@@ -12020,6 +12037,74 @@ export interface components {
             metadata?: {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * TripEvidenceBatchRead
+         * @description A server-held batch receipt, replayed so another device can declare it.
+         */
+        TripEvidenceBatchRead: {
+            /** Accepted Count */
+            accepted_count: number;
+            /**
+             * Batch Id
+             * Format: uuid
+             */
+            batch_id: string;
+            /** Batch Sequence */
+            batch_sequence?: number | null;
+            /** Duplicate */
+            duplicate: boolean;
+            /**
+             * Evidence Scope
+             * @enum {string}
+             */
+            evidence_scope: "manifest" | "late" | "late_dropped";
+            /** Idempotency Key */
+            idempotency_key: string;
+            /** Outcome */
+            outcome?: string | null;
+            /** Payload Hash */
+            payload_hash: string;
+            /** Payload Hash Version */
+            payload_hash_version: number;
+            /** Receipt Format Version */
+            receipt_format_version?: number | null;
+            /** Receipt Key Version */
+            receipt_key_version?: number | null;
+            /** Receipt Signature */
+            receipt_signature?: string | null;
+            /**
+             * Rejected Count
+             * @default 0
+             */
+            rejected_count: number;
+            /** Sample Results */
+            sample_results?: components["schemas"]["PingSampleResult"][];
+            /** Submitted Count */
+            submitted_count: number;
+            /**
+             * Trip Id
+             * Format: uuid
+             */
+            trip_id: string;
+        };
+        /**
+         * TripEvidenceBatchesResponse
+         * @description Signed receipts the server holds for a trip's manifest evidence.
+         *
+         *     Lets a device with no local record of the trip (cleared site data, new
+         *     phone) continue its batch numbering and declare these batches when it
+         *     ends the trip. Carries hashes and counts only, never locations.
+         */
+        TripEvidenceBatchesResponse: {
+            /** Batches */
+            batches: components["schemas"]["TripEvidenceBatchRead"][];
+            status: components["schemas"]["TripSessionStatus"];
+            /**
+             * Trip Id
+             * Format: uuid
+             */
+            trip_id: string;
         };
         /** TripEvidenceManifestCreate */
         TripEvidenceManifestCreate: {
@@ -21552,6 +21637,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TripRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    driver_get_trip_evidence_api_v1_driver_trips__trip_id__evidence_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripEvidenceBatchesResponse"];
                 };
             };
             /** @description Request validation failed */
