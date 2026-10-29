@@ -113,7 +113,7 @@ not by creating extra account types.
 
 | Role | Who | What they do |
 | --- | --- | --- |
-| **Advertiser** | A person working for one advertiser company. Company members can be owners, managers or viewers. | Maintain the company profile, request quotations, accept terms, create campaigns, upload artwork, request changes, cancel, view billing and reports. |
+| **Advertiser** | A person working for one advertiser company. Every company member has the same advertiser access. | Maintain the company profile, request quotations, accept terms, create campaigns, upload artwork, request changes, cancel, view billing and reports. |
 | **Driver** | An owner-driver whose car is registered to them and who receives their own payouts. | Apply, submit identity, payee and vehicle evidence, accept or decline offers, upload installation photos, track campaign trips, view earnings and holds, dispute holds. |
 | **Administrator (operator)** | A Terrax Media staff member. | Create advertiser accounts, review applications and evidence, approve campaigns and artwork, assign vehicles, activate work, review fraud, run measurement, make and approve payouts, reconcile outcomes. |
 

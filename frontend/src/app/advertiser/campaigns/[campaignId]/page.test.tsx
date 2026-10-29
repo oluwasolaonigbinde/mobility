@@ -138,10 +138,7 @@ it("shows Booked from the campaign's own figure, and a quiet dash when it is mis
   expect(screen.getByRole("heading", { name: /^Booked:/ })).toHaveTextContent(
     "Booked: ₦1,200.00 of your ₦1,000.00 budget",
   );
-  expect(screen.getByRole("progressbar", { name: "Budget booked" })).toHaveAttribute(
-    "value",
-    "100",
-  );
+  expect(screen.queryByRole("progressbar")).toBeNull();
   unmount();
   mocks.get.mockImplementation(async (path: string) => ready(path));
   render(await Page(input));

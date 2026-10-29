@@ -274,7 +274,7 @@ and must never be used in production:
 
 - `admin@demo.mobility.local` / `DemoAdmin12345!`
 - `advertiser@demo.mobility.local` / `DemoAdvertiser12345!`
-- `viewer@demo.mobility.local` / `DemoViewer12345!`
+- `advertiser2@demo.mobility.local` / `DemoAdvertiser2Pass12345!`
 - `driver@demo.mobility.local` / `DemoDriver12345!`
 
 Suggested frontend smoke workflow after seeding:
@@ -386,7 +386,7 @@ stored impression estimates, allocated to cells by trip ping share in the reques
 bbox/date window. Heatmap responses do not expose driver PII, driver profile ids,
 vehicle plate numbers, raw GPS point rows, ping ids, idempotency keys, ledger details,
 payment data, or password hashes.
-The Slice 12 demo seed creates local-only admin, advertiser, viewer, and driver
+The Slice 12 demo seed creates local-only admin, two advertiser, and driver
 users; one advertiser organization; one active driver profile and vehicle; one active
 campaign and ready creative; Lagos target, bonus, and exclusion zones; an active
 assignment; two ended trips with PostGIS pings; route analytics, impression estimates,

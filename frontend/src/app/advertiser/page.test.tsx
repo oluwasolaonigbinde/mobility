@@ -153,13 +153,13 @@ it("loads every owned campaign without campaign, car or time selectors", async (
     ],
   ]);
 });
-it("shows the required empty driving state for a campaign with no eligible delayed positions", async () => {
+it("shows the required empty on-the-road state for a campaign with no eligible delayed positions", async () => {
   mocks.get.mockImplementation(async (path: string, options?: Options) =>
     path.endsWith("/live-positions")
       ? { data: { campaign_id: "one", delay_minutes: 15, positions: [] } }
       : ready(path, options),
   );
   render(await Home());
-  expect(screen.getByText("No cars driving right now")).toBeInTheDocument();
+  expect(screen.getByText("No cars on the road right now")).toBeInTheDocument();
   expect(figures()).toHaveTextContent("Cars on the road0");
 });

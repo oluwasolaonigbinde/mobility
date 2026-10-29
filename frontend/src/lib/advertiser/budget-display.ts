@@ -40,14 +40,3 @@ export function bookedBudget(campaign: Campaign): BudgetDisplay | null {
     return null;
   return { booked, budget, currency: used.currency, asOf: used.as_of };
 }
-
-/**
- * Percentage to two places for any size. Within budget it rounds down, so it
- * never reaches 100 early; over budget it rounds up, so it never hides an
- * overrun as 100. The caller caps the bar, not the number.
- */
-export function bookedPercent(booked: bigint, budget: bigint): number {
-  const scaled = booked * BigInt(10000);
-  const hundredths = booked > budget ? (scaled + budget - BigInt(1)) / budget : scaled / budget;
-  return Number(hundredths) / 100;
-}

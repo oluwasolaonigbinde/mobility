@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookedBudget, bookedPercent, minorDecimal, moneyMinor } from "./budget-display";
+import { bookedBudget, minorDecimal, moneyMinor } from "./budget-display";
 
 const used = (amount: string, extra: Record<string, unknown> = {}) => ({
   amount,
@@ -54,19 +54,6 @@ describe("booked budget (D103)", () => {
     expect(bookedBudget(campaign(used("1.00"), "NGN", null))).toBeNull();
     expect(bookedBudget(campaign(daily("1.00"), "NGN", "1000.00"))).toBeNull();
   });
-  it.each([
-    ["1500.00", "1000.00", 150],
-    ["1000.00", "1000.00", 100],
-    ["1000.01", "1000.00", 100.01],
-    ["100000.01", "100000.00", 100.01],
-    ["999.95", "1000.00", 99.99],
-    ["99995.00", "100000.00", 99.99],
-  ])(
-    "percent of %s booked against %s is %s, never hiding an overrun as 100",
-    (amount, budget, expected) => {
-      expect(bookedPercent(moneyMinor(amount)!, moneyMinor(budget)!)).toBe(expected);
-    },
-  );
 });
 
 describe("money parsing", () => {

@@ -213,14 +213,36 @@ def test_recorded_received_and_stale_boundaries(
     assert bool(response.json()["positions"]) is visible
 
 
-@pytest.mark.parametrize(
-    "latest", [{"age": 19, "speed": 0}, {"age": 19, "lon": 3.7}, {"age": 19, "speed": None}]
-)
-def test_latest_delayed_point_is_selected_before_movement_and_area(
-    db_client, db_sessionmaker, driving_graph, latest
-):
+def test_latest_delayed_point_is_selected_before_area(db_client, db_sessionmaker, driving_graph):
     add_point(db_sessionmaker, driving_graph, age=22, received_age=22)
-    add_point(db_sessionmaker, driving_graph, received_age=19, **latest)
+    add_point(db_sessionmaker, driving_graph, age=19, received_age=19, lon=3.7)
+    assert read(db_client, driving_graph).json()["positions"] == []
+
+
+@pytest.mark.parametrize("speed", [0, None])
+def test_stopped_or_speedless_live_car_still_shows(
+    db_client, db_sessionmaker, driving_graph, speed
+):
+    add_point(db_sessionmaker, driving_graph, age=22, received_age=22, lon=3.7)
+    add_point(db_sessionmaker, driving_graph, age=19, received_age=19, speed=speed)
+    assert read(db_client, driving_graph).json()["positions"] == [
+        {"longitude": 3.4, "latitude": 6.5}
+    ]
+
+
+def test_ended_trip_stopped_point_is_hidden(db_client, db_sessionmaker, driving_graph):
+    add_point(db_sessionmaker, driving_graph, speed=0)
+
+    async def end_trip():
+        async with db_sessionmaker() as session:
+            await session.execute(
+                update(TripSession)
+                .where(TripSession.id == driving_graph["trip"].id)
+                .values(status="ended", ended_at=NOW - timedelta(minutes=16))
+            )
+            await session.commit()
+
+    asyncio.run(end_trip())
     assert read(db_client, driving_graph).json()["positions"] == []
 
 
@@ -239,9 +261,9 @@ def test_equal_recorded_timestamp_uses_received_then_internal_id(
     db_client, db_sessionmaker, driving_graph
 ):
     add_point(db_sessionmaker, driving_graph, age=20, received_age=19, ping_id=UUID(int=1))
-    add_point(db_sessionmaker, driving_graph, age=20, received_age=18, ping_id=UUID(int=2), speed=0)
+    add_point(db_sessionmaker, driving_graph, age=20, received_age=18, ping_id=UUID(int=2), lon=3.7)
     assert read(db_client, driving_graph).json()["positions"] == []
-    add_point(db_sessionmaker, driving_graph, age=20, received_age=18, ping_id=UUID(int=3), speed=5)
+    add_point(db_sessionmaker, driving_graph, age=20, received_age=18, ping_id=UUID(int=3))
     assert len(read(db_client, driving_graph).json()["positions"]) == 1
 
 

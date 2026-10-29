@@ -87,7 +87,7 @@ DEMO_BBOX = "7.4288,8.9698,7.5488,9.0998"
 DEMO_PASSWORDS = {
     "admin@demo.mobility.local": "DemoAdmin12345!",
     "advertiser@demo.mobility.local": "DemoAdvertiser12345!",
-    "viewer@demo.mobility.local": "DemoViewer12345!",
+    "advertiser2@demo.mobility.local": "DemoAdvertiser2Pass12345!",
     "driver@demo.mobility.local": "DemoDriver12345!",
 }
 DEMO_DRIVER_PHONE_NUMBERS = {
@@ -110,7 +110,7 @@ PRODUCTION_ENVIRONMENTS = {"prod", "production", "staging"}
 class DemoGraph:
     admin: User
     advertiser: User
-    viewer: User
+    second_advertiser: User
     driver: User
     organization: AdvertiserOrganization
     driver_profile: DriverProfile
@@ -1554,10 +1554,10 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
         role=UserRole.ADVERTISER,
         settings=settings,
     )
-    viewer = await upsert_user(
+    second_advertiser = await upsert_user(
         session,
-        email="viewer@demo.mobility.local",
-        password=DEMO_PASSWORDS["viewer@demo.mobility.local"],
+        email="advertiser2@demo.mobility.local",
+        password=DEMO_PASSWORDS["advertiser2@demo.mobility.local"],
         full_name="Babatunde Lawal",
         role=UserRole.ADVERTISER,
         settings=settings,
@@ -1583,7 +1583,7 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
     await upsert_membership(
         session,
         organization=organization,
-        user=viewer,
+        user=second_advertiser,
         role=MembershipRole.ADVERTISER,
     )
     driver_profile = await upsert_driver_profile(session, driver=driver)
@@ -1666,7 +1666,7 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
     graph = DemoGraph(
         admin=admin,
         advertiser=advertiser,
-        viewer=viewer,
+        second_advertiser=second_advertiser,
         driver=driver,
         organization=organization,
         driver_profile=driver_profile,

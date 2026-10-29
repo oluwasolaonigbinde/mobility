@@ -78,8 +78,8 @@ def test_cancellation_request_is_a_visible_idempotent_support_thread_only(
         reference_type="campaign",
         reference_id=str(graph.campaign.id),
     )
-    viewer = headers(graph.viewer, settings)
-    created = db_client.post(PATH, headers=viewer, json=payload)
+    member = headers(graph.member, settings)
+    created = db_client.post(PATH, headers=member, json=payload)
     assert created.status_code == 200, created.text
     result = created.json()
     identity = result["id"]
@@ -100,21 +100,21 @@ def test_cancellation_request_is_a_visible_idempotent_support_thread_only(
     )
     assert result["messages"][0]["body"] == payload["message"].strip()
     assert result["messages"][0]["sender"] == "you"
-    replay = db_client.post(PATH, headers=viewer, json=payload)
+    replay = db_client.post(PATH, headers=member, json=payload)
     assert replay.status_code == 200 and replay.json()["id"] == identity
     for change in (
         {"message": "A different reason"},
         {"category": "campaign_or_job"},
         {"reference_id": str(graph.declined_campaign.id)},
     ):
-        conflict = db_client.post(PATH, headers=viewer, json={**payload, **change})
+        conflict = db_client.post(PATH, headers=member, json={**payload, **change})
         assert (
             conflict.status_code == 409
             and conflict.json()["error"]["code"] == "COMPLAINT_REPLAY_CONFLICT"
         )
     for route, who in (
         (PATH, graph.advertiser),
-        (f"{PATH}/{identity}", graph.viewer),
+        (f"{PATH}/{identity}", graph.member),
         ("/api/v1/admin/complaints", graph.admin),
         (f"/api/v1/admin/complaints/{identity}", graph.admin),
     ):
@@ -221,7 +221,7 @@ def test_concurrent_cancellation_support_retries_keep_existing_per_raiser_identi
 
         first, repeated = await asyncio.gather(create(graph.advertiser), create(graph.advertiser))
         assert first == repeated
-        assert await create(graph.viewer) != first
+        assert await create(graph.member) != first
         async with db_sessionmaker() as session:
             assert await session.scalar(select(func.count()).select_from(Complaint)) == 2
             assert await session.scalar(select(func.count()).select_from(ComplaintMessage)) == 2

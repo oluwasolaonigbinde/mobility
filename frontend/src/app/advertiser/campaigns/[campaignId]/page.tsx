@@ -263,10 +263,10 @@ export default async function CampaignDetailPage({
           </div>
           <p className="text-muted px-5 py-4 text-sm">
             {positions === null
-              ? "Driving positions couldn't be loaded. Refresh to try again."
+              ? "Car positions couldn't be loaded. Refresh to try again."
               : positions.length === 0
-                ? "No cars driving right now"
-                : `${positions.length} ${positions.length === 1 ? "car" : "cars"} driving · as of about 15 minutes ago`}
+                ? "No cars on the road right now"
+                : `${positions.length} ${positions.length === 1 ? "car" : "cars"} on the road · as of about 15 minutes ago`}
           </p>
           <p className="text-muted px-5 pb-4 text-sm">
             {areas.available ? areas.data.items.map((area) => area.name).join(" · ") : ""}{" "}

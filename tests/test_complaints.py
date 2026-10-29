@@ -48,7 +48,7 @@ class Graph:
     other_driver: object
     other_profile: object
     advertiser: object
-    viewer: object
+    member: object
     org: object
     other_advertiser: object
     campaign: object
@@ -107,14 +107,14 @@ def build_graph(sm) -> Graph:
     advertiser = create_test_user(
         sm, email="cs-adv@example.com", role=UserRole.ADVERTISER, full_name="Ade Owner"
     )
-    viewer = create_test_user(
-        sm, email="cs-viewer@example.com", role=UserRole.ADVERTISER, full_name="Vic Viewer"
+    member = create_test_user(
+        sm, email="cs-member@example.com", role=UserRole.ADVERTISER, full_name="Mo Member"
     )
     other_advertiser = create_test_user(
         sm, email="cs-adv2@example.com", role=UserRole.ADVERTISER, full_name="Other Owner"
     )
     org, _ = create_test_organization(sm, name="Acme Ads", owner_user_id=advertiser.id)
-    _add_member(sm, org_id=org.id, user_id=viewer.id, role=MembershipRole.ADVERTISER)
+    _add_member(sm, org_id=org.id, user_id=member.id, role=MembershipRole.ADVERTISER)
     other_org, _ = create_test_organization(sm, name="Other Ads", owner_user_id=other_advertiser.id)
     profile = create_test_driver_profile(sm, user_id=driver.id)
     other_profile = create_test_driver_profile(sm, user_id=other_driver.id)
@@ -184,7 +184,7 @@ def build_graph(sm) -> Graph:
         other_driver,
         other_profile,
         advertiser,
-        viewer,
+        member,
         org,
         other_advertiser,
         campaign,
@@ -384,7 +384,7 @@ def test_driver_without_profile_is_404(world) -> None:
     assert response.json()["error"]["code"] == "DRIVER_PROFILE_NOT_FOUND"
 
 
-def test_advertiser_scope_viewer_team_and_foreign_campaign(world) -> None:
+def test_advertiser_scope_member_team_and_foreign_campaign(world) -> None:
     client, sm, settings, g = world
     for reference_type, code in (("trip", 422), ("payout", 422)):
         denied = client.post(
@@ -411,21 +411,21 @@ def test_advertiser_scope_viewer_team_and_foreign_campaign(world) -> None:
         == "COMPLAINT_CATEGORY_NOT_ALLOWED"
     )
 
-    # A viewer can raise a complaint (support is not a campaign write).
+    # A member can raise a complaint (support is not a campaign write).
     raised = client.post(
         "/api/v1/advertiser/complaints",
         json=body("campaign_or_job", reference_type="campaign", reference_id=str(g.campaign.id)),
-        headers=headers(g.viewer, settings),
+        headers=headers(g.member, settings),
     )
     assert raised.status_code == 200, raised.text
     complaint_id = raised.json()["id"]
     options = client.get(
-        "/api/v1/advertiser/complaints/reference-options", headers=headers(g.viewer, settings)
+        "/api/v1/advertiser/complaints/reference-options", headers=headers(g.member, settings)
     ).json()
     assert {item["label"] for item in options["campaigns"]} == {"Lagos Launch", "Declined job"}
     assert options["trips"] == [] and options["payouts"] == []
 
-    # The owner sees the same organization complaint; the viewer's message reads "your_team".
+    # The owner sees the same organization complaint; the member's message reads "your_team".
     listed = client.get("/api/v1/advertiser/complaints", headers=headers(g.advertiser, settings))
     assert [item["id"] for item in listed.json()["items"]] == [complaint_id]
     detail = client.get(
@@ -461,14 +461,14 @@ def test_revoked_membership_loses_access(world) -> None:
     raised = client.post(
         "/api/v1/advertiser/complaints",
         json=body("account"),
-        headers=headers(g.viewer, settings),
+        headers=headers(g.member, settings),
     )
     complaint_id = raised.json()["id"]
 
     async def revoke() -> None:
         async with sm() as session:
             membership = await session.scalar(
-                select(OrganizationMembership).where(OrganizationMembership.user_id == g.viewer.id)
+                select(OrganizationMembership).where(OrganizationMembership.user_id == g.member.id)
             )
             membership.status = MembershipStatus.DISABLED
             await session.commit()
@@ -489,7 +489,7 @@ def test_revoked_membership_loses_access(world) -> None:
             ),
         ]
 
-    for response in denied(g.viewer):
+    for response in denied(g.member):
         assert response.status_code == 404
         assert response.json()["error"]["code"] == "ADVERTISER_ORGANIZATION_NOT_FOUND"
 
@@ -580,7 +580,7 @@ def test_staff_reply_resolve_follow_up_and_notifications(world) -> None:
     assert flipped.status_code == 409
 
     detail = client.get(
-        f"/api/v1/advertiser/complaints/{complaint_id}", headers=headers(g.viewer, settings)
+        f"/api/v1/advertiser/complaints/{complaint_id}", headers=headers(g.member, settings)
     ).json()
     assert [m["sender"] for m in detail["messages"]] == ["your_team", "terrax_media"]
     assert detail["waiting_on_you"] is True
@@ -594,8 +594,8 @@ def test_staff_reply_resolve_follow_up_and_notifications(world) -> None:
         [
             (g.advertiser.id, "in_app"),
             (g.advertiser.id, "transactional_email"),
-            (g.viewer.id, "in_app"),
-            (g.viewer.id, "transactional_email"),
+            (g.member.id, "in_app"),
+            (g.member.id, "transactional_email"),
         ]
     )
     email = render_email_template("complaint_replied", "v1", advertiser_notices[0].payload)

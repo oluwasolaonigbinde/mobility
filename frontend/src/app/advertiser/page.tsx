@@ -163,12 +163,12 @@ export default async function AdvertiserOverviewPage() {
                       ) : null}
                       {positions !== null && positions.length === 0 ? (
                         <p className="text-muted border-edge border-t bg-white p-2 text-center text-sm">
-                          No cars driving right now
+                          No cars on the road right now
                         </p>
                       ) : null}
                       {positions === null ? (
                         <p className="text-muted border-edge border-t bg-white p-2 text-center text-sm">
-                          Driving positions couldn&apos;t be loaded.{" "}
+                          Car positions couldn&apos;t be loaded.{" "}
                           <a href="/advertiser" className="text-green font-semibold">
                             Try again
                           </a>
