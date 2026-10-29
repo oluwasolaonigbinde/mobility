@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 import pytest
 from conftest import create_test_campaign, create_test_organization, create_test_user
+from invoice_helpers import issue_test_invoice
 from sqlalchemy import select
 
 from app.core.errors import AppError
@@ -38,7 +39,9 @@ async def _accepted_terms(
     amount="100.00",
     tax_rate="0",
     payment_class=PaymentClass.STANDARD_PREPAID,
+    issued=False,
 ):
+    """Accepted terms; ``issued=True`` also issues its invoice so money can be recorded."""
     request = await request_custom_quote(
         session,
         campaign_id=campaign.id,
@@ -60,12 +63,15 @@ async def _accepted_terms(
         else {},
         tax_rate=tax_rate,
     )
-    return await accept_quotation_revision(
+    terms = await accept_quotation_revision(
         session,
         quotation_revision_id=revision.id,
         actor_user_id=owner.id,
         acceptance_method=AcceptanceMethod.IN_PLATFORM,
     )
+    if issued:
+        await issue_test_invoice(session, terms=terms, admin=admin)
+    return terms
 
 
 def _fixture(db_sessionmaker):
@@ -86,7 +92,7 @@ def test_receipt_lifecycle_and_allocation_are_canonical_and_idempotent(db_sessio
     async def scenario() -> None:
         async with db_sessionmaker() as session:
             terms = await _accepted_terms(
-                session, campaign=campaign, admin=admin, owner=owner, reference="R-Q1"
+                session, campaign=campaign, admin=admin, owner=owner, reference="R-Q1", issued=True
             )
             observed_at = datetime.now(UTC)
             receipt = await record_payment_receipt(
@@ -165,7 +171,7 @@ def test_mismatched_receipt_cannot_confirm_or_allocate(db_sessionmaker) -> None:
     async def scenario() -> None:
         async with db_sessionmaker() as session:
             terms = await _accepted_terms(
-                session, campaign=campaign, admin=admin, owner=owner, reference="R-Q2"
+                session, campaign=campaign, admin=admin, owner=owner, reference="R-Q2", issued=True
             )
             receipt = await record_payment_receipt(
                 session,
@@ -219,6 +225,7 @@ def test_allocation_cannot_exceed_receipt_or_accepted_obligation(db_sessionmaker
                 owner=owner,
                 reference="R-Q3",
                 amount="80.00",
+                issued=True,
             )
             second_terms = await _accepted_terms(
                 session,
@@ -227,6 +234,7 @@ def test_allocation_cannot_exceed_receipt_or_accepted_obligation(db_sessionmaker
                 owner=owner,
                 reference="R-Q4",
                 amount="80.00",
+                issued=True,
             )
             receipt = await record_payment_receipt(
                 session,
@@ -311,7 +319,12 @@ def test_receipt_refusals_and_retries_preserve_canonical_authority(db_sessionmak
     async def run():
         async with db_sessionmaker() as session:
             terms = await _accepted_terms(
-                session, campaign=campaign, admin=admin, owner=owner, reference="BOUNDARY"
+                session,
+                campaign=campaign,
+                admin=admin,
+                owner=owner,
+                reference="BOUNDARY",
+                issued=True,
             )
 
             async def counts():
@@ -462,7 +475,12 @@ def test_receipt_missing_actor_invalid_facts_and_currency_cannot_grant_funding(d
     async def run():
         async with db_sessionmaker() as session:
             terms = await _accepted_terms(
-                session, campaign=campaign, admin=admin, owner=owner, reference="CURRENCY-BOUNDARY"
+                session,
+                campaign=campaign,
+                admin=admin,
+                owner=owner,
+                reference="CURRENCY-BOUNDARY",
+                issued=True,
             )
             args = dict(
                 organization_id=organization.id,
@@ -505,5 +523,60 @@ def test_receipt_missing_actor_invalid_facts_and_currency_cannot_grant_funding(d
                 )
             assert caught.value.code == "ALLOCATION_CURRENCY_MISMATCH"
             assert await session.scalar(select(func.count()).select_from(ReceiptAllocation)) == 0
+
+    asyncio.run(run())
+
+
+def test_allocation_is_refused_without_an_issued_invoice(db_sessionmaker) -> None:
+    """REQ-255: a confirmed receipt cannot fund terms whose invoice is missing or a draft."""
+    from sqlalchemy import func
+
+    from app.models.billing import ReceiptAllocation
+    from app.services.billing.invoices import create_invoice_draft
+
+    admin, owner, organization, campaign = _fixture(db_sessionmaker)
+
+    async def run():
+        async with db_sessionmaker() as session:
+            terms = await _accepted_terms(
+                session, campaign=campaign, admin=admin, owner=owner, reference="NOT-ISSUED"
+            )
+            receipt = await record_payment_receipt(
+                session,
+                organization_id=organization.id,
+                actor_user_id=admin.id,
+                method=ReceiptMethod.MANUAL_TRANSFER,
+                provider="bank-transfer",
+                external_transaction_id="BANK-TXN-NOT-ISSUED",
+                amount="100.00",
+                currency="NGN",
+                payer_name="Acme Ads",
+                evidence_reference="statement-line-99",
+                observed_at=datetime.now(UTC),
+            )
+            await confirm_payment_receipt(
+                session,
+                receipt_id=receipt.id,
+                actor_user_id=admin.id,
+                expected_amount="100.00",
+                expected_currency="NGN",
+            )
+            for step in ("no invoice", "draft invoice"):
+                if step == "draft invoice":
+                    await create_invoice_draft(
+                        session, commercial_terms_id=terms.id, actor_user_id=admin.id
+                    )
+                with pytest.raises(AppError) as caught:
+                    await allocate_payment_receipt(
+                        session,
+                        receipt_id=receipt.id,
+                        commercial_terms_id=terms.id,
+                        actor_user_id=admin.id,
+                        amount="100.00",
+                    )
+                assert caught.value.code == "INVOICE_NOT_ISSUED"
+                assert (
+                    await session.scalar(select(func.count()).select_from(ReceiptAllocation)) == 0
+                )
 
     asyncio.run(run())

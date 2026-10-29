@@ -84,6 +84,46 @@ describe("Bounded Work queue", () => {
       get.mock.calls.find(([path]) => path.endsWith("/campaign-enquiries"))![1].params.query,
     ).toMatchObject({ status: "new", limit: 1, offset: 0 });
   });
+  it("sends payment runs and payment problems to their Money tabs", async () => {
+    get.mockImplementation(async (path) =>
+      path.endsWith("/payout-batches/summaries")
+        ? {
+            data: {
+              items: [
+                {
+                  id: "run-1",
+                  created_at: date,
+                  status: "reserved",
+                  approval_mode: "manual",
+                  approved_at: null,
+                  outcomes: {},
+                },
+              ],
+              total: 1,
+            },
+          }
+        : path.endsWith("/automatic/alerts")
+          ? {
+              data: {
+                items: [
+                  { id: "alert-1", created_at: date, driver_name: "Ada", batch_id: null },
+                  { id: "alert-2", created_at: date, driver_name: "Bo", batch_id: "run-2" },
+                ],
+                total: 2,
+              },
+            }
+          : { data: { items: [], total: 0 } },
+    );
+    const finance = (await collectWorkQueue(api)).Finance!;
+    const hrefs = await Promise.all(finance.map(async (row) => (await row.describe()).href));
+    expect(hrefs).toEqual(
+      expect.arrayContaining([
+        "/admin/money?tab=runs&batch=run-1",
+        "/admin/money?tab=automatic#problems",
+        "/admin/money?tab=automatic&batch=run-2",
+      ]),
+    );
+  });
   it("asks the server for actionable contact/change/run rows before totals", async () => {
     await collectWorkQueue(api);
     expect(

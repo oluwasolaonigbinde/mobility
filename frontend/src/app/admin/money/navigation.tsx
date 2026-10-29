@@ -1,4 +1,12 @@
 export type MoneySearch = Record<string, string | string[] | undefined>;
+/** Money tabs in display order; the first is the default. */
+export const MONEY_TABS = [
+  ["runs", "Payment runs"],
+  ["ready", "Ready to pay"],
+  ["automatic", "Automatic payouts"],
+  ["invoices", "Invoices & payments"],
+  ["corrections", "Corrections"],
+] as const;
 export function moneyQuery(query: MoneySearch): MoneyQuery {
   return Object.fromEntries(
     Object.entries(query).filter(
@@ -8,7 +16,7 @@ export function moneyQuery(query: MoneySearch): MoneyQuery {
 }
 export type MoneyQuery = Record<string, string | undefined>;
 export function moneyHref(query: MoneyQuery, patch: MoneyQuery = {}) {
-  const merged = { tab: "payouts", ...query, ...patch };
+  const merged = { tab: "runs", ...query, ...patch };
   const params = new URLSearchParams(
     Object.entries(merged).filter(
       (entry): entry is [string, string] => typeof entry[1] === "string",
@@ -22,7 +30,7 @@ export function moneyPage(value?: string) {
 export function MoneyQueryFields({ query, omit = [] }: { query: MoneyQuery; omit?: string[] }) {
   return (
     <>
-      {Object.entries({ tab: "payouts", ...query })
+      {Object.entries({ tab: "runs", ...query })
         .filter(([key, value]) => value !== undefined && !omit.includes(key))
         .map(([key, value]) => (
           <input type="hidden" key={key} name={key} value={value} />

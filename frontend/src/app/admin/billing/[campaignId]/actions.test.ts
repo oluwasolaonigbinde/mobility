@@ -15,7 +15,11 @@ vi.mock("next/navigation", async (importOriginal) => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath }));
 
-import { recordFinancialAuthorityAction, recordRevisionAction } from "./actions";
+import {
+  recordFinancialAuthorityAction,
+  recordManualTransferAction,
+  recordRevisionAction,
+} from "./actions";
 import { ApiError } from "@/lib/api/errors";
 
 describe("recordRevisionAction", () => {
@@ -142,5 +146,18 @@ it("submits a raised approval to the existing authority command", async () => {
         credit_terms: null,
       },
     },
+  );
+});
+it("explains that a transfer needs an issued invoice", async () => {
+  post.mockRejectedValueOnce(
+    new ApiError(409, {
+      code: "INVOICE_NOT_ISSUED",
+      message: "Money can be recorded only against an issued invoice",
+    }),
+  );
+  await expect(
+    recordManualTransferAction("campaign-1", "org-1", "terms-1", new FormData()),
+  ).rejects.toThrow(
+    `redirect:/admin/campaigns/campaign-1?error=${encodeURIComponent("Payments can be recorded once the invoice is issued.")}#money`,
   );
 });

@@ -247,3 +247,35 @@ it("shows the server's funding refusal in plain words", async () => {
   expect(screen.getByText("Not enough cleared funding for this approval.")).toBeVisible();
   expect(screen.getByRole("button", { name: "Record funding approval" })).toBeVisible();
 });
+it.each([
+  ["draft", false],
+  ["none", false],
+  ["issued", true],
+] as const)(
+  "offers manual transfer recording only for an issued invoice: %s",
+  async (state, shown) => {
+    const invoices =
+      state === "none"
+        ? []
+        : [{ ...commercial.invoices[0]!, status: state, invoice_number: "TXM-1" }];
+    get.mockImplementation(async (path: string) =>
+      path.endsWith("/commercial")
+        ? { data: { ...commercial, invoices } }
+        : path === "/api/v1/admin/billing"
+          ? { data: [] }
+          : { data: campaign },
+    );
+    render(
+      await AdminCampaignBillingPage({
+        params: Promise.resolve({ campaignId: "campaign-1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    expect(Boolean(screen.queryByRole("button", { name: "Check and record transfer" }))).toBe(
+      shown,
+    );
+    expect(
+      Boolean(screen.queryByText("Payments can be recorded once the invoice is issued.")),
+    ).toBe(!shown);
+  },
+);

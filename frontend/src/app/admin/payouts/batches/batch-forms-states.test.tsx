@@ -85,19 +85,19 @@ describe("payout form states", () => {
     render(<CreateBatchForm entries={[]} actorId="maker" />);
     expect(screen.getByText("No available credits match these filters.")).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Create and reserve selected credits" }),
-    ).toBeDisabled();
+      screen.queryByRole("button", { name: "Create and reserve selected credits" }),
+    ).not.toBeInTheDocument();
   });
 
   it("clears the preview when a selection is removed", async () => {
     calls.preview.mockResolvedValue({ currency: "NGN", total_amount: "100.07" });
     const user = userEvent.setup();
     render(<CreateBatchForm entries={[entry]} actorId="maker" />);
+    await user.click(screen.getByRole("checkbox"));
     await user.type(
       screen.getByRole("textbox", { name: "Preparation reason" }),
       "Staff payment review",
     );
-    await user.click(screen.getByRole("checkbox"));
     await clickWhenEnabled(user, "Review selected credits");
     expect(await screen.findByText(/Advisory selected total/)).toBeTruthy();
     await checkWhenEnabled(user);
@@ -116,11 +116,11 @@ describe("payout form states", () => {
     calls.reserve.mockRejectedValue(new Error("network"));
     const user = userEvent.setup();
     render(<CreateBatchForm entries={[entry]} actorId="maker" />);
+    await user.click(screen.getByRole("checkbox"));
     await user.type(
       screen.getByRole("textbox", { name: "Preparation reason" }),
       "Staff payment review",
     );
-    await user.click(screen.getByRole("checkbox"));
     await clickWhenEnabled(user, "Review selected credits");
     await screen.findByText(/Advisory selected total/);
     await clickWhenEnabled(user, "Create and reserve selected credits");
@@ -138,18 +138,18 @@ describe("payout form states", () => {
     });
     const user = userEvent.setup();
     render(<CreateBatchForm entries={[entry]} actorId="maker" />);
+    await user.click(screen.getByRole("checkbox"));
     await user.type(
       screen.getByRole("textbox", { name: "Preparation reason" }),
       "Staff payment review",
     );
-    await user.click(screen.getByRole("checkbox"));
     await clickWhenEnabled(user, "Review selected credits");
     await screen.findByText(/Advisory selected total/);
     await clickWhenEnabled(user, "Create and reserve selected credits");
     expect(await screen.findByRole("status")).toHaveTextContent("Reservation confirmed");
     expect(screen.getByRole("link", { name: "Review payment run" })).toHaveAttribute(
       "href",
-      "/admin/money?tab=payouts&batch=batch-1",
+      "/admin/money?tab=runs&batch=batch-1",
     );
     await clickWhenEnabled(user, "Finish recovery");
     expect(localStorage.getItem("cardvert-payout-draft:maker")).toBeNull();
@@ -215,7 +215,7 @@ describe("payout form states", () => {
         batchId="old"
         status="failed"
         query={{
-          tab: "payouts",
+          tab: "runs",
           day: "2026-10-01",
           runs: "2",
           credits: "1",
@@ -231,7 +231,7 @@ describe("payout form states", () => {
     );
     expect(await screen.findByRole("link", { name: "Review replacement run" })).toHaveAttribute(
       "href",
-      "/admin/money?tab=payouts&day=2026-10-01&runs=2&credits=1&batch=confirmed-replacement",
+      "/admin/money?tab=runs&day=2026-10-01&runs=2&credits=1&batch=confirmed-replacement",
     );
   });
 });

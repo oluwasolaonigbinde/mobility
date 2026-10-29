@@ -153,13 +153,13 @@ test("payout selection explains ineligible credits and closeout keeps paid facts
 }) => {
   await loginAsAdmin(page);
 
-  await page.goto("/admin/money");
+  await page.goto("/admin/money?tab=ready");
   await expect(page.getByRole("heading", { name: "Available earnings" })).toBeVisible();
   await expect(
     page.getByText("Already set aside in a payment run or being sent").first(),
   ).toBeVisible();
   const ineligibleCredit = page
-    .getByRole("article")
+    .getByRole("listitem")
     .filter({ hasText: "Already set aside in a payment run or being sent" })
     .first();
   await expect(ineligibleCredit.getByRole("checkbox")).toBeDisabled();

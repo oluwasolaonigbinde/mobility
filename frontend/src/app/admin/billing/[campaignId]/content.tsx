@@ -307,42 +307,54 @@ export default async function AdminCampaignBillingPage({
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <Panel className="p-6">
             <h2 className="font-display text-xl font-semibold">Manual bank transfer</h2>
-            <p className="micro text-muted mt-1 mb-4">
-              The transfer must match the expected payment before it can be confirmed and assigned
-              to this campaign.
-            </p>
-            <form
-              action={recordManualTransferAction.bind(
-                null,
-                campaignId,
-                campaign.organization.id,
-                commercial.terms.id,
-              )}
-              className="grid gap-4"
-            >
-              <Field name="external_transaction_id" label="Bank transaction reference" required />
-              <div className="grid grid-cols-2 gap-4">
-                <Field name="observed_amount" label="Observed amount" required />
-                <Field
-                  name="expected_amount"
-                  label="Expected amount"
-                  defaultValue={commercial.terms.gross_amount}
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Field name="allocation_amount" label="Allocation amount (optional)" />
-                <Field
-                  name="currency"
-                  label="Currency"
-                  defaultValue={commercial.terms.currency}
-                  required
-                />
-              </div>
-              <Field name="payer_name" label="Payer name" required />
-              <Field name="evidence_reference" label="Evidence reference" required />
-              <Button type="submit">Check and record transfer</Button>
-            </form>
+            {invoice?.status !== "issued" ? (
+              <p className="text-muted mt-2 text-sm">
+                Payments can be recorded once the invoice is issued.
+              </p>
+            ) : (
+              <>
+                <p className="micro text-muted mt-1 mb-4">
+                  The transfer must match the expected payment before it can be confirmed and
+                  assigned to this campaign.
+                </p>
+                <form
+                  action={recordManualTransferAction.bind(
+                    null,
+                    campaignId,
+                    campaign.organization.id,
+                    commercial.terms.id,
+                  )}
+                  className="grid gap-4"
+                >
+                  <Field
+                    name="external_transaction_id"
+                    label="Bank transaction reference"
+                    required
+                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field name="observed_amount" label="Observed amount" required />
+                    <Field
+                      name="expected_amount"
+                      label="Expected amount"
+                      defaultValue={commercial.terms.gross_amount}
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field name="allocation_amount" label="Allocation amount (optional)" />
+                    <Field
+                      name="currency"
+                      label="Currency"
+                      defaultValue={commercial.terms.currency}
+                      required
+                    />
+                  </div>
+                  <Field name="payer_name" label="Payer name" required />
+                  <Field name="evidence_reference" label="Evidence reference" required />
+                  <Button type="submit">Check and record transfer</Button>
+                </form>
+              </>
+            )}
           </Panel>
 
           <Panel className="p-6">
@@ -390,7 +402,9 @@ export default async function AdminCampaignBillingPage({
                   </div>
                   <div>
                     <p className="micro text-muted">Payment status</p>
-                    <p className="mt-1 text-sm">{adminStatus(invoice.payment_status)}</p>
+                    <p className="mt-1 text-sm">
+                      {invoice.status === "issued" ? adminStatus(invoice.payment_status) : "—"}
+                    </p>
                   </div>
                 </div>
                 {invoice.corrections?.length ? (

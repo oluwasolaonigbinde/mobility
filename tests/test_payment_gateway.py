@@ -261,6 +261,7 @@ def test_signed_gateway_ingestion_is_thin_and_worker_retry_converges(db_sessionm
                 admin=admin,
                 owner=owner,
                 reference="GATEWAY-Q1",
+                issued=True,
             )
             payload = _payload(terms.id)
             with pytest.raises(AppError) as invalid:
@@ -418,6 +419,7 @@ def test_manual_payment_before_gateway_confirmation_preserves_unallocated_cash(
                 admin=admin,
                 owner=owner,
                 reference="GATEWAY-MANUAL-RACE",
+                issued=True,
             )
             manual = await record_payment_receipt(
                 session,
@@ -520,6 +522,7 @@ def test_concurrent_gateway_workers_create_one_receipt_and_allocation(
                 admin=admin,
                 owner=owner,
                 reference="GATEWAY-OVERLAP",
+                issued=True,
             )
             payload = _payload(terms.id, event_id="overlap-event", transaction_id="overlap-txn")
             event, _ = await ingest_payment_gateway_webhook(

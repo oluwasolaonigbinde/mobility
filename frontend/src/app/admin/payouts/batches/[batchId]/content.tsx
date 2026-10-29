@@ -72,7 +72,7 @@ export default async function BatchDetailPage({
               These earnings passed every automatic payout check, so no person approved them.
               Cardvert sends each payment when automatic payouts are running; provider evidence
               still decides each payment&apos;s outcome. Follow up problems on{" "}
-              <Link className="underline" href="/admin/money?tab=payouts">
+              <Link className="underline" href="/admin/money?tab=automatic">
                 Automatic payouts
               </Link>
               .

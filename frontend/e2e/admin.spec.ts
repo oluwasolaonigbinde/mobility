@@ -152,6 +152,9 @@ test("payouts section lists calculations and the trip pipeline", async ({ page }
   await loginAsAdmin(page);
   await page.goto("/admin/money");
   await expect(page.getByRole("heading", { name: "Money", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Payment runs" })).toBeVisible();
+  await page.getByRole("link", { name: "Ready to pay", exact: true }).click();
+  await page.waitForURL("**tab=ready*");
   await expect(page.getByRole("heading", { name: "Available earnings" })).toBeVisible();
   // Seeded + processed calculations exist with final payouts
   await expect(page.getByText(/₦[\d,]+/).first()).toBeVisible();

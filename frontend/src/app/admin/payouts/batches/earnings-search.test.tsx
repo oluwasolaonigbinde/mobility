@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 import { EarningsSearch } from "./earnings-search";
 
 it("keeps search off until something is typed", () => {
-  render(<EarningsSearch query={{ tab: "payouts", runs: "1" }} />);
+  render(<EarningsSearch query={{ tab: "ready", runs: "1" }} />);
   const search = screen.getByRole("button", { name: "Search earnings" });
   expect(search).toBeDisabled();
   fireEvent.change(screen.getByLabelText("Search driver or campaign"), {
@@ -18,7 +18,7 @@ it("keeps search off until something is typed", () => {
 
 it("lets staff clear an applied search and keeps the other list filters", () => {
   const { container } = render(
-    <EarningsSearch query={{ tab: "payouts", q: "Ada", runs: "1", credits: "2" }} />,
+    <EarningsSearch query={{ tab: "ready", q: "Ada", runs: "1", credits: "2" }} />,
   );
   fireEvent.change(screen.getByLabelText("Search driver or campaign"), {
     target: { value: "" },
@@ -28,7 +28,7 @@ it("lets staff clear an applied search and keeps the other list filters", () => 
     (input) => [input.name, input.value],
   );
   expect(hidden).toEqual([
-    ["tab", "payouts"],
+    ["tab", "ready"],
     ["runs", "1"],
   ]);
 });

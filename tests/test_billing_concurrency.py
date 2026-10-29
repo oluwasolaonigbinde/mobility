@@ -454,6 +454,7 @@ def test_concurrent_refund_reference_conflict_is_stable_across_campaigns(
                     owner=owner,
                     reference=f"REFUND-REFERENCE-RACE-{index}",
                     amount="100.00",
+                    issued=True,
                 )
                 receipt = await record_payment_receipt(
                     session,
