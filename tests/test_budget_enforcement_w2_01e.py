@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from conftest import create_test_campaign, create_test_organization, create_test_user
+from invoice_helpers import issue_test_invoice
 from sqlalchemy import func, select
 
 from app.models.billing import (
@@ -93,6 +94,7 @@ async def fund(session, *, terms, organization, admin, reference, amount):
         expected_amount=amount,
         expected_currency="NGN",
     )
+    await issue_test_invoice(session, terms=terms, admin=admin)
     await allocate_payment_receipt(
         session,
         receipt_id=receipt.id,

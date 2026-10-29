@@ -11,9 +11,13 @@ function path(campaignId: string) {
   return `/admin/campaigns/${campaignId}`;
 }
 
+const MESSAGES = {
+  INVOICE_NOT_ISSUED: "Payments can be recorded once the invoice is issued.",
+} as const;
+
 function fail(campaignId: string, error: unknown): never {
   const message =
-    error instanceof ApiError ? publicActionError(error) : "The billing action failed";
+    error instanceof ApiError ? publicActionError(error, MESSAGES) : "The billing action failed";
   redirect(`${path(campaignId)}?error=${encodeURIComponent(message)}#money`);
 }
 

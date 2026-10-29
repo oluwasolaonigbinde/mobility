@@ -1,7 +1,5 @@
-import type { Metadata } from "next";
 import { adminValueFailure } from "@/lib/api/admin-read";
 import Link from "next/link";
-import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
 import { Panel } from "@/components/ui/panel";
 import { createApiClient } from "@/lib/api/client";
@@ -22,8 +20,6 @@ import {
 import { QueueUnavailable } from "../../queue-search";
 import { moneyHref, moneyPage, MoneyQueryFields, type MoneyQuery } from "../../money/navigation";
 import { PauseSwitchForm, ReleaseUnsentForm, ResolveAlertForm } from "./controls";
-
-export const metadata: Metadata = { title: "Automatic payouts" };
 
 async function settle<T>(read: Promise<{ data?: T }>): Promise<T | null> {
   try {
@@ -80,16 +76,28 @@ function StatusPanel({ status }: { status: AutomaticStatus }) {
           {formatWat(status.pause_changed_at)} (WAT): “{status.pause_reason}”
         </p>
       ) : null}
-      <p className="text-muted text-sm">
-        Only clean daily-rate earnings are paid automatically: no review hold, flag or open dispute,
-        a verified bank account, and never more than one day&apos;s rate per driver per day across
-        campaigns. Everything else stays on{" "}
-        <Link className="underline" href="/admin/money?tab=payouts">
-          payment runs
-        </Link>{" "}
-        for a person to prepare and approve.
-      </p>
-      <PauseSwitchForm paused={status.paused} />
+      <details className="text-sm">
+        <summary className="cursor-pointer">What is paid automatically</summary>
+        <p className="text-muted mt-2">
+          Only clean daily-rate earnings: no review hold, flag or open dispute, a verified bank
+          account, and never more than one day&apos;s rate per driver per day across campaigns.
+          Everything else stays{" "}
+          <Link className="underline" href="/admin/money?tab=ready">
+            ready to pay
+          </Link>{" "}
+          for a person to prepare and approve.
+        </p>
+      </details>
+      {status.paused ? (
+        <PauseSwitchForm paused />
+      ) : (
+        <details className="text-sm">
+          <summary className="cursor-pointer">Pause sending</summary>
+          <div className="mt-2">
+            <PauseSwitchForm paused={false} />
+          </div>
+        </details>
+      )}
       {status.paused && status.unsent_count > 0 ? (
         <ReleaseUnsentForm count={status.unsent_count} />
       ) : null}
@@ -107,7 +115,7 @@ function AlertsPanel({
   query: MoneyQuery;
 }) {
   return (
-    <Panel className="space-y-3 p-4 sm:p-6">
+    <Panel id="problems" className="space-y-3 p-4 sm:p-6">
       <h2 className="font-display text-xl">Problems to follow up</h2>
       {alerts === null ? (
         <QueueUnavailable />
@@ -137,7 +145,12 @@ function AlertsPanel({
                     Open payment run
                   </Link>
                 ) : null}
-                <ResolveAlertForm alertId={alert.id} />
+                <details className="text-sm">
+                  <summary className="cursor-pointer">Record follow-up</summary>
+                  <div className="mt-2">
+                    <ResolveAlertForm alertId={alert.id} />
+                  </div>
+                </details>
               </li>
             );
           })}
@@ -268,10 +281,8 @@ function ReconciliationPanel({
 
 export default async function AutomaticPayoutsPage({
   searchParams,
-  embedded = false,
 }: {
   searchParams: Promise<MoneyQuery>;
-  embedded?: boolean;
 }) {
   await requireRole("admin");
   const query = await searchParams;
@@ -293,18 +304,7 @@ export default async function AutomaticPayoutsPage({
     ),
   ]);
   return (
-    <div className="animate-rise mx-auto max-w-5xl space-y-6 pb-16">
-      {!embedded ? (
-        <>
-          <nav aria-label="Breadcrumb" className="micro text-muted">
-            <Link href="/admin/money?tab=payouts">Payouts</Link> / Automatic payouts
-          </nav>
-          <PageHeader
-            title="Automatic payouts"
-            eyebrow="Cardvert pays clean driver earnings; Finance monitors, reconciles and follows up"
-          />
-        </>
-      ) : null}
+    <div className="space-y-6">
       {status ? (
         <StatusPanel status={status} />
       ) : (

@@ -48,11 +48,11 @@ describe("payout operator forms", () => {
   it("requires a server preview and retains exact recovery before a lost response", async () => {
     render(<CreateBatchForm entries={[entry]} actorId="maker" />);
     const user = userEvent.setup();
+    await user.click(screen.getByRole("checkbox"));
     await user.type(
       screen.getByRole("textbox", { name: "Preparation reason" }),
       "Staff payment review",
     );
-    await user.click(screen.getByRole("checkbox"));
     expect(
       screen.getByRole("button", { name: "Create and reserve selected credits" }),
     ).toBeDisabled();
@@ -71,6 +71,24 @@ describe("payout operator forms", () => {
     await vi.waitFor(() => expect(calls.reserve).toHaveBeenCalledTimes(2));
     expect((calls.reserve.mock.calls[1]![1] as FormData).get("request_id")).toBe(saved.requestId);
     expect(screen.getByRole("checkbox")).toBeDisabled();
+  });
+
+  it("keeps the run form and per-earning extras out of sight until needed", async () => {
+    render(
+      <CreateBatchForm entries={[{ ...entry, bank_account_version_id: "v" }]} actorId="maker" />,
+    );
+    expect(screen.queryByRole("textbox", { name: "Preparation reason" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Create and reserve|Review selected/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show bank details" })).not.toBeVisible();
+    expect(screen.getByText("Record a negative adjustment")).not.toBeVisible();
+    await userEvent.click(screen.getByText("More"));
+    expect(screen.getByRole("button", { name: "Show bank details" })).toBeVisible();
+    expect(screen.getByText("Record a negative adjustment")).toBeVisible();
+    await userEvent.click(screen.getByRole("checkbox"));
+    expect(screen.getByRole("textbox", { name: "Preparation reason" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Review selected credits" })).toBeVisible();
   });
 
   it("restores another tab's saved selection without replacing it", async () => {
@@ -161,7 +179,7 @@ describe("payout operator forms", () => {
     );
     expect(await screen.findByRole("link", { name: "Review replacement run" })).toHaveAttribute(
       "href",
-      "/admin/money?tab=payouts&batch=replacement",
+      "/admin/money?tab=runs&batch=replacement",
     );
   });
 

@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 from conftest import create_test_campaign, create_test_organization, create_test_user
+from invoice_helpers import issue_test_invoice
 from pydantic import ValidationError
 from test_receipt_allocations import _accepted_terms
 
@@ -729,6 +730,20 @@ def test_commercial_validation_paths_fail_closed(db_sessionmaker, settings) -> N
                 expected_amount="1.08",
                 expected_currency="NGN",
             )
+            # REQ-255: a draft invoice never shows paid; money waits for the issued invoice.
+            await refused(
+                "INVOICE_NOT_ISSUED",
+                allocate_payment_receipt(
+                    session,
+                    receipt_id=receipt.id,
+                    commercial_terms_id=terms.id,
+                    actor_user_id=admin.id,
+                    amount="1.08",
+                ),
+            )
+            assert await invoice_payment_status(session, draft) == ("unpaid", Decimal("0.00"))
+            issued = await issue_test_invoice(session, terms=terms, admin=admin, settings=settings)
+            assert issued.id == draft.id
             await allocate_payment_receipt(
                 session,
                 receipt_id=receipt.id,
@@ -736,7 +751,7 @@ def test_commercial_validation_paths_fail_closed(db_sessionmaker, settings) -> N
                 actor_user_id=admin.id,
                 amount="1.08",
             )
-            assert await invoice_payment_status(session, draft) == ("paid", Decimal("1.08"))
+            assert await invoice_payment_status(session, issued) == ("paid", Decimal("1.08"))
 
             # An externally agreed deal needs its evidence and a timezone-aware acceptance time.
             external_request = await request_custom_quote(

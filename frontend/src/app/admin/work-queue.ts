@@ -249,7 +249,7 @@ export const sources: Source[] = [
     "Finance",
     "money",
     "Payment runs",
-    "/admin/money?tab=payouts",
+    "/admin/money?tab=runs",
     (api, limit, offset) =>
       api.GET("/api/v1/admin/payout-batches/summaries", {
         params: { query: { limit, offset, needs_attention: true, oldest_first: true } },
@@ -269,7 +269,7 @@ export const sources: Source[] = [
         ]
           .filter(Boolean)
           .join(" · "),
-        `/admin/money?tab=payouts&batch=${r.id}`,
+        `/admin/money?tab=runs&batch=${r.id}`,
       ),
   ),
   source(
@@ -277,7 +277,7 @@ export const sources: Source[] = [
     "Finance",
     "money",
     "Payment problems",
-    "/admin/money?tab=payouts#problems",
+    "/admin/money?tab=automatic#problems",
     (api, limit, offset) =>
       api.GET("/api/v1/admin/payouts/automatic/alerts", {
         params: { query: { limit, offset, alert_status: "open", oldest_first: true } },
@@ -291,8 +291,8 @@ export const sources: Source[] = [
         "Automatic payouts",
         r.driver_name ? `Payment problem for ${r.driver_name}` : "Payment problem to review",
         r.batch_id
-          ? `/admin/money?tab=payouts&batch=${r.batch_id}`
-          : "/admin/money?tab=payouts#problems",
+          ? `/admin/money?tab=automatic&batch=${r.batch_id}`
+          : "/admin/money?tab=automatic#problems",
       ),
   ),
   source(

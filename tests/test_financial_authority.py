@@ -87,6 +87,7 @@ async def _funded_terms(session, *, admin, owner, organization, campaign, refere
         owner=owner,
         reference=reference,
         amount="100.00",
+        issued=True,
     )
     receipt = await record_payment_receipt(
         session,

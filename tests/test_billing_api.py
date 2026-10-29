@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 from datetime import UTC, datetime
+from uuid import UUID
 
 from conftest import (
     auth_headers,
@@ -48,8 +49,9 @@ def _fixture(db_sessionmaker, suffix: str):
 
 
 def test_commercial_api_journey_is_tenant_scoped_and_uses_canonical_cash(
-    db_client, db_sessionmaker
+    db_client, db_sessionmaker, settings
 ) -> None:
+    test_settings = settings
     admin, owner, organization, campaign = _fixture(db_sessionmaker, "journey")
     admin_headers = auth_headers(db_client, admin.email)
     owner_headers = auth_headers(db_client, owner.email)
@@ -159,20 +161,63 @@ def test_commercial_api_journey_is_tenant_scoped_and_uses_canonical_cash(
     assert premature.status_code == 409
     assert premature.json()["error"]["code"] == "PRODUCTION_FINANCIAL_AUTHORITY_REQUIRED"
 
+    transfer_body = {
+        "organization_id": str(organization.id),
+        "commercial_terms_id": terms_id,
+        "external_transaction_id": "API-BANK-001",
+        "observed_amount": "100.00",
+        "expected_amount": "100.00",
+        "currency": "NGN",
+        "payer_name": "API Advertiser",
+        "evidence_reference": "API-BANK-EVIDENCE-001",
+        "observed_at": datetime.now(UTC).isoformat(),
+    }
+
+    def receipt_count() -> int:
+        async def count() -> int:
+            async with db_sessionmaker() as session:
+                return await session.scalar(select(func.count()).select_from(PaymentReceipt))
+
+        return asyncio.run(count())
+
+    # REQ-255: no invoice, then a draft invoice — both refused before any receipt is written.
+    for step in ("no invoice", "draft invoice"):
+        if step == "draft invoice":
+            draft = db_client.post(
+                "/api/v1/admin/invoices",
+                headers=admin_headers,
+                json={"commercial_terms_id": terms_id},
+            )
+            assert draft.status_code == 200, draft.text
+            assert draft.json()["status"] == "draft"
+        refused = db_client.post(
+            "/api/v1/admin/billing/manual-transfers", headers=admin_headers, json=transfer_body
+        )
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["error"]["code"] == "INVOICE_NOT_ISSUED"
+        assert receipt_count() == 0
+
+    async def issue() -> None:
+        async with db_sessionmaker() as session:
+            issuer = await _issuer(
+                session,
+                admin,
+                IssuerVerificationStatus.SYNTHETIC,
+                "SYNTHETIC-API-JOURNEY",
+                test_settings,
+            )
+            await issue_invoice(
+                session,
+                invoice_id=draft.json()["id"],
+                issuer_profile_id=issuer.id,
+                actor_user_id=admin.id,
+                settings=test_settings,
+            )
+            await session.commit()
+
+    asyncio.run(issue())
     transfer = db_client.post(
-        "/api/v1/admin/billing/manual-transfers",
-        headers=admin_headers,
-        json={
-            "organization_id": str(organization.id),
-            "commercial_terms_id": terms_id,
-            "external_transaction_id": "API-BANK-001",
-            "observed_amount": "100.00",
-            "expected_amount": "100.00",
-            "currency": "NGN",
-            "payer_name": "API Advertiser",
-            "evidence_reference": "API-BANK-EVIDENCE-001",
-            "observed_at": datetime.now(UTC).isoformat(),
-        },
+        "/api/v1/admin/billing/manual-transfers", headers=admin_headers, json=transfer_body
     )
     assert transfer.status_code == 200, transfer.text
     assert transfer.json()["matched"] is True
@@ -275,6 +320,17 @@ def test_payment_webhook_commits_then_enqueues_and_duplicate_reenqueues(
         json={"acceptance_method": "in_platform"},
     ).json()
 
+    async def issue() -> None:
+        from invoice_helpers import issue_test_invoice
+
+        from app.models.billing import CommercialTerms
+
+        async with db_sessionmaker() as session:
+            accepted = await session.get(CommercialTerms, UUID(terms["id"]))
+            await issue_test_invoice(session, terms=accepted, admin=admin)
+            await session.commit()
+
+    asyncio.run(issue())
     fake = FakePaymentGatewayAdapter()
 
     class RecordingEnqueuer:

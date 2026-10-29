@@ -13,6 +13,7 @@ from app.core.errors import AppError
 from app.models.billing import (
     CommercialTerms,
     Invoice,
+    InvoiceStatus,
     PaymentGatewayEvent,
     PaymentReceipt,
     ReceiptAllocation,
@@ -85,6 +86,16 @@ async def _trusted_confirmed_gateway_event(
             status_code=status.HTTP_409_CONFLICT,
         )
     return event, terms
+
+
+def _require_issued_invoice(invoice_status: str | None) -> None:
+    """Money is recorded only against an issued invoice (REQ-255); fail closed otherwise."""
+    if invoice_status != InvoiceStatus.ISSUED:
+        raise AppError(
+            "INVOICE_NOT_ISSUED",
+            "Money can be recorded only against an issued invoice",
+            status_code=status.HTTP_409_CONFLICT,
+        )
 
 
 async def record_payment_receipt(  # noqa: C901
@@ -346,9 +357,10 @@ async def allocate_payment_receipt(  # noqa: C901
         raise AppError(
             "BILLING_AUTHORITY_NOT_FOUND", "Billing authority was not found", status_code=404
         )
-    await session.scalar(
-        select(Invoice.id).where(Invoice.commercial_terms_id == terms.id).with_for_update()
+    invoice_status = await session.scalar(
+        select(Invoice.status).where(Invoice.commercial_terms_id == terms.id).with_for_update()
     )
+    _require_issued_invoice(invoice_status)
     if actor_user_id is None and (
         gateway_terms.id != terms.id
         or gateway_event.provider != receipt.provider
@@ -548,6 +560,13 @@ async def process_manual_bank_transfer(
     allocation_amount: Decimal | str | None = None,
 ) -> tuple[PaymentReceipt, bool, ReceiptAllocation | None]:
     """Record and conditionally confirm one manual bank statement line."""
+    # Plain read: refuse before any receipt is written. The authoritative check runs under
+    # the invoice lock in allocate_payment_receipt (locking here would reverse lock order).
+    _require_issued_invoice(
+        await session.scalar(
+            select(Invoice.status).where(Invoice.commercial_terms_id == commercial_terms_id)
+        )
+    )
     receipt = await record_payment_receipt(
         session,
         organization_id=organization_id,

@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/errors";
-import PayoutBatchesPage from "./content";
+import PaymentRunsPage, { ReadyToPay } from "./content";
 import BatchDetailPage from "./[batchId]/content";
 import LineHistoryPage from "./[batchId]/lines/[lineId]/content";
 
@@ -60,40 +60,47 @@ describe("bounded payout pages", () => {
     });
   });
 
-  it("keeps credit and batch pagination independent with named exact summaries", async () => {
-    mocks.api
-      .mockResolvedValueOnce({ items: [], total: 80 })
-      .mockResolvedValueOnce({ items: [summary], total: 100 });
+  it("lists runs as compact rows with one read, leaving people and approval to the drawer", async () => {
+    mocks.api.mockResolvedValueOnce({ items: [summary], total: 100 });
     render(
-      await PayoutBatchesPage({
-        searchParams: Promise.resolve({
-          q: "Ada%",
-          currency: "ngn",
-          credits: "1",
-          runs: "2",
-          status: "reserved",
-        }),
+      await PaymentRunsPage({
+        searchParams: Promise.resolve({ tab: "runs", runs: "2", status: "reserved" }),
       }),
     );
     expect(mocks.role).toHaveBeenCalledWith("admin");
-    expect(mocks.api).toHaveBeenNthCalledWith(
-      1,
-      "/eligible?limit=25&offset=25&search=Ada%25&currency=NGN",
-    );
-    expect(mocks.api).toHaveBeenNthCalledWith(
-      2,
+    expect(mocks.api).toHaveBeenCalledExactlyOnceWith(
       "/summaries?limit=25&offset=50&batch_status=reserved",
     );
-    expect(screen.getByText("Prepared by: Ada Maker")).toBeVisible();
-    expect(screen.getByText("₦125.10")).toBeVisible();
-    expect(screen.getByText("Queued — not submitted: 2")).toBeVisible();
-    expect(screen.getByRole("link", { name: "Next earnings" })).toHaveAttribute(
+    const row = screen.getByRole("row", { name: /₦125.10/ });
+    expect(within(row).getByText("Waiting for approval")).toBeVisible();
+    expect(within(row).getByText("Queued — not submitted: 2")).toBeVisible();
+    expect(within(row).getByRole("link", { name: "Review run" })).toHaveAttribute(
       "href",
-      expect.stringContaining("credits=2&runs=2"),
+      "/admin/money?tab=runs&runs=2&status=reserved&batch=batch",
     );
+    expect(screen.queryByText(/Prepared by|Approved by/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Previous runs" })).toHaveAttribute(
       "href",
-      expect.stringContaining("credits=1&runs=1"),
+      expect.stringContaining("runs=1"),
+    );
+  });
+
+  it("shows ready-to-pay earnings on their own screen with their own paging", async () => {
+    mocks.api.mockResolvedValueOnce({ items: [], total: 80 });
+    render(
+      await ReadyToPay({
+        searchParams: Promise.resolve({ tab: "ready", q: "Ada%", currency: "ngn", credits: "1" }),
+      }),
+    );
+    expect(mocks.api).toHaveBeenCalledExactlyOnceWith(
+      "/eligible?limit=25&offset=25&search=Ada%25&currency=NGN",
+    );
+    expect(screen.getByRole("heading", { name: "Available earnings" })).toBeVisible();
+    expect(screen.getByText("Credit selection")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Next earnings" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("tab=ready&q=Ada%25&currency=ngn&credits=2"),
     );
   });
 
@@ -107,37 +114,31 @@ describe("bounded payout pages", () => {
       }),
     ],
     ["transport", new TypeError("private transport URL and token")],
-  ])(
-    "retains the named 125.10 payment run beside an unavailable earnings panel after %s",
-    async (_kind, error) => {
-      mocks.api.mockImplementation(async (path: string) => {
-        if (path.startsWith("/eligible?")) throw error;
-        return { items: [summary], total: 1 };
-      });
-      render(await PayoutBatchesPage({ searchParams: Promise.resolve({}) }));
-      expect(mocks.api).toHaveBeenCalledTimes(2);
-      expect(screen.getAllByRole("alert")).toHaveLength(1);
-      expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
-      expect(screen.getByText("Prepared by: Ada Maker")).toBeVisible();
-      expect(screen.getByText("₦125.10")).toBeVisible();
-      expect(screen.getByRole("link", { name: "Review run" })).toBeVisible();
-      expect(
-        screen.queryByText(
-          /Credit selection|No payment runs match|0 available earnings records|₦0\.00/,
-        ),
-      ).not.toBeInTheDocument();
-      expect(document.body.textContent).not.toMatch(/private|0123456789|PRIVATE_BACKEND_CODE/i);
-    },
-  );
+  ])("shows one unavailable state, never an empty list, after %s", async (_kind, error) => {
+    mocks.api.mockRejectedValue(error);
+    const earnings = render(await ReadyToPay({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
+    expect(
+      screen.queryByText(/Credit selection|0 available earnings records|₦0\.00/),
+    ).not.toBeInTheDocument();
+    earnings.unmount();
+    render(await PaymentRunsPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.queryByText(/No payment runs match/)).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/private|0123456789|PRIVATE_BACKEND_CODE/i);
+  });
 
   it("bounds invalid query input and shows truthful empty states", async () => {
     mocks.api.mockResolvedValue({ items: [], total: 0 });
-    render(
-      await PayoutBatchesPage({
-        searchParams: Promise.resolve({ credits: "-3", runs: "oops", currency: "NOTMONEY" }),
+    const earnings = render(
+      await ReadyToPay({
+        searchParams: Promise.resolve({ credits: "-3", currency: "NOTMONEY" }),
       }),
     );
     expect(mocks.api).toHaveBeenCalledWith("/eligible?limit=25&offset=0");
+    earnings.unmount();
+    render(await PaymentRunsPage({ searchParams: Promise.resolve({ runs: "oops" }) }));
+    expect(mocks.api).toHaveBeenLastCalledWith("/summaries?limit=25&offset=0");
     expect(screen.getByText("No payment runs match this page.")).toBeVisible();
     expect(screen.queryByRole("link", { name: "Next runs" })).not.toBeInTheDocument();
   });
@@ -164,12 +165,12 @@ describe("bounded payout pages", () => {
       maker_name: "Cardvert (automatic payouts)",
       approved_at: "2026-09-14T10:00:00Z",
     };
-    mocks.api
-      .mockResolvedValueOnce({ items: [], total: 0 })
-      .mockResolvedValueOnce({ items: [automatic], total: 1 });
-    render(await PayoutBatchesPage({ searchParams: Promise.resolve({}) }));
-    expect(screen.getByText("Approved automatically by Cardvert")).toBeVisible();
-    expect(screen.queryByText(/Maker:/)).not.toBeInTheDocument();
+    mocks.api.mockResolvedValueOnce({ items: [automatic], total: 1 });
+    render(await PaymentRunsPage({ searchParams: Promise.resolve({}) }));
+    expect(
+      within(screen.getByRole("row", { name: /₦125.10/ })).getByText("Automatic"),
+    ).toBeVisible();
+    expect(screen.queryByText(/Maker:|Prepared by/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Awaiting independent approval/)).not.toBeInTheDocument();
   });
 
@@ -183,7 +184,7 @@ describe("bounded payout pages", () => {
     expect(screen.getByText(/Approved automatically by/)).toHaveTextContent("Cardvert");
     expect(screen.getByRole("link", { name: "Automatic payouts" })).toHaveAttribute(
       "href",
-      "/admin/money?tab=payouts",
+      "/admin/money?tab=automatic",
     );
     expect(screen.queryByText("Batch actions")).not.toBeInTheDocument();
     expect(screen.queryByText(/Checker:/)).not.toBeInTheDocument();
@@ -191,10 +192,8 @@ describe("bounded payout pages", () => {
 
   it("shows a run approved by one admin as approved, not waiting, until it is sent", async () => {
     const approved = { ...summary, checker_name: "Ada Maker", approved_at: summary.created_at };
-    mocks.api
-      .mockResolvedValueOnce({ items: [], total: 0 })
-      .mockResolvedValueOnce({ items: [approved], total: 1 });
-    const list = render(await PayoutBatchesPage({ searchParams: Promise.resolve({}) }));
+    mocks.api.mockResolvedValueOnce({ items: [approved], total: 1 });
+    const list = render(await PaymentRunsPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByText(/Approved — not sent yet/)).toBeVisible();
     expect(screen.queryByText(/Waiting for approval/)).not.toBeInTheDocument();
     list.unmount();

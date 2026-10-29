@@ -109,7 +109,8 @@ function api({
   });
 }
 
-const page = (day?: string) => AutomaticPayoutsPage({ searchParams: Promise.resolve({ day }) });
+const page = (day?: string) =>
+  AutomaticPayoutsPage({ searchParams: Promise.resolve({ tab: "automatic", day }) });
 
 describe("AutomaticPayoutsPage", () => {
   beforeEach(() => {
@@ -124,7 +125,15 @@ describe("AutomaticPayoutsPage", () => {
     expect(screen.getByText(/No payment provider is connected yet/)).toBeVisible();
     expect(screen.getByText("Nothing to follow up.")).toBeVisible();
     expect(screen.getByText("No automatic payouts ran on this day.")).toBeVisible();
+    // Pausing and the rules stay folded away until asked for.
+    expect(screen.getByRole("button", { name: "Pause automatic payouts" })).not.toBeVisible();
+    expect(screen.getByText(/Only clean daily-rate earnings/)).not.toBeVisible();
+    fireEvent.click(screen.getByText("Pause sending"));
     expect(screen.getByRole("button", { name: "Pause automatic payouts" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "ready to pay" })).toHaveAttribute(
+      "href",
+      "/admin/money?tab=ready",
+    );
   });
 
   it("shows a running status, open problems and the day's reconciliation", async () => {
@@ -146,15 +155,18 @@ describe("AutomaticPayoutsPage", () => {
     ).toBeVisible();
     expect(within(problem).getByRole("link", { name: "Open payment run" })).toHaveAttribute(
       "href",
-      "/admin/money?tab=payouts&day=2026-09-28&batch=batch-1",
+      "/admin/money?tab=automatic&day=2026-09-28&batch=batch-1",
     );
+    expect(within(problem).getByRole("button", { name: "Mark as followed up" })).not.toBeVisible();
+    fireEvent.click(within(problem).getByText("Record follow-up"));
     expect(within(problem).getByRole("button", { name: "Mark as followed up" })).toBeVisible();
+    expect(problem.closest("#problems")).not.toBeNull();
     expect(screen.getByText("Sent — waiting for the bank")).toBeVisible();
     expect(screen.getByText(/Bank answers recorded: Paid 1 · Paid 1 \(no change\)/)).toBeVisible();
     expect(screen.getByText("Trip had a review flag: 1 · ₦3,000.00")).toBeVisible();
     expect(screen.getByRole("link", { name: "Ada Driver" })).toHaveAttribute(
       "href",
-      "/admin/money?tab=payouts&day=2026-09-28&batch=batch-1&line=line-1",
+      "/admin/money?tab=automatic&day=2026-09-28&batch=batch-1&line=line-1",
     );
     expect(screen.getByText("3 automatic payments started this day.")).toBeVisible();
   });

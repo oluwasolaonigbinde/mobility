@@ -431,6 +431,7 @@ def test_split_receipt_refunds_conserve_each_allocation(db_sessionmaker, refund_
                     owner=owner,
                     reference=f"SPLIT-A-{refund_order[0]}",
                     amount="60.00",
+                    issued=True,
                 ),
                 "second": await _accepted_terms(
                     session,
@@ -439,6 +440,7 @@ def test_split_receipt_refunds_conserve_each_allocation(db_sessionmaker, refund_
                     owner=owner,
                     reference=f"SPLIT-B-{refund_order[0]}",
                     amount="40.00",
+                    issued=True,
                 ),
             }
             receipt = await record_payment_receipt(

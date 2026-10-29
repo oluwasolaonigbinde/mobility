@@ -42,6 +42,7 @@ def test_manual_transfer_workflow_is_idempotent_and_visible_to_both_parties(
                 owner=owner,
                 reference="BANK-Q1",
                 amount="100.00",
+                issued=True,
             )
             observed_at = datetime.now(UTC)
             first = await process_manual_bank_transfer(
@@ -110,6 +111,7 @@ def test_manual_transfer_mismatch_remains_visible_but_grants_no_authority(
                 owner=owner,
                 reference="BANK-Q2",
                 amount="100.00",
+                issued=True,
             )
             receipt, reconciliation, allocation = await process_manual_bank_transfer(
                 session,
@@ -133,5 +135,65 @@ def test_manual_transfer_mismatch_remains_visible_but_grants_no_authority(
             assert history[0]["receipt"].id == receipt.id
             assert history[0]["current_status"] == "recorded"
             assert history[0]["allocations"] == []
+
+    asyncio.run(scenario())
+
+
+def test_manual_transfer_is_refused_without_an_issued_invoice(db_sessionmaker) -> None:
+    """REQ-255: money is recorded only against an issued invoice; nothing is written."""
+    from sqlalchemy import func, select
+
+    from app.models.audit import AuditEvent
+    from app.models.billing import PaymentReceipt, ReceiptAllocation, ReceiptLifecycleEvent
+    from app.services.billing.invoices import create_invoice_draft
+
+    admin, owner, _, organization, campaign = _fixture(db_sessionmaker)
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            terms = await _accepted_terms(
+                session,
+                campaign=campaign,
+                admin=admin,
+                owner=owner,
+                reference="BANK-Q3",
+                amount="100.00",
+            )
+
+            async def counts():
+                await session.flush()
+                return [
+                    await session.scalar(select(func.count()).select_from(model))
+                    for model in (
+                        PaymentReceipt,
+                        ReceiptLifecycleEvent,
+                        ReceiptAllocation,
+                        AuditEvent,
+                    )
+                ]
+
+            for step in ("no invoice", "draft invoice"):
+                if step == "draft invoice":
+                    await create_invoice_draft(
+                        session, commercial_terms_id=terms.id, actor_user_id=admin.id
+                    )
+                before = await counts()
+                with pytest.raises(AppError) as refused:
+                    await process_manual_bank_transfer(
+                        session,
+                        organization_id=organization.id,
+                        commercial_terms_id=terms.id,
+                        actor_user_id=admin.id,
+                        external_transaction_id=f"MANUAL-BANK-003-{step}",
+                        observed_amount="100.00",
+                        expected_amount="100.00",
+                        currency="NGN",
+                        payer_name="Acme Ads",
+                        evidence_reference="statement-003",
+                        observed_at=datetime.now(UTC),
+                    )
+                assert refused.value.code == "INVOICE_NOT_ISSUED"
+                assert refused.value.status_code == 409
+                assert await counts() == before
 
     asyncio.run(scenario())

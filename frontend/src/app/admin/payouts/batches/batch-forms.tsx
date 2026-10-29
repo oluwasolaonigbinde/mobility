@@ -171,8 +171,7 @@ export function CreateBatchForm({
   return (
     <div className="space-y-4">
       <p className="text-muted text-sm">
-        Choose whole earnings records in one currency. These amounts are a guide: saving the run
-        checks review holds, trip adjustments and payment eligibility again.
+        Pick earnings in one currency. Saving the run checks every payment again.
       </p>
       {recovery ? (
         <div className="border-edge rounded-lg border p-4">
@@ -228,113 +227,120 @@ export function CreateBatchForm({
           ) : null}
         </div>
       ) : null}
-      <div className="grid gap-3 lg:grid-cols-2">
-        {entries.map((entry) => (
-          <article
-            key={entry.ledger_entry_id}
-            className="border-edge min-w-0 rounded-xl border p-4"
-          >
-            <label className="flex items-start gap-3">
-              <input
-                type="checkbox"
-                className="mt-1"
-                aria-label={`Select ${entry.driver_name} ${entry.amount} ${entry.currency}`}
-                disabled={
-                  pending ||
-                  !!recovery ||
-                  !entry.eligible ||
-                  (!!currency && currency !== entry.currency)
-                }
-                checked={selected.includes(entry.ledger_entry_id)}
-                onChange={(event) => {
-                  setPreview(null);
-                  setSelected((values) =>
-                    event.target.checked
-                      ? [...values, entry.ledger_entry_id]
-                      : values.filter((id) => id !== entry.ledger_entry_id),
-                  );
-                }}
-              />
-              <span className="min-w-0">
-                <strong className="block break-words">{entry.driver_name}</strong>
-                <span className="text-muted block break-words">{entry.campaign_name}</span>
-                <span className="block font-mono">
-                  {formatMoneyExact(entry.amount, entry.currency)}
+      {entries.length ? (
+        <ul className="divide-edge/60 border-edge divide-y rounded-xl border">
+          {entries.map((entry) => (
+            <li key={entry.ledger_entry_id} className="min-w-0 px-4 py-3">
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  aria-label={`Select ${entry.driver_name} ${entry.amount} ${entry.currency}`}
+                  disabled={
+                    pending ||
+                    !!recovery ||
+                    !entry.eligible ||
+                    (!!currency && currency !== entry.currency)
+                  }
+                  checked={selected.includes(entry.ledger_entry_id)}
+                  onChange={(event) => {
+                    setPreview(null);
+                    setSelected((values) =>
+                      event.target.checked
+                        ? [...values, entry.ledger_entry_id]
+                        : values.filter((id) => id !== entry.ledger_entry_id),
+                    );
+                  }}
+                />
+                <span className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-4">
+                  <span className="min-w-0 break-words">
+                    <strong>{entry.driver_name}</strong>
+                    <span className="text-muted"> · {entry.campaign_name}</span>
+                  </span>
+                  <span className="font-mono">
+                    {formatMoneyExact(entry.amount, entry.currency)}
+                  </span>
                 </span>
-              </span>
-            </label>
-            <p className="text-muted mt-2 text-sm">
-              Paid to: {entry.payee_name ?? "No bank account on file"} ·{" "}
-              {entry.destination_verified ? "Bank details checked" : "Bank details not checked"}
-            </p>
-            {entry.ineligibility_reasons.map((reason) => (
-              <p key={reason} className="text-amber text-sm">
-                {plainReason(reason)}
+              </label>
+              <p className="text-muted mt-1 pl-7 text-sm">
+                Paid to: {entry.payee_name ?? "No bank account on file"} ·{" "}
+                {entry.destination_verified ? "Bank details checked" : "Bank details not checked"}
               </p>
-            ))}
-            {entry.bank_account_version_id ? (
-              <MaskedDestination versionId={entry.bank_account_version_id} />
-            ) : null}
-            <NegativeAdjustmentForm entryId={entry.ledger_entry_id} currency={entry.currency} />
-          </article>
-        ))}
-      </div>
-      {!entries.length ? (
+              {entry.ineligibility_reasons.map((reason) => (
+                <p key={reason} className="text-amber pl-7 text-sm">
+                  {plainReason(reason)}
+                </p>
+              ))}
+              <details className="mt-1 pl-7 text-sm">
+                <summary className="text-muted cursor-pointer">More</summary>
+                {entry.bank_account_version_id ? (
+                  <MaskedDestination versionId={entry.bank_account_version_id} />
+                ) : null}
+                <NegativeAdjustmentForm entryId={entry.ledger_entry_id} currency={entry.currency} />
+              </details>
+            </li>
+          ))}
+        </ul>
+      ) : (
         <p className="text-muted">No available credits match these filters.</p>
+      )}
+      {recovery || chosen.length ? (
+        <>
+          <label className="text-muted block text-sm">
+            Preparation reason
+            <textarea
+              aria-label="Preparation reason"
+              minLength={3}
+              maxLength={500}
+              required
+              value={recovery?.reason ?? reason}
+              disabled={!!recovery || pending}
+              onChange={(event) => setReason(event.target.value)}
+              className="border-edge bg-raised text-ink block w-full rounded border p-2"
+            />
+          </label>
+          {!recovery && chosen.length ? (
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={pending}
+              onClick={() =>
+                start(async () => setPreview(await previewSelectionAction(currency!, selected)))
+              }
+            >
+              Review selected credits
+            </Button>
+          ) : null}
+          {preview?.total_amount ? (
+            <p>
+              Advisory selected total:{" "}
+              <strong>{formatMoneyExact(preview.total_amount, preview.currency)}</strong>.
+              Reservation rechecks the selected credits.
+            </p>
+          ) : null}
+          {preview?.error ? (
+            <p role="alert" className="text-coral">
+              {preview.error}
+            </p>
+          ) : null}
+          <Button
+            type="button"
+            onClick={execute}
+            disabled={
+              pending ||
+              (!recovery && (!chosen.length || !preview?.total_amount || reason.trim().length < 3))
+            }
+          >
+            {pending
+              ? "Confirming reservation…"
+              : recovery
+                ? "Retry saved reservation"
+                : draftId
+                  ? "Reserve this draft"
+                  : "Create and reserve selected credits"}
+          </Button>
+        </>
       ) : null}
-      <label className="text-muted block text-sm">
-        Preparation reason
-        <textarea
-          aria-label="Preparation reason"
-          minLength={3}
-          maxLength={500}
-          required
-          value={recovery?.reason ?? reason}
-          disabled={!!recovery || pending}
-          onChange={(event) => setReason(event.target.value)}
-          className="border-edge bg-raised text-ink block w-full rounded border p-2"
-        />
-      </label>
-      {!recovery && chosen.length ? (
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={pending}
-          onClick={() =>
-            start(async () => setPreview(await previewSelectionAction(currency!, selected)))
-          }
-        >
-          Review selected credits
-        </Button>
-      ) : null}
-      {preview?.total_amount ? (
-        <p>
-          Advisory selected total:{" "}
-          <strong>{formatMoneyExact(preview.total_amount, preview.currency)}</strong>. Reservation
-          rechecks the selected credits.
-        </p>
-      ) : null}
-      {preview?.error ? (
-        <p role="alert" className="text-coral">
-          {preview.error}
-        </p>
-      ) : null}
-      <Button
-        type="button"
-        onClick={execute}
-        disabled={
-          pending ||
-          (!recovery && (!chosen.length || !preview?.total_amount || reason.trim().length < 3))
-        }
-      >
-        {pending
-          ? "Confirming reservation…"
-          : recovery
-            ? "Retry saved reservation"
-            : draftId
-              ? "Reserve this draft"
-              : "Create and reserve selected credits"}
-      </Button>
       {state.error ? (
         <p role="alert" className="text-coral text-sm">
           {state.error}
