@@ -27,6 +27,7 @@ class DecimalStringMixin(BaseModel):
         "gross_payout",
         "final_payout",
         "amount",
+        "overpaid",
         "pending_amount",
         "available_amount",
         "paid_amount",
@@ -155,7 +156,7 @@ class EarningsWorkDayRead(DecimalStringMixin):
     amount: Decimal
 
 
-class EarningsLedgerEntryRead(PayoutLedgerEntrySummary):
+class _EarningsLedgerEntryFields(PayoutLedgerEntrySummary):
     payout_calculation_id: UUID | None
     driver_profile_id: UUID
     campaign_id: UUID
@@ -164,8 +165,18 @@ class EarningsLedgerEntryRead(PayoutLedgerEntrySummary):
     entry_type: EarningsLedgerEntryType
     description: str | None
     occurred_at: datetime
-    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
+
+
+class EarningsLedgerEntryRead(_EarningsLedgerEntryFields):
+    """Staff view: includes the audit metadata (actor, reason)."""
+
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class DriverEarningsLedgerEntryRead(_EarningsLedgerEntryFields):
+    """Driver view: no staff metadata; the work days and payment state instead."""
+
     work_days: list[EarningsWorkDayRead] = Field(default_factory=list)
     paid_at: datetime | None = None
     paying_tonight: bool = False
@@ -173,7 +184,9 @@ class EarningsLedgerEntryRead(PayoutLedgerEntrySummary):
 
 
 class DriverMoneyMixin(BaseModel):
-    @field_serializer("amount", "today", "this_week", "total", "on_hold", check_fields=False)
+    @field_serializer(
+        "amount", "overpaid", "today", "this_week", "total", "on_hold", check_fields=False
+    )
     def serialize_money(self, value: Decimal) -> str:
         return str(value.quantize(Decimal("0.01")))
 
@@ -185,6 +198,8 @@ class DriverEarningsDayRead(DriverMoneyMixin):
     status: Literal["on_hold", "paid", "paying_tonight", "being_checked"]
     paid_at: datetime | None
     trip_ids: list[UUID]
+    # Cash already paid above the net amount, shown against the deduction's day.
+    overpaid: Decimal = Decimal("0.00")
 
 
 class DriverEarningsTotalsRead(DriverMoneyMixin):
@@ -240,7 +255,7 @@ class PayoutCalculationListResponse(BaseModel):
 
 
 class EarningsLedgerEntryListResponse(BaseModel):
-    items: list[EarningsLedgerEntryRead]
+    items: list[DriverEarningsLedgerEntryRead]
     total: int
     limit: int
     offset: int
@@ -412,5 +427,7 @@ class DriverTripEarningsBreakdown(DecimalStringMixin):
     eligible_seconds: int | None
     excluded_seconds_by_reason: dict[str, int] | None
     superseded_by_recompute: bool
-    entries: list[EarningsLedgerEntryRead]
+    entries: list[DriverEarningsLedgerEntryRead]
     daily_rate_days: list[DriverTripDailyRateDay] | None = None
+    # Cash already paid above `amount` and attributed to recorded deductions.
+    overpaid: Decimal = Decimal("0.00")

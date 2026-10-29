@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.schemas.payouts import EarningsLedgerEntryRead
+from app.schemas.payouts import DriverEarningsLedgerEntryRead
 from app.services import driver_earnings_presentation as presentation
 
 
@@ -51,7 +51,7 @@ def test_payment_date_requires_succeeded_line_evidence(monkeypatch, state, paid_
         amount=Decimal("10.00"),
         entry_type="trip_payout",
     )
-    response = EarningsLedgerEntryRead.model_construct(
+    response = DriverEarningsLedgerEntryRead.model_construct(
         work_days=[], paid_at=None, paying_tonight=False, payment_on_hold=False
     )
     line = SimpleNamespace(
@@ -142,7 +142,7 @@ def test_tonight_requires_current_automatic_schedule_and_runtime(
         ),
         scalar=AsyncMock(return_value=None),
     )
-    response = EarningsLedgerEntryRead.model_construct(
+    response = DriverEarningsLedgerEntryRead.model_construct(
         work_days=[], paid_at=None, paying_tonight=False, payment_on_hold=False
     )
     monkeypatch.setattr(

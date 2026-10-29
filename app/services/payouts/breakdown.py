@@ -18,6 +18,7 @@ from app.services.drivers import get_required_driver_profile_with_user_by_user_i
 from app.services.impressions import (
     quantize_2,
 )
+from app.services.payout_balances import TripMoneyPosition, trip_money_positions
 from app.services.payouts.common import PAYOUT_V4, payout_calculation_not_found
 from app.services.payouts.ledger import existing_payout_calculation_for_trip_any_formula
 from app.services.trips import trip_not_found
@@ -35,6 +36,36 @@ class DriverTripBreakdown:
     entries: list[EarningsLedgerEntry]
     # payout_v4: (Lagos day, whole metres counted, pay this trip added).
     daily_rate_days: list[tuple[date, int, Decimal]] | None = None
+    overpaid: Decimal = Decimal("0.00")
+
+
+def overpaid_deductions(entries, position: TripMoneyPosition) -> list[tuple[object, Decimal]]:
+    """Cash already paid above a trip's net award, set against its recorded deductions.
+
+    The ledger nets a deduction only against this trip's still-unpaid pay, so cash
+    above the net award means a deduction recorded after the money went out. Newest
+    deduction first, never more than its own amount: extra cash with no recorded
+    deduction (a duplicate transfer, say) is not presented as one.
+    """
+    remaining = max(position.cash_paid - position.earned_net, Decimal("0.00"))
+    parts: list[tuple[object, Decimal]] = []
+    deductions = sorted(
+        (
+            entry
+            for entry in entries
+            if entry.entry_type == EarningsLedgerEntryType.REVERSAL.value
+            and entry.status != EarningsLedgerEntryStatus.VOIDED.value
+        ),
+        key=lambda entry: (entry.occurred_at, entry.created_at, str(entry.id)),
+        reverse=True,
+    )
+    for entry in deductions:
+        if remaining <= 0:
+            break
+        part = min(remaining, entry.amount)
+        parts.append((entry, part))
+        remaining -= part
+    return parts
 
 
 def _daily_rate_days(
@@ -141,7 +172,9 @@ async def driver_trip_earnings_breakdown(
         daily_rate_days = _daily_rate_days(
             calculation.distance_m_by_day or {}, calculation.amount_by_day or {}
         )
-        for entry in reversed(entries):
+        # Entries after this index are not part of the per-day explanation.
+        explained_through = -1
+        for index, entry in reversed(list(enumerate(entries))):
             entry_metadata = entry.ledger_metadata or {}
             stored = entry_metadata.get("breakdown")
             if (
@@ -163,13 +196,42 @@ async def driver_trip_earnings_breakdown(
                 eligible_seconds, excluded = _recompute_explanation_from_stored_metadata(
                     stored
                 ) or (None, None)
+                explained_through = index
                 break
-        # The per-day explanation must add up to the posted amount; otherwise
-        # (a voided payout, say) the entries alone are the visible authority.
+        # Staff deductions recorded after the explanation sit on top of it: the
+        # miles and day pay still stand and the deduction shows as its own entry.
+        deducted = sum(
+            (
+                entry.amount
+                for entry in entries[explained_through + 1 :]
+                if entry.entry_type == EarningsLedgerEntryType.REVERSAL.value
+                and entry.status != EarningsLedgerEntryStatus.VOIDED.value
+                and not (entry.ledger_metadata or {}).get("recompute_day")
+            ),
+            Decimal("0.00"),
+        )
+        # The per-day explanation less those deductions must add up to the posted
+        # amount; otherwise (a voided payout, say) the entries alone are the authority.
         if daily_rate_days is not None and (
-            quantize_2(sum((day[2] for day in daily_rate_days), Decimal("0.00"))) != amount
+            quantize_2(sum((day[2] for day in daily_rate_days), Decimal("0.00")) - deducted)
+            != amount
         ):
             daily_rate_days = None
+
+    position = (await trip_money_positions(session, entries)).get(
+        (trip.id, currency), TripMoneyPosition()
+    )
+    overpaid = quantize_2(
+        sum(
+            (
+                part
+                for _, part in overpaid_deductions(
+                    [entry for entry in entries if entry.currency == currency], position
+                )
+            ),
+            Decimal("0.00"),
+        )
+    )
 
     return DriverTripBreakdown(
         trip_session_id=trip.id,
@@ -181,4 +243,5 @@ async def driver_trip_earnings_breakdown(
         superseded_by_recompute=superseded,
         entries=entries,
         daily_rate_days=daily_rate_days,
+        overpaid=overpaid,
     )
