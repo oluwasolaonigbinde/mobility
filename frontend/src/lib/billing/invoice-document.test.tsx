@@ -18,7 +18,7 @@ const issued: Invoice = {
   commercial_terms_id: "terms-1",
   organization_id: "org-1",
   issuer_profile_id: "issuer-1",
-  invoice_number: "TEST-CV-2026-000001",
+  invoice_number: "CV-2026-000001",
   status: "issued",
   payment_status: "partially_paid",
   currency: "NGN",
@@ -100,8 +100,10 @@ describe("InvoiceDocument", () => {
   it("lays out an issued invoice with every field the client asked for", () => {
     render(<InvoiceDocument invoice={issued} terms={terms} campaignName="October launch" />);
 
-    expect(screen.getByRole("heading", { name: "Test invoice" })).toBeVisible();
-    expect(fact("Invoice number (serial no.)")).toBe("TEST-CV-2026-000001");
+    // A staging invoice from synthetic issuer facts reads like a real one.
+    expect(screen.getByRole("heading", { name: "Invoice" })).toBeVisible();
+    expect(screen.queryByText(/test data|not a tax invoice/i)).not.toBeInTheDocument();
+    expect(fact("Invoice number (serial no.)")).toBe("CV-2026-000001");
     expect(fact("Date issued (Nigeria time, WAT)")).toBe("1 November 2026");
     expect(fact("RC number")).toBe("TEST-RC");
     expect(fact("TIN")).toBe("TEST-TIN");
@@ -178,7 +180,7 @@ describe("InvoiceDocument", () => {
     expect(screen.getByText(/Debit note: adds ₦10,752.50 to the invoice/)).toBeVisible();
     expect(fact("Payment status")).toBe("Paid");
     unmount();
-    // Void wins over the test label, so a voided test invoice never reads as live.
+    // A void invoice always says so.
     render(
       <InvoiceDocument invoice={{ ...issued, status: "void" }} terms={terms} campaignName="x" />,
     );

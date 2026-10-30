@@ -390,6 +390,7 @@ def test_correlated_synthetic_pilot_journey(
     forged = dict(os.environ)
     forged.update(
         {
+            "ENVIRONMENT": "production",
             "INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE": "fabricated-runtime-approval",
         }
     )

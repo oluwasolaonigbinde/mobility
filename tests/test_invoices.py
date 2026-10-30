@@ -136,14 +136,81 @@ def test_vat_invoice_issues_from_frozen_terms_and_verified_issuer_facts(
             issued_at = issued.issued_at
             if issued_at.tzinfo is None:
                 issued_at = issued_at.replace(tzinfo=UTC)
-            assert issued.invoice_number.startswith(
-                f"TEST-CV-{issued_at.astimezone(billing_common.LAGOS_TZ).year}-000001"
+            assert issued.invoice_number == (
+                f"CV-{issued_at.astimezone(billing_common.LAGOS_TZ).year}-000001"
             )
             assert issued.issuer_snapshot["legal_name"] == "Terrax Media"
             assert issued.issuer_snapshot["synthetic_test_authority"] is True
             assert issued.customer_snapshot["name"] == "Current bill-to name"
             assert issued.line_items == terms.line_items
             assert await invoice_payment_status(session, issued) == ("unpaid", Decimal("0"))
+
+    asyncio.run(scenario())
+
+
+def test_staging_issues_from_a_recorded_synthetic_issuer_but_production_refuses(
+    db_sessionmaker, settings
+) -> None:
+    admin, owner, _organization, campaign = _fixture(db_sessionmaker)
+    reference = "cardvert-staging-issuer"
+    staging = settings.model_copy(
+        update={"environment": "staging", "invoice_issuer_external_input_reference": reference}
+    )
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            terms = await _accepted_terms(
+                session,
+                campaign=campaign,
+                admin=admin,
+                owner=owner,
+                reference="INV-STAGING",
+                amount="100000.00",
+                tax_rate="0.075",
+            )
+            draft = await create_invoice_draft(
+                session, commercial_terms_id=terms.id, actor_user_id=admin.id
+            )
+            # The same call the admin issuer-profile endpoint makes on staging.
+            profile = await record_invoice_issuer_profile(
+                session,
+                actor_user_id=admin.id,
+                legal_name="Terrax Media Company Ltd",
+                tax_identification_number="2521515778093",
+                company_registration_number="8688553",
+                registered_address="73 Lome Crescent, Wuse Zone 7, Abuja",
+                country_code="NG",
+                invoice_wording="Vehicle advertising",
+                numbering_prefix="STG",
+                verification_status=IssuerVerificationStatus.SYNTHETIC,
+                external_input_reference=reference,
+                contact_phone="07074200080",
+                contact_email="terraxmediacompany@gmail.com",
+                bank_name="OPay",
+                bank_account_name="Terrax Media Company Ltd",
+                bank_account_number="0000000000",
+                settings=staging,
+            )
+            for environment in ("production", "rehearsal"):
+                closed = staging.model_copy(update={"environment": environment})
+                assert await billing_invoices.configured_invoice_issuer(session, closed) is None
+                with pytest.raises(AppError) as blocked:
+                    await issue_invoice(
+                        session, invoice_id=draft.id, actor_user_id=admin.id, settings=closed
+                    )
+                assert blocked.value.code == "VERIFIED_ISSUER_FACTS_REQUIRED"
+            assert (await billing_invoices.configured_invoice_issuer(session, staging)) == profile
+            issued = await issue_invoice(
+                session, invoice_id=draft.id, actor_user_id=admin.id, settings=staging
+            )
+            await session.commit()
+            assert issued.invoice_number is not None
+            assert issued.invoice_number.startswith("STG-")
+            assert issued.invoice_number.endswith("-000001")
+            snapshot = issued.issuer_snapshot
+            assert snapshot["company_registration_number"] == "8688553"
+            assert snapshot["bank_account_number"] == "0000000000"
+            assert snapshot["synthetic_test_authority"] is True
 
     asyncio.run(scenario())
 
@@ -246,10 +313,10 @@ def test_invoice_sequence_year_uses_lagos_civil_time_and_preserves_retry(
             at_boundary_id = at_boundary.id
             at_boundary_number = at_boundary.invoice_number
             at_boundary_issued_at = at_boundary.issued_at
-            assert before_boundary.invoice_number == "TEST-CV-2026-000001"
-            assert at_boundary_number == "TEST-CV-2027-000001"
-            assert ordinary_date.invoice_number == "TEST-CV-2027-000002"
-            assert alternate_prefix.invoice_number == "TEST-ALT-2027-000001"
+            assert before_boundary.invoice_number == "CV-2026-000001"
+            assert at_boundary_number == "CV-2027-000001"
+            assert ordinary_date.invoice_number == "CV-2027-000002"
+            assert alternate_prefix.invoice_number == "ALT-2027-000001"
             await session.commit()
 
         clock["now"] = datetime(2028, 1, 1, tzinfo=UTC)

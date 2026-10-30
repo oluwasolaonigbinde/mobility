@@ -118,7 +118,10 @@ def test_gate_manifest_matches_architecture_once_and_controls_live_adapter(
     ("runtime", "gate", "external_id"),
     [
         (
-            {"INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE": "fabricated-secret-reference"},
+            {
+                "ENVIRONMENT": "production",
+                "INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE": "fabricated-secret-reference",
+            },
             "G-commercial",
             "EXT-Q28-COMPANY",
         ),
@@ -130,7 +133,7 @@ def test_runtime_or_fabricated_reference_cannot_override_missing_authority(
     gate: str,
     external_id: str,
 ) -> None:
-    secret = next(iter(runtime.values()))
+    secret = runtime["INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE"]
 
     with pytest.raises(evaluator.ContradictionError) as raised:
         evaluator.evaluate_gates(_snapshot(authority_texts), runtime)
@@ -139,6 +142,24 @@ def test_runtime_or_fabricated_reference_cannot_override_missing_authority(
     assert gate in diagnostic
     assert external_id in diagnostic
     assert secret not in diagnostic
+
+
+@pytest.mark.parametrize("environment", ["staging", "test", ""])
+def test_synthetic_issuer_reference_outside_production_is_not_a_q28_claim(
+    authority_texts: tuple[str, str, str], environment: str
+) -> None:
+    snapshot = _snapshot(authority_texts)
+    assert snapshot.external_states["EXT-Q28-COMPANY"] == "MISSING"
+    runtime = {
+        "ENVIRONMENT": environment,
+        "INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE": "cardvert-synthetic-issuer",
+    }
+
+    lines = evaluator.evaluate_gates(snapshot, runtime)
+
+    commercial = next(line for line in lines if line.startswith("G-commercial:"))
+    assert "EXT-Q28-COMPANY" in commercial
+    assert evaluator._runtime_snapshot(runtime)["ENVIRONMENT"] == environment
 
 
 def test_restoration_obligation_cannot_be_overridden_by_runtime_settings(
