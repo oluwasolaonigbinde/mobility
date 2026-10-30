@@ -88,7 +88,9 @@ def driving_graph(db_sessionmaker, monkeypatch):
     }
 
 
-def add_point(maker, graph, *, age=20, received_age=20, speed=4, lon=3.4, lat=6.5, ping_id=None):
+def add_point(
+    maker, graph, *, age=20, received_age=20, speed=4, lon=3.4, lat=6.5, ping_id=None, accuracy=10
+):
     async def add():
         async with maker() as session:
             batch = LocationPingBatch(
@@ -113,6 +115,7 @@ def add_point(maker, graph, *, age=20, received_age=20, speed=4, lon=3.4, lat=6.
                     latitude=lat,
                     longitude=lon,
                     speed_mps=speed,
+                    accuracy_m=accuracy,
                     geom=point_value(session, lon=lon, lat=lat),
                     ping_metadata={},
                 )
@@ -228,6 +231,82 @@ def test_stopped_or_speedless_live_car_still_shows(
     assert read(db_client, driving_graph).json()["positions"] == [
         {"longitude": 3.4, "latitude": 6.5}
     ]
+
+
+def test_long_park_is_hidden_despite_continued_stationary_uploads(
+    db_client, db_sessionmaker, driving_graph
+):
+    for age in (55, 45, 35, 25, 15, 1):
+        add_point(db_sessionmaker, driving_graph, age=age, received_age=age, speed=0)
+    response = read(db_client, driving_graph)
+    assert response.status_code == 200
+    assert response.json()["positions"] == []
+
+
+@pytest.mark.parametrize("park_age,visible", [(44.99, True), (45, False), (45.01, False)])
+def test_stationary_timeout_is_measured_from_the_delay_cutoff(
+    db_client, db_sessionmaker, driving_graph, park_age, visible
+):
+    add_point(db_sessionmaker, driving_graph, age=park_age, received_age=park_age)
+    add_point(db_sessionmaker, driving_graph, age=15, received_age=15)
+    response = read(db_client, driving_graph)
+    assert response.status_code == 200
+    assert bool(response.json()["positions"]) is visible
+
+
+def test_jitter_within_stationary_radius_does_not_unhide_a_long_park(
+    db_client, db_sessionmaker, driving_graph
+):
+    for age, lon in ((55, 3.4), (45, 3.4005), (35, 3.3995), (25, 3.4008), (15, 3.4)):
+        add_point(db_sessionmaker, driving_graph, age=age, received_age=age, lon=lon)
+    assert read(db_client, driving_graph).json()["positions"] == []
+
+
+@pytest.mark.parametrize("accuracy", [None, 75.01])
+@pytest.mark.parametrize("outlier_age", [25, 15])
+def test_inaccurate_outlier_does_not_unhide_a_long_park(
+    db_client, db_sessionmaker, driving_graph, accuracy, outlier_age
+):
+    for age in (55, 45, 35):
+        add_point(db_sessionmaker, driving_graph, age=age, received_age=age)
+    add_point(
+        db_sessionmaker,
+        driving_graph,
+        age=outlier_age,
+        received_age=outlier_age,
+        lon=3.41,
+        accuracy=accuracy,
+    )
+    if outlier_age > 15:
+        add_point(db_sessionmaker, driving_graph, age=15, received_age=15)
+    assert read(db_client, driving_graph).json()["positions"] == []
+
+
+def test_accurate_departure_unhides_only_after_the_display_delay(
+    db_client, db_sessionmaker, driving_graph, monkeypatch
+):
+    for age in (55, 45, 35, 25, 15):
+        add_point(db_sessionmaker, driving_graph, age=age, received_age=age)
+    add_point(db_sessionmaker, driving_graph, age=1, received_age=1, lon=3.41, accuracy=75)
+    assert read(db_client, driving_graph).json()["positions"] == []
+
+    async def later_clock(_session):
+        return NOW + timedelta(minutes=14)
+
+    monkeypatch.setattr(campaign_live_positions, "database_clock", later_clock)
+    assert read(db_client, driving_graph).json()["positions"] == [
+        {"longitude": 3.41, "latitude": 6.5}
+    ]
+
+
+@pytest.mark.parametrize("age,received_age", [(1, 1), (25, 1), (50, 1)])
+def test_fresh_or_late_received_movement_does_not_unhide_a_long_park(
+    db_client, db_sessionmaker, driving_graph, age, received_age
+):
+    for parked_age in (55, 45, 35, 15):
+        add_point(db_sessionmaker, driving_graph, age=parked_age, received_age=parked_age)
+    add_point(db_sessionmaker, driving_graph, age=age, received_age=received_age, lon=3.41)
+    assert read(db_client, driving_graph).json()["positions"] == []
 
 
 def test_ended_trip_stopped_point_is_hidden(db_client, db_sessionmaker, driving_graph):
