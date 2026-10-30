@@ -22,7 +22,7 @@ from app.services.disclosure import (
     record_governed_trip_output,
     require_governed_advertiser_output,
 )
-from app.services.fraud_holds import fraud_hold_counts
+from app.services.fraud_holds import active_fraud_hold_counts, fraud_hold_counts
 from app.services.provenance import stable_source_fingerprint
 from app.services.trip_analytics import (
     analytics_not_found,
@@ -255,7 +255,11 @@ async def get_authoritative_estimate_for_trip(
 
 
 async def current_authoritative_estimates(session, estimates, *, settings):
-    """Preserve pinned facts while rejecting stale analytics or active holds."""
+    """Preserve pinned facts while rejecting stale analytics or active holds.
+
+    Reads hold counts without the trip scope: readers are frozen by the
+    disclosure snapshot and trip processing already holds its own scope.
+    """
     if not estimates:
         return []
     analytics = {
@@ -275,7 +279,7 @@ async def current_authoritative_estimates(session, estimates, *, settings):
             estimate,
             source,
             settings,
-            fraud_counts=await fraud_hold_counts(session, source.trip_session_id),
+            fraud_counts=await active_fraud_hold_counts(session, source.trip_session_id),
         ):
             valid.append(estimate)
     return valid

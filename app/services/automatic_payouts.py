@@ -77,8 +77,8 @@ from app.services.disbursements import (
 from app.services.fraud_assessments import load_current_successful_assessment
 from app.services.fraud_holds import (
     fraud_hold_active_clause,
+    lock_driver_fraud_scopes,
     lock_fraud_hold_scopes,
-    lock_fraud_reconciliation_gate,
 )
 from app.services.notifications import create_active_admin_notices
 from app.services.payout_balances import lock_driver_money_scope
@@ -763,10 +763,6 @@ async def run_automatic_payouts(  # noqa: C901
         .correlate(EarningsLedgerEntry)
         .exists()
     )
-    # Disputes may concern another trip: the exclusive global gate prevents
-    # an absent-row phantom until this run's reservation commits. The claim
-    # repeats this ordering at its own authorization boundary.
-    await lock_fraud_reconciliation_gate(session, exclusive=True)
     other_entry = aliased(EarningsLedgerEntry)
     candidate_query = (
         select(
@@ -823,6 +819,11 @@ async def run_automatic_payouts(  # noqa: C901
     running = Decimal("0.00")
     next_cursor = (control.candidate_cursor_at, control.candidate_cursor_id)
     if stubs:
+        # A dispute may concern another of the driver's trips. The driver keys
+        # order every dispute before or after this reservation, and the clean
+        # check below rereads disputes after they are held. The claim repeats
+        # this at its own authorization boundary.
+        await lock_driver_fraud_scopes(session, (stub.driver_profile_id for stub in stubs))
         await lock_fraud_hold_scopes(session, (stub.trip_session_id for stub in stubs))
         for driver_profile_id in sorted({stub.driver_profile_id for stub in stubs}, key=str):
             await lock_driver_money_scope(

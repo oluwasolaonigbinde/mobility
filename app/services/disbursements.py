@@ -60,9 +60,9 @@ from app.services.audit import create_audit_event
 from app.services.fraud_assessments import load_current_successful_assessment
 from app.services.fraud_holds import (
     fraud_hold_active_clause,
+    lock_driver_fraud_scopes,
     lock_fraud_hold_scope,
     lock_fraud_hold_scopes,
-    lock_fraud_reconciliation_gate,
 )
 from app.services.payees import read_verified_bank_account
 from app.services.payout_balances import lock_driver_money_scope, trip_money_position
@@ -1084,9 +1084,9 @@ async def claim_payout_submission_intent(  # noqa: C901
             except AppError as exc:
                 inactive_authority_ids.append(admin_id)
                 inactive_authority_error = inactive_authority_error or exc
-        trip_ids = tuple(
-            await session.scalars(
-                select(EarningsLedgerEntry.trip_session_id)
+        trip_rows = (
+            await session.execute(
+                select(EarningsLedgerEntry.trip_session_id, EarningsLedgerEntry.driver_profile_id)
                 .join(
                     PayoutBatchLine,
                     PayoutBatchLine.ledger_entry_id == EarningsLedgerEntry.id,
@@ -1097,12 +1097,13 @@ async def claim_payout_submission_intent(  # noqa: C901
                 )
                 .distinct()
             )
-        )
+        ).all()
+        trip_ids = tuple(row.trip_session_id for row in trip_rows)
         if automatic:
-            # Same control -> exclusive reconciliation gate -> trip order as
-            # the run; a dispute on any driver trip must precede or follow
-            # this committed submission authorization.
-            await lock_fraud_reconciliation_gate(session, exclusive=True)
+            # Same control -> driver key -> trip order as the run; a dispute
+            # on any of the driver's trips must precede or follow this
+            # committed submission authorization.
+            await lock_driver_fraud_scopes(session, (row.driver_profile_id for row in trip_rows))
         await lock_fraud_hold_scopes(session, trip_ids)
         batch, lines = await _locked_batch_with_lines(session, stub.batch_id)
         if (

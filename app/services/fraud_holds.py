@@ -1,3 +1,38 @@
+"""Fraud holds and the trip/money lock scopes.
+
+Lock order (REQ-252). There is no system-wide lock. Every transaction takes
+blocking locks in this order, each level sorted by ``str(uuid)`` (the same
+order as PostgreSQL's uuid comparison):
+
+0. Payout control row (``automatic_payouts`` run, ``disbursements`` claim).
+1. Campaign terms keys (``payout_rule_serialization``): exclusive for terms,
+   cancellation, trip processing and payout calculation; shared for ping
+   ingestion and the advertiser read snapshot.
+2. Driver fraud keys (``lock_driver_fraud_scopes``): only where a rule covers
+   all of a driver's trips. An open dispute blocks every automatic payout for
+   that driver, so dispute create/reply and the automatic run and claim take it.
+3. Trip scopes (``lock_fraud_hold_scope(s)``): trip advisory key, then the trip
+   row ``FOR UPDATE``.
+4. Route-replay fingerprint keys.
+5. Batch/line/intent, flag and ledger rows, then the driver money row
+   (``lock_driver_money_scope``), then payees.
+
+Try-locks (``try_lock_fraud_hold_scope``) never wait, so they may be taken out
+of this order. Route replay holds fingerprint keys and only try-locks other
+group members; anyone else waiting on a fingerprint key therefore never forms
+a cycle with it.
+
+The advertiser read snapshot (``disclosure.lock_trip_disclosure_snapshot``)
+freezes contributors with shared campaign keys plus ``FOR SHARE`` row locks.
+That freeze holds only while every writer of trip analytics, impressions,
+payout calculations, fraud flags or ledger rows takes either the exclusive
+campaign key or the trip row ``FOR UPDATE`` first. Verified writers:
+``evidence_verification`` (flag), ``impressions.estimate_trip_impressions``,
+``payout_adjustments``, ``route_replay._write_replay_flag``,
+``trip_analytics`` (analytics and flags), ``payouts.engine``,
+``payouts.corrections`` and ``payouts.ledger``. A new writer must do the same.
+"""
+
 import hashlib
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -23,11 +58,6 @@ HOLD_ACTIVE_STATUSES = frozenset(
         FraudFlagStatus.OPEN.value,
         FraudFlagStatus.CONFIRMED.value,
     }
-)
-FRAUD_RECONCILIATION_GATE_KEY = int.from_bytes(
-    hashlib.sha256(b"fraud-hold:route-reconciliation-gate").digest()[:8],
-    byteorder="big",
-    signed=True,
 )
 FRAUD_REVIEW_TRANSITIONS = {
     FraudFlagStatus.OPEN.value: frozenset(
@@ -57,42 +87,65 @@ def fraud_hold_active_clause(status_column=None):
     return column.in_(tuple(sorted(HOLD_ACTIVE_STATUSES)))
 
 
-def _trip_lock_key(trip_id: UUID) -> int:
-    digest = hashlib.sha256(f"fraud-hold:trip:{trip_id}".encode()).digest()
+class FraudScopeBusy(Exception):
+    """Another transaction holds a trip this one may only try-lock; retry later."""
+
+
+def _signed_key(label: str) -> int:
+    digest = hashlib.sha256(label.encode()).digest()
     return int.from_bytes(digest[:8], byteorder="big", signed=True)
+
+
+def _trip_lock_key(trip_id: UUID) -> int:
+    return _signed_key(f"fraud-hold:trip:{trip_id}")
+
+
+def _driver_lock_key(driver_profile_id: UUID) -> int:
+    return _signed_key(f"fraud-hold:driver:{driver_profile_id}")
 
 
 def _aware_utc(value: datetime) -> datetime:
     return (value.replace(tzinfo=UTC) if value.tzinfo is None else value).astimezone(UTC)
 
 
-async def lock_fraud_reconciliation_gate(
+async def lock_driver_fraud_scopes(
     session: AsyncSession,
-    *,
-    exclusive: bool,
-) -> None:
-    """Gate cross-trip reconciliation against ordinary per-trip consumers."""
-    function = "pg_advisory_xact_lock" if exclusive else "pg_advisory_xact_lock_shared"
-    await session.execute(
-        text(f"SELECT {function}(:key)"),
-        {"key": FRAUD_RECONCILIATION_GATE_KEY},
-    )
+    driver_profile_ids: Iterable[UUID],
+) -> tuple[UUID, ...]:
+    """Serialize driver-wide dispute rules; take before any trip scope."""
+    ordered = tuple(sorted(set(driver_profile_ids), key=str))
+    for driver_profile_id in ordered:
+        await session.execute(
+            text("SELECT pg_advisory_xact_lock(:key)"),
+            {"key": _driver_lock_key(driver_profile_id)},
+        )
+    return ordered
 
 
-async def lock_fraud_hold_scope(
-    session: AsyncSession,
-    trip_id: UUID,
-    *,
-    reconciliation_gate_held: bool = False,
-) -> None:
+async def lock_fraud_hold_scope(session: AsyncSession, trip_id: UUID) -> None:
     """Serialize detection, review, fraud-derived pricing and later release."""
-    if not reconciliation_gate_held:
-        await lock_fraud_reconciliation_gate(session, exclusive=False)
     await session.execute(
         text("SELECT pg_advisory_xact_lock(:key)"),
         {"key": _trip_lock_key(trip_id)},
     )
     await session.execute(select(TripSession.id).where(TripSession.id == trip_id).with_for_update())
+
+
+async def try_lock_fraud_hold_scope(session: AsyncSession, trip_id: UUID) -> None:
+    """Take a trip scope without waiting, or raise ``FraudScopeBusy``."""
+    acquired = await session.scalar(
+        text("SELECT pg_try_advisory_xact_lock(:key)"),
+        {"key": _trip_lock_key(trip_id)},
+    )
+    if not acquired:
+        raise FraudScopeBusy(str(trip_id))
+    # The advisory key is ours, but a reader may share-lock the row; skip
+    # rather than wait so this out-of-order lock can never join a cycle.
+    locked = await session.scalar(
+        select(TripSession.id).where(TripSession.id == trip_id).with_for_update(skip_locked=True)
+    )
+    if locked is None:
+        raise FraudScopeBusy(str(trip_id))
 
 
 async def lock_fraud_hold_scopes(
@@ -101,20 +154,13 @@ async def lock_fraud_hold_scopes(
 ) -> tuple[UUID, ...]:
     """Lock a multi-trip money decision under one stable global order."""
     ordered_trip_ids = tuple(sorted(set(trip_ids), key=str))
-    if not ordered_trip_ids:
-        return ()
-    await lock_fraud_reconciliation_gate(session, exclusive=False)
     for trip_id in ordered_trip_ids:
-        await lock_fraud_hold_scope(
-            session,
-            trip_id,
-            reconciliation_gate_held=True,
-        )
+        await lock_fraud_hold_scope(session, trip_id)
     return ordered_trip_ids
 
 
-async def fraud_hold_counts(session: AsyncSession, trip_id: UUID) -> dict[str, int]:
-    await lock_fraud_hold_scope(session, trip_id)
+async def active_fraud_hold_counts(session: AsyncSession, trip_id: UUID) -> dict[str, int]:
+    """Count active holds without locking; for reads and callers holding the scope."""
     result = await session.execute(
         select(FraudFlag.severity, func.count(FraudFlag.id))
         .where(
@@ -127,6 +173,12 @@ async def fraud_hold_counts(session: AsyncSession, trip_id: UUID) -> dict[str, i
     for severity, count in result.all():
         counts[str(severity)] = int(count)
     return counts
+
+
+async def fraud_hold_counts(session: AsyncSession, trip_id: UUID) -> dict[str, int]:
+    """Lock the trip scope, then count; for money decisions."""
+    await lock_fraud_hold_scope(session, trip_id)
+    return await active_fraud_hold_counts(session, trip_id)
 
 
 def fraud_flag_not_found() -> AppError:

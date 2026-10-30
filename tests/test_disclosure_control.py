@@ -1059,7 +1059,7 @@ def test_heatmap_releases_a_dominated_metric_once_enough_cars_drove_there(
 
 
 @pytest.mark.parametrize("snapshot_first", [True, False])
-@pytest.mark.parametrize("ledger_status", [None, "available", "paid", "reconciliation"])
+@pytest.mark.parametrize("ledger_status", [None, "available", "paid"])
 def test_disclosure_snapshot_and_fraud_review_share_trip_lock_order(
     postgis_db_sessionmaker,
     snapshot_first,
@@ -1073,9 +1073,9 @@ def test_disclosure_snapshot_and_fraud_review_share_trip_lock_order(
     from app.models.payout import EarningsLedgerEntry
     from app.services.disclosure import lock_trip_disclosure_snapshot
     from app.services.fraud_holds import (
+        active_fraud_hold_counts,
         fraud_hold_counts,
         lock_fraud_hold_scope,
-        lock_fraud_reconciliation_gate,
         resolve_fraud_flag,
     )
 
@@ -1114,12 +1114,11 @@ def test_disclosure_snapshot_and_fraud_review_share_trip_lock_order(
                 follower_pid = await session.scalar(text("SELECT pg_backend_pid()"))
                 started.set()
                 if snapshot_first:
-                    if ledger_status == "reconciliation":
-                        await lock_fraud_reconciliation_gate(session, exclusive=True)
                     await resolve(session)
                 else:
                     await snapshot(session)
-                    counts = await fraud_hold_counts(session, graph.trip.id)
+                    # Readers count under the snapshot; they never retake the trip scope.
+                    counts = await active_fraud_hold_counts(session, graph.trip.id)
                     assert sum(counts.values()) == (1 if confirmed else 0)
                 await session.commit()
 
@@ -1127,8 +1126,6 @@ def test_disclosure_snapshot_and_fraud_review_share_trip_lock_order(
             if snapshot_first:
                 await snapshot(leader)
             else:
-                if ledger_status == "reconciliation":
-                    await lock_fraud_reconciliation_gate(leader, exclusive=True)
                 await lock_fraud_hold_scope(leader, graph.trip.id)
             task = asyncio.create_task(follower())
             try:
@@ -1143,7 +1140,8 @@ def test_disclosure_snapshot_and_fraud_review_share_trip_lock_order(
                     await asyncio.sleep(0.01)
                 assert blocked, "the real transactions must overlap"
                 if snapshot_first:
-                    assert sum((await fraud_hold_counts(leader, graph.trip.id)).values()) == 1
+                    counts = await active_fraud_hold_counts(leader, graph.trip.id)
+                    assert sum(counts.values()) == 1
                 else:
                     await resolve(leader)
                 await leader.commit()

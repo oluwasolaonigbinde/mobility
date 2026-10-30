@@ -23,7 +23,7 @@ from app.models.trip_analytics import FraudFlag, FraudFlagStatus, FraudFlagType
 from app.models.user import User, UserRole
 from app.models.vehicle import VehicleStatus
 from app.services import route_replay
-from app.services.fraud_holds import fraud_hold_counts, resolve_fraud_flag
+from app.services.fraud_holds import FraudScopeBusy, fraud_hold_counts, resolve_fraud_flag
 
 BASE_TIME = datetime(2026, 8, 1, 8, 0, tzinfo=UTC)
 PASSWORD = "long-secure-password"
@@ -843,7 +843,7 @@ def test_postgres_concurrent_reverse_processing_flags_only_latest_trip(
     assert flags[0].evidence["sampled_matched_trip_ids"] == [str(earlier_trip.id)]
 
 
-def test_postgres_reconciliation_waits_for_other_trip_money_hold(
+def test_postgres_reconciliation_retries_while_other_trip_money_hold_is_held(
     postgis_db_sessionmaker,
     settings,
 ) -> None:
@@ -907,11 +907,19 @@ def test_postgres_reconciliation_waits_for_other_trip_money_hold(
 
         holder = asyncio.create_task(hold_money_scope())
         await hold_acquired.wait()
-        detector = asyncio.create_task(reconcile_incoming())
         try:
-            with pytest.raises(TimeoutError):
-                await asyncio.wait_for(asyncio.shield(detector), timeout=0.25)
+            # The busy member is only try-locked: no wait, no partial write.
+            with pytest.raises(FraudScopeBusy):
+                await asyncio.wait_for(reconcile_incoming(), timeout=5)
             async with postgis_db_sessionmaker() as session:
+                assert (
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(RouteReplaySignature)
+                        .where(RouteReplaySignature.trip_session_id == incoming_trip.id)
+                    )
+                    == 0
+                )
                 held_flag = await session.scalar(
                     select(FraudFlag).where(
                         FraudFlag.trip_session_id == held_trip.id,
@@ -922,7 +930,9 @@ def test_postgres_reconciliation_waits_for_other_trip_money_hold(
                 assert held_flag is not None
         finally:
             release_hold.set()
-        await asyncio.gather(holder, detector)
+        await holder
+        # The retry after the hold commits reconciles normally.
+        await reconcile_incoming()
 
     asyncio.run(exercise_gate())
 
@@ -1000,16 +1010,25 @@ def test_postgres_concurrent_old_to_new_group_transition_reconciles_both_groups(
 
     async def transition_and_add() -> None:
         async def process(trip, analytics, points):
-            async with postgis_db_sessionmaker() as session:
-                await route_replay.detect_route_replay(
-                    session,
-                    trip=trip,
-                    analytics=analytics,
-                    ordered_pings=points,
-                    settings=settings,
-                    now=BASE_TIME + timedelta(hours=5),
-                )
-                await session.commit()
+            # A busy group member rolls back for a retry, as the worker does.
+            for _ in range(50):
+                async with postgis_db_sessionmaker() as session:
+                    try:
+                        await route_replay.detect_route_replay(
+                            session,
+                            trip=trip,
+                            analytics=analytics,
+                            ordered_pings=points,
+                            settings=settings,
+                            now=BASE_TIME + timedelta(hours=5),
+                        )
+                    except FraudScopeBusy:
+                        await session.rollback()
+                        await asyncio.sleep(0.05)
+                        continue
+                    await session.commit()
+                    return
+            raise AssertionError("route replay never acquired its group")
 
         await asyncio.gather(
             process(

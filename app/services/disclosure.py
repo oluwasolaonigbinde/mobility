@@ -101,22 +101,33 @@ async def lock_trip_disclosure_snapshot(
     tenant_id: UUID,
     campaign_id: UUID | None,
 ) -> None:
-    """Freeze report contributors before response construction under PostgreSQL."""
-    from app.services.fraud_holds import lock_fraud_reconciliation_gate
+    """Freeze report contributors before response construction under PostgreSQL.
 
-    # Exclude fraud/money writers before parent FK and contributor row locks.
-    await lock_fraud_reconciliation_gate(session, exclusive=True)
-    await session.scalar(
-        select(AdvertiserOrganization.id)
-        .where(AdvertiserOrganization.id == tenant_id)
-        .with_for_update()
-    )
+    Readers share: each campaign terms key is taken shared (sorted, before any
+    row), then rows ``FOR SHARE``. Writers of these rows take the exclusive
+    campaign key or the trip row ``FOR UPDATE`` (see ``fraud_holds``), so they
+    wait for the read, and readers never wait for each other. Callers must not
+    lock these rows again for update in the same transaction.
+    """
+    from app.services.payout_rule_serialization import acquire_campaign_terms_shared_lock
+
     campaign_filters = [Campaign.organization_id == tenant_id]
     if campaign_id is not None:
         campaign_filters.append(Campaign.id == campaign_id)
+    scoped_campaign_ids = list(await session.scalars(select(Campaign.id).where(*campaign_filters)))
+    for scoped_campaign_id in sorted(scoped_campaign_ids, key=str):
+        await acquire_campaign_terms_shared_lock(session, scoped_campaign_id)
+    await session.scalar(
+        select(AdvertiserOrganization.id)
+        .where(AdvertiserOrganization.id == tenant_id)
+        .with_for_update(read=True)
+    )
     campaign_ids = list(
         await session.scalars(
-            select(Campaign.id).where(*campaign_filters).order_by(Campaign.id).with_for_update()
+            select(Campaign.id)
+            .where(*campaign_filters)
+            .order_by(Campaign.id)
+            .with_for_update(read=True)
         )
     )
     if not campaign_ids:
@@ -126,7 +137,7 @@ async def lock_trip_disclosure_snapshot(
             select(CampaignAssignment.id)
             .where(CampaignAssignment.campaign_id.in_(campaign_ids))
             .order_by(CampaignAssignment.id)
-            .with_for_update()
+            .with_for_update(read=True)
         )
     )
     trip_ids = list(
@@ -134,7 +145,7 @@ async def lock_trip_disclosure_snapshot(
             select(TripSession.id)
             .where(TripSession.campaign_id.in_(campaign_ids))
             .order_by(TripSession.id)
-            .with_for_update()
+            .with_for_update(read=True)
         )
     )
     if not trip_ids:
@@ -150,7 +161,7 @@ async def lock_trip_disclosure_snapshot(
             select(model.id)
             .where(model.trip_session_id.in_(trip_ids))
             .order_by(model.id)
-            .with_for_update()
+            .with_for_update(read=True)
         )
 
 

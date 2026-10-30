@@ -24,7 +24,6 @@ from app.models.user import UserRole
 from app.services.campaign_report_delivery import _pair
 from app.services.campaign_reports import create_report
 from app.services.disclosure import _canonical_hash
-from app.services.fraud_holds import lock_fraud_reconciliation_gate
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 
 
@@ -185,7 +184,6 @@ def test_report_and_ledger_append_use_the_same_postgres_lock_order(
 
         async def append():
             async with db_sessionmaker() as session:
-                await lock_fraud_reconciliation_gate(session, exclusive=False)
                 await acquire_campaign_terms_lock(session, campaign.id)
                 row = await session.scalar(select(EarningsLedgerEntry))
                 if not report_first:
