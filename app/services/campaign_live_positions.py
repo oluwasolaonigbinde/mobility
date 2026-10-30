@@ -21,10 +21,12 @@ from app.services.disclosure import (
     record_disclosure,
     require_governed_advertiser_output,
 )
+from app.services.payout_eligibility import ELIGIBILITY_DEFAULTS
 from app.services.payout_rule_serialization import database_clock
 
 ROUTE = "advertiser.campaign.live_positions"
-POLICY = "delayed_in_area_live_dots_v2"
+POLICY = "delayed_in_area_live_dots_v3"
+LIVE_POSITION_STATIONARY_SECONDS = 30 * 60
 
 
 async def live_positions(
@@ -66,10 +68,12 @@ async def live_positions(
 async def _delayed_points(session: AsyncSession, *, campaign_id: UUID, now, cutoff, oldest):
     latest = (
         select(
+            LocationPing.trip_session_id,
             LocationPing.longitude,
             LocationPing.latitude,
             LocationPing.geom,
             LocationPing.recorded_at,
+            LocationPing.accuracy_m,
             func.row_number()
             .over(
                 partition_by=TripSession.vehicle_id,
@@ -111,13 +115,41 @@ async def _delayed_points(session: AsyncSession, *, campaign_id: UUID, now, cuto
             func.ST_Covers(CampaignZone.geom, latest.c.geom),
         )
     )
-    # Every live car shows, stopped or moving; a car in traffic is still live.
+    stationary_start = (
+        select(func.max(LocationPing.recorded_at))
+        .where(
+            LocationPing.trip_session_id == latest.c.trip_session_id,
+            LocationPing.recorded_at
+            <= cutoff - timedelta(seconds=LIVE_POSITION_STATIONARY_SECONDS),
+            LocationPing.received_at <= cutoff,
+        )
+        .correlate(latest)
+        .scalar_subquery()
+    )
+    moved = exists(
+        select(LocationPing.id).where(
+            LocationPing.trip_session_id == latest.c.trip_session_id,
+            LocationPing.recorded_at >= stationary_start,
+            LocationPing.recorded_at <= cutoff,
+            LocationPing.received_at <= cutoff,
+            LocationPing.accuracy_m <= ELIGIBILITY_DEFAULTS["max_accuracy_m"],
+            # An inaccurate displayed fix cannot turn parked history into movement.
+            latest.c.accuracy_m <= ELIGIBILITY_DEFAULTS["max_accuracy_m"],
+            ~func.ST_DWithin(
+                func.geography(LocationPing.geom),
+                func.geography(latest.c.geom),
+                ELIGIBILITY_DEFAULTS["stationary_radius_m"],
+            ),
+        )
+    )
+    # Short stops stay visible; a 30-minute park in the delayed data hides the dot.
     rows = await session.execute(
         select(latest.c.longitude, latest.c.latitude).where(
             latest.c.rank == 1,
             latest.c.recorded_at >= oldest,
             inside_target,
             ~inside_exclusion,
+            or_(stationary_start.is_(None), moved),
         )
     )
     return [AnonymousPosition(longitude=lon, latitude=lat) for lon, lat in rows]
