@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.156 — 2026-10-30. Canonical source of truth: current state AND target state.**
+**Version 1.157 — 2026-10-30. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -3711,9 +3711,13 @@ to avoid substituting an older inside point. No stable marker ID, timestamps,
 heading, identity, per-car selector or trail; randomized order and no-store.
 Use "on the road", including No cars on the road right now. Privacy review
 remains required; this is reduced disclosure, not legal anonymity.
-**[TARGET — D144 / REQ-265; owner, 30 October 2026]** Hide a car's dot once it
-has not moved for 30 minutes, and show it again when it moves. Short traffic
-stops still show; trip tracking, received evidence and pay are unaffected.
+**[TARGET — D144/D145 / REQ-265; owner, 30 October 2026]** Hide a car's dot once
+the delayed (15-minute-old) position has stayed within 200 m for 30 minutes,
+and show it again when it moves. Only pings with reported accuracy ≤75 m
+count as movement; stops under 30 minutes never disappear. The audit policy
+name becomes `delayed_in_area_live_dots_v3`. Known limitation: ending and
+restarting a trip while parked restarts the clock. Trip tracking, received
+evidence and pay are unaffected.
 This replaces D138's always-visible live-trip rule: the REQ-258/264 privacy
 review found a parked car at home could keep uploading and remain visible
 indefinitely. Existing delay/freshness, target/exclusion, ownership and
@@ -3996,6 +4000,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.157 — 30 October 2026 (D145 / REQ-265):** Clarify D144's parked-dot [TARGET]: evaluate the delayed 15-minute-old position, hide after staying within 200 m for 30 minutes, count movement only from pings with accuracy ≤75 m, and retain every stop under 30 minutes. Audit policy becomes `delayed_in_area_live_dots_v3`. Ending/restarting while parked restarts the clock, a known limitation. Trip/pay are unchanged; the Sol worker's implementation remains in progress on `fix/req265-parked-dot`. Documentation only; no integration, CI, merge or real-use approval claimed.
 
 - **v1.156 — 30 October 2026 (owner decisions, 27–30 October; D137–D144 / REQ-252–259,261,263–265):** Record scoped trip/money locking and retryable contention, stopped-car delayed dots, three-role/demo-login wording, issued-invoice allocation, local/test/staging synthetic issuers, net earnings and plain deduction display, device-change signed evidence, server-attested two-hour auto-end/migration `0120`, current-job conflict messaging and five Money tabs. Refresh the generated current-state inventory. REQ-252–259,261,263,264 are built on `integrate/req252-264` in the package commits recorded in `docs/requests.md`; full CI and merge remain pending, with no request closure, deployment or launch-gate change. D144's 30-minute parked-dot privacy filter is a newly approved [TARGET], being built separately on `fix/req265-parked-dot`, with short traffic stops retained and trip/pay unaffected. REQ-260/262 remain separate work in progress; D113 recovery policy is not superseded by this display record.
 

@@ -705,9 +705,12 @@ user agent or other personal scan data. Home/campaign performance shows estimate
 views (labelled), cars, a seven-day distance/cars chart and QR scans when positive;
 no CTR, website visits or pilot ROI.
 
-**Live map — current rule (owner, 30 October 2026, D144 / REQ-265):** Hide a
-car's dot once it has not moved for 30 minutes; show it again when it moves.
-Short traffic stops still show. Trip tracking and pay are unaffected. Anonymous
+**Live map — current rule (owner, 30 October 2026, D144/D145 / REQ-265):** Hide
+a car's dot once its delayed (15-minute-old) position has stayed within 200 m
+for 30 minutes; show it again when it moves. Only pings with reported accuracy
+≤75 m count as movement. Stops under 30 minutes never disappear. The audit
+policy is `delayed_in_area_live_dots_v3`. Known limitation: ending and restarting
+a trip while parked restarts the clock. Trip tracking and pay are unaffected. Anonymous
 in-area dots, exclusions, ≥15-minute delay, ≤30-minute point freshness, campaign
 filtering only, no identities/stable IDs/trails, and "on the road" wording remain.
 This replaces D138's always-visible live-trip rule after privacy review found
@@ -752,6 +755,7 @@ recommendations; D123 excludes ROI from pilot output.
 - **2026-10-24** — Owner (D132, REQ-234): weekly and final reports send a short report-ready notice with a link. Previously there was no notice.
 - **2026-10-27–29** — Owner includes stopped cars on live trips and changes the wording to "on the road" (D138 / REQ-258). D124 previously filtered out zero-speed points and said "driving". Anonymous, delayed, fresh in-area evidence and no trails remain. Built on integrate/req252-264 (`e9e990c7`).
 - **2026-10-30** — Owner replaces "if a car is live, then the dots should always show" (D138) with hiding after 30 minutes without movement and showing again on movement (D144 / REQ-265). Short traffic stops remain visible, with no trip/pay change. The REQ-258/264 privacy review found an uploading car parked at home could otherwise stay visible indefinitely. Implementation is in progress on `fix/req265-parked-dot`.
+- **2026-10-30 (clarification)** — Owner specifies the delayed-position rule: within 200 m for 30 minutes, with only pings of accuracy ≤75 m counting as movement; stops under 30 minutes never disappear (D145 / REQ-265). The earlier D144 wording did not specify distance or accuracy. Audit policy becomes `delayed_in_area_live_dots_v3`; ending/restarting while parked restarts the clock, a known limitation. Implementation remains in progress.
 - **2026-10-20** — Client pilot feedback (D123) replaces the earlier conditional ROI rule: ROI was allowed only with advertiser conversion/revenue inputs and an approved method (D20c/Q12/Q30); the pilot now has no CTR, website visits beyond QR scans, or ROI. D124 separately approves individual delayed in-area dots with no three-car minimum, without changing aggregate area rules.
 - **2026-10-20** — Owner-approved pre-push fix (REQ-208): three distinct cars now governs every result (D107). Previously areas and map cells also needed several trips, more than one day and no car above a share of the total, so a three-car, one-day campaign showed no areas despite D105.
 - **2026-10-19** — Owner decision: area results need only three cars (D105, REQ-197). Previously areas also needed "safe composition with other released detail", which hid areas in common cases and, once a report showed areas, made the advertiser dashboard and other results unavailable. The owner keeps rules simple until the client or legal sets real privacy requirements.
