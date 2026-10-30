@@ -157,6 +157,55 @@ class PayoutBatch(Base):
     )
 
 
+class PayoutRecoveryOffset(Base):
+    """A final noncash settlement; bank transfer outcomes never mutate it."""
+
+    __tablename__ = "payout_recovery_offsets"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_payout_recovery_offsets_amount"),
+        CheckConstraint("length(currency) = 3", name="ck_payout_recovery_offsets_currency"),
+        CheckConstraint(
+            "(actor_user_id IS NULL) <> (automatic_run_id IS NULL)",
+            name="ck_payout_recovery_offsets_actor",
+        ),
+        UniqueConstraint(
+            "request_id",
+            "funding_entry_id",
+            "source_trip_id",
+            name="uq_payout_recovery_offsets_request_source",
+        ),
+        Index("ix_payout_recovery_offsets_driver", "driver_profile_id", "currency"),
+        Index("ix_payout_recovery_offsets_source", "source_trip_id"),
+        Index("ix_payout_recovery_offsets_funding", "funding_entry_id"),
+    )
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    source_trip_id: Mapped[UUID] = mapped_column(
+        ForeignKey("trip_sessions.id", ondelete="RESTRICT")
+    )
+    funding_entry_id: Mapped[UUID] = mapped_column(
+        ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT")
+    )
+    driver_profile_id: Mapped[UUID] = mapped_column(
+        ForeignKey("driver_profiles.id", ondelete="RESTRICT")
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    currency: Mapped[str] = mapped_column(String(3))
+    request_id: Mapped[UUID] = mapped_column()
+    actor_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    automatic_run_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("payout_automatic_runs.id", ondelete="RESTRICT")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+@event.listens_for(PayoutRecoveryOffset, "before_update")
+@event.listens_for(PayoutRecoveryOffset, "before_delete")
+def reject_payout_recovery_mutation(_mapper, _connection, _target) -> None:
+    raise ValueError("Payout recovery offsets are immutable")
+
+
 class PayoutBatchLine(Base):
     __tablename__ = "payout_batch_lines"
     __table_args__ = (

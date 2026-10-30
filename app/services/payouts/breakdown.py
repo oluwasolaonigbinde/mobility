@@ -19,7 +19,7 @@ from app.services.impressions import (
     quantize_2,
 )
 from app.services.payout_balances import TripMoneyPosition, trip_money_positions
-from app.services.payouts.common import PAYOUT_V4, payout_calculation_not_found
+from app.services.payouts.common import PAYOUT_V4, is_manual_deduction, payout_calculation_not_found
 from app.services.payouts.ledger import existing_payout_calculation_for_trip_any_formula
 from app.services.trips import trip_not_found
 
@@ -36,7 +36,8 @@ class DriverTripBreakdown:
     entries: list[EarningsLedgerEntry]
     # payout_v4: (Lagos day, whole metres counted, pay this trip added).
     daily_rate_days: list[tuple[date, int, Decimal]] | None = None
-    overpaid: Decimal = Decimal("0.00")
+    cash_paid: Decimal = Decimal("0.00")
+    to_deduct: Decimal = Decimal("0.00")
 
 
 def overpaid_deductions(entries, position: TripMoneyPosition) -> list[tuple[object, Decimal]]:
@@ -47,14 +48,13 @@ def overpaid_deductions(entries, position: TripMoneyPosition) -> list[tuple[obje
     deduction first, never more than its own amount: extra cash with no recorded
     deduction (a duplicate transfer, say) is not presented as one.
     """
-    remaining = max(position.cash_paid - position.earned_net, Decimal("0.00"))
+    remaining = position.to_deduct
     parts: list[tuple[object, Decimal]] = []
     deductions = sorted(
         (
             entry
             for entry in entries
-            if entry.entry_type == EarningsLedgerEntryType.REVERSAL.value
-            and entry.status != EarningsLedgerEntryStatus.VOIDED.value
+            if is_manual_deduction(entry) and entry.status != EarningsLedgerEntryStatus.VOIDED.value
         ),
         key=lambda entry: (entry.occurred_at, entry.created_at, str(entry.id)),
         reverse=True,
@@ -173,8 +173,7 @@ async def driver_trip_earnings_breakdown(
             calculation.distance_m_by_day or {}, calculation.amount_by_day or {}
         )
         # Entries after this index are not part of the per-day explanation.
-        explained_through = -1
-        for index, entry in reversed(list(enumerate(entries))):
+        for entry in reversed(entries):
             entry_metadata = entry.ledger_metadata or {}
             stored = entry_metadata.get("breakdown")
             if (
@@ -196,17 +195,14 @@ async def driver_trip_earnings_breakdown(
                 eligible_seconds, excluded = _recompute_explanation_from_stored_metadata(
                     stored
                 ) or (None, None)
-                explained_through = index
                 break
-        # Staff deductions recorded after the explanation sit on top of it: the
-        # miles and day pay still stand and the deduction shows as its own entry.
+        # Every manual deduction survives later recomputes of the gross day pay.
         deducted = sum(
             (
                 entry.amount
-                for entry in entries[explained_through + 1 :]
-                if entry.entry_type == EarningsLedgerEntryType.REVERSAL.value
+                for entry in entries
+                if is_manual_deduction(entry)
                 and entry.status != EarningsLedgerEntryStatus.VOIDED.value
-                and not (entry.ledger_metadata or {}).get("recompute_day")
             ),
             Decimal("0.00"),
         )
@@ -221,27 +217,17 @@ async def driver_trip_earnings_breakdown(
     position = (await trip_money_positions(session, entries)).get(
         (trip.id, currency), TripMoneyPosition()
     )
-    overpaid = quantize_2(
-        sum(
-            (
-                part
-                for _, part in overpaid_deductions(
-                    [entry for entry in entries if entry.currency == currency], position
-                )
-            ),
-            Decimal("0.00"),
-        )
-    )
 
     return DriverTripBreakdown(
         trip_session_id=trip.id,
         formula_version=formula_version,
         currency=currency,
-        amount=amount,
+        amount=position.earned_net,
         eligible_seconds=eligible_seconds,
         excluded_seconds_by_reason=excluded,
         superseded_by_recompute=superseded,
         entries=entries,
         daily_rate_days=daily_rate_days,
-        overpaid=overpaid,
+        cash_paid=position.cash_paid,
+        to_deduct=position.to_deduct,
     )

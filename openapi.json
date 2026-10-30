@@ -10843,6 +10843,10 @@
             "title": "Amount",
             "type": "string"
           },
+          "cash_paid": {
+            "title": "Cash Paid",
+            "type": "string"
+          },
           "currency": {
             "title": "Currency",
             "type": "string"
@@ -10850,10 +10854,6 @@
           "day": {
             "format": "date",
             "title": "Day",
-            "type": "string"
-          },
-          "overpaid": {
-            "title": "Overpaid",
             "type": "string"
           },
           "paid_at": {
@@ -10876,6 +10876,10 @@
               "being_checked"
             ],
             "title": "Status",
+            "type": "string"
+          },
+          "to_deduct": {
+            "title": "To Deduct",
             "type": "string"
           },
           "trip_ids": {
@@ -12166,6 +12170,17 @@
             ],
             "title": "Amount"
           },
+          "cash_paid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cash Paid"
+          },
           "currency": {
             "title": "Currency",
             "type": "string"
@@ -12220,7 +12235,11 @@
             "title": "Formula Version",
             "type": "string"
           },
-          "overpaid": {
+          "superseded_by_recompute": {
+            "title": "Superseded By Recompute",
+            "type": "boolean"
+          },
+          "to_deduct": {
             "anyOf": [
               {
                 "type": "string"
@@ -12229,11 +12248,7 @@
                 "type": "null"
               }
             ],
-            "title": "Overpaid"
-          },
-          "superseded_by_recompute": {
-            "title": "Superseded By Recompute",
-            "type": "boolean"
+            "title": "To Deduct"
           },
           "trip_session_id": {
             "format": "uuid",
@@ -16625,6 +16640,16 @@
             "title": "Currency",
             "type": "string"
           },
+          "deduction_amount": {
+            "default": "0.00",
+            "title": "Deduction Amount",
+            "type": "string"
+          },
+          "earnings_amount": {
+            "default": "0.00",
+            "title": "Earnings Amount",
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -17359,6 +17384,23 @@
         "title": "PayoutNegativeAdjustment",
         "type": "object"
       },
+      "PayoutNothingToSendRead": {
+        "properties": {
+          "message": {
+            "default": "Nothing needs sending.",
+            "title": "Message",
+            "type": "string"
+          },
+          "outcome": {
+            "const": "nothing_to_send",
+            "default": "nothing_to_send",
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "title": "PayoutNothingToSendRead",
+        "type": "object"
+      },
       "PayoutOperationLineRead": {
         "properties": {
           "amount": {
@@ -17487,6 +17529,16 @@
         "properties": {
           "currency": {
             "title": "Currency",
+            "type": "string"
+          },
+          "deduction_amount": {
+            "default": "0.00",
+            "title": "Deduction Amount",
+            "type": "string"
+          },
+          "earnings_amount": {
+            "default": "0.00",
+            "title": "Earnings Amount",
             "type": "string"
           },
           "ledger_entry_ids": {
@@ -29769,7 +29821,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PayoutBatchRead"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PayoutBatchRead"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PayoutNothingToSendRead"
+                    }
+                  ],
+                  "title": "Response Admin Reserve Payout Batch Api V1 Admin Payout Batches  Batch Id  Reserve Post"
                 }
               }
             },

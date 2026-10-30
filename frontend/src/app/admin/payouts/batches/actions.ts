@@ -22,6 +22,8 @@ export async function previewSelectionAction(
 ): Promise<{
   currency?: string;
   total_amount?: string;
+  earnings_amount?: string;
+  deduction_amount?: string;
   error?: string;
 }> {
   if (
@@ -113,14 +115,18 @@ export async function createAndReserveBatchAction(
         reason: parsed.data.reason,
       }),
     });
-    const reserved = await batchApi<PayoutBatch>(`/${draft.id}/reserve`, {
-      method: "POST",
-      body: JSON.stringify({
-        ledger_entry_ids: parsed.data.ledgerEntryIds,
-        reason: parsed.data.reason,
-      }),
-    });
+    const reserved = await batchApi<PayoutBatch | { outcome: "nothing_to_send"; message: string }>(
+      `/${draft.id}/reserve`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          ledger_entry_ids: parsed.data.ledgerEntryIds,
+          reason: parsed.data.reason,
+        }),
+      },
+    );
     revalidatePath("/admin/money");
+    if ("outcome" in reserved) return { done: reserved.message };
     return {
       done:
         reserved.status === "reserved"

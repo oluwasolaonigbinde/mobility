@@ -107,7 +107,8 @@ describe("DriverTripEarningsPage", () => {
       get.mockResolvedValue({
         data: breakdown({
           amount: "9900.00",
-          overpaid: "100.00",
+          to_deduct: "100.00",
+          cash_paid: "10000.00",
           daily_rate_days: [{ lagos_day: "2026-10-24", distance_m: 119575, amount: "10000.00" }],
           entries: [
             {
@@ -140,7 +141,7 @@ describe("DriverTripEarningsPage", () => {
   );
 
   it("shows no deduction note once nothing is left to deduct", async () => {
-    get.mockResolvedValue({ data: breakdown({ amount: "9900.00", overpaid: "0.00" }) });
+    get.mockResolvedValue({ data: breakdown({ amount: "9900.00", to_deduct: "0.00" }) });
     render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-v4" }) }));
     expect(screen.queryByText(/to be deducted/)).not.toBeInTheDocument();
   });

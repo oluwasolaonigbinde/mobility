@@ -95,6 +95,7 @@ def _projection_payload(computations: list[DayComputation]) -> dict:
     trips = []
     previous_total = Decimal("0.00")
     target_total = Decimal("0.00")
+    delta_total = Decimal("0.00")
     adjustment_count = 0
     reversal_count = 0
     currencies: set[str] = set()
@@ -120,6 +121,7 @@ def _projection_payload(computations: list[DayComputation]) -> dict:
             )
             previous_total += target.previous_posted_amount
             target_total += target.target_amount
+            delta_total += target.delta_amount
             if target.delta_amount > 0:
                 adjustment_count += 1
             elif target.delta_amount < 0:
@@ -131,7 +133,7 @@ def _projection_payload(computations: list[DayComputation]) -> dict:
         "day_totals": {
             "previous_posted_amount": str(quantize_2(previous_total)),
             "target_amount": str(quantize_2(target_total)),
-            "delta_amount": str(quantize_2(target_total - previous_total)),
+            "delta_amount": str(quantize_2(delta_total)),
             "projected_adjustment_count": adjustment_count,
             "projected_reversal_count": reversal_count,
             "trip_count": len(trips),

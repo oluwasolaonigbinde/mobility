@@ -26,7 +26,9 @@ from app.services.payout_balances import driver_money_balance, trip_cash_positio
 
 
 def credit(amount="100.00", status="available", kind="adjustment"):
-    return SimpleNamespace(amount=Decimal(amount), status=status, entry_type=kind)
+    return SimpleNamespace(
+        amount=Decimal(amount), status=status, entry_type=kind, ledger_metadata={}
+    )
 
 
 def line(amount="100.00", status="succeeded", active=False, predecessor=None):
@@ -267,7 +269,7 @@ def test_negative_refusals_leave_ledger_audit_and_lines_unchanged(
     asyncio.run(exercise())
 
 
-def test_negative_on_one_trip_never_reduces_a_later_trip(db_sessionmaker):
+def test_unpaid_deduction_is_capped_at_its_trip_worth(db_sessionmaker):
     graph = build_graph(db_sessionmaker, "trip-isolation-" + uuid4().hex[:8])
     other = create_test_trip_session(
         db_sessionmaker,
@@ -311,7 +313,7 @@ def test_negative_on_one_trip_never_reduces_a_later_trip(db_sessionmaker):
             balance = await driver_money_balance(
                 session, driver_profile_id=graph.profile.id, currency="NGN"
             )
-            assert balance.earned_net == Decimal("20.00")
+            assert balance.earned_net == Decimal("70.00")
             assert balance.batch_payable == Decimal("70.00")
 
     asyncio.run(exercise())

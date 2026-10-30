@@ -81,7 +81,11 @@ from app.services.fraud_holds import (
     lock_fraud_hold_scopes,
 )
 from app.services.notifications import create_active_admin_notices
-from app.services.payout_balances import lock_driver_money_scope
+from app.services.payout_balances import (
+    allocate_payout_recovery,
+    lock_driver_money_scope,
+    recovery_needs_review,
+)
 from app.services.payout_operations import _outcome
 from app.services.payouts.common import PAYOUT_V4, lagos_day_for, lagos_day_utc_range
 from app.services.payouts.ledger import _day_trip_overlap, latest_daily_rate_position
@@ -862,6 +866,11 @@ async def run_automatic_payouts(  # noqa: C901
                 break
             next_cursor = (stub.occurred_at, stub.id)
             entry = entries[stub.id]
+            if await recovery_needs_review(
+                session, driver_profile_id=entry.driver_profile_id, currency=entry.currency
+            ):
+                exclusions.add("recovery_needs_review", entry.amount)
+                continue
             if (
                 entry.status != EarningsLedgerEntryStatus.AVAILABLE.value
                 or entry.entry_type != EarningsLedgerEntryType.TRIP_PAYOUT.value
@@ -968,17 +977,30 @@ async def run_automatic_payouts(  # noqa: C901
                     automatic_run_id=run.id,
                     approved_at=now,
                 )
-                lines = [
-                    build_frozen_payout_line(
-                        batch_id=batch.id,
+                lines = []
+                for entry, authority in sorted(
+                    by_driver[driver_profile_id], key=lambda item: str(item[0].id)
+                ):
+                    amount = await allocate_payout_recovery(
+                        session,
                         entry=entry,
-                        payee_version=authority[0],
-                        account_version=authority[1],
+                        payable=entry.amount,
+                        request_id=run.id,
+                        automatic_run_id=run.id,
                     )
-                    for entry, authority in sorted(
-                        by_driver[driver_profile_id], key=lambda item: str(item[0].id)
+                    if amount == 0:
+                        continue
+                    lines.append(
+                        build_frozen_payout_line(
+                            batch_id=batch.id,
+                            entry=entry,
+                            payee_version=authority[0],
+                            account_version=authority[1],
+                            amount=amount,
+                        )
                     )
-                ]
+                if not lines:
+                    continue
                 freeze_batch_instruction_set(batch, lines)
                 session.add(batch)
                 await session.flush()
@@ -997,6 +1019,9 @@ async def run_automatic_payouts(  # noqa: C901
                     )
                 await session.flush()
                 batches.append((batch, lines))
+            run.total_amount = sum((batch.total_amount for batch, _ in batches), Decimal("0.00"))
+            run.batch_count = len(batches)
+            run.line_count = sum(len(lines) for _, lines in batches)
     except IntegrityError as exc:
         if integrity_constraint_name(exc) not in {
             "uq_payout_batch_lines_active_ledger_entry",
@@ -1053,6 +1078,11 @@ async def automatic_final_clean_authority(
     driver_profile_ids: tuple[UUID, ...],
 ) -> dict[str, object]:
     """Extra final-gate checks for an automatic SUBMIT (A10). Callers hold the locks."""
+    for driver_id in driver_profile_ids:
+        if await recovery_needs_review(
+            session, driver_profile_id=driver_id, currency=batch.currency
+        ):
+            raise _error("PAYOUT_RECOVERY_REVIEW_REQUIRED", "Check this driver's deductions")
     if await session.scalar(
         select(FraudFlag.id).where(FraudFlag.trip_session_id.in_(trip_ids)).limit(1)
     ):

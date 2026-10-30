@@ -156,9 +156,9 @@ export default async function DriverTripEarningsPage({
           <p className="font-display text-green mt-1 text-3xl font-semibold">
             {formatMoneyExact(data.amount, data.currency)}
           </p>
-          {data.amount && data.overpaid && Number(data.overpaid) > 0 ? (
+          {data.to_deduct && Number(data.to_deduct) > 0 ? (
             <p className="micro text-amber mt-2">
-              {paidBeforeDeduction(data.amount, data.overpaid, data.currency)}
+              {paidBeforeDeduction(data.cash_paid ?? "0.00", data.to_deduct, data.currency)}
             </p>
           ) : null}
           {data.superseded_by_recompute ? (

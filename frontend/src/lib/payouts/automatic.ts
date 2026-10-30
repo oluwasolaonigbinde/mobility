@@ -56,6 +56,7 @@ const REASON_LABELS: Record<string, string> = {
   payee_unverified: "Check and verify the driver’s bank details before paying",
   new_bank_destination: "First payment to this bank account",
   debt_outstanding: "Driver owes money back",
+  recovery_needs_review: "Check the driver's deductions",
   adjusted_trip: "Pay was corrected",
   not_daily_rate: "Not daily-rate pay",
   daily_limit: "Above one day's pay",
@@ -82,6 +83,8 @@ export function outcomeText(outcome: string): string {
 
 export function alertDetail(alert: AutomaticAlert): string | null {
   const detail = alert.detail as Record<string, unknown>;
+  if (detail.reason === "recovery_needs_review")
+    return "Check this driver's deductions before paying again.";
   if (alert.kind === "business_health") {
     const checks: Record<string, string> = {
       stuck_payouts: "Payments have stopped making progress",

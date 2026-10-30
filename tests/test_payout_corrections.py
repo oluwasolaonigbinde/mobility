@@ -52,6 +52,105 @@ from app.services.payouts.common import PAYOUT_V4
 RELEASE_AT = datetime(2026, 9, 1, 12, 0, tzinfo=UTC)
 
 
+@pytest.mark.parametrize(
+    "rate,posted,voided,expected_delta",
+    [
+        ("600.00", "600.00", False, "0.00"),
+        ("900.00", "1000.00", False, "-100.00"),
+        ("600.00", "600.00", True, "200.00"),
+    ],
+)
+def test_manual_deduction_survives_correction(
+    postgis_db_sessionmaker,
+    settings,
+    rate,
+    posted,
+    voided,
+    expected_delta,
+):
+    graph = build_v4_graph(
+        postgis_db_sessionmaker,
+        settings,
+        f"deduct-{uuid4().hex[:8]}",
+        daily_rate_naira=Decimal(rate),
+        daily_target_miles=Decimal("1.00"),
+    )
+    drive(postgis_db_sessionmaker, settings, graph.trip)
+    seed_misposted_amount(postgis_db_sessionmaker, graph.trip.id, posted)
+
+    async def exercise(session):
+        credit = await session.scalar(
+            select(EarningsLedgerEntry).where(EarningsLedgerEntry.trip_session_id == graph.trip.id)
+        )
+        session.add(
+            EarningsLedgerEntry(
+                driver_profile_id=credit.driver_profile_id,
+                driver_user_id=credit.driver_user_id,
+                campaign_id=credit.campaign_id,
+                trip_session_id=credit.trip_session_id,
+                vehicle_id=credit.vehicle_id,
+                entry_type="reversal",
+                status="available",
+                amount=Decimal("200.00"),
+                currency=credit.currency,
+                occurred_at=credit.occurred_at,
+                ledger_metadata={
+                    "source_entry_id": str(credit.id),
+                    "lagos_day": lagos_day_for(graph.trip.started_at).isoformat(),
+                },
+            )
+        )
+        if voided:
+            credit.status = "voided"
+        await session.flush()
+        projection = await project_campaign_day(
+            session,
+            campaign_id=graph.campaign.id,
+            lagos_day=lagos_day_for(graph.trip.started_at),
+            settings=settings,
+        )
+        target = projection.computations[0].trips[0]
+        true_posted = Decimal("-200.00") if voided else Decimal(posted) - Decimal("200.00")
+        assert target.previous_posted_amount == true_posted
+        assert target.delta_amount == Decimal(expected_delta)
+        assert true_posted + target.delta_amount == (
+            Decimal("0.00") if voided else Decimal(rate) - Decimal("200.00")
+        )
+        order = await create_correction_order(
+            session,
+            campaign_id=graph.campaign.id,
+            lagos_day=lagos_day_for(graph.trip.started_at),
+            reason="Keep the staff deduction",
+            created_by_user_id=graph.admin.id,
+            settings=settings,
+        )
+        assert Decimal(order.projected_delta["day_totals"]["delta_amount"]) == Decimal(
+            expected_delta
+        )
+        await approve_correction_order(
+            session,
+            order_id=order.id,
+            actor_user_id=graph.admin.id,
+            reason="Apply checked trip worth",
+            release_at=RELEASE_AT,
+            request_metadata={},
+            settings=settings,
+        )
+        entries = (
+            await session.scalars(
+                select(EarningsLedgerEntry).where(
+                    EarningsLedgerEntry.trip_session_id == graph.trip.id,
+                    EarningsLedgerEntry.status != "voided",
+                )
+            )
+        ).all()
+        assert sum(
+            ((-e.amount if e.entry_type == "reversal" else e.amount) for e in entries), Decimal(0)
+        ) == (Decimal(0) if voided else Decimal(rate) - Decimal("200.00"))
+
+    service(postgis_db_sessionmaker, exercise)
+
+
 # --- Helpers -----------------------------------------------------------------
 
 

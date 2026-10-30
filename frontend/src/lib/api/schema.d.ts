@@ -8414,6 +8414,8 @@ export interface components {
         DriverEarningsDayRead: {
             /** Amount */
             amount: string;
+            /** Cash Paid */
+            cash_paid?: string;
             /** Currency */
             currency: string;
             /**
@@ -8421,8 +8423,6 @@ export interface components {
              * Format: date
              */
             day: string;
-            /** Overpaid */
-            overpaid?: string;
             /** Paid At */
             paid_at: string | null;
             /**
@@ -8430,6 +8430,8 @@ export interface components {
              * @enum {string}
              */
             status: "on_hold" | "paid" | "paying_tonight" | "being_checked";
+            /** To Deduct */
+            to_deduct?: string;
             /** Trip Ids */
             trip_ids: string[];
         };
@@ -8917,6 +8919,8 @@ export interface components {
         DriverTripEarningsBreakdown: {
             /** Amount */
             amount: string | null;
+            /** Cash Paid */
+            cash_paid?: string | null;
             /** Currency */
             currency: string;
             /** Daily Rate Days */
@@ -8931,10 +8935,10 @@ export interface components {
             } | null;
             /** Formula Version */
             formula_version: string;
-            /** Overpaid */
-            overpaid?: string | null;
             /** Superseded By Recompute */
             superseded_by_recompute: boolean;
+            /** To Deduct */
+            to_deduct?: string | null;
             /**
              * Trip Session Id
              * Format: uuid
@@ -10648,6 +10652,16 @@ export interface components {
             /** Currency */
             currency: string;
             /**
+             * Deduction Amount
+             * @default 0.00
+             */
+            deduction_amount: string;
+            /**
+             * Earnings Amount
+             * @default 0.00
+             */
+            earnings_amount: string;
+            /**
              * Id
              * Format: uuid
              */
@@ -10947,6 +10961,20 @@ export interface components {
              */
             request_id: string;
         };
+        /** PayoutNothingToSendRead */
+        PayoutNothingToSendRead: {
+            /**
+             * Message
+             * @default Nothing needs sending.
+             */
+            message: string;
+            /**
+             * Outcome
+             * @default nothing_to_send
+             * @constant
+             */
+            outcome: "nothing_to_send";
+        };
         /** PayoutOperationLineRead */
         PayoutOperationLineRead: {
             /** Amount */
@@ -10996,6 +11024,16 @@ export interface components {
         PayoutSelectionPreviewRead: {
             /** Currency */
             currency: string;
+            /**
+             * Deduction Amount
+             * @default 0.00
+             */
+            deduction_amount: string;
+            /**
+             * Earnings Amount
+             * @default 0.00
+             */
+            earnings_amount: string;
             /** Ledger Entry Ids */
             ledger_entry_ids: string[];
             /** Total Amount */
@@ -16592,7 +16630,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PayoutBatchRead"];
+                    "application/json": components["schemas"]["PayoutBatchRead"] | components["schemas"]["PayoutNothingToSendRead"];
                 };
             };
             /** @description Request validation failed */

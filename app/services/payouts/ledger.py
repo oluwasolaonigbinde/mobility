@@ -241,7 +241,13 @@ async def ensure_ledger_entry(
             other.id,
         )
         return None
-    profile = await session.get(DriverProfile, calculation.driver_profile_id)
+    profile = await session.scalar(
+        select(DriverProfile)
+        .where(
+            DriverProfile.id == calculation.driver_profile_id,
+        )
+        .with_for_update()
+    )
     if profile is None:
         raise AppError(
             "DRIVER_PROFILE_NOT_FOUND",

@@ -46,6 +46,7 @@ def row(
         trip_session_id=trip,
         occurred_at=occurred_at,
         created_at=occurred_at,
+        ledger_metadata={"source_entry_id": "test-credit"} if entry_type == "reversal" else {},
     )
     response = SimpleNamespace(
         work_days=[
@@ -270,7 +271,7 @@ def test_net_adjusted_credit_is_paid_when_actual_cash_covers_net_award():
     )
     assert (day["amount"], day["status"], day["paid_at"]) == (Decimal("80.00"), "paid", paid_at)
     # The deduction came off before the money went out: nothing left to deduct.
-    assert day["overpaid"] == 0
+    assert day["to_deduct"] == 0
 
 
 PAID_AT = datetime(2026, 10, 25, 20, tzinfo=UTC)
@@ -293,7 +294,7 @@ def deduction(amount="100.00", day="2026-10-24", trip=TRIP, occurred_at=None):
 def test_deduction_after_payment_keeps_the_net_and_reports_the_cash_above_it():
     # REQ-256: ₦10,000 reached the bank, then staff recorded a ₦100 deduction.
     [day] = show(paid_credit(), deduction(), cash={(TRIP, "NGN"): Decimal("10000.00")})
-    assert (day["day"], day["amount"], day["status"], day["overpaid"]) == (
+    assert (day["day"], day["amount"], day["status"], day["to_deduct"]) == (
         date(2026, 10, 24),
         Decimal("9900.00"),
         "paid",
@@ -301,9 +302,9 @@ def test_deduction_after_payment_keeps_the_net_and_reports_the_cash_above_it():
     )
 
 
-def test_cash_above_the_award_without_a_deduction_is_not_called_one():
+def test_duplicate_cash_above_trip_worth_is_recovered():
     [day] = show(paid_credit("100.00"), cash={(TRIP, "NGN"): Decimal("200.00")})
-    assert (day["amount"], day["overpaid"]) == (Decimal("100.00"), 0)
+    assert (day["amount"], day["to_deduct"]) == (Decimal("100.00"), Decimal("100.00"))
 
 
 def test_day_mixing_an_overpaid_trip_and_an_unpaid_trip():
@@ -314,7 +315,7 @@ def test_day_mixing_an_overpaid_trip_and_an_unpaid_trip():
         row(amount="500.00", trip=other, work_days=[("2026-10-24", "500.00")]),
         cash={(TRIP, "NGN"): Decimal("10000.00"), (other, "NGN"): Decimal("0.00")},
     )
-    assert (day["amount"], day["status"], day["overpaid"]) == (
+    assert (day["amount"], day["status"], day["to_deduct"]) == (
         Decimal("10400.00"),
         "being_checked",
         Decimal("100.00"),
@@ -328,7 +329,7 @@ def test_deduction_on_a_day_without_pay_lands_on_its_own_day():
         deduction(day="2026-10-25"),
         cash={(TRIP, "NGN"): Decimal("10000.00")},
     )
-    assert [(d["day"].isoformat(), d["amount"], d["overpaid"]) for d in days] == [
+    assert [(d["day"].isoformat(), d["amount"], d["to_deduct"]) for d in days] == [
         ("2026-10-25", Decimal("-100.00"), Decimal("100.00")),
         ("2026-10-24", Decimal("10000.00"), 0),
     ]
@@ -342,7 +343,7 @@ def test_newest_deduction_is_the_one_still_to_come():
         # 70 paid against a net 50: only 20 of the deductions is still to come.
         cash={(TRIP, "NGN"): Decimal("70.00")},
     )
-    assert {d["day"].isoformat(): d["overpaid"] for d in days} == {
+    assert {d["day"].isoformat(): d["to_deduct"] for d in days} == {
         "2026-10-25": Decimal("20.00"),
         "2026-10-24": 0,
     }
@@ -388,7 +389,7 @@ def test_trip_breakdown_keeps_miles_after_a_deduction_and_hides_staff_metadata(
     body = after.json()
     assert body["amount"] == str(net)
     assert body["daily_rate_days"] == before["daily_rate_days"]
-    assert body["overpaid"] == "0.00"
+    assert body["to_deduct"] == "0.00"
     deduction_entry = next(e for e in body["entries"] if e["entry_type"] == "reversal")
     assert deduction_entry["work_days"] == [{"day": work_day["lagos_day"], "amount": "100.00"}]
     ledger = db_client.get("/api/v1/driver/earnings/ledger", headers=driver)
@@ -409,8 +410,8 @@ def test_trip_breakdown_keeps_miles_after_a_deduction_and_hides_staff_metadata(
         }
 
     monkeypatch.setattr(breakdown_module, "trip_money_positions", paid_in_full)
-    overpaid = db_client.get(endpoint, headers=driver).json()
-    assert (overpaid["amount"], overpaid["overpaid"]) == (str(net), "100.00")
+    to_deduct = db_client.get(endpoint, headers=driver).json()
+    assert (to_deduct["amount"], to_deduct["to_deduct"]) == (str(net), "100.00")
 
 
 def test_partial_multi_day_cash_has_no_invented_allocation():

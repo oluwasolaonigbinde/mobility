@@ -27,7 +27,8 @@ class DecimalStringMixin(BaseModel):
         "gross_payout",
         "final_payout",
         "amount",
-        "overpaid",
+        "cash_paid",
+        "to_deduct",
         "pending_amount",
         "available_amount",
         "paid_amount",
@@ -185,7 +186,14 @@ class DriverEarningsLedgerEntryRead(_EarningsLedgerEntryFields):
 
 class DriverMoneyMixin(BaseModel):
     @field_serializer(
-        "amount", "overpaid", "today", "this_week", "total", "on_hold", check_fields=False
+        "amount",
+        "cash_paid",
+        "to_deduct",
+        "today",
+        "this_week",
+        "total",
+        "on_hold",
+        check_fields=False,
     )
     def serialize_money(self, value: Decimal) -> str:
         return str(value.quantize(Decimal("0.01")))
@@ -198,8 +206,8 @@ class DriverEarningsDayRead(DriverMoneyMixin):
     status: Literal["on_hold", "paid", "paying_tonight", "being_checked"]
     paid_at: datetime | None
     trip_ids: list[UUID]
-    # Cash already paid above the net amount, shown against the deduction's day.
-    overpaid: Decimal = Decimal("0.00")
+    cash_paid: Decimal = Decimal("0.00")
+    to_deduct: Decimal = Decimal("0.00")
 
 
 class DriverEarningsTotalsRead(DriverMoneyMixin):
@@ -429,5 +437,5 @@ class DriverTripEarningsBreakdown(DecimalStringMixin):
     superseded_by_recompute: bool
     entries: list[DriverEarningsLedgerEntryRead]
     daily_rate_days: list[DriverTripDailyRateDay] | None = None
-    # Cash already paid above `amount` and attributed to recorded deductions.
-    overpaid: Decimal = Decimal("0.00")
+    cash_paid: Decimal = Decimal("0.00")
+    to_deduct: Decimal = Decimal("0.00")

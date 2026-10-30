@@ -15,6 +15,18 @@ import {
 describe("payout batch actions", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("returns nothing to send without a payment-run link for full recovery", async () => {
+    mocks.batchApi
+      .mockResolvedValueOnce({ id: "11111111-1111-4111-8111-111111111111" })
+      .mockResolvedValueOnce({ outcome: "nothing_to_send", message: "Nothing needs sending." });
+    const form = new FormData();
+    form.set("reason", "Settle next payout");
+    form.set("request_id", "11111111-1111-4111-8111-111111111111");
+    form.set("currency", "NGN");
+    form.set("ledger_entry_ids", "22222222-2222-4222-8222-222222222222");
+    expect(await createAndReserveBatchAction({}, form)).toEqual({ done: "Nothing needs sending." });
+  });
+
   it("returns only the server selection total and does not mutate a draft during preview", async () => {
     mocks.batchApi.mockResolvedValueOnce({ currency: "NGN", total_amount: "125.10" });
     const ids = ["22222222-2222-4222-8222-222222222222"];

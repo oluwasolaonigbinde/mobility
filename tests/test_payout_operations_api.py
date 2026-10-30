@@ -1,5 +1,5 @@
 import asyncio
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from conftest import auth_headers
 from sqlalchemy import func, select
@@ -8,6 +8,64 @@ from test_payout_batches import _seed_authority
 
 from app.models.audit import AuditEvent
 from app.models.disbursement import PayoutBatch, PayoutBatchLine
+
+
+def test_fully_offset_selection_returns_nothing_to_send_and_no_batch(
+    postgis_db_client,
+    postgis_db_sessionmaker,
+):
+    from test_payout_recoveries import seed_debt
+
+    from app.models.disbursement import PayoutRecoveryOffset
+    from app.models.payout import EarningsLedgerEntry
+
+    client, db = postgis_db_client, postgis_db_sessionmaker
+    graph = build_graph(db, f"offset-api-{uuid4().hex[:8]}")
+
+    async def seed():
+        async with db() as session:
+            funding, _ = await seed_debt(session, graph, payable="40.00")
+            await session.commit()
+            return str(funding.id)
+
+    entry_id = asyncio.run(seed())
+    headers = auth_headers(client, graph.admin.email)
+    request_id = str(uuid4())
+    preview = client.post(
+        "/api/v1/admin/payout-batches/selection-preview",
+        headers=headers,
+        json={"currency": "NGN", "ledger_entry_ids": [entry_id]},
+    )
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["earnings_amount"] == "40.00"
+    assert preview.json()["deduction_amount"] == "40.00"
+    assert preview.json()["total_amount"] == "0.00"
+    for _ in range(2):
+        created = client.post(
+            "/api/v1/admin/payout-batches",
+            headers=headers,
+            json={"currency": "NGN", "request_id": request_id, "reason": "Settle next payout"},
+        )
+        assert created.status_code == 201, created.text
+        settled = client.post(
+            f"/api/v1/admin/payout-batches/{request_id}/reserve",
+            headers=headers,
+            json={"ledger_entry_ids": [entry_id], "reason": "Settle next payout"},
+        )
+        assert settled.status_code == 200, settled.text
+        assert settled.json() == {"outcome": "nothing_to_send", "message": "Nothing needs sending."}
+
+    async def check():
+        async with db() as session:
+            assert await session.get(PayoutBatch, UUID(request_id)) is None
+            assert await session.scalar(select(func.count(PayoutRecoveryOffset.id))) == 1
+            credit = await session.get(EarningsLedgerEntry, UUID(entry_id))
+            assert credit.status == "paid"
+            assert (
+                await session.scalar(select(func.count(PayoutBatchLine.id))) == 1
+            )  # Original cash only.
+
+    asyncio.run(check())
 
 
 def test_payout_projection_routes_are_exact_bounded_and_read_only(

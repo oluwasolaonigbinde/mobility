@@ -37,6 +37,16 @@ ZERO = Decimal("0")
 PAYOUT_V4 = "payout_v4"
 
 
+def is_manual_deduction(entry) -> bool:
+    """An explicit staff deduction, separate from recomputed pay differentials."""
+    metadata = entry.ledger_metadata or {}
+    return (
+        entry.entry_type == EarningsLedgerEntryType.REVERSAL.value
+        and bool(metadata.get("source_entry_id"))
+        and not metadata.get("recompute_day")
+    )
+
+
 RULE_REVISION_UNIQUE_CONSTRAINTS = (
     "uq_campaign_payout_rule_revisions_campaign_number",
     "uq_campaign_payout_rule_revisions_campaign_effective",
