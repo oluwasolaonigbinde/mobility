@@ -2311,8 +2311,8 @@ async def get_current_active_driver_assignment(
     if len(assignments) > 1:
         raise AppError(
             "MULTIPLE_ACTIVE_ASSIGNMENTS",
-            "Multiple active assignments were found for the current driver",
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "Two jobs are live on your account. Please contact support so we can fix it.",
+            status_code=status.HTTP_409_CONFLICT,
         )
     if not assignments:
         return None
