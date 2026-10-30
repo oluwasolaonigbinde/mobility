@@ -496,6 +496,10 @@ Uncertain or already claimed transfers must be verified by their existing
 reference before any new submission. Partial corrected cash can settle a trip;
 the Paid display follows actual verified cash against net earned pay.
 
+Drivers see "₦X paid · ₦Y to be deducted" until recovered, then plain net, with
+deductions dated to the corrected Nigeria day and labelled Deduction without
+staff notes or metadata (D140 / REQ-256; REQ-262 recovery remains separate work).
+
 Manual receipt handling records then confirms the exact expected amount and
 currency before allocation. Mismatches remain recorded. Budget checks retain
 D104's accepted-price exception, 80/95 warnings and strict-above-100 pause;

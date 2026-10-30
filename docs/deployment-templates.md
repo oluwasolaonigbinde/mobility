@@ -17,6 +17,49 @@ Render Blueprint, AWS IAM/KMS and Mapbox instructions have been removed.
 Postmark stays; bank/NIN encryption uses Cardvert's supplied key ring, not a
 provider KMS. No region or recurring-spend choice is made here.
 
+## Staging invoice issuer (D141 / REQ-263)
+
+Owner, 27–29 October 2026: local, test and staging may issue invoices from
+realistic synthetic issuer facts. Built on integrate/req252-264 (`3abcc85b`);
+full CI and merge remain pending. This setup does not authorize a deployment.
+
+1. Set `ENVIRONMENT=staging` and
+   `INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE=cardvert-synthetic-issuer` in the
+   staging configuration.
+2. An authenticated admin POSTs `/api/v1/admin/invoice-issuer-profiles` with
+   the following `SYNTHETIC_ISSUER_FACTS` payload from
+   `app/seeds/demo_authority.py`, plus `verification_status=synthetic`:
+
+   ```json
+   {
+     "legal_name": "Terrax Media Company Ltd",
+     "tax_identification_number": "2521515778093",
+     "company_registration_number": "8688553",
+     "registered_address": "73 Lome Crescent, Wuse Zone 7, Abuja",
+     "country_code": "NG",
+     "invoice_wording": "Vehicle advertising",
+     "numbering_prefix": "TXM",
+     "external_input_reference": "cardvert-synthetic-issuer",
+     "contact_phone": "07074200080",
+     "contact_email": "terraxmediacompany@gmail.com",
+     "bank_name": "OPay",
+     "bank_account_name": "Terrax Media Company Ltd",
+     "bank_account_number": "0000000000",
+     "verification_status": "synthetic"
+   }
+   ```
+
+3. Restart the API with that configuration after the separately authorized
+   staging change.
+4. Open a draft invoice as an admin and check that **Issue invoice** appears.
+
+Issued invoices use the normal prefix and layout: no `TEST-` prefix or Test
+invoice label. Synthetic and verified profiles share one number series per
+prefix. Rehearsal and production never permit synthetic issuance and remain
+fail-closed until verified D42/Q28 issuer facts and accountant authority exist.
+The gate evaluator treats a set issuer reference as the Q28 claim only in
+production; staging synthetic setup does not close that external input.
+
 ## Disposition of Batch F's 13 gaps
 
 “Falls away” means a superseded template mismatch, never live deployment proof.

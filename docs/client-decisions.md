@@ -113,8 +113,8 @@ One Account combines company and sign-in details; invoices live only in Billing,
 linked from campaigns; Billing's approved design stays. Campaigns has a simple
 date timeline and advertiser/staff campaign pages/rows show Day X of Y using
 current campaign dates, including extensions, with no new usage/delivery warning.
-The existing per-campaign Booked figure, bar, percent and over-budget colour stay
-unchanged under D103/D104; its only visual addition is a wallet icon.
+The per-campaign Booked figure now shows amounts only, with no bar, percentage
+or colour (owner, 27–29 October 2026, REQ-253); D103/D104 money authority stays.
 
 **Current rule:** The business is **Terrax Media**; the product and app are
 **Cardvert** (Q29). Signed-in screens say "Terrax Media" when a person acts
@@ -173,6 +173,12 @@ work days use realistic qualifying mileage and separate next-day payments.
 
 ### Staff roles and departments
 
+**27–29 October owner clarification (REQ-254):** There are three roles:
+advertiser, admin and driver. Every company member has the same advertiser
+access; there is no read-only viewer role. The second demo advertiser signs in
+as `advertiser2@demo.mobility.local`. Built on integrate/req252-264 (`e9e990c7`);
+full CI and merge remain pending. The single-login provisioning rule below is unchanged.
+
 **Current rule:** One Terrax admin role; the client's departments (Operations,
 Compliance, Finance, Customer Service, Admin) are sections of the admin
 "Waiting for you" work queue, not separate logins (D38e). The client's
@@ -188,6 +194,7 @@ temporary password that must be changed at first sign-in (REQ-208).
 
 **History:**
 - **2026-09-02** — Owner decision on single-company advertiser logins and one admin for driver checks (D29).
+- **2026-10-27–29** — Owner clarified the existing three-role model (REQ-254); the former demo `viewer@demo.mobility.local` name incorrectly suggested read-only access. It was an ordinary advertiser member. Built on integrate/req252-264 (`e9e990c7`).
 - **2026-09-24** — Client named its departments; owner mapped them to work-queue sections (D38e). Built in `7a9ceb0` (REQ-001).
 - **2026-09-30** — Owner: no named people per department; everyone uses the one admin role (REQ-031).
 - **2026-10-01** — Owner kept one advertiser login per company for the admin redesign; the proposed additional-person invitation is omitted (D47, REQ-060). Existing membership history and access constraints remain.
@@ -226,12 +233,18 @@ Permanent payment terms or checkout-binding mismatches stop automatic retries
 and remain visible to operators; temporary failures still recover. This changes
 no payment amount or allocation authority (D133, REQ-241).
 
+Money can be recorded only against an issued invoice (owner, 27–29 October
+2026, D139 / REQ-255). Draft invoices reject allocation with
+`409 INVOICE_NOT_ISSUED`. Built on integrate/req252-264 (`6d4d6a95`);
+full CI and merge remain pending.
+
 **Still open:** [REQ-051](requests.md) Paystack activation and developer admin
 access, [REQ-025](requests.md) password and two-step verification,
 [REQ-027](requests.md), [REQ-035](requests.md).
 
 **History:**
 - **2026-08-14** — Client confirmed payment timing and methods (Q2, Q3, D18).
+- **2026-10-27–29** — Owner requires an issued invoice before recording money (D139 / REQ-255). Previously allocation could mark a draft invoice Paid. Built on integrate/req252-264 (`6d4d6a95`).
 - **2026-10-25** — D133/REQ-241 stops repeated automatic attempts for proven permanent payment-binding failures, retaining operator evidence and transient recovery. Earlier sweeps repeatedly selected those failures. Verification and integration remain pending.
 - **2026-10-14** — Owner approved bounded public callback buffering (D84/REQ-171); earlier callbacks authenticated only after an unbounded body read. Local declared/chunked/exact-byte regressions pass; security review and full batch CI passed. Built in `2428011f`.
 - **2026-10-14** — D85/REQ-173 recovers saved uncertain checkouts; the earlier implementation refused all initialization retries even after a pre-dispatch interruption. Recovery reuses the exact reference and canonical verification, retaining uncertainty after ambiguous/duplicate responses. Fake-I/O and separate-session checks pass; money review and full batch CI passed. Built in `faa4bb19`.
@@ -252,15 +265,21 @@ details (client answers item 6). Advertiser and driver amounts use grouping and 
 its percentage and amount (D71, REQ-142). The invoice leads with the VAT-inclusive
 total; staff still enter prices before VAT. Real invoice bank details stay
 unset until Terrax supplies them, and a real invoice cannot be issued without
-them or without the accountant's sign-off (D42). Demo/staging sample invoices
-may use registered seed-backed bank placeholders under D46; these never
-become verified issuer facts or real payment instructions.
+them or without the accountant's sign-off (D42). Owner, 27–29 October 2026
+(D141 / REQ-263), permits local, test and staging issuance from realistic
+synthetic issuer facts: Terrax Media Company Ltd and OPay account `0000000000`.
+There is no `TEST-` prefix or "Test invoice" label. Synthetic and verified
+profiles share one number series per prefix. Production and rehearsal remain
+fail-closed until the D42/Q28 facts exist; synthetic facts never become verified
+facts or real payment instructions. Built on integrate/req252-264 (`3abcc85b`);
+full CI and merge remain pending.
 
 **Still open:** [REQ-041](requests.md) OPay bank details;
 [REQ-042](requests.md) accountant's confirmation and [REQ-052](requests.md) someone to check the sample invoice.
 
 **History:**
 - **2026-10-07** — Owner W2-D brief requires advertiser/driver money grouped with two decimal places and VAT shown as "VAT 7.5% · ₦…"; stored values and issued invoices remain unchanged (D71, REQ-142). Earlier display precision varied by amount. Built in `78ad5580` and real integration `21239a6d`.
+- **2026-10-27–29** — Owner extends D42/D46 to actual synthetic invoice issuance in local, test and staging (D141 / REQ-263). Previously synthetic issuance was test-only and synthetic invoices used a `TEST-` prefix and label; demo/staging placeholders alone did not enable staging issuance. Rehearsal/production still require verified facts. Built on integrate/req252-264 (`3abcc85b`).
 - **2026-08-14** — Client confirmed in-platform invoices and VAT-inclusive display (Q14, Q28, D18).
 - **2026-09-24** — Client supplied company details and invoice fields (client answers item 6).
 - **2026-09-29** — Owner approved the invoice layout: bank slots left blank until the real OPay details arrive, prices still entered before VAT (D42, REQ-009). Built in `0b53eab`.
@@ -297,11 +316,14 @@ never added up across campaigns or currencies, so Home shows only running
 campaigns and cars on the road. A campaign with only a daily budget shows just
 "Booked: ₦X". No funding or terms shows ₦0 of ₦Y; missing or failed data shows
 a quiet dash. Accepting a quotation raises the budget to at least the agreed
-price, so a normal campaign reads at most 100 % (a full green bar); budget
-emails come only when extra charges go past the agreed price (D104).
+price; budget emails come only when extra charges go past the agreed price
+(D104). Booked shows amounts only: no bar, percentage or colour. Owner,
+27–29 October 2026 (REQ-253): "keep the amounts and drop the bar and percent".
+Built on integrate/req252-264 (`e9e990c7`); full CI and merge remain pending.
 
 **History:**
 - **Before 2026-09-24** — One alert level (`budget_alert_ratio`) before the pause.
+- **2026-10-27–29** — Owner removes the Booked bar, percent and colour (REQ-253), superseding the presentation retained by D125/D129; previously a normal campaign showed at most 100% with a full green bar. Amounts and D103/D104 budget authority stay. Built on integrate/req252-264 (`e9e990c7`).
 - **2026-10-19** — Owner asked for the figure to use a consumed-spend measure shared with the alerts, true ₦0 for no spend, a quiet dash only when missing, and one running total per currency (D100/REQ-182). Worker A then found no consumed-spend measure exists: the alerts use the billing commitment (confirmed funding before production, the full invoice obligation after). The owner then chose option A the same day: show that commitment as "Booked" (D100). Later that day the orchestrator simplified it: no daily figure on screen; a daily-only campaign shows just "Booked: ₦X", and Home shows a budget only when every campaign in that currency has one. Worker A then recorded the backend figure as D103/REQ-193 (never summed across campaigns or currencies) and the alert fix as D104, and on 20 October the owner confirmed Home drops its Booked tile and sum; Booked stays on each campaign's list row and page. Previously (D95) screens said "Spent so far" from recorded total-basis evaluations and showed a sentence when unavailable.
 - **2026-10-19** — Campaigns are fixed price, so warnings only cover charges beyond the agreed price. Owner's choice (D104, REQ-193). Previously a fully paid normal campaign reached 100 % of its budget and paused, and a daily budget paused a prepaid campaign. Advertisers now also see the booked amount against their budget (D103). The 80 %/95 % warnings cannot follow campaign progress until the client gives a rule for how spend builds up (REQ-196).
 - **2026-10-18** — D92 replaces deployment-configured blank ratios and external policy approval with default 80/95/100 enforcement. Controller delegates removal of that obsolete prerequisite (REQ-190); other gates and programme states remain unchanged.
@@ -378,6 +400,14 @@ advertiser or campaign information. Screens belong to Worker B.
 - **2026-10-18** — The controller assigns Worker A the missing frozen job-artwork read/API client in Batch 2 (REQ-180), responding to the client's request for more pictures. Previously no driver route could preview the offered advert. Plan review passed; specialist and runtime verification remain pending. No new product decision row is needed for this view of existing offer content.
 
 ### Matching, offers and activity
+
+**Driver current job (owner, 27–29 October 2026, REQ-261):** Two live jobs
+show "Two jobs are live on your account. Please contact support so we can fix
+it." The one-live-job policy is unchanged; support remains available. Built on
+integrate/req252-264 (`763465fa`); full CI and merge remain pending.
+
+**History (current-job repair):**
+- **2026-10-27–29** — Owner replaces the multiple-live-job server error with a plain support message and a typed 409 (REQ-261). The earlier read returned 500; it did not permit multiple live jobs. Built on integrate/req252-264 (`763465fa`).
 
 **Current rule:** D109 removes high-earner/concurrent challenges, weekly hours floor and extra notices. Inspector records passed/failed plus note; failure holds pay. Seven-day inactivity flag self-closes with one staff notice. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
 
@@ -482,13 +512,23 @@ passed/failed observations with notes, without challenge windows to configure.
 ### Tracking and stopped time
 
 **Current rule:** In the pilot, drivers use the installable Cardvert app with
-the screen on, starting and ending each trip themselves; native background
-tracking comes after the pilot (Q10). For daily-rate work, **each stop of up to
+the screen on; native background tracking comes after the pilot (Q10).
+Drivers can continue and end a trip on a new phone while keeping miles already
+received; a location gap over 15 minutes holds pay for review (owner,
+27–29 October 2026, D142 / REQ-259). End remains available after location
+permission is withdrawn. File names wrap on phones and Check bank details
+shows its confirmation. Built on integrate/req252-264 (`8c95d630`).
+A trip with no location for a fixed two hours ends automatically, keeps the
+miles received and pays only on received evidence (D143 / REQ-264; owner:
+"yes end after 2 hours with no gps"). Built on integrate/req252-264 (`5df44b39`).
+Full CI and merge remain pending. For daily-rate work, **each stop of up to
 5 minutes** (traffic, checkpoints, fuel) counts as driving, and a longer
 continuous stop adds no distance (D39b, D43d).
 
 **History:**
 - **2026-08-14** — Client confirmed screen-on tracking with driver Start/End (Q10, D18).
+- **2026-10-27–29** — Owner approves device-change continuation (D142 / REQ-259); previously a fresh browser could not reconstruct the recorded evidence to end a trip. Existing received miles and the over-15-minute review hold remain. Built on integrate/req252-264 (`8c95d630`).
+- **2026-10-27–29** — Owner amends D25 to end a trip after two hours without GPS (D143 / REQ-264). Previously trips depended on driver End and an exact client manifest; grace expiry alone never sealed an active trip. Only received evidence can earn pay. Built on integrate/req252-264 (`5df44b39`).
 - **2026-10-14** — REQ-172 corrects browser-to-server transport failures being mistaken for durable-storage failure. Healthy Flush capture retains current session/offline authority and exact v2 batches; End uncertainty retains its frozen manifest and pauses capture until server reconciliation. Existing genuine queue, identity, visibility and writer-lock failures remain closed. Local tracker tests pass; money and consolidated reviews passed; full batch CI passed. Built in `01dd46ca`.
 - **2026-08-20** — Owner chose a parked-time detector for hourly pay (120-second windows, 25-metre threshold; D22).
 - **2026-09-25** — Client set the 5-minute stop rule (D39b). Built for daily-rate pay in `e14149d` (REQ-002). Hourly (v1–v3) work keeps D22.
@@ -497,6 +537,15 @@ continuous stop adds no distance (D39b, D43d).
 ### Driver pay
 
 **Current rule:** D111 removes publishing switch, fixes proportional in-area daily pay and identical eligibility values, daily automatic cadence with no run limit under Pause. D112 allows one admin with reasons/audit for manual batches/corrections; stale/add-only/new-bank/hold/provider checks stay. D113 replaces automatic debt with manual negative adjustments. Owner-approved 20 October 2026, REQ-210–218. B6 built in `4dcad44b`; B7 built locally in `79ce736` with money checkpoint PASS; final integrated review/merge pending.
+
+Owner, 27–29 October 2026 (D140 / REQ-256): a paid day with a later deduction
+shows "₦X paid · ₦Y to be deducted" until recovered, then the plain net amount.
+Totals stay net and deductions use the Nigeria day they correct. Drivers see
+"Deduction", never staff notes or metadata: "I don't want too much text on the
+portal". Kept miles remain visible after a deduction. Built on
+integrate/req252-264 (`c9e80bdc`, label fix `c63a17bd`); full CI and merge remain
+pending. This display extends D113; REQ-262's future-payout recovery is still
+separate work in progress, and no recovery implementation is claimed here.
 
 **Previous rule (ended 20 October 2026; retained history):** A driver earns a **daily rate of ₦10,000** for covering the
 **expected daily miles** (70 in the pilot). A shorter day pays **its share of
@@ -512,6 +561,7 @@ of days on hold. Paid money is never counted as on hold (REQ-208).
 
 **History:**
 - **2026-10-20** — Owner-approved pre-push speed fix (REQ-208): one server read now totals each day and the headline figures, replacing the screens' 2,000-entry paging. Amounts and day statuses are unchanged; Home adds this week and Earnings adds this week, total earned and on hold.
+- **2026-10-27–29** — Owner replaces a bare corrected net on a paid day with paid cash plus the remaining deduction, then plain net after recovery (D140 / REQ-256). Previously deductions could hide counted miles, use the posting date and expose internal labels/metadata. Built on integrate/req252-264 (`c9e80bdc`, `c63a17bd`).
 - **2026-10-13, completed 14 October** - Owner approved removal of obsolete development payout v1-v3/evidence v1 and SQLite paths, with no live data; current daily-rate and frozen-evidence protections remain (D80, REQ-161). Built in `18192019`, with daily-rate Jobs completion in `8840fc10`.
 - **2026-07 to 2026-08-04** — Fixed naira amount **per hour** of verified time, with a daily cap on payable hours (D2, D4); built as `payout_v1` and `payout_v2` (D9, 30 Jul); reconfirmed against the proposal (D12, 4 Aug).
 - **2026-08-14** — Client set one platform hourly rate with an admin campaign override, and a higher (premium) hourly rate inside the primary zone (Q4, Q5, D18). Built as `payout_v3`.
@@ -554,6 +604,12 @@ remain unchanged. Requested hardening: [REQ-036](requests.md), [REQ-040](request
 
 ### Fraud holds and earnings release
 
+**Locking (owner, 27–29 October 2026, D137 / REQ-252):** Per-campaign and
+per-driver locks replace the system-wide fraud lock. An in-flight dispute reply
+defers the driver's automatic payment to a later run; held pay never becomes
+payable merely because a lock is busy. Built on integrate/req252-264 (`b62452ca`);
+full CI and merge remain pending.
+
 **Current rule:** D114 retains only pay-changing flags (speed/stationary/gap/replay/exclusion/failed spot), open to confirmed/dismissed. Never auto-release flagged pay. Late uploads apply before day pay calculation, otherwise audit/drop; corrections remain explicit. D117 fixes seven-day target. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
 
 **Previous rule (ended 20 October 2026; retained history):** Earnings from flagged trips are held for admin review, with
@@ -564,6 +620,7 @@ escalate after day seven (Q22).
 
 **History:**
 - **2026-10-20** — D117 supersedes operator provisioning and signed email receipts, using the client support number and fixed existing security values; REQ-216. The previous rule required a named approved operator and approval reference for live phone verification.
+- **2026-10-27–29** — Owner replaces the global fraud reconciliation gate, which serialized unrelated work and caused page lock timeouts, with scoped campaign/driver authority (D137 / REQ-252). Built on integrate/req252-264 (`b62452ca`).
 - **2026-10-07** — Owner Claude polish review clarifies the earnings presentation: Ready to pay, Waiting for review and Paid consistently, no repeated page-count summary and one short explanation (REQ-142); amount and payment authority are unchanged. Superseded by the later D65/D66 driver design: Paid with its date, Paying tonight, Being checked and On hold – contact support; the pay explanation lives only in Help. Built in `78ad5580`; the superseding master design is retained by `21239a6d`.
 - **2026-07** — Hold-and-review adopted (D5); client confirmed 2026-08-14 (Q21, Q22, D18).
 
@@ -646,10 +703,19 @@ may have one validated https website URL with a downloadable QR through a
 rate-limited Cardvert short redirect. Count scans per day without retaining IP,
 user agent or other personal scan data. Home/campaign performance shows estimated
 views (labelled), cars, a seven-day distance/cars chart and QR scans when positive;
-no CTR, website visits or pilot ROI. Live maps show anonymous dots for currently
-driving cars only inside campaign areas, delayed at least 15 minutes: no identity,
-car IDs, per-car filters or trails. Only campaign filtering; empty says No cars
-driving right now. Coverage history remains on the existing map. Privacy and
+no CTR, website visits or pilot ROI.
+
+**Live map — current rule (owner, 30 October 2026, D144 / REQ-265):** Hide a
+car's dot once it has not moved for 30 minutes; show it again when it moves.
+Short traffic stops still show. Trip tracking and pay are unaffected. Anonymous
+in-area dots, exclusions, ≥15-minute delay, ≤30-minute point freshness, campaign
+filtering only, no identities/stable IDs/trails, and "on the road" wording remain.
+This replaces D138's always-visible live-trip rule after privacy review found
+that a car parked at home could keep uploading and stay visible indefinitely.
+Sol is building `fix/req265-parked-dot`; no build or integration is claimed yet.
+D138 / REQ-258's stopped-or-moving dot change is Built on integrate/req252-264
+(`e9e990c7`); full CI and merge remain pending.
+Coverage history remains on the existing map. Privacy and
 security review required; no claim of real-use approval. These individual delayed
 dots have no three-car minimum, as confirmed by the owner via orchestrator.
 
@@ -684,6 +750,8 @@ recommendations; D123 excludes ROI from pilot output.
 
 **History:**
 - **2026-10-24** — Owner (D132, REQ-234): weekly and final reports send a short report-ready notice with a link. Previously there was no notice.
+- **2026-10-27–29** — Owner includes stopped cars on live trips and changes the wording to "on the road" (D138 / REQ-258). D124 previously filtered out zero-speed points and said "driving". Anonymous, delayed, fresh in-area evidence and no trails remain. Built on integrate/req252-264 (`e9e990c7`).
+- **2026-10-30** — Owner replaces "if a car is live, then the dots should always show" (D138) with hiding after 30 minutes without movement and showing again on movement (D144 / REQ-265). Short traffic stops remain visible, with no trip/pay change. The REQ-258/264 privacy review found an uploading car parked at home could otherwise stay visible indefinitely. Implementation is in progress on `fix/req265-parked-dot`.
 - **2026-10-20** — Client pilot feedback (D123) replaces the earlier conditional ROI rule: ROI was allowed only with advertiser conversion/revenue inputs and an approved method (D20c/Q12/Q30); the pilot now has no CTR, website visits beyond QR scans, or ROI. D124 separately approves individual delayed in-area dots with no three-car minimum, without changing aggregate area rules.
 - **2026-10-20** — Owner-approved pre-push fix (REQ-208): three distinct cars now governs every result (D107). Previously areas and map cells also needed several trips, more than one day and no car above a share of the total, so a three-car, one-day campaign showed no areas despite D105.
 - **2026-10-19** — Owner decision: area results need only three cars (D105, REQ-197). Previously areas also needed "safe composition with other released detail", which hid areas in common cases and, once a report showed areas, made the advertiser dashboard and other results unavailable. The owner keeps rules simple until the client or legal sets real privacy requirements.
@@ -865,6 +933,10 @@ is proved. The shared bank picker remains one implementation under D78.
 in demo/staging, without sample badges, and list every placeholder, location,
 real replacement input and waiting request in `docs/placeholders.md` (D46,
 REQ-059). D56 removes legal display/collection switches for development while retaining real provider, money, tenant and aggregation protections.
+Owner, 27–29 October 2026 (D141 / REQ-263), explicitly allows synthetic issuer
+profiles to issue local, test and staging invoices, without a `TEST-` prefix or
+test label. Rehearsal and production still require verified D42/Q28 facts.
+Built on integrate/req252-264 (`3abcc85b`); full CI and merge remain pending.
 Never substitute real accepted legal/consent text, real verified invoice or
 payment bank details, or pay/payout values. Missing features are built from
 seed-backed functionality or omitted; no hard-coded fake UI or nonworking
@@ -874,10 +946,16 @@ blocker authorized by that clarification.
 
 **History:**
 - **2026-10-06** — Reviewed complete preview seed states, fictional-company ownership, chronology, active-driver-only earnings, synthetic contacts, exports and report histories are integrated (REQ-072/090–103). Built in `6879c95`; preserved thresholds, immutable reruns and seed-only values are verified. Historical preview reseeding does not authorize or claim a new application deployment.
+- **2026-10-27–29** — Owner replaces the test-only synthetic issuance exception with local/test/staging issuance (D141 / REQ-263), retaining real-input replacement and production/rehearsal fail-closed authority. Built on integrate/req252-264 (`3abcc85b`).
 - **2026-10-01** — The earlier L2-1 preview proposed labelled demo cards. The owner's authoritative design section 11 superseded it with realistic registered external-input placeholders (D46, REQ-059).
 - **2026-10-01** — Owner clarified that demo inputs will be replaced before launch and questioned a new code gate. Keep the replacement checklist and existing fail-closed checks; no new backend gate is approved.
 
 ### Admin portal
+
+**Money page (owner, 27–29 October 2026, REQ-257):** Five tabs: Payment runs
+(default), Ready to pay, Automatic, Invoices and Corrections. Payment runs use a
+compact table; secondary actions sit behind More. Built on integrate/req252-264
+(`6d4d6a95`); full CI and merge remain pending.
 
 **Current rule:** The authoritative 1 October design governs the task-based
 admin menu, named search, driver/campaign/company hubs and section drawers
@@ -911,6 +989,7 @@ list, completed check or zero balance.
 
 **History:**
 - **2026-10-06** — The development replacement rule (REQ-056) Built in `c2ab2d9`. Work queue naming Built in `39eb49c` and `009947c` (REQ-065); physical-check paging and suspicious-trip route/held-pay reads Built in `009947c` (REQ-066/069). The bounded-read, Trip checks, checklist, Pay terms, Resume, copy, grouped-pay, title and Applicants follow-up Built in `046e0dd` (REQ-077–085). Full CI and D33/D41 coverage verification passed; broader design gaps remain open.
+- **2026-10-27–29** — Owner replaces the stacked Payouts tab (automatic payouts, runs and ready-to-pay list together) with five Money tabs and compact payment runs (REQ-257). Built on integrate/req252-264 (`6d4d6a95`).
 
 - **2026-10-05 (superseding decision)** — Owner replaced D60's field-specific exception with one whole-token UUID phone-classification rule after a payout audit approver ID was scrubbed. Real phones and sensitive fields remain redacted; privacy/security and money review are required (D61, REQ-111). Built in `1f91b8a`.
 - **2026-10-05** — Owner approved exact whole-field stored-file review UUID preservation after phone redaction was shown to corrupt valid review evidence. No broader UUID exemption or phone disclosure is permitted (D60, REQ-109). Built in `69655e2`; replaced by `1f91b8a` under D61.
