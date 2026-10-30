@@ -36,6 +36,7 @@ from app.schemas.trips import (
     LocationPingCreate,
     TripEndRequest,
     TripEvidenceManifestCreate,
+    TripEvidenceManifestEntryCreate,
     TripStartRequest,
 )
 from app.services.audit import create_audit_event
@@ -655,6 +656,141 @@ async def end_driver_trip(
     return TripEndResult(trip=trip, sealed_now=sealed_now)
 
 
+# REQ-264: an active trip with no location received for this long is ended by
+# the server. Fixed by owner decision, not an environment setting.
+TRIP_AUTO_END_NO_LOCATION_SECONDS = 2 * 60 * 60
+TRIP_AUTO_END_REASON = "auto_ended_no_location"
+
+
+def _last_location_at():
+    # Last server receipt of any batch, else the start. received_at is stamped
+    # with utc_now(), so callers compare it with the same application clock.
+    return func.coalesce(
+        select(func.max(LocationPingBatch.received_at))
+        .where(LocationPingBatch.trip_session_id == TripSession.id)
+        .correlate(TripSession)
+        .scalar_subquery(),
+        TripSession.started_at,
+    )
+
+
+async def find_trips_to_auto_end(session: AsyncSession, *, now: datetime, limit: int) -> list[UUID]:
+    """Unlocked candidate scan; each trip is re-checked under its locks."""
+    cutoff = now - timedelta(seconds=TRIP_AUTO_END_NO_LOCATION_SECONDS)
+    rows = await session.scalars(
+        select(TripSession.id)
+        .where(
+            TripSession.status == TripSessionStatus.ACTIVE.value,
+            _last_location_at() <= cutoff,
+        )
+        .order_by(TripSession.started_at, TripSession.id)
+        .limit(limit)
+    )
+    return list(rows)
+
+
+async def auto_end_inactive_trip(
+    session: AsyncSession,
+    *,
+    trip_id: UUID,
+    settings: Settings,
+    now: datetime,
+) -> bool:
+    """End one abandoned active trip and seal it on the evidence already held.
+
+    The server builds the manifest from batches it received and signed, so a
+    sequence gap left by a lost phone does not block the seal. Only received
+    miles exist to pay; pay rules then apply to them unchanged. Returns True
+    only when this call sealed the trip. The caller commits.
+    """
+    campaign_id = await session.scalar(
+        select(TripSession.campaign_id).where(TripSession.id == trip_id)
+    )
+    if campaign_id is None:
+        return False
+    # Same order as a driver End: campaign terms key, then the trip row.
+    await acquire_campaign_terms_lock(session, campaign_id)
+    trip = await session.scalar(
+        select(TripSession)
+        .where(TripSession.id == trip_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if trip is None or trip.status != TripSessionStatus.ACTIVE.value:
+        return False
+    last_location_at = as_aware_utc(
+        await session.scalar(select(_last_location_at()).where(TripSession.id == trip.id))
+    )
+    if last_location_at > now - timedelta(seconds=TRIP_AUTO_END_NO_LOCATION_SECONDS):
+        return False
+    signing_key(settings)
+    batches = list(
+        (
+            await session.execute(
+                select(LocationPingBatch)
+                .where(
+                    LocationPingBatch.trip_session_id == trip.id,
+                    LocationPingBatch.evidence_scope == "manifest",
+                )
+                .order_by(LocationPingBatch.batch_sequence)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    entries = [
+        TripEvidenceManifestEntryCreate(
+            batch_sequence=batch.batch_sequence,
+            idempotency_key=batch.idempotency_key,
+            payload_hash_version=batch.payload_hash_version,
+            payload_hash=batch.payload_hash,
+            submitted_count=batch.pings_submitted,
+        )
+        for batch in batches
+    ]
+    ping_count = sum(entry.submitted_count for entry in entries)
+    session.add_all(
+        [
+            TripEvidenceManifestEntry(trip_session_id=trip.id, **entry.model_dump())
+            for entry in entries
+        ]
+    )
+    trip.status = TripSessionStatus.ENDED.value
+    trip.ended_at = last_location_at
+    trip.end_reason = TRIP_AUTO_END_REASON
+    trip.evidence_manifest_version = 2
+    trip.evidence_manifest_root_sha256 = manifest_root(
+        trip_id=trip.id, entries=entries, ping_count=ping_count
+    )
+    trip.evidence_manifest_batch_count = len(entries)
+    trip.evidence_manifest_ping_count = ping_count
+    trip.evidence_manifest_committed_at = now
+    trip.updated_at = now
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=None,
+        action="trip.auto_ended",
+        entity_type="trip_session",
+        entity_id=str(trip.id),
+        metadata={
+            "reason": TRIP_AUTO_END_REASON,
+            "no_location_seconds": TRIP_AUTO_END_NO_LOCATION_SECONDS,
+            "evidence_manifest_batch_count": len(entries),
+            "evidence_manifest_ping_count": ping_count,
+        },
+    )
+    if not (await manifest_completeness(session, trip, settings)).complete:
+        # A held batch failed its receipt check: leave the trip ended and let
+        # the grace sweep adjudicate it as incomplete, which is never paid.
+        return False
+    trip.evidence_manifest_complete = True
+    trip.evidence_manifest_verified_at = now
+    sign_manifest_receipt(trip, settings)
+    await session.flush()
+    return await try_seal_trip(session, trip, reason=TripSealReason.AUTO_ENDED, now=now)
+
+
 def canonical_datetime(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
@@ -972,6 +1108,15 @@ async def ingest_location_ping_batch(  # noqa: C901
                 for entry in manifest_sample_results(existing_batch.rejection_manifest)
             )
         return PingBatchResult(batch=existing_batch, duplicate=True)
+    if trip.seal_reason == TripSealReason.AUTO_ENDED.value:
+        # REQ-264: the server already ended this trip after 2 hours with no
+        # location. A phone still recording must stop, not retry or dead-letter.
+        # This is a trip-state refusal, never a GPS-quality rejection.
+        raise AppError(
+            "TRIP_ALREADY_ENDED",
+            "Trip is already ended",
+            status_code=status.HTTP_409_CONFLICT,
+        )
 
     ensure_ping_batch_size(payload, settings)
     received_at = utc_now()

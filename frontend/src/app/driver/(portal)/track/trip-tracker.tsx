@@ -189,6 +189,9 @@ function passiveSnapshot(activeTrip: boolean): CapabilitySnapshot {
 }
 
 const START_BLOCKED = "You can't start a trip yet. Fix this first:";
+const AUTO_ENDED_NOTICE =
+  "Your last trip ended on its own after 2 hours with no location. Miles already sent still count.";
+const autoEndedNoticeKey = (tripId: string) => `cardvert.trip-auto-ended-notice.${tripId}`;
 
 export function TripTracker({
   assignment,
@@ -233,6 +236,7 @@ export function TripTracker({
   const [authorityUncertain, setAuthorityUncertain] = useState(false);
   const [busy, setBusy] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [autoEndedNotice, setAutoEndedNotice] = useState(false);
 
   const endPhaseRef = useRef<"capturing" | "preparing" | "submitted">("capturing");
   const captureGenerationRef = useRef(0);
@@ -255,6 +259,9 @@ export function TripTracker({
   const tripRef = useRef<DriverTrackerTrip | null>(initialTrip);
   const reconciledTripRef = useRef<string | null>(null);
   const terminalLeftoversRef = useRef(new Set<string>());
+  // Trips whose uploads the server refused because it already ended them.
+  const serverEndedTripsRef = useRef(new Set<string>());
+  const onServerEndedRef = useRef<(tripId: string) => void>(() => undefined);
   const mountedRef = useRef(true);
   const lifetimeRef = useRef(0);
   const startingRef = useRef(false);
@@ -593,6 +600,28 @@ export function TripTracker({
     [],
   );
 
+  // REQ-264: shown once per trip, even across reloads.
+  const showAutoEndedNotice = useCallback((tripId: string) => {
+    try {
+      if (window.localStorage.getItem(autoEndedNoticeKey(tripId))) return;
+      window.localStorage.setItem(autoEndedNoticeKey(tripId), "1");
+    } catch {
+      // Storage unavailable: still tell the driver this time.
+    }
+    if (mountedRef.current) setAutoEndedNotice(true);
+  }, []);
+
+  // True when the server says it ended this trip on its own (seal_reason).
+  const noticeIfAutoEnded = useCallback(
+    async (tripId: string) => {
+      const authority = await getTripEvidenceAuthorityAction(tripId).catch(() => undefined);
+      if (authority?.sealReason !== "auto_ended") return false;
+      showAutoEndedNotice(tripId);
+      return true;
+    },
+    [showAutoEndedNotice],
+  );
+
   const flush = useCallback(
     async (tripId: string) => {
       while (flushPromiseRef.current) await flushPromiseRef.current;
@@ -633,6 +662,16 @@ export function TripTracker({
               acknowledged: false,
             }));
             if (result.error) {
+              if (result.tripEnded) {
+                // The server already ended this trip on its own: stop
+                // recording. The refused updates stay on this phone.
+                serverEndedTripsRef.current.add(tripId);
+                if (tripRef.current?.id === tripId) {
+                  stopWatch();
+                  if (endPhaseRef.current === "capturing") onServerEndedRef.current(tripId);
+                }
+                break;
+              }
               if (result.sequenceTaken) {
                 // This device lost its record of the trip: adopt the server's
                 // receipts (which renumbers this batch), then resend once.
@@ -869,6 +908,12 @@ export function TripTracker({
         if (leftoverTripId === currentTripId) continue;
         if (terminalLeftoversRef.current.has(leftoverTripId)) continue;
         await flush(leftoverTripId);
+        if (serverEndedTripsRef.current.has(leftoverTripId)) {
+          // Ended by the server: unsent updates can't be added any more.
+          terminalLeftoversRef.current.add(leftoverTripId);
+          await noticeIfAutoEnded(leftoverTripId);
+          continue;
+        }
         // Terminal evidence is never resent. Reconciliation below may dispose it,
         // so this wording must stay true after disposal.
         if ((await queue.deadLetterCount(leftoverTripId)) > 0 && mountedRef.current)
@@ -887,6 +932,7 @@ export function TripTracker({
                     "Some earlier location updates could not be sent. That trip's record is incomplete.",
                   );
               } else {
+                if (authority.sealReason === "auto_ended") showAutoEndedNotice(leftoverTripId);
                 const receipts = await queue.listReceipts(leftoverTripId);
                 if (
                   receipts.some(
@@ -937,7 +983,7 @@ export function TripTracker({
         }
       }
     },
-    [flush],
+    [flush, noticeIfAutoEnded, showAutoEndedNotice],
   );
 
   const reportRecoveryFault = useCallback(() => {
@@ -1289,6 +1335,23 @@ export function TripTracker({
     [patchRuntime, releaseWake, releaseWriter, router, stopWatch],
   );
 
+  // REQ-264: the server ended the trip after 2 hours with no location. Close
+  // it here with the notice instead of an error. Unsent updates stay saved.
+  const settleServerEndedTrip = useCallback(
+    async (tripId: string) => {
+      if (!(await noticeIfAutoEnded(tripId))) return false;
+      if (tripRef.current?.id !== tripId) return true;
+      terminalLeftoversRef.current.add(tripId);
+      if (mountedRef.current) setError(undefined);
+      await finishEndedTrip(false);
+      return true;
+    },
+    [finishEndedTrip, noticeIfAutoEnded],
+  );
+  useEffect(() => {
+    onServerEndedRef.current = (tripId) => void settleServerEndedTrip(tripId);
+  }, [settleServerEndedTrip]);
+
   const reconcileAfterEnd = useCallback(
     async (complete: boolean | null) => {
       const endingTripId = tripRef.current?.id;
@@ -1344,7 +1407,7 @@ export function TripTracker({
             return;
           }
           if (reconciled.outcome === "ended" && reconciled.status === "sealed") {
-            await finishEndedTrip(complete);
+            if (!(await settleServerEndedTrip(endedTripId))) await finishEndedTrip(complete);
             return;
           }
         }
@@ -1357,7 +1420,16 @@ export function TripTracker({
       setServerTripVerified(false);
       setError("Cardvert could not confirm your trip status. Keep this page open and try again.");
     },
-    [beginWatch, finishEndedTrip, flush, patchRuntime, prepareCapture, releaseWake, stopWatch],
+    [
+      beginWatch,
+      finishEndedTrip,
+      flush,
+      patchRuntime,
+      prepareCapture,
+      releaseWake,
+      settleServerEndedTrip,
+      stopWatch,
+    ],
   );
 
   // Sends the frozen End manifest. If the server refuses it before writing
@@ -1417,6 +1489,11 @@ export function TripTracker({
       if (!queue) return;
       await flush(activeTrip.id);
       if (
+        serverEndedTripsRef.current.has(activeTrip.id) &&
+        (await settleServerEndedTrip(activeTrip.id))
+      )
+        return;
+      if (
         !mountedRef.current ||
         !identityValidRef.current ||
         storageBrokenRef.current ||
@@ -1455,6 +1532,8 @@ export function TripTracker({
       endPhaseRef.current = "submitted";
       const result = await submitEnd(queue, activeTrip.id, complete);
       if (result.outcome !== "ended") {
+        // A late End on a trip the server already ended: notice, not error.
+        if (result.outcome === "failed" && (await settleServerEndedTrip(activeTrip.id))) return;
         if (mountedRef.current)
           setError(result.error ?? "Cardvert could not confirm whether the trip ended.");
         authorityUncertainRef.current = true;
@@ -1485,9 +1564,16 @@ export function TripTracker({
       });
   }
 
+  const autoEndedNoticeEl = autoEndedNotice ? (
+    <p role="status" className="border-edge rounded-lg border px-3.5 py-2.5 text-sm">
+      {AUTO_ENDED_NOTICE}
+    </p>
+  ) : null;
+
   if (!assignment && !trip) {
     return (
       <div className="flex flex-col gap-4">
+        {autoEndedNoticeEl}
         <Panel className="p-6 text-center">
           <p className="text-sm font-medium">
             {pausedCampaignName ? `${pausedCampaignName} can't start yet` : "No active campaign"}
@@ -1630,6 +1716,7 @@ export function TripTracker({
           ) : null}
         </>
       )}
+      {autoEndedNoticeEl}
       {error ? (
         <div
           role="alert"

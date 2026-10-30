@@ -7,6 +7,7 @@ import {
   endTripAction,
   getCurrentTripAction,
   getTripEvidenceAction,
+  getTripEvidenceAuthorityAction,
   reconcileTripEvidenceAction,
   sendPingBatchAction,
   startTripAction,
@@ -466,6 +467,48 @@ describe("driver trip BFF actions", () => {
       acknowledged: false,
       retryable: true,
       sequenceTaken: true,
+    });
+  });
+
+  it("tells the tracker to stop when the server already ended the trip (REQ-264)", async () => {
+    mocks.post.mockRejectedValueOnce(
+      new ApiError(409, { code: "TRIP_ALREADY_ENDED", message: "Trip is already ended" }),
+    );
+    const result = await sendPingBatchAction({
+      tripId: TRIP_ID,
+      evidenceProtocolVersion: 2,
+      idempotencyKey: "late-batch-key",
+      batchSequence: 3,
+      pings: [
+        {
+          recorded_at: "2026-08-25T00:00:00.000Z",
+          lat: 6.45,
+          lon: 3.39,
+          accuracy_m: 10,
+          speed_mps: 5,
+          heading_degrees: 90,
+          sequence_number: 0,
+        },
+      ],
+    });
+    // Not terminal, so the tracker never dead-letters it.
+    expect(result).toMatchObject({ acknowledged: false, retryable: true, tripEnded: true });
+    expect(result.terminalStatus).toBeUndefined();
+  });
+
+  it("reports the server-set seal reason with the trip's evidence authority", async () => {
+    mocks.get.mockResolvedValueOnce({
+      data: {
+        id: TRIP_ID,
+        evidence_protocol_version: 2,
+        status: "sealed",
+        seal_reason: "auto_ended",
+      },
+    });
+    await expect(getTripEvidenceAuthorityAction(TRIP_ID)).resolves.toEqual({
+      protocolVersion: 2,
+      status: "sealed",
+      sealReason: "auto_ended",
     });
   });
 

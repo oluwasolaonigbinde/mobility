@@ -1195,6 +1195,114 @@ describe("trip continued on a device without its record (REQ-259)", () => {
   });
 });
 
+describe("trip ended by the server after 2 hours with no location (REQ-264)", () => {
+  const NOTICE =
+    "Your last trip ended on its own after 2 hours with no location. Miles already sent still count.";
+  const ended = { error: "Trip is already ended", acknowledged: false, retryable: true };
+  const autoEnded = { protocolVersion: 2, status: "sealed", sealReason: "auto_ended" };
+
+  beforeEach(() => window.localStorage.clear());
+
+  it("stops recording and shows the notice when an upload is refused", async () => {
+    const intervals = vi.spyOn(window, "setInterval");
+    const runtime = installRuntime();
+    const queue = fakeQueue({ listBatches: vi.fn().mockResolvedValue([BATCH]) });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+    actions.sendPingBatchAction.mockResolvedValue({ ...ended, tripEnded: true });
+    actions.getTripEvidenceAuthorityAction.mockResolvedValue(autoEnded);
+
+    const flush = intervals.mock.calls.find(([, delay]) => delay === 15_000)?.[0] as () => void;
+    await act(async () => flush());
+
+    expect(await screen.findByRole("status")).toHaveTextContent(NOTICE);
+    expect(runtime.clearWatch).toHaveBeenCalled();
+    expect(queue.dropBatch).not.toHaveBeenCalled();
+    expect(actions.endTripAction).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /End trip/ })).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(`cardvert.trip-auto-ended-notice.${TRIP_ID}`)).toBe("1");
+  });
+
+  it("shows the notice instead of an error when End comes too late", async () => {
+    installRuntime();
+    pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
+    actions.endTripAction.mockResolvedValue({ outcome: "failed", error: "Trip is already ended" });
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    const endButton = screen.getByRole("button", { name: /End trip/ });
+    await waitFor(() => expect(endButton).toBeEnabled());
+    actions.getTripEvidenceAuthorityAction.mockResolvedValue(autoEnded);
+
+    await userEvent.click(endButton);
+
+    expect(await screen.findByRole("status")).toHaveTextContent(NOTICE);
+    expect(screen.queryByText("Trip is already ended")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps the usual error when the trip was ended some other way", async () => {
+    installRuntime();
+    pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
+    actions.endTripAction.mockResolvedValue({ outcome: "failed", error: "Trip is already ended" });
+    actions.getCurrentTripAction.mockResolvedValueOnce({ trip: TRIP, outcome: "started" });
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    const endButton = screen.getByRole("button", { name: /End trip/ });
+    await waitFor(() => expect(endButton).toBeEnabled());
+    actions.getCurrentTripAction.mockResolvedValue({ outcome: "failed" });
+    actions.getTripEvidenceAuthorityAction.mockResolvedValue({
+      ...autoEnded,
+      sealReason: "client_complete",
+    });
+
+    await userEvent.click(endButton);
+
+    await waitFor(() => expect(actions.reconcileTripEvidenceAction).toHaveBeenCalled());
+    expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
+  });
+
+  it("shows the notice only once per trip", async () => {
+    window.localStorage.setItem(`cardvert.trip-auto-ended-notice.${TRIP_ID}`, "1");
+    installRuntime();
+    pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
+    actions.endTripAction.mockResolvedValue({ outcome: "failed", error: "Trip is already ended" });
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    const endButton = screen.getByRole("button", { name: /End trip/ });
+    await waitFor(() => expect(endButton).toBeEnabled());
+    actions.getTripEvidenceAuthorityAction.mockResolvedValue(autoEnded);
+
+    await userEvent.click(endButton);
+
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /End trip/ })).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
+    expect(screen.queryByText("Trip is already ended")).not.toBeInTheDocument();
+  });
+
+  it("tells the driver about an earlier trip the server ended", async () => {
+    installRuntime();
+    const OLD_TRIP = "55555555-5555-4555-8555-555555555555";
+    const queue = fakeQueue({
+      tripsWithLeftovers: vi.fn().mockResolvedValue([OLD_TRIP]),
+      listBatches: vi.fn().mockResolvedValue([{ ...BATCH, tripId: OLD_TRIP }]),
+      unsyncedCount: vi.fn().mockResolvedValue(1),
+    });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    actions.getCurrentTripAction.mockResolvedValue({ outcome: "failed" });
+    actions.sendPingBatchAction.mockResolvedValue({ ...ended, tripEnded: true });
+    actions.getTripEvidenceAuthorityAction.mockResolvedValue(autoEnded);
+
+    render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
+
+    expect(await screen.findByRole("status")).toHaveTextContent(NOTICE);
+    expect(queue.dropBatch).not.toHaveBeenCalled();
+    expect(queue.forgetTrip).not.toHaveBeenCalled();
+  });
+});
+
 describe("end watermark honesty (finding 5)", () => {
   it("retains complete receipts and attempts reconciliation when End is only ended", async () => {
     const queue = fakeQueue();
