@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.157 — 2026-10-30. Canonical source of truth: current state AND target state.**
+**Version 1.158 — 2026-10-30. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -65,7 +65,8 @@ Earlier descriptions below are historical where they conflict with this amendmen
   switches or subsidy; Pause remains. Same admin can perform manual payout and
   correction actions with reasons/audit and stale/add-only checks. First new-bank
   payout stays human, holds stay held, provider per-line proof stays mandatory.
-  Overpayments are manual negative adjustments, no automatic debt/recovery.
+  D146 supersedes D113's no-future-recovery direction: manual deductions correct
+  trip worth only; actual overpaid cash is recovered from the next eligible payout(s).
   Receipts recorded→confirmed/reversed; direct booked/budget rule exactly D104.
   Late uploads apply before day pay calculation, otherwise audit/drop; only
   explicit corrections change calculated pay. Keep speed/stationary/gap/replay/
@@ -438,7 +439,7 @@ to conflict, the earlier-numbered principle wins.
    ┌────────────▼─────────┐   ┌─▼──────────────────────────┐
    │ PostgreSQL 16 +      │   │ Redis 7                    │
    │ PostGIS 3.4          │   │ [BUILT] login rate-limit   │
-   │ 109 mapped tables,   │   │ counters (F7) + arq queue  │
+   │ 110 mapped tables,   │   │ counters (F7) + arq queue  │
    │ (Point/MultiPolygon) │   │ (§6.5); disposable queue,  │
    └──────────────────────┘   │ fail-closed auth buckets   │
                               └────────────────────────────┘
@@ -467,8 +468,8 @@ Current OpenAPI: **284 operations across 258 paths**; **283 operations under `/a
 | `/api/v1/webhooks/*` | 2 | 2 |
 | `/health` | 1 | 1 |
 
-SQLAlchemy metadata contains **109 mapped tables**.
-Alembic contains **15 linear revisions**, from base `0106_development_baseline` to the single head `0120_req264_auto_end_seal_reason`.
+SQLAlchemy metadata contains **110 mapped tables**.
+Alembic contains **16 linear revisions**, from base `0106_development_baseline` to the single head `0121_payout_recovery_offsets`.
 
 Required public driver-onboarding paths:
 
@@ -492,7 +493,7 @@ app/
 ├── core/              # config.py (pydantic-settings), security.py (JWT/argon2),
 │                      # errors.py (AppError + envelope), middleware.py (request-ID)
 ├── db/                # base.py (DeclarativeBase), session.py (async engine/session)
-├── models/            # SQLAlchemy models — 109 mapped tables (see §7)
+├── models/            # SQLAlchemy models — 110 mapped tables (see §7)
 ├── schemas/           # Pydantic request/response models, incl. pagination + decimal mixins
 ├── services/          # all business logic; routers stay thin
 └── seeds/demo.py      # demo seed CLI (python -m app.seeds.demo) — NOT an endpoint
@@ -729,7 +730,7 @@ queues/realtime ad hoc — §14 remains the one sanctioned design.
 
 ## 7. Data model
 
-### 7.1 Entities **[BUILT]** — 109 mapped tables
+### 7.1 Entities **[BUILT]** — 110 mapped tables
 
 The groups below describe selected load-bearing entities rather than an
 exhaustive table catalogue. SQLAlchemy metadata and the generated sentinel
@@ -787,6 +788,7 @@ Derived (analytics → money):
 | `payout_correction_orders` | Maker-checker projected correction lifecycle with value-complete evidence (MNY-06C) |
 | `payout_calculations` | Per-trip payout math snapshot (rule inputs + fraud multipliers) |
 | `earnings_ledger_entries` | Driver earnings ledger (typed, statused entries) |
+| `payout_recovery_offsets` | D146 / REQ-260/262 final noncash settlement, linking an overpaid source trip to a funding ledger entry within one driver/currency; positive amount, request identity and either a staff actor or automatic run; migration `0121` |
 
 Notes:
 - PostGIS columns use **hand-rolled `UserDefinedType`s** (`PostGISPoint`,
@@ -808,7 +810,7 @@ Notes:
 
 ### 7.2 Migration policy **[BUILT]**
 
-- Alembic has **15 linear revisions**, from base `0106_development_baseline` to the single head `0120_req264_auto_end_seal_reason`.
+- Alembic has **16 linear revisions**, from base `0106_development_baseline` to the single head `0121_payout_recovery_offsets`.
   <!-- verified by scripts/update_architecture_inventory.py from Alembic's ScriptDirectory -->
 - The baseline enables `pgcrypto` + `postgis`.
 - D83 authorizes the one-time development squash because there is no live data.
@@ -1851,9 +1853,9 @@ to the Nigeria day corrected, rather than posting time, and the breakdown
 retains counted miles. `DriverEarningsLedgerEntryRead` is separate from the
 staff schema: work days, paid date and payment-state fields are included;
 staff ledger metadata (actor, reason and request) is excluded. Driver reversal
-labels are Deduction, never internal descriptions or staff notes. REQ-262's
-future-payout recovery remains in progress separately; this display amendment
-does not claim that recovery is implemented.
+labels are Deduction, never internal descriptions or staff notes. D146 /
+REQ-262 now provides the final recovery settlement described in §16.2–16.3;
+the remaining deduction decreases as offsets settle it, then the plain net shows.
 
 ### 16.2 Release scheduling (Q22)
 
@@ -1881,10 +1883,36 @@ Staff record an explicit manual negative adjustment with a required reason,
 or approve a projected correction. Reversals use positive amounts subtracted
 by entry type; existing credits and verified cash history remain immutable.
 The manual adjustment records its actual Nigeria work day, requiring a day
-choice for a cross-midnight trip. There is no automatic carry-forward or
-recovery against another trip's earnings.
+choice for a cross-midnight trip. **[BUILT — D146 / REQ-260/262; integration
+awaiting full CI/merge]** A manual deduction only corrects that trip's pay,
+never a fine. Recomputes preserve the manual deduction rather than rebuilding
+the target without it. Owner 27 October: take overpayments from the next
+payout; owner 29 October, rule A: trip worth is
+`max(recomputed pay − manual deductions, 0)` and debt is
+`max(cash paid − worth, 0)`. Deductions beyond the trip's worth do not create
+extra debt; actual cash above that worth is recovered from the next eligible
+payout(s), possibly over several runs. Paid cash history remains immutable.
+This supersedes D113's earlier no-future-recovery direction.
 
 ### 16.3 Disbursement (Q27)
+
+**[BUILT — D146 / REQ-260/262; integration awaiting full CI/merge]**
+`payout_balances` computes trip worth, verified cash, remaining debt and final
+offsets under the existing driver/currency money authority. Manual and
+automatic payout selection allocate eligible future credits against actual
+overpaid-cash debt before creating cash lines. A fully offset credit settles
+without a payout batch; otherwise only the remaining cash enters the existing
+batch/provider/reconciliation path. Migration `0121_payout_recovery_offsets`
+follows `0120_req264_auto_end_seal_reason`, with one linear head. Its append-only
+`payout_recovery_offsets` rows link the source trip and funding entry, positive
+amount/currency, request identity and a staff actor or automatic run. These
+are final noncash settlements, not mutable bank-transfer outcomes; voiding or
+retrying a cash batch never recovers the same offset twice. Inconsistent
+recovery evidence requires staff review rather than guessing a new balance.
+Driver presentation stays "₦X paid · ₦Y to be deducted" until recovered, then
+net; totals remain net and deductions use the day corrected. Provider proof,
+held-pay protection, Pause and first-new-bank human controls remain. Built on
+`integrate/req252-264` (`98a86547`); full CI and merge pending.
 
 **D67 / REQ-053 (5 Oct 2026; renumbered at merge from D59 on 6 Oct 2026):** Terrax bears Paystack's transfer fee; the
 driver receives the exact full earnings amount frozen on the payout line.
@@ -3744,6 +3772,7 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 | Rate limiting | §12 F7 | `core/rate_limit.py` + Redis | — | — | [BUILT] for login; new buckets extend the same module |
 | Payout engine v2 history + `payout_v3` target | §16.1 | `services/payouts.py` + `services/payout_eligibility.py` + `jobs/` (trip pipeline, §14.2) | payout_rules, payout_calculations, ledger | v1/v2 history rows | v2 [BUILT] S1; v3 D18/MNY-06B |
 | Payout recompute-day true-up | §16.1 | `services/payouts.py` + `api/v1/payouts.py` | ledger (append-only adjustment/reversal) | calculation edits, v1 days | [BUILT] S1 |
+| Trip-worth overpayment recovery | §16.2–16.3 | `services/payout_balances.py`, `services/disbursements.py`, `services/automatic_payouts.py`, payout correction/presentation modules | `payout_recovery_offsets`, ledger, frozen cash batch lines; migration `0121` | fines, rewriting paid cash, treating bank retries as mutable offsets | [BUILT — D146 / REQ-260/262] on integrate/req252-264 (`98a86547`); full CI and merge pending |
 | Driver trip earnings breakdown | §16.1 | `api/v1/payouts.py` + driver PWA `(portal)/earnings/trips/` | — | trip_analytics as driver-facing verified time | [BUILT] S1 |
 | Trip evidence manifest, seal protocol + post-seal quarantine | §14.2/§35 RM3 | `services/trip_evidence.py`, `services/trips.py`, `services/trip_processing.py`, `api/v1/trips.py` | trip_sessions evidence fields, trip_evidence_manifest_entries, signed live/quarantine receipts | payout recompute (apply never recomputes money) | [BUILT] D15 lifecycle; D25 exact v2 authority (`0074`) |
 | Durable client ping queue | §35 RM4/RM5 | `frontend/src/lib/trips/ping-queue.ts`, `trip-evidence.ts` + `(portal)/track/trip-tracker.tsx` | encrypted IndexedDB batch/receipt records | server contract beyond synchronized §9 baselines | [BUILT] D15 queue; D25 v2 descriptors/receipts |
@@ -4000,6 +4029,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.158 — 30 October 2026 (D146 / REQ-260/262; owner 27/29 October):** Supersede D113's no-future-recovery direction with next-payout recovery of actual overpaid cash. Preserve manual deductions through recompute; rule A fixes worth to `max(recomputed pay − manual deductions, 0)` and debt to `max(cash paid − worth, 0)`, never fines. Final audited recovery offsets settle future credits, including zero-cash settlement without a batch; remaining cash retains existing provider/hold/first-bank authority. Add the offset model/placement and migration `0121` after `0120`; refresh the generated inventory and retain the plain paid/remaining-deduction/net driver display. Built on integrate/req252-264 (`98a86547`); full CI/merge and closure remain pending. No deployment, provider or launch-gate change.
 
 - **v1.157 — 30 October 2026 (D145 / REQ-265):** Clarify D144's parked-dot [TARGET]: evaluate the delayed 15-minute-old position, hide after staying within 200 m for 30 minutes, count movement only from pings with accuracy ≤75 m, and retain every stop under 30 minutes. Audit policy becomes `delayed_in_area_live_dots_v3`. Ending/restarting while parked restarts the clock, a known limitation. Trip/pay are unchanged; the Sol worker's implementation remains in progress on `fix/req265-parked-dot`. Documentation only; no integration, CI, merge or real-use approval claimed.
 

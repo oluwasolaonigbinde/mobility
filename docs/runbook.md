@@ -490,15 +490,19 @@ auto-releases. A stale correction must be prepared again.
 
 Record an overpayment as a manual negative adjustment on the original trip,
 with a reason and the actual Nigeria day (choose one for a cross-midnight trip).
-It appends a ledger entry and never edits paid history or takes another trip's
-earnings. There is no debt recovery queue or automatic future deduction.
+It appends a ledger entry and never edits paid history. Under D146 / REQ-260/262,
+the deduction only corrects that trip, never a fine: worth is
+`max(recomputed pay − manual deductions, 0)` and debt is
+`max(cash paid − worth, 0)`. Recompute preserves the manual deduction. Actual
+overpaid cash is recovered from the next eligible payout(s), using final
+audited noncash offsets; a fully offset credit settles without a batch.
 Uncertain or already claimed transfers must be verified by their existing
 reference before any new submission. Partial corrected cash can settle a trip;
 the Paid display follows actual verified cash against net earned pay.
 
 Drivers see "₦X paid · ₦Y to be deducted" until recovered, then plain net, with
 deductions dated to the corrected Nigeria day and labelled Deduction without
-staff notes or metadata (D140 / REQ-256; REQ-262 recovery remains separate work).
+staff notes or metadata (D140/D146 / REQ-256/262).
 
 Manual receipt handling records then confirms the exact expected amount and
 currency before allocation. Mismatches remain recorded. Budget checks retain

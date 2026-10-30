@@ -536,7 +536,17 @@ continuous stop adds no distance (D39b, D43d).
 
 ### Driver pay
 
-**Current rule:** D111 removes publishing switch, fixes proportional in-area daily pay and identical eligibility values, daily automatic cadence with no run limit under Pause. D112 allows one admin with reasons/audit for manual batches/corrections; stale/add-only/new-bank/hold/provider checks stay. D113 replaces automatic debt with manual negative adjustments. Owner-approved 20 October 2026, REQ-210–218. B6 built in `4dcad44b`; B7 built locally in `79ce736` with money checkpoint PASS; final integrated review/merge pending.
+**Current rule:** D111 fixes proportional in-area daily pay and identical eligibility values, daily automatic cadence with no run limit under Pause. D112 allows one admin with reasons/audit for manual batches/corrections; stale/add-only/new-bank/hold/provider checks stay. D146 supersedes D113's no-future-recovery direction: take actual overpayments from the next payout(s), while a staff deduction only corrects that trip's pay and never imposes a fine.
+
+Owner, 27 October 2026: "take overpayments from the next payout"; owner,
+29 October 2026, rule A (D146 / REQ-260/262): trip worth is
+`max(recomputed pay − manual deductions, 0)` and debt is
+`max(cash paid − worth, 0)`. Recomputing pay preserves manual deductions;
+deductions beyond a trip's worth cannot create extra debt. Actual overpaid
+cash is recovered from subsequent eligible payouts, possibly over several runs.
+Credits fully consumed by recovery settle without creating a payout batch.
+Offsets are final noncash settlement records; cash paid history is not rewritten.
+Built on integrate/req252-264 (`98a86547`); full CI and merge remain pending.
 
 Owner, 27–29 October 2026 (D140 / REQ-256): a paid day with a later deduction
 shows "₦X paid · ₦Y to be deducted" until recovered, then the plain net amount.
@@ -544,8 +554,8 @@ Totals stay net and deductions use the Nigeria day they correct. Drivers see
 "Deduction", never staff notes or metadata: "I don't want too much text on the
 portal". Kept miles remain visible after a deduction. Built on
 integrate/req252-264 (`c9e80bdc`, label fix `c63a17bd`); full CI and merge remain
-pending. This display extends D113; REQ-262's future-payout recovery is still
-separate work in progress, and no recovery implementation is claimed here.
+pending. REQ-262 now supplies the D146 recovery settlement; the driver sees
+the remaining amount until recovery completes, then the plain net.
 
 **Previous rule (ended 20 October 2026; retained history):** A driver earns a **daily rate of ₦10,000** for covering the
 **expected daily miles** (70 in the pilot). A shorter day pays **its share of
@@ -561,6 +571,7 @@ of days on hold. Paid money is never counted as on hold (REQ-208).
 
 **History:**
 - **2026-10-20** — Owner-approved pre-push speed fix (REQ-208): one server read now totals each day and the headline figures, replacing the screens' 2,000-entry paging. Amounts and day statuses are unchanged; Home adds this week and Earnings adds this week, total earned and on hold.
+- **2026-10-27; clarified 2026-10-29** — Owner reverses D113's no-future-recovery rule (D146 / REQ-260/262). The 20 October rule used trip-local manual negative adjustments without debt recovery. New rule A limits a deduction to correcting that trip's worth, never a fine; only verified cash above that worth becomes debt for the next payout(s). Recomputes previously could undo a manual deduction. Built on integrate/req252-264 (`98a86547`); full CI and merge pending.
 - **2026-10-27–29** — Owner replaces a bare corrected net on a paid day with paid cash plus the remaining deduction, then plain net after recovery (D140 / REQ-256). Previously deductions could hide counted miles, use the posting date and expose internal labels/metadata. Built on integrate/req252-264 (`c9e80bdc`, `c63a17bd`).
 - **2026-10-13, completed 14 October** - Owner approved removal of obsolete development payout v1-v3/evidence v1 and SQLite paths, with no live data; current daily-rate and frozen-evidence protections remain (D80, REQ-161). Built in `18192019`, with daily-rate Jobs completion in `8840fc10`.
 - **2026-07 to 2026-08-04** — Fixed naira amount **per hour** of verified time, with a daily cap on payable hours (D2, D4); built as `payout_v1` and `payout_v2` (D9, 30 Jul); reconfirmed against the proposal (D12, 4 Aug).
@@ -573,7 +584,7 @@ of days on hold. Paid money is never counted as on hold (REQ-208).
 
 ### Payout approval and timing
 
-**Current rule:** D111 fixes daily automatic payouts under Pause, clean earnings only, first new-bank payout human. D112 permits same admin for manual preparation/approval/reconciliation and corrections with reasons/audit and stale checks. D113 removes debt carry-forward; manual negative adjustments are audited. Owner-approved 20 October 2026, REQ-210–218. B6 built in `4dcad44b`; B7 built locally in `79ce736` with money checkpoint PASS; final integrated review/merge pending.
+**Current rule:** D111 fixes daily automatic payouts under Pause, clean earnings only, first new-bank payout human. D112 permits same admin for manual preparation/approval/reconciliation and corrections with reasons/audit and stale checks. D146 / REQ-262 takes actual overpaid cash from the next eligible payout(s), after computing the corrected trip worth under owner rule A; it supersedes D113's no-carry-forward direction. Fully offset credits settle without a batch, and any remaining cash uses the existing provider and reconciliation controls. Built on integrate/req252-264 (`98a86547`); full CI and merge remain pending.
 
 **Previous rule (ended 20 October 2026; retained history):** Drivers are paid by **automatic bank transfer** through an
 approved provider (Q27; Paystack Transfers funded from OPay, client answers
@@ -595,6 +606,7 @@ remain unchanged. Requested hardening: [REQ-036](requests.md), [REQ-040](request
 
 **History:**
 - **2026-10-05** — Client reversed the 1 Oct driver-deduction rule: Terrax bears the transfer fee and the driver receives full earnings, with no fee calculation, storage, display or setting in Cardvert (D67; REQ-053; owner W1-P brief; renumbered at merge from D59 on 6 Oct 2026). Locally verified on `w1/payouts`; evidence: `issues/testing/w1p-payouts-2026-10-05.md`. Built in `54662367`, with CI corrections in `f4261af4`; combined exact R branch CI and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass. The owner's one-time Wave 1 D41 exception remains historical in REQ-053.
+- **2026-10-27; clarified 2026-10-29** — Owner replaces D113's manual-adjustment-only/no-future-recovery rule with actual overpaid-cash recovery from the next payout(s), bounded by trip worth and final audited offsets (D146 / REQ-262). This is not a fee or fine. Built on integrate/req252-264 (`98a86547`); full CI and merge pending.
 - **2026-08-14** — Automated bank transfers confirmed (Q27, D18). Every batch was prepared by one person and approved by a different person (maker-checker, architecture §16.3 / RM10).
 - **2026-09-25** — Client chose automatic approval with no person approving each batch; Finance monitors and follows up (D39c). Built in `3b6b396` (REQ-003).
 - **2026-09-28** — Owner added: the first payment to any new bank account goes to a person (D40b, security review). Built in `3b6b396`.
