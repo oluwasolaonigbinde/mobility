@@ -71,6 +71,21 @@ it("places the existing safe Start control under today's job and car", async () 
   expect(screen.queryByText("Go to Start")).not.toBeInTheDocument();
 });
 
+it("shows the support message for two live jobs without offering Start", async () => {
+  mocks.journey.mockResolvedValue({
+    ...ready,
+    activationAssignment: null,
+    trackerAssignment: null,
+    currentJobError: "Two jobs are live on your account. Please contact support so we can fix it.",
+    journey: { canStart: false, steps: [] },
+  });
+  render(await Home());
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Two jobs are live on your account. Please contact support so we can fix it.",
+  );
+  expect(screen.queryByRole("button", { name: "Start trip" })).not.toBeInTheDocument();
+});
+
 it("keeps an unknown offer status quiet and never offers Start without readiness", async () => {
   mocks.journey.mockResolvedValue({
     ...ready,

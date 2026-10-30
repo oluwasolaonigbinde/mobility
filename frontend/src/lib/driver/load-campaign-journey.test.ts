@@ -77,6 +77,30 @@ describe("loadDriverCampaignJourney", () => {
     installReadyResponses();
   });
 
+  it.each([null, { id: TRIP_ID }])(
+    "explains two live jobs and preserves trip recovery: %j",
+    async (trip) => {
+      const ready = mocks.get.getMockImplementation();
+      mocks.get.mockImplementation(async (path: string, options?: Record<string, unknown>) => {
+        if (path === "/api/v1/driver/current-job")
+          throw new ApiError(409, {
+            code: "MULTIPLE_ACTIVE_ASSIGNMENTS",
+            message: "Internal detail",
+          });
+        if (path === "/api/v1/driver/trips/current") return { data: { trip } };
+        return ready?.(path, options);
+      });
+      const result = await loadDriverCampaignJourney();
+      expect(result.currentJobError).toBe(
+        "Two jobs are live on your account. Please contact support so we can fix it.",
+      );
+      expect(result.journey.canStart).toBe(false);
+      expect(result.activationAssignment).toBeNull();
+      expect(result.trackerAssignment).toBeNull();
+      expect(result.currentTrip?.id ?? null).toBe(trip?.id ?? null);
+    },
+  );
+
   it("projects canonical responses to a narrow status-only ready journey", async () => {
     const result = await loadDriverCampaignJourney();
 

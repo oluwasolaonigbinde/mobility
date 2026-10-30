@@ -22,5 +22,12 @@ export default async function DriverHelpPage() {
     Number(payout.daily_target_miles) > 0
       ? `Your day rate is ${formatMoney(String(payout.daily_rate_naira))} for ${String(payout.daily_target_miles)} miles inside the campaign area; shorter days earn a proportional share, up to the day rate.`
       : "Your accepted job keeps its agreed pay terms; contact support for help with your calculation.";
-  return <ComplaintHelpPage party="driver" driverPayText={driverPayText} />;
+  return (
+    <>
+      {active.state === "unavailable" && active.message ? (
+        <p role="alert">{active.message}</p>
+      ) : null}
+      <ComplaintHelpPage party="driver" driverPayText={driverPayText} />
+    </>
+  );
 }

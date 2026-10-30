@@ -10,6 +10,7 @@ export default async function DriverTrackPage() {
   return (
     <div className="animate-rise flex flex-col gap-4">
       <h1 className="font-display text-2xl font-semibold">Track</h1>
+      {work.currentJobError ? <p role="alert">{work.currentJobError}</p> : null}
       <TripTracker
         assignment={work.trackerAssignment}
         initialTrip={work.currentTrip}

@@ -254,6 +254,16 @@ export default async function DriverAssignmentsPage({
   }
   const active = await readDriverApi(() => api.GET("/api/v1/driver/campaign-assignments/active"));
   if (active.state === "auth") redirect("/login");
+  if (active.state === "unavailable" && active.message) {
+    return (
+      <Panel className="p-5" role="alert">
+        <p>{active.message}</p>
+        <Link href="/driver/help" className="text-green mt-3 inline-block font-semibold">
+          Contact support
+        </Link>
+      </Panel>
+    );
+  }
   if (
     active.state !== "ready" ||
     (active.data.assignment && active.data.photo_status === "unavailable")

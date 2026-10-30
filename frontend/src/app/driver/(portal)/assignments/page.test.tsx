@@ -57,6 +57,24 @@ describe("DriverAssignmentsPage history availability", () => {
     });
   }
 
+  it("explains two live jobs instead of reporting unavailable photo status", async () => {
+    mockJobs([]);
+    const normal = mocks.get.getMockImplementation()!;
+    mocks.get.mockImplementation(async (path, options) => {
+      if (path === "/api/v1/driver/campaign-assignments/active")
+        throw new ApiError(409, {
+          code: "MULTIPLE_ACTIVE_ASSIGNMENTS",
+          message: "Internal detail",
+        });
+      return normal(path, options);
+    });
+    render(await DriverAssignmentsPage({}));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Two jobs are live on your account. Please contact support so we can fix it.",
+    );
+    expect(screen.queryByText("Photo status is unavailable")).not.toBeInTheDocument();
+  });
+
   it("explains who assigns offers when there are no jobs", async () => {
     mockJobs([]);
 

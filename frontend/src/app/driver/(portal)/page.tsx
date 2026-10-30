@@ -125,10 +125,19 @@ export default async function DriverHomePage() {
               }
             />
           ) : null}
+          {work.currentJobError ? (
+            <p className="text-muted mt-3 text-sm" role="alert">
+              {work.currentJobError}
+            </p>
+          ) : null}
           <div className="mt-5">
             {work.currentTrip ? (
               <Link href="/driver/track" className={actionClass}>
                 View live trip
+              </Link>
+            ) : work.currentJobError ? (
+              <Link href="/driver/help" className={actionClass}>
+                Contact support
               </Link>
             ) : work.journey.canStart && work.photoStatus === "ready" ? (
               <TripTracker

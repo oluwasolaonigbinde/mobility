@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
 import { readDriverCurrentJob } from "@/lib/api/navigation";
 import { frozenJob } from "./frozen-job";
+import { driverJobConflictMessage } from "./api-read";
 import {
   projectDriverCampaignJourney,
   type DriverCampaignJourney,
@@ -29,12 +30,13 @@ export interface LoadedDriverCampaignJourney {
   /** Optional presentation context from the same authoritative current-job read. */
   visualAssignment: { id: string; job: ReturnType<typeof frozenJob> } | null;
   needsServiceCity: boolean | null;
+  currentJobError?: string;
 }
 
 async function read<T>(
   operation: Promise<{ data?: T }>,
   options: { notFoundIsAbsent?: boolean } = {},
-): Promise<JourneyRead<T>> {
+): Promise<JourneyRead<T> & { message?: string }> {
   try {
     const { data } = await operation;
     return data === undefined ? { state: "unavailable" } : { state: "available", value: data };
@@ -42,6 +44,8 @@ async function read<T>(
     if (error instanceof ApiError && [401, 403].includes(error.status)) throw error;
     if (error instanceof ApiError && error.status === 404 && options.notFoundIsAbsent)
       return { state: "absent" };
+    const message = driverJobConflictMessage(error);
+    if (message) return { state: "unavailable", message };
     return { state: "unavailable" };
   }
 }
@@ -231,6 +235,7 @@ export async function loadDriverCampaignJourney(): Promise<LoadedDriverCampaignJ
 
   return {
     journey,
+    currentJobError: activeAssignment.message,
     photoStatus:
       activeAssignment.state === "available" ? activeAssignment.value.photo_status : "unavailable",
     activationAssignment,

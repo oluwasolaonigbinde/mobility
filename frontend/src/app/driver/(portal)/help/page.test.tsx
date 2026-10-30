@@ -22,6 +22,18 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+it("explains two live jobs while keeping support available", async () => {
+  mocks.get.mockRejectedValue(
+    new ApiError(409, { code: "MULTIPLE_ACTIVE_ASSIGNMENTS", message: "Internal detail" }),
+  );
+  render(await Help());
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Two jobs are live on your account. Please contact support so we can fix it.",
+  );
+  expect(screen.getByRole("region", { name: "driver help" })).toBeVisible();
+  expect(screen.queryByText(/Your day rate is/)).not.toBeInTheDocument();
+});
+
 it("explains the accepted proportional in-area job rate", async () => {
   mocks.get.mockResolvedValue({
     data: {

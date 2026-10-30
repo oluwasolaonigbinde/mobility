@@ -21,6 +21,61 @@ from app.models.user import UserRole
 from app.services.list_counts import campaign_list_counts
 
 
+@pytest.mark.parametrize("path", ["current-job", "campaign-assignments/active"])
+@pytest.mark.parametrize("second_finished", [False, True])
+def test_current_job_duplicate_conflict_and_finished_assignment_regression_guard(
+    db_client, db_sessionmaker, path, second_finished
+):
+    password = "duplicate-job-password"
+    admin = create_test_user(db_sessionmaker, email="duplicate-admin@example.test")
+    driver = create_test_user(
+        db_sessionmaker,
+        email="duplicate-driver@example.test",
+        password=password,
+        role=UserRole.DRIVER,
+    )
+    profile = create_test_driver_profile(db_sessionmaker, user_id=driver.id)
+    car = create_test_vehicle(db_sessionmaker, driver_profile_id=profile.id)
+    org, _ = create_test_organization(db_sessionmaker)
+    now = datetime.now(ZoneInfo("Africa/Lagos"))
+    assignments = []
+    for index in range(2):
+        campaign = create_test_campaign(
+            db_sessionmaker,
+            organization_id=org.id,
+            created_by_user_id=admin.id,
+            campaign_status=CampaignStatus.ACTIVE,
+            end_at=now + timedelta(days=-1 if index and second_finished else 1),
+        )
+        assignments.append(
+            create_test_campaign_assignment(
+                db_sessionmaker,
+                campaign_id=campaign.id,
+                driver_profile_id=profile.id,
+                vehicle_id=car.id,
+                assigned_by_user_id=admin.id,
+                assignment_status=CampaignAssignmentStatus.ACTIVE,
+            )
+        )
+
+    response = db_client.get(
+        f"/api/v1/driver/{path}", headers=auth_headers(db_client, driver.email, password)
+    )
+
+    async def stored_statuses():
+        async with db_sessionmaker() as session:
+            return [(await session.get(CampaignAssignment, row.id)).status for row in assignments]
+
+    assert asyncio.run(stored_statuses()) == ["active", "active"]
+    if second_finished:
+        # Regression guard: date-derived completion must not cause a conflict.
+        assert response.status_code == 200, response.text
+        assert response.json()["assignment"]["id"] == str(assignments[0].id)
+    else:
+        assert response.status_code == 409, response.text
+        assert response.json()["error"]["code"] == "MULTIPLE_ACTIVE_ASSIGNMENTS"
+
+
 def test_navigation_counts_match_filtered_lists_and_group_pages_without_fanout(
     db_client, db_sessionmaker
 ):

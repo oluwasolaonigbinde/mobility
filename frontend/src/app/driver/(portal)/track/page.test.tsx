@@ -40,3 +40,19 @@ it("keeps only the tracker and passes current authority for recovery", async () 
     screen.queryByText(/How a trip|Recent verified|Set up this phone/),
   ).not.toBeInTheDocument();
 });
+
+it("shows the live-job conflict and keeps the current trip available for recovery", async () => {
+  const message = "Two jobs are live on your account. Please contact support so we can fix it.";
+  mocks.journey.mockResolvedValue({
+    journey: { steps: [], canStart: false },
+    currentJobError: message,
+    trackerAssignment: null,
+    activationAssignment: null,
+    currentTrip: { id: "trip" },
+  });
+  render(await Track());
+  expect(screen.getByRole("alert")).toHaveTextContent(message);
+  expect(mocks.tracker).toHaveBeenLastCalledWith(
+    expect.objectContaining({ assignment: null, initialTrip: { id: "trip" } }),
+  );
+});
