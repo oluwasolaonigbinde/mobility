@@ -2259,7 +2259,7 @@ def test_w1p_dispute_and_automatic_authorization_serialize_on_postgres(
     from sqlalchemy import text
 
     from app.services import disbursements, fraud_disputes
-    from app.services.fraud_holds import lock_fraud_reconciliation_gate
+    from app.services.fraud_holds import lock_driver_fraud_scopes
 
     db = postgis_db_sessionmaker
     graph = clean_graph(db, settings, "w1p-dispute-race")
@@ -2281,17 +2281,27 @@ def test_w1p_dispute_and_automatic_authorization_serialize_on_postgres(
         release = asyncio.Event()
         wait_pid = None
 
-        async def observed_gate(session, *, exclusive):
-            nonlocal wait_pid
-            if exclusive == (winner == "dispute"):
-                wait_pid = await session.scalar(text("SELECT pg_backend_pid()"))
-                waiting.set()
-            await lock_fraud_reconciliation_gate(session, exclusive=exclusive)
+        def observed_driver_lock(waiter: bool):
+            async def lock(session, driver_profile_ids):
+                nonlocal wait_pid
+                if waiter:
+                    wait_pid = await session.scalar(text("SELECT pg_backend_pid()"))
+                    waiting.set()
+                return await lock_driver_fraud_scopes(session, driver_profile_ids)
 
-        # The real advisory locks remain; hooks only expose the barrier and pid.
-        monkeypatch.setattr(automatic, "lock_fraud_reconciliation_gate", observed_gate)
-        monkeypatch.setattr(disbursements, "lock_fraud_reconciliation_gate", observed_gate)
-        monkeypatch.setattr(fraud_disputes, "lock_fraud_reconciliation_gate", observed_gate)
+            return lock
+
+        # The real driver keys remain; hooks only expose the barrier and pid.
+        payout_waits = winner == "dispute"
+        monkeypatch.setattr(
+            automatic, "lock_driver_fraud_scopes", observed_driver_lock(payout_waits)
+        )
+        monkeypatch.setattr(
+            disbursements, "lock_driver_fraud_scopes", observed_driver_lock(payout_waits)
+        )
+        monkeypatch.setattr(
+            fraud_disputes, "lock_driver_fraud_scopes", observed_driver_lock(not payout_waits)
+        )
 
         async def assert_blocked(holder_pid, task):
             await asyncio.wait_for(waiting.wait(), timeout=10)
@@ -2557,7 +2567,7 @@ def test_w1p_dispute_reply_serializes_before_payout_check(
     from sqlalchemy import text
 
     from app.services import disbursements, fraud_disputes
-    from app.services.fraud_holds import lock_fraud_reconciliation_gate
+    from app.services.fraud_holds import lock_driver_fraud_scopes
 
     db = postgis_db_sessionmaker
     graph = clean_graph(db, settings, "w1p-reply")
@@ -2583,15 +2593,14 @@ def test_w1p_dispute_reply_serializes_before_payout_check(
         entered = asyncio.Event()
         payout_pid = None
 
-        async def observed(session, *, exclusive):
+        async def observed(session, driver_profile_ids):
             nonlocal payout_pid
-            if exclusive:
-                payout_pid = await session.scalar(text("SELECT pg_backend_pid()"))
-                entered.set()
-            await lock_fraud_reconciliation_gate(session, exclusive=exclusive)
+            payout_pid = await session.scalar(text("SELECT pg_backend_pid()"))
+            entered.set()
+            return await lock_driver_fraud_scopes(session, driver_profile_ids)
 
-        monkeypatch.setattr(automatic, "lock_fraud_reconciliation_gate", observed)
-        monkeypatch.setattr(disbursements, "lock_fraud_reconciliation_gate", observed)
+        monkeypatch.setattr(automatic, "lock_driver_fraud_scopes", observed)
+        monkeypatch.setattr(disbursements, "lock_driver_fraud_scopes", observed)
 
         async def payout():
             if phase == "claim":
@@ -2614,6 +2623,15 @@ def test_w1p_dispute_reply_serializes_before_payout_check(
             )
             holder_pid = await holder.scalar(text("SELECT pg_backend_pid()"))
             task = asyncio.create_task(payout())
+            if phase == "run":
+                # The run's scan still sees the committed open dispute, so it
+                # skips this driver without waiting (fail closed: paid later).
+                result = await asyncio.wait_for(task, timeout=10)
+                assert result["line_count"] == 0
+                assert not entered.is_set()
+                await holder.commit()
+                assert fake.calls == []
+                return
             await asyncio.wait_for(entered.wait(), timeout=10)
             async with db() as monitor:
                 for _ in range(100):
@@ -2628,10 +2646,7 @@ def test_w1p_dispute_reply_serializes_before_payout_check(
                     raise AssertionError("Payout did not wait for the real reply lock")
             await holder.commit()
         result = await asyncio.wait_for(task, timeout=20)
-        if phase == "run":
-            assert result["line_count"] == 1
-        else:
-            assert result.action.value == "submit"
+        assert result.action.value == "submit"
         assert fake.calls == []
 
     asyncio.run(scenario())

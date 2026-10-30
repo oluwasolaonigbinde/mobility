@@ -28,8 +28,8 @@ from app.services.campaign_assignments import get_driver_profile_for_user
 from app.services.campaign_cancellations import campaign_financial_cutoff
 from app.services.campaigns import comparable_campaign_datetime
 from app.services.fraud_holds import (
+    active_fraud_hold_counts,
     fraud_hold_active_clause,
-    fraud_hold_counts,
     lock_fraud_hold_scope,
 )
 from app.services.notifications import create_fraud_hold_raised_notice
@@ -897,4 +897,4 @@ async def get_driver_trip_analytics(
     if analytics is None:
         raise analytics_not_found()
 
-    return analytics, await fraud_hold_counts(session, trip.id)
+    return analytics, await active_fraud_hold_counts(session, trip.id)

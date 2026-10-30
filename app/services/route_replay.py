@@ -25,7 +25,7 @@ from app.models.trip_analytics import (
 from app.services.fraud_holds import (
     fraud_hold_active_clause,
     lock_fraud_hold_scope,
-    lock_fraud_reconciliation_gate,
+    try_lock_fraud_hold_scope,
 )
 from app.services.notifications import create_fraud_hold_raised_notice
 from app.services.provenance import stable_source_fingerprint
@@ -439,6 +439,9 @@ async def _reconcile_group(
     cross_account_match_count = int(totals.cross_account)
     if total_match_count == 0 or cross_account_match_count == 0:
         return _GroupResult(None, None, False)
+    # Re-entrant for members already held; covers a member that joined after
+    # the last discovery pass.
+    await try_lock_fraud_hold_scope(session, target.trip_id)
 
     exact_match_exists = bool(
         await session.scalar(
@@ -511,10 +514,11 @@ async def detect_route_replay(
         pass
 
     # Cross-trip reconciliation can raise or update another trip's replay
-    # flag. Exclude ordinary review/money holders first, discover every old/new
-    # group member while detector membership is stable, then lock all affected
-    # trip scopes in one deterministic order before any signature/flag write.
-    await lock_fraud_reconciliation_gate(session, exclusive=True)
+    # flag. Own trip first (re-entrant inside trip processing), then the
+    # sorted old/new group fingerprint keys, then every other group member is
+    # only try-locked: a busy member raises FraudScopeBusy instead of waiting,
+    # so this out-of-order step can never deadlock.
+    await lock_fraud_hold_scope(session, trip.id)
     old_signature = await _signature_for_trip(session, trip.id)
     old_group = (
         (old_signature.detector_version, old_signature.normalized_fingerprint)
@@ -529,19 +533,22 @@ async def detect_route_replay(
         else None
     )
     group_keys = {group for group in (old_group, new_group) if group is not None}
-    affected_trip_ids = await _affected_group_trip_ids(session, group_keys)
-    affected_trip_ids.add(trip.id)
-    for affected_trip_id in sorted(affected_trip_ids, key=str):
-        await lock_fraud_hold_scope(
-            session,
-            affected_trip_id,
-            reconciliation_gate_held=True,
-        )
     await _lock_transition_fingerprints(
         session,
         old_signature=old_signature,
         new_fingerprints=fingerprints,
     )
+    # Signature writers hold these fingerprint keys, but an analytics
+    # recompute on a member can change membership without them; repeat
+    # discovery until every current member is held.
+    locked_trip_ids = {trip.id}
+    while True:
+        pending = (await _affected_group_trip_ids(session, group_keys)) - locked_trip_ids
+        if not pending:
+            break
+        for member_trip_id in sorted(pending, key=str):
+            await try_lock_fraud_hold_scope(session, member_trip_id)
+            locked_trip_ids.add(member_trip_id)
     locked_signature = await _signature_for_trip(session, trip.id, for_update=True)
     signature, signature_changed = await _upsert_signature(
         session,

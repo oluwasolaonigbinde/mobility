@@ -37,7 +37,6 @@ from app.services.fraud_assessments import assess_trip_fraud, load_current_detec
 from app.services.fraud_holds import (
     fraud_hold_active_clause,
     lock_fraud_hold_scope,
-    lock_fraud_reconciliation_gate,
 )
 from app.services.impressions import (
     current_authoritative_estimates,
@@ -164,15 +163,9 @@ async def process_ended_trip(  # noqa: C901
     # Campaign authority precedes fraud/trip scopes so cancellation and the
     # complete analytics-to-payout chain have one deterministic order.
     await acquire_campaign_terms_lock(session, trip.campaign_id)
-    # Detection may reconcile flags on other trips. Acquire its exclusive gate
-    # before this trip's scope so no worker attempts a shared-to-exclusive
-    # advisory-lock upgrade while another trip processor does the same.
-    await lock_fraud_reconciliation_gate(session, exclusive=True)
-    await lock_fraud_hold_scope(
-        session,
-        trip.id,
-        reconciliation_gate_held=True,
-    )
+    # Route replay may also flag other trips; it only try-locks them, so a
+    # busy member rolls this run back for a later retry (FraudScopeBusy).
+    await lock_fraud_hold_scope(session, trip.id)
     processing_now = now or await database_now(session)
     stages: list[StageResult] = []
     repaired_ledgers = await repair_missing_ledger_entries(

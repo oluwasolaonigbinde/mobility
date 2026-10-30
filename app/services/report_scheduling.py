@@ -3,7 +3,7 @@
 from datetime import timedelta
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from app.adapters.storage import StorageError
@@ -17,7 +17,6 @@ from app.services.audit import create_audit_event
 from app.services.campaign_report_data import aware
 from app.services.campaign_reports import _request_lock, create_report
 from app.services.disclosure import _canonical_hash
-from app.services.fraud_holds import lock_fraud_reconciliation_gate
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 from app.services.report_authorization import REPORT_ACTOR_ID, require_report_operator
 
@@ -64,7 +63,6 @@ def latest_due_window(start, end, now):
 async def rerun_campaign_report(
     session, *, actor_user_id, campaign_id, request_id, settings, storage
 ):
-    await lock_fraud_reconciliation_gate(session, exclusive=True)
     await require_report_operator(session, actor_user_id)
     await _request_lock(session, actor_user_id, request_id)
     fingerprint = _canonical_hash({"campaign_id": str(campaign_id), "action": "rerun"})
@@ -121,21 +119,69 @@ async def rerun_campaign_report(
     )
 
 
+async def _discover_campaign_report(session, *, campaign_id, settings, storage) -> int:
+    await acquire_campaign_terms_lock(session, campaign_id)
+    campaign = await session.get(Campaign, campaign_id, populate_existing=True)
+    if campaign is None:
+        return 0
+    end = await report_cutoff(session, campaign)
+    if end is None or campaign.status not in ELIGIBLE:
+        return 0
+    now = await database_clock(session)
+    known = {
+        aware(value)
+        for value in await session.scalars(
+            select(CampaignReport.period_end_at).where(
+                CampaignReport.campaign_id == campaign.id,
+                CampaignReport.kind.in_(("weekly", "final")),
+            )
+        )
+    }
+    due = next_due_window(aware(campaign.start_at), end, now, known)
+    if not due:
+        return 0
+    request_id = uuid4()
+    try:
+        async with session.begin_nested():
+            await create_report(
+                session,
+                actor_user_id=REPORT_ACTOR_ID,
+                campaigns=[campaign],
+                request_id=request_id,
+                request_fingerprint=_canonical_hash(str(request_id)),
+                start=aware(campaign.start_at),
+                end=due[0],
+                kind=due[1],
+                settings=settings,
+                storage=storage,
+                now=now,
+            )
+    except (AppError, StorageError) as error:
+        await create_audit_event(
+            session,
+            actor_user_id=REPORT_ACTOR_ID,
+            action="campaign_report.preparation_failed",
+            entity_type="campaign",
+            entity_id=str(campaign_id),
+            metadata={"error_code": getattr(error, "code", "REPORT_STORAGE_UNAVAILABLE")},
+        )
+        return 0
+    return 1
+
+
 async def discover_reports(session, *, settings, storage, limit):
-    await lock_fraud_reconciliation_gate(session, exclusive=True)
+    """Commit once per campaign so a report build holds only its own campaign key."""
     await require_report_operator(session, REPORT_ACTOR_ID)
     await session.execute(
         insert(ReportScheduleCursor)
         .values(name="campaigns")
         .on_conflict_do_nothing(index_elements=[ReportScheduleCursor.name])
     )
-    cursor = await session.scalar(
-        select(ReportScheduleCursor)
-        .where(ReportScheduleCursor.name == "campaigns")
-        .with_for_update()
+    cursor_id = await session.scalar(
+        select(ReportScheduleCursor.campaign_id).where(ReportScheduleCursor.name == "campaigns")
     )
     query = (
-        select(Campaign)
+        select(Campaign.id)
         .where(
             Campaign.status.in_(ELIGIBLE),
             Campaign.start_at.is_not(None),
@@ -144,63 +190,25 @@ async def discover_reports(session, *, settings, storage, limit):
         .order_by(Campaign.id)
         .limit(limit)
     )
-    rows = list(
-        await session.scalars(
-            query.where(Campaign.id > cursor.campaign_id) if cursor.campaign_id else query
-        )
+    campaign_ids = list(
+        await session.scalars(query.where(Campaign.id > cursor_id) if cursor_id else query)
     )
-    if not rows and cursor.campaign_id:
-        cursor.campaign_id = None
-        rows = list(await session.scalars(query))
-    now = await database_clock(session)
+    if not campaign_ids and cursor_id:
+        campaign_ids = list(await session.scalars(query))
+    await session.commit()
     created = 0
-    last_campaign_id = rows[-1].id if rows else None
-    for campaign in rows:
-        await acquire_campaign_terms_lock(session, campaign.id)
-        await session.refresh(campaign)
-        end = await report_cutoff(session, campaign)
-        if end is None or campaign.status not in ELIGIBLE:
-            continue
-        known = {
-            aware(value)
-            for value in await session.scalars(
-                select(CampaignReport.period_end_at).where(
-                    CampaignReport.campaign_id == campaign.id,
-                    CampaignReport.kind.in_(("weekly", "final")),
-                )
-            )
-        }
-        due = next_due_window(aware(campaign.start_at), end, now, known)
-        if due:
-            request_id = uuid4()
-            campaign_id = campaign.id
-            try:
-                async with session.begin_nested():
-                    await create_report(
-                        session,
-                        actor_user_id=REPORT_ACTOR_ID,
-                        campaigns=[campaign],
-                        request_id=request_id,
-                        request_fingerprint=_canonical_hash(str(request_id)),
-                        start=aware(campaign.start_at),
-                        end=due[0],
-                        kind=due[1],
-                        settings=settings,
-                        storage=storage,
-                        now=now,
-                    )
-                created += 1
-            except (AppError, StorageError) as error:
-                await create_audit_event(
-                    session,
-                    actor_user_id=REPORT_ACTOR_ID,
-                    action="campaign_report.preparation_failed",
-                    entity_type="campaign",
-                    entity_id=str(campaign_id),
-                    metadata={"error_code": getattr(error, "code", "REPORT_STORAGE_UNAVAILABLE")},
-                )
-    if last_campaign_id:
-        cursor.campaign_id = last_campaign_id
+    for campaign_id in campaign_ids:
+        created += await _discover_campaign_report(
+            session, campaign_id=campaign_id, settings=settings, storage=storage
+        )
+        # Duplicate reports are excluded by the campaign key and the known
+        # periods it guards, so a concurrent sweep only repeats a no-op.
+        await session.execute(
+            update(ReportScheduleCursor)
+            .where(ReportScheduleCursor.name == "campaigns")
+            .values(campaign_id=campaign_id)
+        )
+        await session.commit()
     return created
 
 

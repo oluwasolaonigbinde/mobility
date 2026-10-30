@@ -31,7 +31,6 @@ from app.services.campaign_report_data import (
 from app.services.campaign_report_rendering import MAX_ARTIFACT_BYTES
 from app.services.campaigns import get_required_advertiser_context
 from app.services.disclosure import _canonical_hash, lock_trip_disclosure_snapshot
-from app.services.fraud_holds import lock_fraud_reconciliation_gate
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 from app.services.report_issuances import _authorize_scope, _issued_snapshot_is_intact
 from app.services.stored_files import _issue_download
@@ -109,8 +108,6 @@ async def create_report(
     rerun_of=None,
 ):
     """Called only after current company/operator scope is established."""
-    # Same ordering as disclosure and money writers: gate before parent rows.
-    await lock_fraud_reconciliation_gate(session, exclusive=True)
     if not campaigns:
         raise AppError(
             "REPORT_NO_CAMPAIGNS", "There are no campaigns to report on", status_code=409
@@ -216,7 +213,6 @@ async def create_report(
 
 
 async def request_advertiser_report(session, *, actor_user_id, payload, settings, storage):
-    await lock_fraud_reconciliation_gate(session, exclusive=True)
     organization, _ = await get_required_advertiser_context(
         session, actor_user_id, require_write=True
     )

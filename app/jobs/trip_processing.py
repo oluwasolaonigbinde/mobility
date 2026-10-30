@@ -10,6 +10,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.core.observability import capture_exception
 from app.db.integrity import database_sqlstate, integrity_constraint_name
+from app.services.fraud_holds import FraudScopeBusy
 from app.services.trip_processing import (
     find_unprocessed_trip_page,
     process_ended_trip,
@@ -85,6 +86,11 @@ async def process_trip(ctx: dict[str, Any], trip_id: str) -> dict[str, Any]:
                     settings=settings,
                 )
                 await session.commit()
+            except FraudScopeBusy:
+                # Another trip in its route-replay group is busy; not a fault.
+                await session.rollback()
+                logger.info("job=process_trip trip_id=%s outcome=busy_retry", parsed_trip_id)
+                raise Retry() from None
             except IntegrityError as exc:
                 await session.rollback()
                 logger.exception(
@@ -152,6 +158,13 @@ async def process_unprocessed_trips(ctx: dict[str, Any]) -> dict[str, Any]:
                     settings=settings,
                 )
                 await session.commit()
+            except FraudScopeBusy:
+                await session.rollback()
+                skipped += 1
+                logger.info(
+                    "job=process_unprocessed_trips trip_id=%s outcome=busy_skipped", due_trip.id
+                )
+                continue
             except IntegrityError as exc:
                 await session.rollback()
                 failed += 1

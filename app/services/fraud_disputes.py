@@ -16,8 +16,8 @@ from app.models.trip_analytics import FraudFlag
 from app.services.audit import create_audit_event
 from app.services.fraud_holds import (
     hold_active,
+    lock_driver_fraud_scopes,
     lock_fraud_hold_scope,
-    lock_fraud_reconciliation_gate,
 )
 from app.services.notifications import (
     create_fraud_dispute_replied_notice,
@@ -105,7 +105,6 @@ async def create_driver_dispute(
     session: AsyncSession, *, flag_id: UUID, user_id: UUID, message: str
 ) -> DisputeMutationResult:
     normalized = message.strip()
-    await lock_fraud_reconciliation_gate(session, exclusive=False)
     stub = (
         await session.execute(
             select(FraudFlag.trip_session_id, FraudFlag.driver_profile_id).where(
@@ -116,7 +115,9 @@ async def create_driver_dispute(
     profile = await _owned_driver_profile(session, user_id)
     if stub is None or stub.driver_profile_id != profile.id:
         raise AppError("FRAUD_FLAG_NOT_FOUND", "Fraud flag was not found", status_code=404)
-    await lock_fraud_hold_scope(session, stub.trip_session_id, reconciliation_gate_held=True)
+    # An open dispute pauses every automatic payout for this driver.
+    await lock_driver_fraud_scopes(session, (profile.id,))
+    await lock_fraud_hold_scope(session, stub.trip_session_id)
     flag = await session.scalar(select(FraudFlag).where(FraudFlag.id == flag_id).with_for_update())
     if flag is None or flag.driver_profile_id != profile.id:
         raise AppError("FRAUD_FLAG_NOT_FOUND", "Fraud flag was not found", status_code=404)
@@ -182,17 +183,22 @@ async def reply_to_dispute(
     now: datetime | None = None,
 ) -> DisputeMutationResult:
     normalized = reply.strip()
-    await lock_fraud_reconciliation_gate(session, exclusive=False)
     stub = (
         await session.execute(
-            select(FraudDispute.fraud_flag_id, FraudFlag.trip_session_id)
+            select(
+                FraudDispute.fraud_flag_id,
+                FraudDispute.driver_profile_id,
+                FraudFlag.trip_session_id,
+            )
             .join(FraudFlag, FraudFlag.id == FraudDispute.fraud_flag_id)
             .where(FraudDispute.id == dispute_id)
         )
     ).one_or_none()
     if stub is None:
         raise dispute_not_found()
-    await lock_fraud_hold_scope(session, stub.trip_session_id, reconciliation_gate_held=True)
+    # Closing a dispute can release the driver's automatic payouts.
+    await lock_driver_fraud_scopes(session, (stub.driver_profile_id,))
+    await lock_fraud_hold_scope(session, stub.trip_session_id)
     flag = await session.scalar(
         select(FraudFlag).where(FraudFlag.id == stub.fraud_flag_id).with_for_update()
     )

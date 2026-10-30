@@ -8,6 +8,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.middleware import get_request_id, is_scan_path
 from app.core.observability import capture_exception
+from app.db.integrity import database_sqlstate
+
+LOCK_NOT_AVAILABLE = "55P03"
 
 
 class AppError(Exception):
@@ -87,6 +90,17 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
         request_id_header
     )
     exc.__dict__["_cardvert_request_id"] = request_id
+    if database_sqlstate(exc) == LOCK_NOT_AVAILABLE:
+        # A lock wait that ran out of time is a busy page, not a server fault.
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content=error_payload(
+                "TRY_AGAIN_SOON",
+                "This page is busy. Try again in a moment.",
+                {},
+                request_id=request_id,
+            ),
+        )
     capture_exception(exc, request_id=request_id)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
