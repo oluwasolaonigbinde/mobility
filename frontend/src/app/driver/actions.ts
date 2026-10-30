@@ -143,9 +143,15 @@ export async function verifyDriverTripOwnershipAction(
   }
 }
 
-export async function getTripEvidenceAuthorityAction(
-  tripId: string,
-): Promise<{ protocolVersion: 2; status: "active" | "ended" | "sealed" } | undefined> {
+export async function getTripEvidenceAuthorityAction(tripId: string): Promise<
+  | {
+      protocolVersion: 2;
+      status: "active" | "ended" | "sealed";
+      /** Server-set; `auto_ended` means the server ended it after 2 hours with no location. */
+      sealReason: string | null;
+    }
+  | undefined
+> {
   if (!z.string().uuid().safeParse(tripId).success) return undefined;
   try {
     const api = createApiClient(await getSessionToken());
@@ -156,6 +162,7 @@ export async function getTripEvidenceAuthorityAction(
       ? {
           protocolVersion: data.evidence_protocol_version as 2,
           status: data.status,
+          sealReason: data.seal_reason ?? null,
         }
       : undefined;
   } catch (caught) {
@@ -310,6 +317,7 @@ const pingBatchAckSchema = basePingBatchAckSchema.extend({
  */
 const DEFERRABLE_REJECTION_CODES = new Set(["CAMPAIGN_ASSIGNMENT_NOT_ACTIVE"]);
 const SEQUENCE_TAKEN_CODE = "TRIP_EVIDENCE_BATCH_SEQUENCE_TAKEN";
+const TRIP_ENDED_CODE = "TRIP_ALREADY_ENDED";
 
 function receiptFromAck(
   ack: z.infer<typeof pingBatchAckSchema>,
@@ -393,6 +401,11 @@ export interface PingBatchResult extends DriverActionState {
   terminalCode?: string;
   /** The server already holds this batch number: resync, renumber, resend. */
   sequenceTaken?: boolean;
+  /**
+   * The server already ended this trip on its own. Stop recording; the batch
+   * is neither resent nor dead-lettered.
+   */
+  tripEnded?: boolean;
   /** Per-sample disposition of a durably acknowledged batch (OFF-005). */
   sampleResults?: Array<{
     index: number;
@@ -454,6 +467,14 @@ export async function sendPingBatchAction(
         acknowledged: false,
         retryable: true,
         sequenceTaken: true,
+      };
+    }
+    if (error instanceof ApiError && error.status === 409 && error.code === TRIP_ENDED_CODE) {
+      return {
+        error: publicActionError(error),
+        acknowledged: false,
+        retryable: true,
+        tripEnded: true,
       };
     }
     if (error instanceof ApiError) {

@@ -35,6 +35,9 @@ class TripSessionStatus(StrEnum):
 class TripSealReason(StrEnum):
     CLIENT_COMPLETE = "client_complete"
     LATE_DATA_COMPLETE = "late_data_complete"
+    # REQ-264: the server ended an active trip after 2 hours with no location
+    # and sealed it on the batches it had already received and signed.
+    AUTO_ENDED = "auto_ended"
 
 
 class TripSession(Base):
@@ -47,7 +50,8 @@ class TripSession(Base):
             name="ck_trip_sessions_sealed_fields",
         ),
         CheckConstraint(
-            "seal_reason IS NULL OR seal_reason IN ('client_complete', 'late_data_complete')",
+            "seal_reason IS NULL OR seal_reason IN "
+            "('client_complete', 'late_data_complete', 'auto_ended')",
             name="ck_trip_sessions_seal_reason",
         ),
         CheckConstraint(

@@ -9,6 +9,7 @@ from arq import Retry
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.core.observability import capture_exception
+from app.core.trip_enqueue import build_trip_enqueuer
 from app.db.integrity import database_sqlstate, integrity_constraint_name
 from app.services.fraud_holds import FraudScopeBusy
 from app.services.trip_processing import (
@@ -16,6 +17,7 @@ from app.services.trip_processing import (
     process_ended_trip,
     seal_due_trips,
 )
+from app.services.trips import auto_end_inactive_trip, find_trips_to_auto_end, utc_now
 
 logger = logging.getLogger(__name__)
 SWEEP_CURSOR_KEY = "worker:trip-processing:sweep-cursor:v1"
@@ -233,15 +235,64 @@ async def seal_ended_trips_job(ctx: dict[str, Any]) -> dict[str, Any]:
             )
             capture_exception(exc)
             raise
+    sealed, enqueued = await _auto_end_inactive_trips(ctx)
     duration_ms = int((time.monotonic() - started) * 1000)
     logger.info(
-        "job=seal_ended_trips marked=%d sealed=0 enqueued=0 duration_ms=%d",
+        "job=seal_ended_trips marked=%d sealed=%d enqueued=%d duration_ms=%d",
         len(marked_ids),
+        sealed,
+        enqueued,
         duration_ms,
     )
     return {
         "marked": len(marked_ids),
-        "sealed": 0,
-        "enqueued": 0,
+        "sealed": sealed,
+        "enqueued": enqueued,
         "duration_ms": duration_ms,
     }
+
+
+async def _auto_end_inactive_trips(ctx: dict[str, Any]) -> tuple[int, int]:
+    """REQ-264: end trips with no location for 2 hours, one transaction each (D3)."""
+    settings = ctx["settings"]
+    sessionmaker = ctx["sessionmaker"]
+    now = utc_now()
+    async with sessionmaker() as session:
+        trip_ids = await find_trips_to_auto_end(
+            session, now=now, limit=settings.worker_sweep_batch_size
+        )
+    enqueuer = build_trip_enqueuer(settings)
+    sealed = enqueued = 0
+    for trip_id in trip_ids:
+        async with sessionmaker() as session:
+            try:
+                sealed_now = await auto_end_inactive_trip(
+                    session, trip_id=trip_id, settings=settings, now=now
+                )
+                await session.commit()
+            except DBAPIError as exc:
+                await session.rollback()
+                if database_sqlstate(exc) in {"40P01", "40001"}:
+                    # Lock contention: the next sweep picks this trip up again.
+                    continue
+                logger.exception(
+                    "job=seal_ended_trips trip_id=%s outcome=auto_end_error error_class=%s",
+                    trip_id,
+                    type(exc).__name__,
+                )
+                capture_exception(exc)
+                continue
+            except Exception as exc:
+                await session.rollback()
+                logger.exception(
+                    "job=seal_ended_trips trip_id=%s outcome=auto_end_error error_class=%s",
+                    trip_id,
+                    type(exc).__name__,
+                )
+                capture_exception(exc)
+                continue
+        if sealed_now:
+            sealed += 1
+            await enqueuer.enqueue_trip_processing(trip_id)
+            enqueued += 1
+    return sealed, enqueued
