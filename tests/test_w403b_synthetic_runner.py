@@ -53,6 +53,7 @@ def test_fabricated_runtime_approval_fails_the_real_command_boundary() -> None:
     with pytest.raises(journey.JourneyError):
         journey.evaluate_live_boundaries(
             {
+                "ENVIRONMENT": "production",
                 "INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE": "fabricated-runtime-approval",
             },
             evaluator=reviewed_evaluator,

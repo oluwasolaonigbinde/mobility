@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from app.core.config import Settings
+from app.core.config import LOCAL_ENVIRONMENTS, Settings
 from app.core.errors import AppError
 from app.models.billing import (
     CommercialTerms,
@@ -243,6 +243,30 @@ async def _acquire_invoice_number_lock(
     await session.execute(select(func.pg_advisory_xact_lock(lock_key)))
 
 
+SYNTHETIC_ISSUER_ENVIRONMENTS = LOCAL_ENVIRONMENTS | {"staging"}
+
+
+def synthetic_issuer_allowed(settings: Settings) -> bool:
+    """Local, test and staging may issue from a synthetic issuer; production never."""
+    return settings.environment in SYNTHETIC_ISSUER_ENVIRONMENTS
+
+
+def issuer_snapshot(
+    issuer: InvoiceIssuerProfile, *, synthetic_test_authority: bool
+) -> dict[str, object]:
+    """The issuer facts frozen on an issued invoice."""
+    return {
+        "legal_name": issuer.legal_name,
+        "tax_identification_number": issuer.tax_identification_number,
+        "registered_address": issuer.registered_address,
+        "country_code": issuer.country_code,
+        "invoice_wording": issuer.invoice_wording,
+        "external_input_reference": issuer.external_input_reference,
+        "synthetic_test_authority": synthetic_test_authority,
+        **{field: getattr(issuer, field) for field in ISSUER_CONTACT_AND_BANK_FIELDS},
+    }
+
+
 async def configured_invoice_issuer(
     session: AsyncSession, settings: Settings
 ) -> InvoiceIssuerProfile | None:
@@ -257,7 +281,7 @@ async def configured_invoice_issuer(
     if issuer is None:
         return None
     if (
-        settings.environment == "test"
+        synthetic_issuer_allowed(settings)
         and issuer.verification_status == IssuerVerificationStatus.SYNTHETIC
     ):
         return issuer
@@ -297,7 +321,7 @@ async def issue_invoice(
     )
     synthetic_test_authority = (
         issuer is not None
-        and settings.environment == "test"
+        and synthetic_issuer_allowed(settings)
         and issuer.verification_status == IssuerVerificationStatus.SYNTHETIC
     )
     configured_verified_authority = (
@@ -318,9 +342,7 @@ async def issue_invoice(
     if organization is None:
         raise AppError("ORGANIZATION_NOT_FOUND", "Organization was not found", status_code=404)
     year = now.astimezone(LAGOS_TZ).year
-    number_prefix = (
-        f"TEST-{issuer.numbering_prefix}" if synthetic_test_authority else issuer.numbering_prefix
-    )
+    number_prefix = issuer.numbering_prefix
     await _acquire_invoice_number_lock(session, number_prefix, year)
     sequence = await session.scalar(
         select(InvoiceNumberSequence)
@@ -342,16 +364,9 @@ async def issue_invoice(
     invoice.invoice_number = f"{number_prefix}-{year}-{number:06d}"
     invoice.status = InvoiceStatus.ISSUED
     invoice.customer_snapshot = _customer_snapshot(organization)
-    invoice.issuer_snapshot = {
-        "legal_name": issuer.legal_name,
-        "tax_identification_number": issuer.tax_identification_number,
-        "registered_address": issuer.registered_address,
-        "country_code": issuer.country_code,
-        "invoice_wording": issuer.invoice_wording,
-        "external_input_reference": issuer.external_input_reference,
-        "synthetic_test_authority": synthetic_test_authority,
-        **{field: getattr(issuer, field) for field in ISSUER_CONTACT_AND_BANK_FIELDS},
-    }
+    invoice.issuer_snapshot = issuer_snapshot(
+        issuer, synthetic_test_authority=synthetic_test_authority
+    )
     invoice.issued_by_user_id = actor_user_id
     invoice.issued_at = now
     await session.flush()

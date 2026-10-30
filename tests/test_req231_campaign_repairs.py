@@ -148,7 +148,7 @@ def test_invoice_issue_uses_configured_authority_not_request_ids(
     assert db_client.get(state_url, headers=headers).json()["issuing_available"] is True
     issued = db_client.post(issue_url, headers=headers)
     assert issued.status_code == 200, issued.text
-    assert issued.json()["invoice_number"].startswith("TEST-CV-")
+    assert issued.json()["invoice_number"].startswith("CV-")
     assert issued.json()["net_amount"] == "100.00"
     assert issued.json()["tax_amount"] == "7.50"
     assert issued.json()["gross_amount"] == "107.50"

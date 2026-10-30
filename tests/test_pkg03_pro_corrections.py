@@ -322,7 +322,7 @@ def test_different_profiles_with_shared_prefix_issue_concurrently_without_collis
     assert sorted(number[-6:] for number in numbers if number) == ["000001", "000002"]
 
 
-def test_max_length_synthetic_and_verified_rendered_prefixes_are_distinct(
+def test_max_length_synthetic_and_verified_prefixes_share_one_number_series(
     db_sessionmaker, settings
 ) -> None:
     admin, owner, organization = _fixture(db_sessionmaker, "sequence-max-prefix")
@@ -401,9 +401,10 @@ def test_max_length_synthetic_and_verified_rendered_prefixes_are_distinct(
             assert invoice.issuer_snapshot["synthetic_test_authority"] is False
             assert invoice.issuer_snapshot["company_registration_number"] == "TEST-RC-ONLY"
             assert invoice.issuer_snapshot["bank_account_number"] == "TEST-ACCOUNT-ONLY"
-            assert numbers[0] is not None and numbers[0].startswith(f"TEST-{prefix}-")
+            # Synthetic numbers read like real ones, so the two never duplicate a number.
+            assert numbers[0] is not None and numbers[0].startswith(f"{prefix}-")
             assert numbers[1] is not None and numbers[1].startswith(f"{prefix}-")
-            assert numbers[0].endswith("000001") and numbers[1].endswith("000001")
+            assert numbers[0].endswith("000001") and numbers[1].endswith("000002")
 
     asyncio.run(scenario())
 

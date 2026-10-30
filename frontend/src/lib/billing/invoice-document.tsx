@@ -80,9 +80,6 @@ function title(invoice: Invoice): { heading: string; note: string | null } {
     };
   }
   if (invoice.status === "void") return { heading: "Void invoice", note: null };
-  if (invoice.issuer_snapshot?.synthetic_test_authority === true) {
-    return { heading: "Test invoice", note: "Issued from test data. This is not a tax invoice." };
-  }
   return { heading: "Invoice", note: null };
 }
 

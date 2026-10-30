@@ -320,8 +320,11 @@ def parse_authority(
 
 def _runtime_claims(runtime: Mapping[str, str]) -> set[str]:
     claimed: set[str] = set()
+    # Staging and local runs set the issuer reference for synthetic facts, so it
+    # claims the real issuer only in production.
+    production = runtime.get("ENVIRONMENT", "").strip().lower() == "production"
     for name, external_ids in REFERENCE_RUNTIME_CLAIMS:
-        if runtime.get(name, "").strip():
+        if production and runtime.get(name, "").strip():
             claimed.update(external_ids)
     for names, external_ids in GROUP_RUNTIME_CLAIMS:
         if all(runtime.get(name, "").strip() for name in names):
@@ -377,7 +380,7 @@ def _load_head_authority(
 
 
 def _runtime_snapshot(environment: Mapping[str, str]) -> dict[str, str]:
-    names = {name for name, _external_ids in REFERENCE_RUNTIME_CLAIMS}
+    names = {"ENVIRONMENT", *(name for name, _external_ids in REFERENCE_RUNTIME_CLAIMS)}
     names.update(name for group, _external_ids in GROUP_RUNTIME_CLAIMS for name in group)
     return {name: environment.get(name, "") for name in names}
 

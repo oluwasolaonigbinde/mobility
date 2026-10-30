@@ -63,6 +63,24 @@ from app.services.installation_evidence import (
     INSTALLATION_PHOTO_VALIDITY_HOURS,
 )
 
+# Realistic synthetic issuer facts for local and test invoices (D42 real facts are
+# still pending). Staging records the same facts through the admin issuer endpoint.
+SYNTHETIC_ISSUER_FACTS = {
+    "legal_name": "Terrax Media Company Ltd",
+    "tax_identification_number": "2521515778093",
+    "company_registration_number": "8688553",
+    "registered_address": "73 Lome Crescent, Wuse Zone 7, Abuja",
+    "country_code": "NG",
+    "invoice_wording": "Vehicle advertising",
+    "numbering_prefix": "TXM",
+    "external_input_reference": "cardvert-synthetic-issuer",
+    "contact_phone": "07074200080",
+    "contact_email": "terraxmediacompany@gmail.com",
+    "bank_name": "OPay",
+    "bank_account_name": "Terrax Media Company Ltd",
+    "bank_account_number": "0000000000",
+}
+
 
 async def managed_seed_image(
     session, *, settings, subject, label, purpose, organization_id=None, identity="", at=None
@@ -297,6 +315,7 @@ async def seed_campaign_financials(
     ):
         return
     from app.models.organization import AdvertiserOrganization
+    from app.services.billing.invoices import issuer_snapshot
 
     organization = await session.get(AdvertiserOrganization, campaign.organization_id)
     at = financial_at or campaign.start_at - timedelta(days=8)
@@ -433,22 +452,14 @@ async def seed_campaign_financials(
             )
     issuer = await session.scalar(
         select(InvoiceIssuerProfile).where(
-            InvoiceIssuerProfile.external_input_reference == "cardvert-preview-invoice"
+            InvoiceIssuerProfile.external_input_reference
+            == SYNTHETIC_ISSUER_FACTS["external_input_reference"]
         )
     )
     if issuer is None:
         issuer = InvoiceIssuerProfile(
-            legal_name="Terrax Media Company Ltd",
-            tax_identification_number="2521515778093",
-            company_registration_number="8688553",
-            registered_address="73 Lome Crescent, Wuse Zone 7, Abuja",
-            country_code="NG",
-            invoice_wording="Vehicle advertising",
-            numbering_prefix="TXM",
+            **SYNTHETIC_ISSUER_FACTS,
             verification_status="synthetic",
-            external_input_reference="cardvert-preview-invoice",
-            contact_phone="07074200080",
-            contact_email="terraxmediacompany@gmail.com",
             recorded_by_user_id=admin.id,
             recorded_at=at,
         )
@@ -467,12 +478,7 @@ async def seed_campaign_financials(
             customer_snapshot={"name": organization.name},
             issuer_snapshot=None
             if invoice_status == "draft"
-            else {
-                "legal_name": issuer.legal_name,
-                "bank_name": "OPay",
-                "bank_account_name": "Terrax Media Company Ltd",
-                "bank_account_number": "0000000000",
-            },
+            else issuer_snapshot(issuer, synthetic_test_authority=True),
             line_items=lines,
             currency="NGN",
             net_amount=net,
