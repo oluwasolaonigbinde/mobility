@@ -1,5 +1,6 @@
 """Read-only driver presentation of persisted work and settlement evidence."""
 
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -74,7 +75,7 @@ async def enrich_driver_ledger(session, entries, responses, settings):
         succeeded = [
             line for line, _, _ in history if line.status == "succeeded" and line.reconciled_at
         ]
-        if entry.status == "paid" and succeeded:
+        if succeeded:
             response.paid_at = max(line.reconciled_at for line in succeeded)
         response.payment_on_hold = (
             any(line.status == "failed" for line, _, _ in history) and not succeeded
@@ -118,30 +119,74 @@ def earnings_unavailable() -> AppError:
     )
 
 
+def _entry_sign(entry):
+    return 0 if entry.status == "voided" else -1 if entry.entry_type == "reversal" else 1
+
+
+def _recovery_days(members, position):
+    """Manual deductions keep their work day; other debt uses the first trip day."""
+    work_days = {id(entry): response.work_days for entry, response in members}
+    result = {}
+    for entry, part in overpaid_deductions([entry for entry, _ in members], position):
+        [allocation] = work_days[id(entry)]
+        result[allocation.day] = result.get(allocation.day, Decimal(0)) + part
+    first_day = min(day.day for _, response in members for day in response.work_days)
+    result[first_day] = result.get(first_day, Decimal(0)) + (
+        position.to_deduct - sum(result.values(), Decimal(0))
+    )
+    return result
+
+
+def _add_trip_day_money(groups, members, position, currency):
+    amounts = {}
+    for entry, response in members:
+        for allocation in response.work_days:
+            amounts[allocation.day] = amounts.get(allocation.day, Decimal(0)) + (
+                _entry_sign(entry) * allocation.amount
+            )
+    first_day = min(amounts)
+    floor = position.earned_net - sum(amounts.values(), Decimal(0))
+    amounts[first_day] += floor
+    groups[(first_day, currency)]["amount"] += floor
+    raw_debt = _recovery_days(members, replace(position, offsets_received=Decimal(0)))
+    if len(amounts) == 1:
+        groups[(first_day, currency)]["cash_paid"] += position.cash_paid
+    elif position.cash_paid >= position.earned_net:
+        for day, amount in amounts.items():
+            groups[(day, currency)]["cash_paid"] += amount + raw_debt.get(day, Decimal(0))
+    for day, amount in _recovery_days(members, position).items():
+        groups[(day, currency)]["to_deduct"] += amount
+
+
 def group_earnings_days(
     entries, responses, held_trips: set[UUID], positions
 ) -> tuple[list[dict], dict[str, Decimal]]:
     """Work-day awards stay explicit; cash settlement is determined per whole trip.
 
     A partial transfer has no invented allocation across a multi-day trip. Its
-    days remain unsettled until actual verified cash covers the trip's net award.
+    days remain unsettled until verified cash and final offsets cover the trip's award.
     Headline held money counts each trip's unpaid award once. A day's amount stays
-    net; `overpaid` is cash already paid above it, pending a recorded deduction.
+    net; cash and remaining recovery are returned separately.
     """
     trip_members = {}
     groups = {}
     for entry, response in zip(entries, responses, strict=True):
-        if entry.status == "voided":
+        scope = (entry.trip_session_id, entry.currency)
+        if entry.status == "voided" and positions[scope].cash_paid == 0:
             continue
         if not response.work_days:
             raise earnings_unavailable()
-        scope = (entry.trip_session_id, entry.currency)
         trip_members.setdefault(scope, []).append((entry, response))
-        sign = -1 if entry.entry_type == "reversal" else 1
+        sign = _entry_sign(entry)
         for allocation in response.work_days:
             group = groups.setdefault(
                 (allocation.day, entry.currency),
-                {"amount": Decimal(0), "overpaid": Decimal(0), "scopes": set()},
+                {
+                    "amount": Decimal(0),
+                    "to_deduct": Decimal(0),
+                    "cash_paid": Decimal(0),
+                    "scopes": set(),
+                },
             )
             group["amount"] += sign * allocation.amount
             if allocation.amount:
@@ -150,13 +195,11 @@ def group_earnings_days(
     held_amounts = {}
     for scope, members in trip_members.items():
         position = positions[scope]
-        # Cash paid before a later deduction shows on that deduction's work day.
-        work_days_by_entry = {id(entry): response.work_days for entry, response in members}
-        for entry, part in overpaid_deductions([entry for entry, _ in members], position):
-            [allocation] = work_days_by_entry[id(entry)]
-            groups[(allocation.day, entry.currency)]["overpaid"] += part
-        outstanding = max(position.earned_net - position.cash_paid, Decimal(0))
+        _add_trip_day_money(groups, members, position, scope[1])
+        outstanding = max(position.earned_net - position.settled, Decimal(0))
         dates = [response.paid_at for entry, response in members if response.paid_at]
+        if position.offset_at:
+            dates.append(position.offset_at)
         held = outstanding > 0 and any(
             response.payment_on_hold
             or entry.status == "reversed"
@@ -164,7 +207,7 @@ def group_earnings_days(
             or entry.trip_session_id in held_trips
             for entry, response in members
         )
-        paid = position.cash_paid > 0 and outstanding == 0 and bool(dates)
+        paid = position.settled > 0 and outstanding == 0 and bool(dates)
         tonight = bool(members) and all(
             entry.status == "available" and response.paying_tonight for entry, response in members
         )
@@ -191,7 +234,8 @@ def group_earnings_days(
                 else "being_checked",
                 "paid_at": max(states[scope][3] for scope in scopes) if paid and not held else None,
                 "trip_ids": sorted({scope[0] for scope in scopes if scope[0]}, key=str),
-                "overpaid": group["overpaid"],
+                "cash_paid": group["cash_paid"],
+                "to_deduct": group["to_deduct"],
             }
         )
     days.sort(key=lambda row: row["day"], reverse=True)

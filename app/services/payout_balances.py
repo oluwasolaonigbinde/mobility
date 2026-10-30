@@ -1,13 +1,14 @@
-"""Trip-local cash authority; a negative adjustment never reduces another trip."""
+"""Computed trip worth, verified cash and final recovery offsets."""
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.disbursement import PayoutBatchLine, PayoutSubmissionIntent
+from app.models.disbursement import PayoutBatchLine, PayoutRecoveryOffset, PayoutSubmissionIntent
 from app.models.driver import DriverProfile
 from app.models.payout import EarningsLedgerEntry
 
@@ -24,6 +25,25 @@ class TripMoneyPosition:
     terminal_failed: Decimal = ZERO
     cash_paid: Decimal = ZERO
     batch_payable: Decimal = ZERO
+    offsets_funded: Decimal = ZERO
+    offsets_received: Decimal = ZERO
+    offset_at: datetime | None = None
+
+    @property
+    def debt(self) -> Decimal:
+        return max(self.cash_paid - self.earned_net, ZERO)
+
+    @property
+    def to_deduct(self) -> Decimal:
+        return max(self.debt - self.offsets_received, ZERO)
+
+    @property
+    def settled(self) -> Decimal:
+        return self.cash_paid + self.offsets_funded
+
+    @property
+    def recovery_inconsistent(self) -> bool:
+        return self.offsets_received > self.debt
 
 
 @dataclass(frozen=True)
@@ -51,24 +71,38 @@ async def lock_driver_money_scope(
     return profile
 
 
-def trip_cash_position(entries, line_rows) -> TripMoneyPosition:
+def _trip_awards(entries):
+    """Trip worth is recomputed pay less explicit deductions, floored at zero."""
+    from app.services.payouts.common import is_manual_deduction
+
     earned = ZERO
+    manual_deductions = ZERO
     released = ZERO
     negatives = ZERO
-    paid = ZERO
-    reserved = ZERO
-    in_flight = ZERO
-    failed = ZERO
     for entry in entries:
         if entry.status == "voided":
             continue
         if entry.entry_type == "reversal":
             negatives += entry.amount
-            earned -= entry.amount
+            if is_manual_deduction(entry):
+                manual_deductions += entry.amount
+            else:
+                earned -= entry.amount
         else:
             earned += entry.amount
             if entry.status in {"available", "paid"}:
                 released += entry.amount
+    return max(earned - manual_deductions, ZERO), released, negatives
+
+
+def trip_cash_position(
+    entries, line_rows, *, offsets_funded=ZERO, offsets_received=ZERO, offset_at=None
+) -> TripMoneyPosition:
+    earned, released, negatives = _trip_awards(entries)
+    paid = ZERO
+    reserved = ZERO
+    in_flight = ZERO
+    failed = ZERO
     predecessor_ids = {
         line.predecessor_line_id for line, _ in line_rows if line.predecessor_line_id is not None
     }
@@ -85,7 +119,7 @@ def trip_cash_position(entries, line_rows) -> TripMoneyPosition:
                 reserved += line.amount
         elif line.status == "failed" and line.id not in predecessor_ids:
             failed += line.amount
-    remaining = max(released - negatives - paid, ZERO)
+    remaining = max(min(released - negatives, earned) - paid - offsets_funded, ZERO)
     payable = max(remaining - reserved - in_flight, ZERO)
     return TripMoneyPosition(
         earned_net=earned,
@@ -96,6 +130,9 @@ def trip_cash_position(entries, line_rows) -> TripMoneyPosition:
         terminal_failed=min(failed, payable),
         cash_paid=paid,
         batch_payable=payable,
+        offsets_funded=offsets_funded,
+        offsets_received=offsets_received,
+        offset_at=offset_at,
     )
 
 
@@ -122,8 +159,36 @@ async def trip_money_positions(
     lines_by_trip = {}
     for line, intent in rows:
         lines_by_trip.setdefault(trip_by_entry[line.ledger_entry_id], []).append((line, intent))
+    offsets = (
+        await session.execute(
+            select(PayoutRecoveryOffset, EarningsLedgerEntry.trip_session_id)
+            .join(
+                EarningsLedgerEntry, EarningsLedgerEntry.id == PayoutRecoveryOffset.funding_entry_id
+            )
+            .where(
+                EarningsLedgerEntry.status != "voided",
+                or_(
+                    PayoutRecoveryOffset.source_trip_id.in_([scope[0] for scope in by_trip]),
+                    PayoutRecoveryOffset.funding_entry_id.in_(trip_by_entry),
+                ),
+            )
+        )
+    ).all()
+    funded, received, times = {}, {}, {}
+    for offset, funding_trip in offsets:
+        source_scope = (offset.source_trip_id, offset.currency)
+        funding_scope = (funding_trip, offset.currency)
+        received[source_scope] = received.get(source_scope, ZERO) + offset.amount
+        funded[funding_scope] = funded.get(funding_scope, ZERO) + offset.amount
+        times[funding_scope] = max(times.get(funding_scope, offset.created_at), offset.created_at)
     return {
-        trip_id: trip_cash_position(trip_entries, lines_by_trip.get(trip_id, []))
+        trip_id: trip_cash_position(
+            trip_entries,
+            lines_by_trip.get(trip_id, []),
+            offsets_funded=funded.get(trip_id, ZERO),
+            offsets_received=received.get(trip_id, ZERO),
+            offset_at=times.get(trip_id),
+        )
         for trip_id, trip_entries in by_trip.items()
     }
 
@@ -168,7 +233,107 @@ async def driver_money_balance(
         currency=normalized,
         **{
             field: sum((getattr(position, field) for position in positions), ZERO)
-            for field in TripMoneyPosition.__dataclass_fields__
-            if field != "unpaid_authority"
+            for field in DriverMoneyBalance.__dataclass_fields__
+            if field not in {"driver_profile_id", "currency"}
         },
     )
+
+
+async def driver_recovery_positions(session, *, driver_profile_id, currency):
+    entries = list(
+        (
+            await session.scalars(
+                select(EarningsLedgerEntry)
+                .where(
+                    EarningsLedgerEntry.driver_profile_id == driver_profile_id,
+                    EarningsLedgerEntry.currency == currency,
+                )
+                .order_by(EarningsLedgerEntry.occurred_at, EarningsLedgerEntry.id)
+            )
+        ).all()
+    )
+    return await trip_money_positions(session, entries)
+
+
+async def recovery_needs_review(session, *, driver_profile_id, currency) -> bool:
+    """Rare inconsistent recovery needs staff, never an automatic compensation."""
+    positions = await driver_recovery_positions(
+        session, driver_profile_id=driver_profile_id, currency=currency
+    )
+    problem = any(position.recovery_inconsistent for position in positions.values())
+    if problem:
+        from app.models.disbursement import PayoutAutomaticAlertKind
+        from app.services.automatic_payouts import raise_alert
+
+        await raise_alert(
+            session,
+            kind=PayoutAutomaticAlertKind.BUSINESS_HEALTH,
+            dedupe=("recovery_needs_review", driver_profile_id, currency),
+            detail={"reason": "recovery_needs_review"},
+            driver_profile_id=driver_profile_id,
+        )
+    return problem
+
+
+async def allocate_payout_recovery(
+    session, *, entry, payable, request_id, actor_user_id=None, automatic_run_id=None
+):
+    """Caller holds the driver money row. Offsets are final on insertion."""
+    from app.services.audit import create_audit_event
+
+    positions = await driver_recovery_positions(
+        session, driver_profile_id=entry.driver_profile_id, currency=entry.currency
+    )
+    remaining = payable
+    for (trip_id, currency), position in positions.items():
+        if trip_id == entry.trip_session_id or position.to_deduct <= ZERO:
+            continue
+        amount = min(remaining, position.to_deduct)
+        if amount <= ZERO:
+            break
+        offset = PayoutRecoveryOffset(
+            source_trip_id=trip_id,
+            funding_entry_id=entry.id,
+            driver_profile_id=entry.driver_profile_id,
+            currency=currency,
+            amount=amount,
+            request_id=request_id,
+            actor_user_id=actor_user_id,
+            automatic_run_id=automatic_run_id,
+        )
+        session.add(offset)
+        await session.flush()
+        await create_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action="system.payout.recovery_offset"
+            if automatic_run_id
+            else "admin.payout.recovery_offset",
+            entity_type="payout_recovery_offset",
+            entity_id=str(offset.id),
+            metadata={
+                "source_trip_id": str(trip_id),
+                "funding_entry_id": str(entry.id),
+                "amount": str(amount),
+                "currency": currency,
+                "request_id": str(request_id),
+            },
+        )
+        remaining -= amount
+    if remaining == ZERO:
+        entry.status = "paid"
+        await create_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action="system.earnings.offset_settled"
+            if automatic_run_id
+            else "admin.earnings.offset_settled",
+            entity_type="earnings_ledger_entry",
+            entity_id=str(entry.id),
+            metadata={
+                "amount": str(payable),
+                "currency": entry.currency,
+                "settled_at": datetime.now(UTC).isoformat(),
+            },
+        )
+    return remaining

@@ -183,7 +183,7 @@ async def driver_earnings_summary(
                 available_amount=balance.released_available,
                 paid_amount=balance.cash_paid,
                 voided_amount=voided,
-                lifetime_earned_amount=quantize_2(Decimal(str(row[5] or 0))),
+                lifetime_earned_amount=balance.earned_net,
                 released_available_amount=balance.released_available,
                 cash_paid_amount=balance.cash_paid,
                 batch_payable_amount=balance.batch_payable,

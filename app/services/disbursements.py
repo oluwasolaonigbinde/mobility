@@ -34,6 +34,7 @@ from app.models.disbursement import (
     PayoutLineReconciliationEvent,
     PayoutProviderEvent,
     PayoutProviderEventProcessingAttempt,
+    PayoutRecoveryOffset,
     PayoutSubmissionAttempt,
     PayoutSubmissionClaimAction,
     PayoutSubmissionIntent,
@@ -65,7 +66,12 @@ from app.services.fraud_holds import (
     lock_fraud_hold_scopes,
 )
 from app.services.payees import read_verified_bank_account
-from app.services.payout_balances import lock_driver_money_scope, trip_money_position
+from app.services.payout_balances import (
+    allocate_payout_recovery,
+    lock_driver_money_scope,
+    recovery_needs_review,
+    trip_money_position,
+)
 from app.services.route_replay import route_replay_config_fingerprint
 
 DISBURSEMENT_CLAIM_LEASE = timedelta(minutes=2)
@@ -283,13 +289,45 @@ async def reserve_payout_batch(  # noqa: C901
     ledger_entry_ids: tuple[UUID, ...],
     actor_user_id: UUID,
     reason: str,
-) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...]]:
+) -> tuple[PayoutBatch | None, tuple[PayoutBatchLine, ...]]:
     # Preserve the admin-first lock order even when the caller has pending rows
     # whose foreign keys would otherwise be autoflushed before authorization.
     with session.no_autoflush:
         await require_active_admin(session, actor_user_id)
     reason = _reason(reason)
     # Check existence without locking; the fraud-scope -> batch lock order below stays intact.
+    offsets = list(
+        (
+            await session.scalars(
+                select(PayoutRecoveryOffset).where(
+                    PayoutRecoveryOffset.request_id == batch_id,
+                )
+            )
+        ).all()
+    )
+    if any(offset.actor_user_id != actor_user_id for offset in offsets):
+        raise _error(
+            "PAYOUT_DRAFT_RETRY_CONFLICT", "This recovery reference belongs to another action"
+        )
+    if offsets and (await session.get(PayoutBatch, batch_id)) is None:
+        if set(ledger_entry_ids) != {offset.funding_entry_id for offset in offsets}:
+            raise _error(
+                "PAYOUT_DRAFT_RETRY_CONFLICT", "This recovery reference has a different selection"
+            )
+    if offsets and set(ledger_entry_ids) == {offset.funding_entry_id for offset in offsets}:
+        replay_batch = await session.get(PayoutBatch, batch_id)
+        if replay_batch is None:
+            return None, ()
+        if replay_batch.status == "draft" and replay_batch.created_by_user_id == actor_user_id:
+            await session.delete(replay_batch)
+            await session.flush()
+            return None, ()
+    if offsets:
+        replay_batch = await session.get(PayoutBatch, batch_id)
+        if replay_batch is not None and replay_batch.status == "draft":
+            raise _error(
+                "PAYOUT_DRAFT_RETRY_CONFLICT", "This recovery reference has a different selection"
+            )
     if await session.scalar(select(PayoutBatch.id).where(PayoutBatch.id == batch_id)) is None:
         raise _error(
             "PAYOUT_BATCH_NOT_FOUND",
@@ -336,7 +374,10 @@ async def reserve_payout_batch(  # noqa: C901
         )
     if batch.status != PayoutBatchStatus.DRAFT:
         _, existing_lines = await _locked_batch_with_lines(session, batch_id)
-        if {line.ledger_entry_id for line in existing_lines} == set(ledger_entry_ids):
+        if (
+            {line.ledger_entry_id for line in existing_lines}
+            | {offset.funding_entry_id for offset in offsets}
+        ) == set(ledger_entry_ids):
             _assert_frozen(batch, existing_lines)
             return batch, existing_lines
         raise _error("PAYOUT_BATCH_NOT_DRAFT", "Only a draft batch can be reserved")
@@ -447,6 +488,11 @@ async def reserve_payout_batch(  # noqa: C901
         if amount <= 0:
             raise _error("PAYOUT_ENTRY_INELIGIBLE", "This trip has no unpaid cash authority")
         remaining_by_trip[entry.trip_session_id] -= amount
+        amount = await allocate_payout_recovery(
+            session, entry=entry, payable=amount, request_id=batch.id, actor_user_id=actor_user_id
+        )
+        if amount == 0:
+            continue
         lines.append(
             build_frozen_payout_line(
                 batch_id=batch.id,
@@ -456,6 +502,10 @@ async def reserve_payout_batch(  # noqa: C901
                 amount=amount,
             )
         )
+    if not lines:
+        await session.delete(batch)
+        await session.flush()
+        return None, ()
     try:
         async with session.begin_nested():
             session.add_all(lines)
@@ -1934,6 +1984,10 @@ async def _apply_verified_line_evidence(  # noqa: C901
             intents_by_line=intents_by_line,
             outcome=PayoutBatchLineStatus(evidence.outcome),
             resolved_at=resolved_at,
+        )
+        await session.flush()
+        await recovery_needs_review(
+            session, driver_profile_id=ledger.driver_profile_id, currency=ledger.currency
         )
     for batch_id, chain_batch in batches_by_id.items():
         batch_lines = tuple(item for item in locked_lines if item.batch_id == batch_id)

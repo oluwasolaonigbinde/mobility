@@ -279,6 +279,16 @@ async def _daily_rate_day_target(
         driver_profile_id=driver_profile_id,
         currency=calculation.currency,
     )
+    from app.services.payouts.common import is_manual_deduction
+
+    entries = await session.scalars(
+        select(EarningsLedgerEntry).where(
+            EarningsLedgerEntry.trip_session_id == trip.id,
+            EarningsLedgerEntry.status != EarningsLedgerEntryStatus.VOIDED.value,
+            EarningsLedgerEntry.currency == calculation.currency,
+        )
+    )
+    deductions = sum((entry.amount for entry in entries if is_manual_deduction(entry)), Decimal(0))
     return DayTripTarget(
         trip_session_id=trip.id,
         vehicle_id=trip.vehicle_id,
@@ -287,7 +297,7 @@ async def _daily_rate_day_target(
         currency=calculation.currency,
         previous_posted_amount=posted,
         target_amount=target_amount,
-        delta_amount=quantize_2(target_amount - posted),
+        delta_amount=quantize_2(max(target_amount - deductions, Decimal(0)) - posted),
         eligible_seconds=eligible_seconds,
         excluded_seconds_by_reason=excluded,
         voided=voided,
@@ -423,7 +433,7 @@ async def write_day_differentials(  # noqa: C901
     cap), positive reversal for downward deltas (netted negative in
     summaries). Under a correction order (MNY-06C), positive deltas post as
     PENDING with the order's own release_at (Q22); negative deltas keep the
-    trip-local negative adjustment semantics; no future trip is reduced.
+    immutable negative adjustment semantics; recovery is a separate settlement.
     Calculations are never edited; running twice with unchanged inputs posts
     nothing.
     """

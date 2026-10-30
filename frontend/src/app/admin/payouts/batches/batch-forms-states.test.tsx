@@ -99,9 +99,9 @@ describe("payout form states", () => {
       "Staff payment review",
     );
     await clickWhenEnabled(user, "Review selected credits");
-    expect(await screen.findByText(/Advisory selected total/)).toBeTruthy();
+    expect(await screen.findByText(/To bank/)).toBeTruthy();
     await checkWhenEnabled(user);
-    expect(screen.queryByText(/Advisory selected total/)).toBeNull();
+    expect(screen.queryByText(/To bank/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Review selected credits" })).toBeNull();
   });
 
@@ -122,7 +122,7 @@ describe("payout form states", () => {
       "Staff payment review",
     );
     await clickWhenEnabled(user, "Review selected credits");
-    await screen.findByText(/Advisory selected total/);
+    await screen.findByText(/To bank/);
     await clickWhenEnabled(user, "Create and reserve selected credits");
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "recover the existing draft before trying again",
@@ -144,7 +144,7 @@ describe("payout form states", () => {
       "Staff payment review",
     );
     await clickWhenEnabled(user, "Review selected credits");
-    await screen.findByText(/Advisory selected total/);
+    await screen.findByText(/To bank/);
     await clickWhenEnabled(user, "Create and reserve selected credits");
     expect(await screen.findByRole("status")).toHaveTextContent("Reservation confirmed");
     expect(screen.getByRole("link", { name: "Review payment run" })).toHaveAttribute(

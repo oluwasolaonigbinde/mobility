@@ -14,6 +14,7 @@ from app.models.disbursement import (
     PayoutBatch,
     PayoutBatchLine,
     PayoutLineReconciliationEvent,
+    PayoutRecoveryOffset,
     PayoutSubmissionIntent,
     PayoutSubmissionObservation,
 )
@@ -25,7 +26,11 @@ from app.services.billing.queries import campaign_settlement_position
 from app.services.disbursements import _frozen_payee_authority
 from app.services.fraud_assessments import load_current_successful_assessment
 from app.services.fraud_holds import fraud_hold_active_clause
-from app.services.payout_balances import driver_money_balance, trip_money_position
+from app.services.payout_balances import (
+    driver_money_balance,
+    driver_recovery_positions,
+    trip_money_position,
+)
 
 
 def _page(limit: int, offset: int) -> None:
@@ -192,9 +197,32 @@ async def preview_payment_selection(
         raise AppError(
             "PAYOUT_ENTRY_INELIGIBLE", "A selected credit is no longer eligible", status_code=409
         )
+    earnings = sum((item["amount"] for item in projection["items"]), Decimal("0.00"))
+    remaining = {}
+    deduction = Decimal("0.00")
+    for item in projection["items"]:
+        scope = (item["driver_profile_id"], currency.strip().upper())
+        if scope not in remaining:
+            positions = await driver_recovery_positions(
+                session, driver_profile_id=scope[0], currency=scope[1]
+            )
+            if any(position.recovery_inconsistent for position in positions.values()):
+                raise AppError(
+                    "PAYOUT_RECOVERY_REVIEW_REQUIRED",
+                    "Check this driver's deductions",
+                    status_code=409,
+                )
+            remaining[scope] = sum(
+                (position.to_deduct for position in positions.values()), Decimal("0.00")
+            )
+        part = min(item["amount"], remaining[scope])
+        remaining[scope] -= part
+        deduction += part
     return {
         "currency": currency.strip().upper(),
-        "total_amount": projection["page_eligible_totals"][0]["amount"],
+        "total_amount": earnings - deduction,
+        "earnings_amount": earnings,
+        "deduction_amount": deduction,
         "ledger_entry_ids": sorted(ledger_entry_ids, key=str),
     }
 
@@ -224,11 +252,26 @@ async def _batch_summary(session: AsyncSession, batch: PayoutBatch) -> dict:
     for line_status, intent_state, count in rows:
         outcome = _outcome(line_status, intent_state)
         counts[outcome] = counts.get(outcome, 0) + count
+    recovery_filter = PayoutRecoveryOffset.request_id == batch.id
+    if batch.automatic_run_id is not None:
+        driver_ids = (
+            select(EarningsLedgerEntry.driver_profile_id)
+            .join(PayoutBatchLine, PayoutBatchLine.ledger_entry_id == EarningsLedgerEntry.id)
+            .where(PayoutBatchLine.batch_id == batch.id)
+        )
+        recovery_filter = (
+            PayoutRecoveryOffset.automatic_run_id == batch.automatic_run_id
+        ) & PayoutRecoveryOffset.driver_profile_id.in_(driver_ids)
+    deduction = await session.scalar(
+        select(func.coalesce(func.sum(PayoutRecoveryOffset.amount), 0)).where(recovery_filter)
+    )
     return {
         "id": batch.id,
         "status": batch.status,
         "currency": batch.currency,
         "total_amount": batch.total_amount,
+        "earnings_amount": batch.total_amount + deduction,
+        "deduction_amount": deduction,
         "created_by_user_id": batch.created_by_user_id,
         "approved_by_user_id": batch.approved_by_user_id,
         "maker_name": names[batch.created_by_user_id],

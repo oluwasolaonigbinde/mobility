@@ -105,6 +105,8 @@ export function CreateBatchForm({
   const [preview, setPreview] = useState<{
     currency?: string;
     total_amount?: string;
+    earnings_amount?: string;
+    deduction_amount?: string;
     error?: string;
   } | null>(null);
   const [pending, start] = useTransition();
@@ -159,7 +161,14 @@ export function CreateBatchForm({
           data.set("reason", saved.reason);
           data.set("currency", saved.currency);
           data.set("ledger_entry_ids", saved.ledgerEntryIds.join(","));
-          setState(await createAndReserveBatchAction({}, data));
+          const result = await createAndReserveBatchAction({}, data);
+          setState(result);
+          if (result.done && !result.batchId) {
+            localStorage.removeItem(recoveryKey(actorId));
+            setRecovery(null);
+            setSelected([]);
+            setPreview(null);
+          }
         } catch {
           setState({
             error:
@@ -313,9 +322,12 @@ export function CreateBatchForm({
           ) : null}
           {preview?.total_amount ? (
             <p>
-              Advisory selected total:{" "}
-              <strong>{formatMoneyExact(preview.total_amount, preview.currency)}</strong>.
-              Reservation rechecks the selected credits.
+              Earnings:{" "}
+              {formatMoneyExact(preview.earnings_amount ?? preview.total_amount, preview.currency)}
+              {" · "}Deduction:{" "}
+              {formatMoneyExact(preview.deduction_amount ?? "0.00", preview.currency)}
+              {" · "}To bank:{" "}
+              <strong>{formatMoneyExact(preview.total_amount, preview.currency)}</strong>
             </p>
           ) : null}
           {preview?.error ? (

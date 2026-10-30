@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -42,6 +42,11 @@ class PayoutBatchCreate(PayoutActionReason):
 
 class PayoutBatchReserve(PayoutActionReason):
     ledger_entry_ids: list[UUID] = Field(min_length=1, max_length=500)
+
+
+class PayoutNothingToSendRead(BaseModel):
+    outcome: Literal["nothing_to_send"] = "nothing_to_send"
+    message: str = "Nothing needs sending."
 
 
 class PayoutNegativeAdjustment(PayoutActionReason):
@@ -170,6 +175,8 @@ class PayoutSelectionPreview(BaseModel):
 class PayoutSelectionPreviewRead(BaseModel):
     currency: str
     total_amount: Money
+    earnings_amount: Money = Decimal("0.00")
+    deduction_amount: Money = Decimal("0.00")
     ledger_entry_ids: list[UUID]
 
 
@@ -178,6 +185,8 @@ class PayoutBatchSummaryRead(BaseModel):
     status: PayoutBatchStatus
     currency: str
     total_amount: Money
+    earnings_amount: Money = Decimal("0.00")
+    deduction_amount: Money = Decimal("0.00")
     created_by_user_id: UUID
     approved_by_user_id: UUID | None
     maker_name: str

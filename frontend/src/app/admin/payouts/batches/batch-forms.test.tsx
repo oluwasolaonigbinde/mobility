@@ -45,6 +45,29 @@ describe("payout operator forms", () => {
     calls.reserve.mockResolvedValue({ error: "Lost response. Retry saved request." });
   });
 
+  it("clears the saved draft when all selected earnings settle as deductions", async () => {
+    calls.preview.mockResolvedValue({
+      currency: "NGN",
+      earnings_amount: "100.07",
+      deduction_amount: "100.07",
+      total_amount: "0.00",
+    });
+    calls.reserve.mockResolvedValue({ done: "Nothing needs sending." });
+    const user = userEvent.setup();
+    render(<CreateBatchForm entries={[entry]} actorId="maker" />);
+    await user.click(screen.getByRole("checkbox"));
+    await user.type(
+      screen.getByRole("textbox", { name: "Preparation reason" }),
+      "Settle next payout",
+    );
+    await user.click(screen.getByRole("button", { name: "Review selected credits" }));
+    await screen.findByText(/To bank/);
+    await user.click(screen.getByRole("button", { name: "Create and reserve selected credits" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Nothing needs sending.");
+    expect(localStorage.getItem("cardvert-payout-draft:maker")).toBeNull();
+    expect(screen.queryByRole("link", { name: /payment run/ })).toBeNull();
+  });
+
   it("requires a server preview and retains exact recovery before a lost response", async () => {
     render(<CreateBatchForm entries={[entry]} actorId="maker" />);
     const user = userEvent.setup();
@@ -58,7 +81,7 @@ describe("payout operator forms", () => {
     ).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Review selected credits" }));
     expect(calls.preview).toHaveBeenCalledWith("NGN", [entry.ledger_entry_id]);
-    expect(await screen.findByText(/Advisory selected total/)).toHaveTextContent("100.07");
+    expect(await screen.findByText(/To bank/)).toHaveTextContent("100.07");
     await user.click(
       await screen.findByRole("button", { name: "Create and reserve selected credits" }),
     );
@@ -190,7 +213,7 @@ describe("payout operator forms", () => {
     await userEvent.click(screen.getByRole("checkbox"));
     await fillReasons();
     await userEvent.click(screen.getByRole("button", { name: "Review selected credits" }));
-    await screen.findByText(/Advisory selected total/);
+    await screen.findByText(/To bank/);
     await fillReasons();
     await userEvent.click(
       screen.getByRole("button", { name: "Create and reserve selected credits" }),

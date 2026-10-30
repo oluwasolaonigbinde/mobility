@@ -25,6 +25,7 @@ from app.schemas.disbursements import (
     PayoutBatchReserve,
     PayoutBatchSummaryListRead,
     PayoutLineHistoryRead,
+    PayoutNothingToSendRead,
     PayoutSelectionPreview,
     PayoutSelectionPreviewRead,
 )
@@ -213,13 +214,13 @@ async def admin_get_driver_money_balance(
     )
 
 
-@router.post("/{batch_id}/reserve", response_model=PayoutBatchRead)
+@router.post("/{batch_id}/reserve", response_model=PayoutBatchRead | PayoutNothingToSendRead)
 async def admin_reserve_payout_batch(
     batch_id: UUID,
     payload: PayoutBatchReserve,
     current_user: AdminUserDependency,
     session: SessionDependency,
-) -> PayoutBatchRead:
+) -> PayoutBatchRead | PayoutNothingToSendRead:
     batch, lines = await reserve_payout_batch(
         session,
         batch_id=batch_id,
@@ -228,6 +229,8 @@ async def admin_reserve_payout_batch(
         reason=payload.reason,
     )
     await session.commit()
+    if batch is None:
+        return PayoutNothingToSendRead()
     return _response(batch, lines)
 
 

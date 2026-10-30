@@ -110,6 +110,59 @@ def install_automatic(db, *, actor_status: str = "disabled") -> None:
 REAL_BANK_ACCOUNT_PAID_BEFORE = automatic.bank_account_paid_before
 
 
+@pytest.mark.parametrize(
+    "rate,cash,remaining", [("600.00", "500.00", "0.00"), ("40.00", "0.00", "60.00")]
+)
+def test_automatic_payout_nets_final_offsets_without_empty_batches(
+    postgis_db_sessionmaker,
+    settings,
+    rate,
+    cash,
+    remaining,
+):
+    from test_payout_recoveries import seed_debt
+
+    from app.models.disbursement import PayoutRecoveryOffset
+    from app.services.payout_balances import trip_money_position
+
+    db = postgis_db_sessionmaker
+    install_automatic(db)
+    graph = clean_graph(
+        db,
+        settings,
+        f"auto-offset-{uuid4().hex[:8]}",
+        daily_rate_naira=Decimal(rate),
+        daily_target_miles=Decimal("1.00"),
+    )
+    funding_id = entry_for(db, graph.trip.id).id
+
+    async def seed():
+        async with db() as session:
+            funding = await session.get(EarningsLedgerEntry, funding_id)
+            _, source = await seed_debt(session, graph, funding=funding)
+            await session.commit()
+            return source.trip_session_id
+
+    source_trip_id = asyncio.run(seed())
+    result = run(db, settings)
+    assert result["outcome"] == "completed"
+    assert result["total_amount"] == cash
+    assert result["batch_count"] == (1 if Decimal(cash) else 0)
+    assert result["line_count"] == (1 if Decimal(cash) else 0)
+    offsets = fetch(db, PayoutRecoveryOffset)
+    assert len(offsets) == 1 and offsets[0].amount == Decimal("100.00") - Decimal(remaining)
+
+    async def check():
+        async with db() as session:
+            position = await trip_money_position(
+                session, trip_session_id=source_trip_id, currency="NGN"
+            )
+            assert position.to_deduct == Decimal(remaining)
+
+    asyncio.run(check())
+    assert run(db, settings)["outcome"] == "already_ran"
+
+
 @pytest.fixture(autouse=True)
 def accounts_paid_before(monkeypatch):
     """Treat every bank account as already paid by a person, so tests exercise the

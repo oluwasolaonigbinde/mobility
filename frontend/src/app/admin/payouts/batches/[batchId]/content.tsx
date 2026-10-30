@@ -61,6 +61,11 @@ export default async function BatchDetailPage({
       <h3 className="font-semibold">
         {paymentRunStatus(batch)} · {formatMoneyExact(batch.total_amount, batch.currency)}
       </h3>
+      <p>
+        Earnings: {formatMoneyExact(batch.earnings_amount ?? batch.total_amount, batch.currency)}
+        {" · "}Deduction: {formatMoneyExact(batch.deduction_amount ?? "0.00", batch.currency)}
+        {" · "}To bank: {formatMoneyExact(batch.total_amount, batch.currency)}
+      </p>
       <Panel className="space-y-3 p-4 sm:p-6">
         {automatic ? (
           <>

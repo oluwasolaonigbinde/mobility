@@ -866,7 +866,8 @@ async def driver_get_trip_earnings_breakdown(
         excluded_seconds_by_reason=breakdown.excluded_seconds_by_reason,
         superseded_by_recompute=breakdown.superseded_by_recompute,
         entries=entries,
-        overpaid=breakdown.overpaid,
+        cash_paid=breakdown.cash_paid,
+        to_deduct=breakdown.to_deduct,
         daily_rate_days=(
             [
                 DriverTripDailyRateDay(lagos_day=day, distance_m=metres, amount=amount)

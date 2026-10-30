@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { components } from "@/lib/api/schema";
-import { addMoney, paidBeforeDeduction, presentEarningsDay, watDay } from "./daily-earnings";
+import { paidBeforeDeduction, presentEarningsDay, watDay } from "./daily-earnings";
 
 type Day = components["schemas"]["DriverEarningsDayRead"];
 const day = (changes: Partial<Day> = {}): Day => ({
@@ -14,6 +14,14 @@ const day = (changes: Partial<Day> = {}): Day => ({
 });
 
 describe("daily earnings words", () => {
+  it("keeps actual cash unchanged through partial recovery", () => {
+    const input = day({ amount: "9900.00", status: "paid", paid_at: "2026-10-25T20:00:00Z" });
+    Object.assign(input, { cash_paid: "10000.00", to_deduct: "60.00" });
+    expect(presentEarningsDay(input)).toMatchObject({
+      amount: "10000.00",
+      status: "Paid 25 Oct · ₦60.00 to be deducted",
+    });
+  });
   it.each([
     [day({ status: "on_hold" }), "On hold – contact support"],
     [day({ status: "paid", paid_at: "2026-10-10T23:30:00Z" }), "Paid 11 Oct"],
@@ -32,7 +40,8 @@ describe("daily earnings words", () => {
       presentEarningsDay(
         day({
           amount: "9900.00",
-          overpaid: "100.00",
+          to_deduct: "100.00",
+          cash_paid: "10000.00",
           status: "paid",
           paid_at: "2026-10-25T20:00:00Z",
         }),
@@ -44,7 +53,7 @@ describe("daily earnings words", () => {
       presentEarningsDay(
         day({
           amount: "9900.00",
-          overpaid: "0.00",
+          to_deduct: "0.00",
           status: "paid",
           paid_at: "2026-10-25T20:00:00Z",
         }),
@@ -56,24 +65,25 @@ describe("daily earnings words", () => {
       presentEarningsDay(
         day({
           amount: "-100.00",
-          overpaid: "100.00",
+          to_deduct: "100.00",
           status: "paid",
           paid_at: "2026-10-25T20:00:00Z",
         }),
       ),
     ).toMatchObject({ amount: "-100.00", status: "₦100.00 to be deducted" });
   });
-  it("keeps other states and adds exactly in kobo", () => {
+  it("keeps other states and the server's exact cash", () => {
     expect(
-      presentEarningsDay(day({ amount: "10400.10", overpaid: "0.20", status: "on_hold" })),
+      presentEarningsDay(
+        day({ amount: "10400.10", cash_paid: "10400.30", to_deduct: "0.20", status: "on_hold" }),
+      ),
     ).toMatchObject({
       amount: "10400.30",
       status: "On hold – contact support · ₦0.20 to be deducted",
     });
-    expect(addMoney("0.10", "0.20")).toBe("0.30");
   });
   it("words a trip paid before its deduction in one line", () =>
-    expect(paidBeforeDeduction("9900.00", "100.00", "NGN")).toBe(
+    expect(paidBeforeDeduction("10000.00", "100.00", "NGN")).toBe(
       "₦10,000.00 paid · ₦100.00 to be deducted",
     ));
   it("uses Nigeria's date across midnight", () =>
