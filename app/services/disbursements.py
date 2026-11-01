@@ -69,7 +69,6 @@ from app.services.payees import read_verified_bank_account
 from app.services.payout_balances import (
     allocate_payout_recovery,
     lock_driver_money_scope,
-    recovery_needs_review,
     trip_money_position,
 )
 from app.services.route_replay import route_replay_config_fingerprint
@@ -1986,9 +1985,6 @@ async def _apply_verified_line_evidence(  # noqa: C901
             resolved_at=resolved_at,
         )
         await session.flush()
-        await recovery_needs_review(
-            session, driver_profile_id=ledger.driver_profile_id, currency=ledger.currency
-        )
     for batch_id, chain_batch in batches_by_id.items():
         batch_lines = tuple(item for item in locked_lines if item.batch_id == batch_id)
         chain_batch.status = _derive_batch_status(batch_lines)

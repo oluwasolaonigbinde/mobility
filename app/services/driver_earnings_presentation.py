@@ -207,7 +207,7 @@ def group_earnings_days(
             or entry.trip_session_id in held_trips
             for entry, response in members
         )
-        paid = position.settled > 0 and outstanding == 0 and bool(dates)
+        paid = position.cash_paid + position.offsets_funded > 0 and outstanding == 0 and bool(dates)
         tonight = bool(members) and all(
             entry.status == "available" and response.paying_tonight for entry, response in members
         )

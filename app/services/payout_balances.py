@@ -31,19 +31,15 @@ class TripMoneyPosition:
 
     @property
     def debt(self) -> Decimal:
-        return max(self.cash_paid - self.earned_net, ZERO)
+        return max(self.settled - self.earned_net, ZERO)
 
     @property
     def to_deduct(self) -> Decimal:
-        return max(self.debt - self.offsets_received, ZERO)
+        return self.debt
 
     @property
     def settled(self) -> Decimal:
-        return self.cash_paid + self.offsets_funded
-
-    @property
-    def recovery_inconsistent(self) -> bool:
-        return self.offsets_received > self.debt
+        return self.cash_paid + self.offsets_funded - self.offsets_received
 
 
 @dataclass(frozen=True)
@@ -119,7 +115,9 @@ def trip_cash_position(
                 reserved += line.amount
         elif line.status == "failed" and line.id not in predecessor_ids:
             failed += line.amount
-    remaining = max(min(released - negatives, earned) - paid - offsets_funded, ZERO)
+    settled = paid + offsets_funded - offsets_received
+    released_net = max(min(released - negatives, earned), ZERO)
+    remaining = max(released_net - settled, ZERO)
     payable = max(remaining - reserved - in_flight, ZERO)
     return TripMoneyPosition(
         earned_net=earned,
@@ -253,26 +251,6 @@ async def driver_recovery_positions(session, *, driver_profile_id, currency):
         ).all()
     )
     return await trip_money_positions(session, entries)
-
-
-async def recovery_needs_review(session, *, driver_profile_id, currency) -> bool:
-    """Rare inconsistent recovery needs staff, never an automatic compensation."""
-    positions = await driver_recovery_positions(
-        session, driver_profile_id=driver_profile_id, currency=currency
-    )
-    problem = any(position.recovery_inconsistent for position in positions.values())
-    if problem:
-        from app.models.disbursement import PayoutAutomaticAlertKind
-        from app.services.automatic_payouts import raise_alert
-
-        await raise_alert(
-            session,
-            kind=PayoutAutomaticAlertKind.BUSINESS_HEALTH,
-            dedupe=("recovery_needs_review", driver_profile_id, currency),
-            detail={"reason": "recovery_needs_review"},
-            driver_profile_id=driver_profile_id,
-        )
-    return problem
 
 
 async def allocate_payout_recovery(

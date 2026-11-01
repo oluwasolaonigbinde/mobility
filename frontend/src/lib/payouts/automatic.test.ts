@@ -46,10 +46,6 @@ describe("automatic payout copy helpers", () => {
   });
 
   it("names alerts, reasons and outcomes in plain words", () => {
-    expect(manualReasonLabel("recovery_needs_review")).toBe("Check the driver's deductions");
-    expect(alertDetail(alert("business_health", { reason: "recovery_needs_review" }))).toBe(
-      "Check this driver's deductions before paying again.",
-    );
     expect(alertLabel("duplicate_payment")).toBe("A possible duplicate payment");
     expect(alertLabel("new_kind")).toBe("Payment problem to review");
     expect(manualReasonLabel("open_dispute")).toBe("Driver has an open dispute");

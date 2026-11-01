@@ -25,7 +25,6 @@ from app.services.disbursements import (
 from app.services.payout_balances import (
     allocate_payout_recovery,
     lock_driver_money_scope,
-    recovery_needs_review,
     trip_money_position,
 )
 
@@ -225,8 +224,57 @@ def test_partial_offsets_carry_forward_and_funding_void_does_not_collect_twice(d
     asyncio.run(exercise())
 
 
-def test_original_transfer_reversal_after_recovery_requires_staff(db_sessionmaker):
-    from app.models.disbursement import PayoutAutomaticAlert
+@pytest.mark.parametrize("cause", ["manual", "recompute"])
+def test_funded_offsets_become_debt_if_funding_trip_worth_falls(db_sessionmaker, cause):
+    graph = build_graph(db_sessionmaker, f"funded-debt-{uuid4().hex[:8]}")
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            funding, _ = await seed_debt(session, graph, deduction="10000.00")
+            await lock_driver_money_scope(
+                session, driver_profile_id=graph.profile.id, currency="NGN"
+            )
+            assert (
+                await allocate_payout_recovery(
+                    session,
+                    entry=funding,
+                    payable=funding.amount,
+                    request_id=uuid4(),
+                    actor_user_id=graph.admin.id,
+                )
+                == 0
+            )
+            session.add(
+                EarningsLedgerEntry(
+                    driver_profile_id=funding.driver_profile_id,
+                    driver_user_id=funding.driver_user_id,
+                    campaign_id=funding.campaign_id,
+                    trip_session_id=funding.trip_session_id,
+                    vehicle_id=funding.vehicle_id,
+                    entry_type="reversal",
+                    status="available",
+                    amount=funding.amount,
+                    currency="NGN",
+                    occurred_at=funding.occurred_at,
+                    ledger_metadata={"source_entry_id": str(funding.id)}
+                    if cause == "manual"
+                    else {"recompute_day": "2026-08-21"},
+                )
+            )
+            await session.flush()
+            position = await trip_money_position(
+                session, trip_session_id=funding.trip_session_id, currency="NGN"
+            )
+            assert position.cash_paid == 0
+            assert position.settled == Decimal("10000.00")
+            assert position.to_deduct == Decimal("10000.00")
+
+    asyncio.run(exercise())
+
+
+def test_original_transfer_reversal_restores_cash_authority_and_preview(db_sessionmaker):
+    from app.services.automatic_payouts import automatic_final_clean_authority
+    from app.services.payout_operations import preview_payment_selection
 
     graph = build_graph(db_sessionmaker, f"reverse-offset-{uuid4().hex[:8]}")
 
@@ -249,28 +297,23 @@ def test_original_transfer_reversal_after_recovery_requires_staff(db_sessionmake
             line.status = "failed"
             source.status = "available"
             await session.flush()
-            assert await recovery_needs_review(
-                session, driver_profile_id=graph.profile.id, currency="NGN"
+            position = await trip_money_position(
+                session, trip_session_id=source.trip_session_id, currency="NGN"
             )
-            assert await session.scalar(select(func.count(PayoutAutomaticAlert.id))) == 1
-            assert await recovery_needs_review(
-                session, driver_profile_id=graph.profile.id, currency="NGN"
-            )
-            assert await session.scalar(select(func.count(PayoutAutomaticAlert.id))) == 1
-            assert await session.scalar(select(func.count(PayoutRecoveryOffset.id))) == 1
-            from app.core.errors import AppError
-            from app.services.automatic_payouts import automatic_final_clean_authority
-
-            batch = await session.get(PayoutBatch, line.batch_id)
-            with pytest.raises(AppError, match="deductions"):
-                await automatic_final_clean_authority(
-                    session,
-                    batch=batch,
-                    trip_ids=(funding.trip_session_id,),
-                    driver_profile_ids=(graph.profile.id,),
-                )
-            # Staff can pay an explicit positive correction while automatic pay stays blocked.
             compensation = await _seed_authority(session, graph, amount="100.00")
+            preview = await preview_payment_selection(
+                session, currency="NGN", ledger_entry_ids=(compensation.id,)
+            )
+            assert preview["total_amount"] == Decimal("100.00")
+            assert position.settled == Decimal("-100.00")
+            assert position.batch_payable == Decimal("10000.00")
+            assert position.to_deduct == 0
+            await automatic_final_clean_authority(
+                session,
+                batch=await session.get(PayoutBatch, line.batch_id),
+                trip_ids=(funding.trip_session_id,),
+                driver_profile_ids=(graph.profile.id,),
+            )
             await session.commit()
             draft = await create_payout_batch_draft(
                 session,
