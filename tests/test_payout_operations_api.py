@@ -228,3 +228,32 @@ def test_zero_payable_reason_distinguishes_paid_from_unpaid(
                 assert "Nothing left to pay" not in row["ineligibility_reasons"]
 
     asyncio.run(exercise())
+
+
+def test_reserved_entry_has_one_reserved_reason_with_real_payout_line(db_sessionmaker):
+    from app.services.disbursements import create_payout_batch_draft, reserve_payout_batch
+    from app.services.payout_operations import eligible_payment_entries
+
+    graph = build_graph(db_sessionmaker, f"reserved-reason-{uuid4().hex[:8]}")
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            entry = await _seed_authority(session, graph)
+            batch = await create_payout_batch_draft(
+                session, currency="NGN", actor_user_id=graph.admin.id, reason="Reserve verified pay"
+            )
+            _, lines = await reserve_payout_batch(
+                session,
+                batch_id=batch.id,
+                ledger_entry_ids=(entry.id,),
+                actor_user_id=graph.admin.id,
+                reason="Reserve verified pay",
+            )
+            assert len(lines) == 1 and lines[0].reservation_active
+            result = await eligible_payment_entries(session, entry_ids=(entry.id,))
+            assert len(result["items"]) == 1
+            row = result["items"][0]
+            assert row["ledger_entry_id"] == entry.id
+            assert row["ineligibility_reasons"] == ["Already reserved or in flight"]
+
+    asyncio.run(exercise())
