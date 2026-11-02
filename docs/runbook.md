@@ -493,7 +493,7 @@ with a reason and the actual Nigeria day (choose one for a cross-midnight trip).
 It appends a ledger entry and never edits paid history. Under D146 / REQ-260/262,
 the deduction only corrects that trip, never a fine: worth is
 `max(recomputed pay − manual deductions, 0)` and debt is
-`max(cash paid − worth, 0)`. Recompute preserves the manual deduction. Actual
+`max(S − W, 0)`, where `W` is trip worth and `S = cash paid + offsets funded − offsets received`. Payable is `max(released worth − S, 0)`, less reserved and in-flight amounts (floored at zero). Recompute preserves the manual deduction. Actual
 overpaid cash is recovered from the next eligible payout(s), using final
 audited noncash offsets; a fully offset credit settles without a batch.
 Uncertain or already claimed transfers must be verified by their existing

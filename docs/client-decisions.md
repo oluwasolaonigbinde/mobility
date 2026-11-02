@@ -542,7 +542,7 @@ Owner, 27 October 2026: "take overpayments from the next payout"; owner,
 29 October 2026, rule A (D146 / REQ-260/262): trip worth is
 `max(recomputed pay − manual deductions, 0)` and debt is
 `max(S − W, 0)` under D147, where `S = cash paid + offsets funded − offsets received`
-and `W` is trip worth; payable is `max(released worth − S, 0)`.
+and `W` is trip worth; payable is `max(released worth − S, 0)`, less reserved and in-flight amounts (floored at zero).
 Money taken back by mistake is simply owed to the driver and paid with the next
 payout through normal checks, without requiring a staff positive adjustment.
 Recomputing pay preserves manual deductions;
@@ -552,8 +552,8 @@ Credits fully consumed by recovery settle without creating a payout batch.
 Offsets are final noncash settlement records; cash paid history is not rewritten.
 Built on integrate/req252-264 (`98a86547`); full CI and merge remain pending.
 
-**Implementation clarification (REQ-260/262):** A direct recompute that changes
-a day's amount with zero money delta returns `RECOMPUTE_REQUIRES_CORRECTION_ORDER`;
+**Implementation clarification (REQ-260/262):** The internal service guard protects a recompute that changes
+a day's amount with zero money delta by returning `RECOMPUTE_REQUIRES_CORRECTION_ORDER`. The public recompute endpoint already always returns 409; this adds no new staff behaviour.
 the correction order records that changed day position. The driver's displayed
 paid figure includes pay that went towards a debt (cash paid plus offsets
 funded), rather than implying that offset pay is still unpaid. These implement

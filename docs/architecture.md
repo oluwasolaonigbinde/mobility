@@ -1859,9 +1859,9 @@ the remaining deduction decreases as offsets settle it, then the plain net shows
 
 ### 16.2 Release scheduling (Q22)
 
-**[BUILT — REQ-260/262 follow-up `71ebcd01`; full CI/merge pending]** A direct
-recompute that changes a day's amount while its money delta is zero returns
-`RECOMPUTE_REQUIRES_CORRECTION_ORDER` before writing any trip. The correction
+**[BUILT — REQ-260/262 follow-up `71ebcd01`; full CI/merge pending]** An internal service-path
+guard protects against changed day amounts with zero money delta by returning
+`RECOMPUTE_REQUIRES_CORRECTION_ORDER` before writing any trip. The public recompute endpoint already always returns 409; this is not new staff behaviour. The correction
 order persists that changed day position even without a differential. The
 driver's displayed paid figure includes pay used towards debt: cash paid plus
 offsets funded, in both grouped days and the trip breakdown. This display does
@@ -1901,7 +1901,7 @@ payout; owner 29 October, rule A: trip worth is
 `max(recomputed pay − manual deductions, 0)` and debt is
 `max(S − W, 0)` under D147, with net settled
 `S = cash paid + offsets funded − offsets received` and trip worth `W`.
-Payable is `max(released worth − S, 0)`. Deductions beyond the trip's worth do not create
+Payable is `max(released worth − S, 0)`, less reserved and in-flight amounts (floored at zero). Deductions beyond the trip's worth do not create
 extra debt; actual cash above that worth is recovered from the next eligible
 payout(s), possibly over several runs. Paid cash history remains immutable.
 This supersedes D113's earlier no-future-recovery direction.
@@ -1924,7 +1924,7 @@ money review F3]** Computed net settlement replaces the rare-over-recovery
 alert, automatic exclusion and staff positive-adjustment remedy. If money was
 taken back by mistake, it is simply owed to the driver and paid with the next
 payout through normal checks. Settled `S = cash paid + offsets funded − offsets received`;
-debt `max(S − W, 0)`; payable `max(released worth − S, 0)`. Final offsets remain
+debt `max(S − W, 0)`; payable `max(released worth − S, 0)`, less reserved and in-flight amounts (floored at zero). Final offsets remain
 immutable. Owner informed 30 October 2026, no objection. Built on integration
 (`6d2fc593`), awaiting full CI and merge.
 Driver presentation stays "₦X paid · ₦Y to be deducted" until recovered, then
