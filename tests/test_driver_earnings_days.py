@@ -307,6 +307,54 @@ def test_duplicate_cash_above_trip_worth_is_recovered():
     assert (day["amount"], day["to_deduct"]) == (Decimal("100.00"), Decimal("100.00"))
 
 
+def test_offset_settled_credit_does_not_hold_new_pay():
+    members = [
+        row(amount="1000.00", status="paid", work_days=[("2026-10-24", "1000.00")]),
+        row(amount="200.00", entry_type="adjustment", work_days=[("2026-10-24", "200.00")]),
+    ]
+    days, held = group_earnings_days(
+        [e for e, _ in members],
+        [r for _, r in members],
+        set(),
+        {
+            (TRIP, "NGN"): TripMoneyPosition(
+                earned_net=Decimal("1200.00"),
+                offsets_funded=Decimal("1000.00"),
+                offset_at=PAID_AT,
+            )
+        },
+    )
+    assert days[0]["status"] == "being_checked"
+    assert held == {}
+
+
+@pytest.mark.parametrize("multi_day", [False, True])
+def test_displayed_paid_includes_funded_offsets(multi_day):
+    allocations = (
+        [("2026-10-24", "500.00"), ("2026-10-25", "500.00")]
+        if multi_day
+        else [("2026-10-24", "1000.00")]
+    )
+    members = [
+        row(amount="1000.00", status="paid", paid_at=PAID_AT, work_days=allocations),
+        deduction("1000.00"),
+    ]
+    days, _ = group_earnings_days(
+        [e for e, _ in members],
+        [r for _, r in members],
+        set(),
+        {
+            (TRIP, "NGN"): TripMoneyPosition(
+                earned_net=Decimal(0),
+                cash_paid=Decimal("700.00"),
+                offsets_funded=Decimal("300.00"),
+            )
+        },
+    )
+    assert sum(d["cash_paid"] for d in days) == Decimal("1000.00")
+    assert sum(d["to_deduct"] for d in days) == Decimal("1000.00")
+
+
 @pytest.mark.parametrize("recovered,remaining", [("40.00", "60.00"), ("100.00", "0.00")])
 def test_zero_worth_day_stays_paid_as_recovery_settles(recovered, remaining):
     members = [paid_credit("100.00"), deduction("100.00")]
@@ -425,13 +473,14 @@ def test_trip_breakdown_keeps_miles_after_a_deduction_and_hides_staff_metadata(
     async def paid_in_full(session, entries):
         return {
             (graph.trip.id, "NGN"): TripMoneyPosition(
-                earned_net=net, cash_paid=net + Decimal("100.00")
+                earned_net=net, cash_paid=net, offsets_funded=Decimal("100.00")
             )
         }
 
     monkeypatch.setattr(breakdown_module, "trip_money_positions", paid_in_full)
     to_deduct = db_client.get(endpoint, headers=driver).json()
     assert (to_deduct["amount"], to_deduct["to_deduct"]) == (str(net), "100.00")
+    assert Decimal(to_deduct["cash_paid"]) == net + Decimal("100.00")
 
 
 def test_partial_multi_day_cash_has_no_invented_allocation():

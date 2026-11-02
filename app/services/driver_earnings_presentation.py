@@ -149,9 +149,10 @@ def _add_trip_day_money(groups, members, position, currency):
     amounts[first_day] += floor
     groups[(first_day, currency)]["amount"] += floor
     raw_debt = _recovery_days(members, replace(position, offsets_received=Decimal(0)))
+    paid = position.cash_paid + position.offsets_funded
     if len(amounts) == 1:
-        groups[(first_day, currency)]["cash_paid"] += position.cash_paid
-    elif position.cash_paid >= position.earned_net:
+        groups[(first_day, currency)]["cash_paid"] += paid
+    elif paid >= position.earned_net:
         for day, amount in amounts.items():
             groups[(day, currency)]["cash_paid"] += amount + raw_debt.get(day, Decimal(0))
     for day, amount in _recovery_days(members, position).items():
@@ -203,7 +204,7 @@ def group_earnings_days(
         held = outstanding > 0 and any(
             response.payment_on_hold
             or entry.status == "reversed"
-            or (entry.status == "paid" and not response.paid_at)
+            or (entry.status == "paid" and not response.paid_at and not position.offsets_funded)
             or entry.trip_session_id in held_trips
             for entry, response in members
         )

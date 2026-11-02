@@ -11,6 +11,7 @@ direct endpoint, and value-complete audit events.
 """
 
 import asyncio
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
@@ -50,6 +51,74 @@ from app.services.payouts.breakdown import driver_trip_earnings_breakdown
 from app.services.payouts.common import PAYOUT_V4
 
 RELEASE_AT = datetime(2026, 9, 1, 12, 0, tzinfo=UTC)
+
+
+@pytest.mark.parametrize("posted", ["-200.00", "0.00"])
+def test_direct_zero_delta_recompute_rejects_lost_day_position(
+    postgis_db_sessionmaker, settings, monkeypatch, posted
+):
+    from app.services.payouts import corrections
+    from app.services.payouts.ledger import latest_daily_rate_position
+
+    db = postgis_db_sessionmaker
+    graph = build_correction_graph(db, settings, f"zero-day-{uuid4().hex[:8]}")
+    drive(db, settings, graph.trip)
+
+    async def exercise(session):
+        projection = await project_campaign_day(
+            session,
+            campaign_id=graph.campaign.id,
+            lagos_day=lagos_day_for(graph.trip.started_at),
+            settings=settings,
+        )
+        computation = projection.computations[0]
+        target = computation.trips[0]
+        calculation = await session.get(PayoutCalculation, target.payout_calculation_id)
+        calculation.amount_by_day = {"2026-07-20": "500.00", "2026-07-21": "500.00"}
+        calculation.distance_m_by_day = {"2026-07-20": 500, "2026-07-21": 500}
+        await session.flush()
+        target = replace(
+            target,
+            previous_posted_amount=Decimal(posted),
+            target_amount=Decimal("600.00"),
+            delta_amount=Decimal(0),
+            amount_by_day={"2026-07-20": "100.00", "2026-07-21": "500.00"},
+        )
+
+        async def recomputed(*args, **kwargs):
+            return replace(computation, trips=[target])
+
+        monkeypatch.setattr(corrections, "compute_payout_day_targets", recomputed)
+        before = list((await session.scalars(select(EarningsLedgerEntry.id))).all())
+        with pytest.raises(AppError) as caught:
+            await corrections.recompute_payout_day(
+                session,
+                campaign_id=graph.campaign.id,
+                driver_profile_id=graph.profile.id,
+                lagos_date=computation.lagos_date,
+                request_metadata={},
+                settings=settings,
+            )
+        assert caught.value.status_code == 409
+        assert "correction order" in caught.value.message.lower()
+        assert (await latest_daily_rate_position(session, calculation))[1] == {
+            "2026-07-20": "500.00",
+            "2026-07-21": "500.00",
+        }
+        assert list((await session.scalars(select(EarningsLedgerEntry.id))).all()) == before
+        # An unchanged zero-delta direct run remains a harmless no-op.
+        target = replace(target, amount_by_day=calculation.amount_by_day)
+        outcome = await corrections.recompute_payout_day(
+            session,
+            campaign_id=graph.campaign.id,
+            driver_profile_id=graph.profile.id,
+            lagos_date=computation.lagos_date,
+            request_metadata={},
+            settings=settings,
+        )
+        assert outcome.trips[0].entry is None
+
+    service(db, exercise)
 
 
 @pytest.mark.parametrize(
