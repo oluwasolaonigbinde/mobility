@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.159 — 2026-11-02. Canonical source of truth: current state AND target state.**
+**Version 1.160 — 2026-11-02. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1858,6 +1858,16 @@ REQ-262 now provides the final recovery settlement described in §16.2–16.3;
 the remaining deduction decreases as offsets settle it, then the plain net shows.
 
 ### 16.2 Release scheduling (Q22)
+
+**[BUILT — REQ-260/262 follow-up `71ebcd01`; full CI/merge pending]** A direct
+recompute that changes a day's amount while its money delta is zero returns
+`RECOMPUTE_REQUIRES_CORRECTION_ORDER` before writing any trip. The correction
+order persists that changed day position even without a differential. The
+driver's displayed paid figure includes pay used towards debt: cash paid plus
+offsets funded, in both grouped days and the trip breakdown. This display does
+not label offset settlement as unpaid merely because no bank transfer exists;
+held-pay authority remains unchanged. These are implementation clarifications
+of the existing correction and D146/D147 settlement rules, not a new D-row.
 
 Ledger entries post as `pending` (built). The D18 release policy makes an
 earning with a current successful assessment and no authoritative active hold
@@ -4037,6 +4047,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.160 — 2 November 2026 (REQ-260/262 follow-up `71ebcd01`):** Document the correction-order requirement for a direct zero-money-delta recompute that changes day amounts, and include funded recovery offsets in the driver's displayed paid figure. Implements existing correction/settlement authority; no new decision, API/schema/migration or launch-gate change. Built on integration; full CI and merge pending.
 
 - **v1.159 — 2 November 2026 (D147 / REQ-260/262, money review F3):** Record computed net settlement S = cash paid + offsets funded − offsets received; debt = max(S − W, 0), payable = max(released worth − S, 0). Mistaken recovery is owed back through normal next-payout checks, replacing alert/exclusion and staff positive adjustment. Owner informed 30 October, no objection. Built on integrate/req252-264 (`6d2fc593`); full CI and merge pending. No API/schema/migration or launch-gate change.
 

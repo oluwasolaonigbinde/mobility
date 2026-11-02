@@ -552,6 +552,14 @@ Credits fully consumed by recovery settle without creating a payout batch.
 Offsets are final noncash settlement records; cash paid history is not rewritten.
 Built on integrate/req252-264 (`98a86547`); full CI and merge remain pending.
 
+**Implementation clarification (REQ-260/262):** A direct recompute that changes
+a day's amount with zero money delta returns `RECOMPUTE_REQUIRES_CORRECTION_ORDER`;
+the correction order records that changed day position. The driver's displayed
+paid figure includes pay that went towards a debt (cash paid plus offsets
+funded), rather than implying that offset pay is still unpaid. These implement
+the existing correction/settlement rules, without a new product decision.
+Built on integrate/req252-264 (`71ebcd01`); full CI and merge pending.
+
 Owner, 27–29 October 2026 (D140 / REQ-256): a paid day with a later deduction
 shows "₦X paid · ₦Y to be deducted" until recovered, then the plain net amount.
 Totals stay net and deductions use the Nigeria day they correct. Drivers see
