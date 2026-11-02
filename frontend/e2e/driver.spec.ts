@@ -19,7 +19,7 @@ test("driver home shows earnings and the active campaign with app chrome", async
     page.locator("header").getByRole("link", { name: "Terrax Media Cardvert", exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Your earnings", exact: true })).toBeVisible();
-  await expect(page.getByText(/^Paid .*₦10,000/)).toBeVisible();
+  await expect(page.getByText(/^₦10,000(?:\.00)? · Paid /)).toBeVisible();
   // Active-campaign card names the campaign; recent activity lists whichever
   // campaigns the enriched seed wrote most recently — so assert presence, not
   // an exact count tied to seed ordering.

@@ -1,5 +1,6 @@
 import ast
 import asyncio
+from decimal import Decimal
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -123,7 +124,7 @@ def test_money_audit_targets_follow_frozen_line_and_correction_trip_ownership(db
     from test_payout_batches import _seed_authority
 
     from app.adapters.disbursement import FakeDisbursementAdapter
-    from app.models.disbursement import PayoutSubmissionIntent
+    from app.models.disbursement import PayoutRecoveryOffset, PayoutSubmissionIntent
     from app.models.payee import Payee, PayeeBankAccount
     from app.models.payout import PayoutCorrectionOrder
     from app.services.disbursements import (
@@ -183,6 +184,16 @@ def test_money_audit_targets_follow_frozen_line_and_correction_trip_ownership(db
                 },
             )
             session.add(order)
+            offset = PayoutRecoveryOffset(
+                source_trip_id=graph.trip.id,
+                funding_entry_id=entry.id,
+                driver_profile_id=graph.profile.id,
+                amount=Decimal("1.00"),
+                currency="NGN",
+                request_id=uuid4(),
+                actor_user_id=graph.admin.id,
+            )
+            session.add(offset)
             await session.flush()
             for kind, identity in (
                 ("payee", payee.id),
@@ -192,6 +203,7 @@ def test_money_audit_targets_follow_frozen_line_and_correction_trip_ownership(db
                 ("payout_submission_intent", intent.id),
                 ("payout_correction_order", order.id),
                 ("earnings_ledger_entry", entry.id),
+                ("payout_recovery_offset", offset.id),
             ):
                 event = await create_audit_event(
                     session,
@@ -209,6 +221,15 @@ def test_money_audit_targets_follow_frozen_line_and_correction_trip_ownership(db
                     )
                 )
                 assert subjects == {graph.driver.id}, kind
+                actors = set(
+                    await session.scalars(
+                        select(AuditEventSubjectResolution.subject_user_id).where(
+                            AuditEventSubjectResolution.audit_event_id == event.id,
+                            AuditEventSubjectResolution.role == "actor",
+                        )
+                    )
+                )
+                assert actors == {graph.admin.id}, kind
 
     asyncio.run(run())
 

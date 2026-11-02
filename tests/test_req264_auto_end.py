@@ -88,6 +88,9 @@ def test_trip_with_no_location_for_two_hours_is_sealed_on_held_batches(
         payload = make_batch_payload(key, batch_sequence=sequence)
         assert post_batch(db_client, trip_id, payload).status_code == http_status.HTTP_200_OK
 
+    # In-process Alembic fileConfig can disable existing module loggers in a
+    # full shard. Restore this logger for the assertion, then undo it on exit.
+    monkeypatch.setattr(logging.getLogger("app.jobs.trip_processing"), "disabled", False)
     with caplog.at_level(logging.INFO, logger="app.jobs.trip_processing"):
         result, enqueuer = run_sweep(db_sessionmaker, settings, monkeypatch)
 

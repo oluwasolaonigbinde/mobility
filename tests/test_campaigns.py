@@ -506,6 +506,8 @@ def test_campaign_review_lifecycle_binds_immutable_submission_history_and_audits
         organization_id=organization.id,
         created_by_user_id=advertiser.id,
         name="Reviewable campaign",
+        start_at=datetime(2099, 10, 1, 8, tzinfo=UTC),
+        end_at=datetime(2099, 10, 31, 17, tzinfo=UTC),
     )
     make_test_campaign_reviewable(
         db_sessionmaker, campaign_id=campaign.id, created_by_user_id=advertiser.id

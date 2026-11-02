@@ -1,9 +1,14 @@
-"""Exact pre-slim-down synthetic money baseline captured at be1fc9de (S1).
+"""Historical money parity, reconciled with REQ-251's explicit seed removals.
 
-Frozen time and density reproduce 300 calculations and their ledger rows. Trip
+The original frozen baseline had 300 calculations and ledger rows. Trip
 identity uses campaign, driver, dates and seed key; report-route keys omit their
 random source UUID. Hashes cover each exact amount and ledger-to-trip identity.
 Storage/scanning are synthetic; no payment provider is contacted.
+
+REQ-251 removes driver05's duplicate Cedar Bay assignment (five trips), and
+omits seven zero-pay ledger entries. Reconstructing only those historical rows
+must recover the ORIGINAL hashes, protecting all unchanged values independently
+of today's calculation and ledger implementations.
 """
 
 import asyncio
@@ -36,6 +41,56 @@ def _stable_trip_identity(name, email, start, end, metadata) -> list[str]:
         prefix, _random_source_trip_id, driver_index, leg = key.split(":")
         key = f"{prefix}:{driver_index}:{leg}"
     return [name, email, start.isoformat(), end.isoformat(), key]
+
+
+def _removed_duplicate_calculations() -> list[list[str]]:
+    # Exact historical rows, independently reproduced from be1fc9de. The seed's
+    # campaign-1 range changed from range(4, 7) to range(5, 7), retaining driver05
+    # on campaign 0 only. No other trip or price is allowed to change.
+    return [
+        [
+            "Cedar Bay Furnishings — Jabi Showroom",
+            "driver05@demo.mobility.local",
+            f"2026-09-{day}T12:15:00+00:00",
+            f"2026-09-{day}T{end}+00:00",
+            f"f7:5:2026-09-{day}:0",
+            amount,
+            amount,
+            "NGN",
+        ]
+        for day, end, amount in (
+            ("07", "12:34:49", "344.86"),
+            ("08", "12:29:08", "353.74"),
+            ("09", "12:36:53", "322.67"),
+            ("10", "12:34:58", "344.95"),
+            ("11", "12:29:39", "118.15"),
+        )
+    ]
+
+
+def _removed_zero_ledger() -> list[list[str]]:
+    return [
+        [
+            "Aster Vale Foods — Garki Deliveries",
+            f"driver0{driver}@demo.mobility.local",
+            f"2026-10-{day}T{start}+00:00",
+            f"2026-10-{day}T{end}+00:00",
+            f"f7:{driver}:2026-10-{day}:0",
+            "trip_payout",
+            "pending",
+            "0.00",
+            "NGN",
+        ]
+        for driver, day, start, end in (
+            (1, "19", "08:15:00", "08:30:57"),
+            (2, "17", "09:15:00", "09:29:58"),
+            (2, "18", "09:15:00", "09:36:17"),
+            (3, "19", "10:15:00", "10:35:38"),
+            (4, "17", "11:15:00", "11:35:15"),
+            (4, "18", "11:15:00", "11:33:03"),
+            (5, "19", "12:15:00", "12:31:58"),
+        )
+    ]
 
 
 def test_seed_pay_and_ledger_match_before_slimdown(
@@ -100,11 +155,32 @@ def test_seed_pay_and_ledger_match_before_slimdown(
             return calculations, ledger
 
     calculations, ledger = asyncio.run(read_money())
-    assert len(calculations) == len(ledger) == 300
-    assert len({tuple(row[:5]) for row in calculations}) == 300
-    assert len({tuple(row[:5]) for row in ledger}) == 300
-    assert (
-        _digest(calculations) == "5e4c7a9579c53e9f7fd6b05cdf000ccacb721a0d7968926b279bcc0c6eb51814"
+    removed = _removed_duplicate_calculations()
+    zero_ledger = _removed_zero_ledger()
+    calculation_by_trip = {tuple(row[:5]): row for row in calculations}
+    ledger_by_trip = {tuple(row[:5]): row for row in ledger}
+    assert len(calculations) == len(calculation_by_trip) == 295
+    assert len(ledger) == len(ledger_by_trip) == 288
+    assert not {tuple(row[:5]) for row in removed} & calculation_by_trip.keys()
+    assert calculation_by_trip.keys() - ledger_by_trip.keys() == {
+        tuple(row[:5]) for row in zero_ledger
+    }
+    for row in zero_ledger:
+        assert calculation_by_trip[tuple(row[:5])][5:] == ["0.00", "0.00", "NGN"]
+    historical_calculations = sorted(calculations + removed)
+    historical_ledger = sorted(
+        ledger
+        + zero_ledger
+        + [[*row[:5], "trip_payout", "pending", row[6], row[7]] for row in removed]
     )
-    assert _digest(ledger) == "54daf385b28af837ef7350f604d064ba392b4bd75abe9842c561d1bcc3dc6f57"
-    assert sum(Decimal(row[7]) for row in ledger) == Decimal("497627.06")
+    assert (
+        _digest(historical_calculations)
+        == "5e4c7a9579c53e9f7fd6b05cdf000ccacb721a0d7968926b279bcc0c6eb51814"
+    )
+    assert (
+        _digest(historical_ledger)
+        == "54daf385b28af837ef7350f604d064ba392b4bd75abe9842c561d1bcc3dc6f57"
+    )
+    assert sum(Decimal(row[7]) for row in ledger) == (
+        Decimal("497627.06") - sum(Decimal(row[6]) for row in removed)
+    )

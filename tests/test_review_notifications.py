@@ -2,6 +2,7 @@
 """Advertisers are told about every review decision and each new quotation (W2-04C)."""
 
 import asyncio
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from conftest import (
@@ -101,6 +102,8 @@ def test_rejected_campaign_edit_and_resubmission_journey_on_postgresql(
         organization_id=organization.id,
         created_by_user_id=advertiser.id,
         name="Journey campaign",
+        start_at=datetime(2099, 10, 1, 8, tzinfo=UTC),
+        end_at=datetime(2099, 10, 31, 17, tzinfo=UTC),
     )
     make_test_campaign_reviewable(
         postgis_db_sessionmaker, campaign_id=campaign.id, created_by_user_id=advertiser.id
@@ -120,12 +123,12 @@ def test_rejected_campaign_edit_and_resubmission_journey_on_postgresql(
     edited = postgis_db_client.patch(
         base,
         headers=advertiser_headers,
-        json={"name": "Journey campaign v2", "start_at": "2026-10-02T08:00:00.000Z"},
+        json={"name": "Journey campaign v2", "start_at": "2099-10-02T08:00:00.000Z"},
     )
     assert edited.status_code == 200, edited.text
     assert edited.json()["status"] == "rejected"
     assert edited.json()["name"] == "Journey campaign v2"
-    assert edited.json()["start_at"].startswith("2026-10-02T08:00:00")
+    assert edited.json()["start_at"].startswith("2099-10-02T08:00:00")
 
     resubmitted = postgis_db_client.post(f"{base}/submit", headers=advertiser_headers)
     assert resubmitted.json()["status"] == "pending_review"

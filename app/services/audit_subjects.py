@@ -93,6 +93,7 @@ SUBJECT_QUERIES: dict[str, tuple[str, str]] = {
 
 for _kind, _table in {
     "driver_phone_version": "driver_phone_versions",
+    "payout_recovery_offset": "payout_recovery_offsets",
     "whatsapp_consent": "whatsapp_consents",
     "manual_driver_contact_task": "manual_driver_contact_tasks",
     "vehicle": "vehicles",

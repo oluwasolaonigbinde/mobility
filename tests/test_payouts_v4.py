@@ -571,8 +571,45 @@ def test_voided_earlier_trip_shifts_the_day_and_projection_equals_execution(
     # ...but only a day correction trues up the trip already priced after it.
     expected_trip2 = pay(graph, second) - calcs[trip2.id].final_payout
     assert projected == {str(graph.trip.id): Decimal("0.00"), str(trip2.id): expected_trip2}
-    outcome = run_recompute(db, settings, graph, lagos_date=date(2026, 7, 20))
-    executed = {str(t.trip_session_id): t.delta_amount for t in outcome.trips}
+    before = {e.id for e in fetch_earnings_ledger_entries(db)}
+    with pytest.raises(AppError) as rejected:
+        run_recompute(db, settings, graph, lagos_date=date(2026, 7, 20))
+    assert rejected.value.code == "RECOMPUTE_REQUIRES_CORRECTION_ORDER"
+    assert {e.id for e in fetch_earnings_ledger_entries(db)} == before
+
+    from app.services.payout_corrections import approve_correction_order, create_correction_order
+
+    async def correct():
+        async with db() as session:
+            order = await create_correction_order(
+                session,
+                campaign_id=graph.campaign.id,
+                lagos_day=date(2026, 7, 20),
+                reason="Reconcile voided earlier trip",
+                created_by_user_id=graph.admin.id,
+                settings=settings,
+            )
+            await session.commit()
+            order, executed_now = await approve_correction_order(
+                session,
+                order_id=order.id,
+                actor_user_id=graph.admin.id,
+                release_at=datetime(2026, 9, 1, 12, tzinfo=UTC),
+                request_metadata={},
+                settings=settings,
+                reason="Apply reviewed day correction",
+            )
+            assert executed_now
+            result = order.execution_result
+            await session.commit()
+            return order.id, result
+
+    order_id, result = asyncio.run(correct())
+    executed = {
+        t["trip_session_id"]: Decimal(t["delta_amount"])
+        for driver in result["drivers"]
+        for t in driver["trips"]
+    }
     assert executed == projected
     trip2_total = sum(
         e.amount if e.entry_type != "reversal" else -e.amount
@@ -581,10 +618,26 @@ def test_voided_earlier_trip_shifts_the_day_and_projection_equals_execution(
     )
     assert trip2_total == pay(graph, second)
     # Unchanged inputs: a second run posts nothing.
-    assert all(
-        t.delta_amount == 0
-        for t in run_recompute(db, settings, graph, lagos_date=date(2026, 7, 20)).trips
-    )
+    after = {e.id for e in fetch_earnings_ledger_entries(db)}
+
+    async def repeat():
+        async with db() as session:
+            order, executed_now = await approve_correction_order(
+                session,
+                order_id=order_id,
+                actor_user_id=graph.admin.id,
+                release_at=None,
+                request_metadata={},
+                settings=settings,
+                reason="Retry the same correction",
+            )
+            assert not executed_now
+            assert order.execution_result == result
+            await session.commit()
+
+    asyncio.run(repeat())
+    assert {e.id for e in fetch_earnings_ledger_entries(db)} == after
+    assert all(delta == 0 for delta in project(db, settings, graph, date(2026, 7, 20)).values())
 
 
 def test_correcting_day_a_then_day_b_of_a_cross_midnight_trip(
