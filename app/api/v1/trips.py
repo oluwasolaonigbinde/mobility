@@ -10,7 +10,7 @@ from app.api.v1.dependencies import (
     TripEnqueuerDependency,
 )
 from app.core.gps_health import GPSAttempt, record_gps_attempt
-from app.models.trip import LocationPingBatch
+from app.models.trip import LocationPingBatch, TripSessionStatus
 from app.schemas.trips import (
     CurrentTripResponse,
     LocationPingBatchCreate,
@@ -272,7 +272,7 @@ async def driver_reconcile_trip_evidence(
         await enqueuer.enqueue_trip_processing(trip_id)
     return TripEvidenceReconcileResponse(
         trip_id=trip.id,
-        status=trip.status,
+        status=TripSessionStatus(trip.status),
         manifest_root_sha256=trip.evidence_manifest_root_sha256,
         manifest_complete=trip.evidence_manifest_complete,
         manifest_verified_at=trip.evidence_manifest_verified_at,

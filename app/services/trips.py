@@ -719,7 +719,9 @@ async def auto_end_inactive_trip(
     if trip is None or trip.status != TripSessionStatus.ACTIVE.value:
         return False
     last_location_at = as_aware_utc(
-        await session.scalar(select(_last_location_at()).where(TripSession.id == trip.id))
+        (
+            await session.execute(select(_last_location_at()).where(TripSession.id == trip.id))
+        ).scalar_one()
     )
     if last_location_at > now - timedelta(seconds=TRIP_AUTO_END_NO_LOCATION_SECONDS):
         return False
@@ -739,12 +741,14 @@ async def auto_end_inactive_trip(
         .all()
     )
     entries = [
-        TripEvidenceManifestEntryCreate(
-            batch_sequence=batch.batch_sequence,
-            idempotency_key=batch.idempotency_key,
-            payload_hash_version=batch.payload_hash_version,
-            payload_hash=batch.payload_hash,
-            submitted_count=batch.pings_submitted,
+        TripEvidenceManifestEntryCreate.model_validate(
+            {
+                "batch_sequence": batch.batch_sequence,
+                "idempotency_key": batch.idempotency_key,
+                "payload_hash_version": batch.payload_hash_version,
+                "payload_hash": batch.payload_hash,
+                "submitted_count": batch.pings_submitted,
+            }
         )
         for batch in batches
     ]

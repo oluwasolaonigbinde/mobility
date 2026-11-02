@@ -101,6 +101,12 @@ def test_payout_projection_routes_are_exact_bounded_and_read_only(
     assert len(eligible.json()["items"]) == 1
     assert eligible.json()["items"][0]["driver_name"] == graph.driver.full_name
     assert isinstance(eligible.json()["items"][0]["amount"], str)
+    first_row = eligible.json()["items"][0]
+    assert (
+        first_row["ledger_amount"]
+        == dict(zip(ids, ("100.07", "25.03"), strict=True))[first_row["ledger_entry_id"]]
+    )
+    assert first_row["amount"] == first_row["ledger_amount"]
     assert "account_number" not in eligible.text and "0123456789" not in eligible.text
     preview = client.post(
         "/api/v1/admin/payout-batches/selection-preview",
@@ -254,6 +260,44 @@ def test_reserved_entry_has_one_reserved_reason_with_real_payout_line(db_session
             assert len(result["items"]) == 1
             row = result["items"][0]
             assert row["ledger_entry_id"] == entry.id
+            assert row["ledger_amount"] == entry.amount == Decimal("100.00")
+            assert row["amount"] == Decimal("0.00")
+            assert row["eligible"] is False
             assert row["ineligibility_reasons"] == ["Already reserved or in flight"]
+
+    asyncio.run(exercise())
+
+
+def test_recovery_keeps_earnings_distinct_from_reserved_bank_amount(db_sessionmaker):
+    from test_payout_recoveries import seed_debt
+
+    from app.services.disbursements import create_payout_batch_draft, reserve_payout_batch
+    from app.services.payout_operations import eligible_payment_entries, preview_payment_selection
+
+    graph = build_graph(db_sessionmaker, f"recovery-display-{uuid4().hex[:8]}")
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            entry, _ = await seed_debt(session, graph, payable="100.07", deduction="25.03")
+            preview = await preview_payment_selection(
+                session, currency="NGN", ledger_entry_ids=(entry.id,)
+            )
+            assert preview["earnings_amount"] == Decimal("100.07")
+            assert preview["deduction_amount"] == Decimal("25.03")
+            assert preview["total_amount"] == Decimal("75.04")
+            batch = await create_payout_batch_draft(
+                session, currency="NGN", actor_user_id=graph.admin.id, reason="Reserve net payout"
+            )
+            _, lines = await reserve_payout_batch(
+                session,
+                batch_id=batch.id,
+                ledger_entry_ids=(entry.id,),
+                actor_user_id=graph.admin.id,
+                reason="Reserve net payout",
+            )
+            assert len(lines) == 1 and lines[0].amount == Decimal("75.04")
+            row = (await eligible_payment_entries(session, entry_ids=(entry.id,)))["items"][0]
+            assert row["ledger_amount"] == Decimal("100.07")
+            assert row["amount"] == Decimal("0.00") and row["eligible"] is False
 
     asyncio.run(exercise())

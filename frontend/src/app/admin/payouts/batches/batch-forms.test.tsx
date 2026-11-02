@@ -25,6 +25,7 @@ const entry: EligiblePayment = {
   campaign_name: "Test Campaign",
   occurred_at: "2026-09-14T10:00:00Z",
   amount: "100.07",
+  ledger_amount: "100.07",
   currency: "NGN",
   destination_verified: true,
   bank_account_version_id: null,
@@ -43,6 +44,36 @@ describe("payout operator forms", () => {
     });
     calls.preview.mockResolvedValue({ currency: "NGN", total_amount: "100.07" });
     calls.reserve.mockResolvedValue({ error: "Lost response. Retry saved request." });
+  });
+
+  it("shows reserved earnings separately from the zero available to pay", () => {
+    render(
+      <CreateBatchForm
+        entries={[
+          {
+            ...entry,
+            amount: "0.00",
+            eligible: false,
+            ineligibility_reasons: ["Already reserved or in flight"],
+          },
+        ]}
+        actorId="maker"
+      />,
+    );
+    expect(screen.getByText("Earnings ₦100.07")).toBeVisible();
+    expect(screen.getByText("Available to pay: ₦0.00")).toBeVisible();
+    expect(screen.getByRole("checkbox", { name: /100.07.*0.00/ })).toBeDisabled();
+    expect(screen.getByText("Already set aside in a payment run or being sent")).toBeVisible();
+  });
+
+  it("keeps selection based on payable authority when earnings are partially settled", async () => {
+    const user = userEvent.setup();
+    render(<CreateBatchForm entries={[{ ...entry, amount: "25.03" }]} actorId="maker" />);
+    expect(screen.getByText("Earnings ₦100.07")).toBeVisible();
+    expect(screen.getByText("Available to pay: ₦25.03")).toBeVisible();
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: "Review selected credits" }));
+    expect(calls.preview).toHaveBeenCalledWith("NGN", [entry.ledger_entry_id]);
   });
 
   it("clears the saved draft when all selected earnings settle as deductions", async () => {

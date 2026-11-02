@@ -137,10 +137,19 @@ function AlertsPanel({
                     : ""}
                 </p>
                 {detail ? <p className="text-sm">{detail}</p> : null}
+                {alert.kind === "submission_blocked" && alert.batch_id ? (
+                  <p className="text-muted text-sm break-all">Payment run {alert.batch_id}</p>
+                ) : null}
                 {alert.batch_id ? (
                   <Link
                     className="text-sm underline"
-                    href={moneyHref(query, { batch: alert.batch_id, line: undefined })}
+                    href={moneyHref(query, {
+                      batch: alert.batch_id,
+                      line:
+                        alert.kind === "submission_blocked"
+                          ? (alert.line_id ?? undefined)
+                          : undefined,
+                    })}
                   >
                     Open payment run
                   </Link>

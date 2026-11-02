@@ -1571,7 +1571,21 @@ def test_blocked_submission_raises_one_alert(postgis_db_sessionmaker, settings) 
     (alert,) = fetch(db, PayoutAutomaticAlert)
     assert alert.kind == "submission_blocked"
     assert alert.detail["error_code"] == "PAYOUT_AUTOMATIC_NOT_CLEAN"
-    del graph
+
+    async def context():
+        async with db() as session:
+            row = (await automatic.list_automatic_payout_alerts(session, alert_status="open"))[
+                "items"
+            ][0]
+            line = await session.get(PayoutBatchLine, alert.line_id)
+            assert row["driver_name"] == graph.driver.full_name
+            assert (row["amount"], row["currency"], row["batch_id"]) == (
+                line.amount,
+                line.currency,
+                line.batch_id,
+            )
+
+    asyncio.run(context())
 
 
 # --- API -------------------------------------------------------------------------------------
@@ -2267,6 +2281,21 @@ def test_w1p_invalid_identity_alerts_progress_past_already_alerted_intents(
         len(fetch(db, PayoutAutomaticAlert, PayoutAutomaticAlert.kind == "submission_blocked")) == 2
     )
     assert fetch(db, PayoutSubmissionAttempt) == []
+
+    async def contexts():
+        async with db() as session:
+            result = await automatic.list_automatic_payout_alerts(session, alert_status="open")
+            assert result["total"] == 2
+            for row in result["items"]:
+                line = await session.get(PayoutBatchLine, row["line_id"])
+                assert row["driver_name"] == graph.driver.full_name
+                assert (row["amount"], row["currency"], row["batch_id"]) == (
+                    line.amount,
+                    line.currency,
+                    line.batch_id,
+                )
+
+    asyncio.run(contexts())
     execute(db, update(PayoutSubmissionIntent).values(state="query_only"))
 
     async def due():

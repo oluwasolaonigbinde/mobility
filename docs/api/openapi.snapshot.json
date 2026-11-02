@@ -12555,6 +12555,11 @@
             "title": "Ineligibility Reasons",
             "type": "array"
           },
+          "ledger_amount": {
+            "description": "Original earnings credit amount, before settlement",
+            "title": "Ledger Amount",
+            "type": "string"
+          },
           "ledger_entry_id": {
             "format": "uuid",
             "title": "Ledger Entry Id",
@@ -12584,6 +12589,7 @@
           "payee_name",
           "campaign_name",
           "occurred_at",
+          "ledger_amount",
           "amount",
           "currency",
           "destination_verified",

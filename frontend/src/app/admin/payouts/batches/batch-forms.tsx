@@ -245,7 +245,11 @@ export function CreateBatchForm({
                 <input
                   type="checkbox"
                   className="mt-1"
-                  aria-label={`Select ${entry.driver_name} ${entry.amount} ${entry.currency}`}
+                  aria-label={
+                    entry.ledger_amount === entry.amount
+                      ? `Select ${entry.driver_name} ${entry.amount} ${entry.currency}`
+                      : `Select ${entry.driver_name} earnings ${entry.ledger_amount} ${entry.currency}; available to pay ${entry.amount} ${entry.currency}`
+                  }
                   disabled={
                     pending ||
                     !!recovery ||
@@ -268,10 +272,15 @@ export function CreateBatchForm({
                     <span className="text-muted"> · {entry.campaign_name}</span>
                   </span>
                   <span className="font-mono">
-                    {formatMoneyExact(entry.amount, entry.currency)}
+                    Earnings {formatMoneyExact(entry.ledger_amount, entry.currency)}
                   </span>
                 </span>
               </label>
+              {entry.ledger_amount !== entry.amount ? (
+                <p className="text-muted mt-1 pl-7 text-sm">
+                  Available to pay: {formatMoneyExact(entry.amount, entry.currency)}
+                </p>
+              ) : null}
               <p className="text-muted mt-1 pl-7 text-sm">
                 Paid to: {entry.payee_name ?? "No bank account on file"} ·{" "}
                 {entry.destination_verified ? "Bank details checked" : "Bank details not checked"}

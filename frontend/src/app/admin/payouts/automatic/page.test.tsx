@@ -118,6 +118,50 @@ describe("AutomaticPayoutsPage", () => {
     mocks.role.mockResolvedValue({ user: { id: "admin" } });
   });
 
+  it("distinguishes blocked payments by driver, amount and exact payment run", async () => {
+    api({
+      alerts: [
+        {
+          ...ALERT,
+          kind: "submission_blocked",
+          lagos_day: null,
+          batch_id: "run-a",
+          line_id: "line-a",
+          driver_name: "Ada Driver",
+          amount: "125.07",
+        },
+        {
+          ...ALERT,
+          id: "other",
+          kind: "submission_blocked",
+          lagos_day: null,
+          batch_id: "run-b",
+          line_id: "line-b",
+          driver_name: "Bola Driver",
+          amount: "126.07",
+        },
+      ],
+    });
+    render(await page());
+    const problems = screen
+      .getAllByText("A payment could not be sent")
+      .map((title) => title.closest("li")!);
+    expect(problems).toHaveLength(2);
+    for (const [index, [driver, amount, run, line]] of (
+      [
+        ["Ada Driver", "125.07", "run-a", "line-a"],
+        ["Bola Driver", "126.07", "run-b", "line-b"],
+      ] as const
+    ).entries()) {
+      expect(problems[index]).toHaveTextContent(driver);
+      expect(problems[index]).toHaveTextContent(`₦${amount}`);
+      expect(problems[index]).toHaveTextContent(`Payment run ${run}`);
+      expect(
+        within(problems[index]!).getByRole("link", { name: "Open payment run" }),
+      ).toHaveAttribute("href", `/admin/money?tab=automatic&batch=${run}&line=${line}`);
+    }
+  });
+
   it("shows daily payouts waiting for a provider", async () => {
     api();
     render(await page());

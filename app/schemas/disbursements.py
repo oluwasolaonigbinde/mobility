@@ -150,6 +150,7 @@ class EligiblePaymentRead(BaseModel):
     payee_name: str | None
     campaign_name: str
     occurred_at: datetime
+    ledger_amount: Money = Field(description="Original earnings credit amount, before settlement")
     amount: Money
     currency: str
     destination_verified: bool

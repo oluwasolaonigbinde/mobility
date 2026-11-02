@@ -17,9 +17,10 @@ import json
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
+from typing import cast as type_cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import Text, cast, exists, func, select, tuple_
+from sqlalchemy import Text, and_, cast, exists, func, select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -974,8 +975,11 @@ async def run_automatic_payouts(  # noqa: C901
                 for entry, authority in sorted(
                     by_driver[driver_profile_id], key=lambda item: str(item[0].id)
                 ):
+                    # _clean_reason excludes entries without a trip before inclusion.
                     position = await trip_money_position(
-                        session, trip_session_id=entry.trip_session_id, currency=entry.currency
+                        session,
+                        trip_session_id=type_cast(UUID, entry.trip_session_id),
+                        currency=entry.currency,
                     )
                     payable = min(entry.amount, position.batch_payable)
                     if payable <= 0:
@@ -1395,9 +1399,32 @@ async def list_automatic_payout_alerts(
 
     rows = (
         await session.execute(
-            select(PayoutAutomaticAlert, driver.full_name, resolver.full_name)
+            select(
+                PayoutAutomaticAlert,
+                driver.full_name,
+                resolver.full_name,
+                PayoutBatchLine.amount,
+                PayoutBatchLine.currency,
+                PayoutBatchLine.batch_id,
+            )
             .select_from(PayoutAutomaticAlert)
-            .outerjoin(DriverProfile, DriverProfile.id == PayoutAutomaticAlert.driver_profile_id)
+            .outerjoin(
+                PayoutBatchLine,
+                and_(
+                    PayoutAutomaticAlert.kind == PayoutAutomaticAlertKind.SUBMISSION_BLOCKED.value,
+                    PayoutBatchLine.id == PayoutAutomaticAlert.line_id,
+                ),
+            )
+            .outerjoin(
+                EarningsLedgerEntry, EarningsLedgerEntry.id == PayoutBatchLine.ledger_entry_id
+            )
+            .outerjoin(
+                DriverProfile,
+                DriverProfile.id
+                == func.coalesce(
+                    PayoutAutomaticAlert.driver_profile_id, EarningsLedgerEntry.driver_profile_id
+                ),
+            )
             .outerjoin(driver, driver.id == DriverProfile.user_id)
             .outerjoin(resolver, resolver.id == PayoutAutomaticAlert.resolved_by_user_id)
             .where(PayoutAutomaticAlert.id.in_(query.with_only_columns(PayoutAutomaticAlert.id)))
@@ -1419,16 +1446,16 @@ async def list_automatic_payout_alerts(
                 "created_at": alert.created_at,
                 "driver_name": driver_name,
                 "lagos_day": alert.lagos_day,
-                "amount": alert.amount,
-                "currency": alert.currency,
-                "batch_id": alert.batch_id,
+                "amount": alert.amount if alert.amount is not None else line_amount,
+                "currency": alert.currency if alert.currency is not None else line_currency,
+                "batch_id": alert.batch_id if alert.batch_id is not None else line_batch_id,
                 "line_id": alert.line_id,
                 "detail": alert.detail,
                 "resolved_at": alert.resolved_at,
                 "resolved_by_name": resolver_name,
                 "resolution_note": alert.resolution_note,
             }
-            for alert, driver_name, resolver_name in rows
+            for alert, driver_name, resolver_name, line_amount, line_currency, line_batch_id in rows
         ],
         "total": total,
         "limit": limit,

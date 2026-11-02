@@ -506,6 +506,9 @@ async def _ensure_assignment(
         assigned_by_user_id=admin.id,
         status=status_value.value,
         offered_at=offered_at,
+        expires_at=min(offered_at + timedelta(days=1), cast(datetime, campaign.end_at))
+        if is_offered
+        else None,
         accepted_at=None if is_offered else offered_at + timedelta(minutes=10),
         activated_at=None if is_offered else offered_at + timedelta(minutes=20),
         notes="Collect the door panels at the Wuse office.",
@@ -2266,6 +2269,13 @@ async def ensure_portal_payouts(session, *, graph, staff, settings):
     alert_key = uuid5(NAMESPACE_URL, "cardvert-preview:provider-alert")
     if not await session.get(PayoutAutomaticAlert, alert_key):
         _require_unavailable_payout_provider()
+        blocked_line = (
+            await session.scalars(
+                select(PayoutBatchLine).where(
+                    PayoutBatchLine.batch_id == uuid5(NAMESPACE_URL, "cardvert-preview:payout:2")
+                )
+            )
+        ).one()
         session.add(
             PayoutAutomaticAlert(
                 id=alert_key,
@@ -2273,6 +2283,10 @@ async def ensure_portal_payouts(session, *, graph, staff, settings):
                 dedupe_key=hashlib.sha256(alert_key.bytes).hexdigest(),
                 driver_profile_id=payout_profile.id,
                 batch_id=uuid5(NAMESPACE_URL, "cardvert-preview:payout:2"),
+                line_id=blocked_line.id,
+                ledger_entry_id=blocked_line.ledger_entry_id,
+                amount=blocked_line.amount,
+                currency=blocked_line.currency,
                 detail={"reason": "provider_unavailable"},
             )
         )

@@ -1908,6 +1908,17 @@ This supersedes D113's earlier no-future-recovery direction.
 
 ### 16.3 Disbursement (Q27)
 
+**[BUILT — REQ-266/267; local checks passed, full CI/merge pending]** Staff Money earnings
+rows expose the original credit as `ledger_amount` separately from `amount`,
+the current selectable payable authority. Reserved rows retain their earnings
+value and show zero available to pay; selection and preview totals still use
+the existing authority. Blocked-submission alert reads resolve missing driver,
+amount/currency and payment-run context from the linked frozen payout line and
+earnings record. Recorded alert context takes precedence; other alert kinds
+retain their existing projection. These bounded admin-only reads do not mutate
+alerts, settlements or reservations, or disclose bank details. Staff can open
+the exact payment from its alert. No payment rule or provider action changes.
+
 **[BUILT — D146 / REQ-260/262; integration awaiting full CI/merge]**
 `payout_balances` computes trip worth, verified cash, remaining debt and final
 offsets under the existing driver/currency money authority. Manual and
@@ -4046,6 +4057,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.161 — 2 November 2026 (REQ-266/267):** Fix staff Money presentation before push: separate original earnings credit from current payable amount and enrich sparse blocked-payment alerts through existing linked payout records. The synthetic provider-alert fixture also links its actual reserved payment. Existing eligibility, selection totals, frozen payment amounts, alert deduplication and staff-only access remain. All three §9 baselines move for `ledger_amount`; focused PostgreSQL, rendered Money, preserved R14-B and API-to-React simulation checks pass. Evidence: `issues/testing/req266-267-money-presentation-2026-11-02.md`. Full CI/merge remain pending. No migration, provider call or launch-gate change.
 
 - **v1.160 — 2 November 2026 (REQ-260/262 follow-up `71ebcd01`):** Document the correction-order requirement for a direct zero-money-delta recompute that changes day amounts, and include funded recovery offsets in the driver's displayed paid figure. Implements existing correction/settlement authority; no new decision, API/schema/migration or launch-gate change. Built on integration; full CI and merge pending.
 

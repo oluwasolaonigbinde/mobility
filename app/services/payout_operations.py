@@ -168,6 +168,7 @@ async def eligible_payment_entries(  # noqa: C901
                 "payee_name": driver_name if payee else None,
                 "campaign_name": campaign_name,
                 "occurred_at": entry.occurred_at,
+                "ledger_amount": entry.amount,
                 "amount": amount,
                 "currency": entry.currency,
                 "destination_verified": destination_verified,
@@ -265,9 +266,11 @@ async def _batch_summary(session: AsyncSession, batch: PayoutBatch) -> dict:
         recovery_filter = (
             PayoutRecoveryOffset.automatic_run_id == batch.automatic_run_id
         ) & PayoutRecoveryOffset.driver_profile_id.in_(driver_ids)
-    deduction = await session.scalar(
-        select(func.coalesce(func.sum(PayoutRecoveryOffset.amount), 0)).where(recovery_filter)
-    )
+    deduction = (
+        await session.execute(
+            select(func.coalesce(func.sum(PayoutRecoveryOffset.amount), 0)).where(recovery_filter)
+        )
+    ).scalar_one()
     return {
         "id": batch.id,
         "status": batch.status,

@@ -27,6 +27,7 @@ const entry: EligiblePayment = {
   campaign_name: "Test Campaign",
   occurred_at: "2026-09-14T10:00:00Z",
   amount: "100.07",
+  ledger_amount: "100.07",
   currency: "NGN",
   destination_verified: true,
   bank_account_version_id: null,

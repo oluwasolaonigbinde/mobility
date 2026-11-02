@@ -9062,6 +9062,11 @@ export interface components {
             /** Ineligibility Reasons */
             ineligibility_reasons: string[];
             /**
+             * Ledger Amount
+             * @description Original earnings credit amount, before settlement
+             */
+            ledger_amount: string;
+            /**
              * Ledger Entry Id
              * Format: uuid
              */
