@@ -541,7 +541,11 @@ continuous stop adds no distance (D39b, D43d).
 Owner, 27 October 2026: "take overpayments from the next payout"; owner,
 29 October 2026, rule A (D146 / REQ-260/262): trip worth is
 `max(recomputed pay − manual deductions, 0)` and debt is
-`max(cash paid − worth, 0)`. Recomputing pay preserves manual deductions;
+`max(S − W, 0)` under D147, where `S = cash paid + offsets funded − offsets received`
+and `W` is trip worth; payable is `max(released worth − S, 0)`.
+Money taken back by mistake is simply owed to the driver and paid with the next
+payout through normal checks, without requiring a staff positive adjustment.
+Recomputing pay preserves manual deductions;
 deductions beyond a trip's worth cannot create extra debt. Actual overpaid
 cash is recovered from subsequent eligible payouts, possibly over several runs.
 Credits fully consumed by recovery settle without creating a payout batch.
@@ -571,6 +575,7 @@ of days on hold. Paid money is never counted as on hold (REQ-208).
 
 **History:**
 - **2026-10-20** — Owner-approved pre-push speed fix (REQ-208): one server read now totals each day and the headline figures, replacing the screens' 2,000-entry paging. Amounts and day statuses are unchanged; Home adds this week and Earnings adds this week, total earned and on hold.
+- **2026-10-30** — Money review F3 replaces the rare-over-recovery alert, automatic exclusion and staff positive-adjustment remedy with computed net settlement (D147, clarifying D146); owner informed, no objection. A net amount owed back is paid through normal next-payout checks. Offsets and cash history remain immutable. Built on integrate/req252-264 (`6d2fc593`); full CI and merge pending.
 - **2026-10-27; clarified 2026-10-29** — Owner reverses D113's no-future-recovery rule (D146 / REQ-260/262). The 20 October rule used trip-local manual negative adjustments without debt recovery. New rule A limits a deduction to correcting that trip's worth, never a fine; only verified cash above that worth becomes debt for the next payout(s). Recomputes previously could undo a manual deduction. Built on integrate/req252-264 (`98a86547`); full CI and merge pending.
 - **2026-10-27–29** — Owner replaces a bare corrected net on a paid day with paid cash plus the remaining deduction, then plain net after recovery (D140 / REQ-256). Previously deductions could hide counted miles, use the posting date and expose internal labels/metadata. Built on integrate/req252-264 (`c9e80bdc`, `c63a17bd`).
 - **2026-10-13, completed 14 October** - Owner approved removal of obsolete development payout v1-v3/evidence v1 and SQLite paths, with no live data; current daily-rate and frozen-evidence protections remain (D80, REQ-161). Built in `18192019`, with daily-rate Jobs completion in `8840fc10`.

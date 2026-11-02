@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.158 — 2026-10-30. Canonical source of truth: current state AND target state.**
+**Version 1.159 — 2026-11-02. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1889,7 +1889,9 @@ never a fine. Recomputes preserve the manual deduction rather than rebuilding
 the target without it. Owner 27 October: take overpayments from the next
 payout; owner 29 October, rule A: trip worth is
 `max(recomputed pay − manual deductions, 0)` and debt is
-`max(cash paid − worth, 0)`. Deductions beyond the trip's worth do not create
+`max(S − W, 0)` under D147, with net settled
+`S = cash paid + offsets funded − offsets received` and trip worth `W`.
+Payable is `max(released worth − S, 0)`. Deductions beyond the trip's worth do not create
 extra debt; actual cash above that worth is recovered from the next eligible
 payout(s), possibly over several runs. Paid cash history remains immutable.
 This supersedes D113's earlier no-future-recovery direction.
@@ -1907,8 +1909,14 @@ follows `0120_req264_auto_end_seal_reason`, with one linear head. Its append-onl
 `payout_recovery_offsets` rows link the source trip and funding entry, positive
 amount/currency, request identity and a staff actor or automatic run. These
 are final noncash settlements, not mutable bank-transfer outcomes; voiding or
-retrying a cash batch never recovers the same offset twice. Inconsistent
-recovery evidence requires staff review rather than guessing a new balance.
+retrying a cash batch never recovers the same offset twice. **[BUILT — D147 /
+money review F3]** Computed net settlement replaces the rare-over-recovery
+alert, automatic exclusion and staff positive-adjustment remedy. If money was
+taken back by mistake, it is simply owed to the driver and paid with the next
+payout through normal checks. Settled `S = cash paid + offsets funded − offsets received`;
+debt `max(S − W, 0)`; payable `max(released worth − S, 0)`. Final offsets remain
+immutable. Owner informed 30 October 2026, no objection. Built on integration
+(`6d2fc593`), awaiting full CI and merge.
 Driver presentation stays "₦X paid · ₦Y to be deducted" until recovered, then
 net; totals remain net and deductions use the day corrected. Provider proof,
 held-pay protection, Pause and first-new-bank human controls remain. Built on
@@ -4029,6 +4037,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.159 — 2 November 2026 (D147 / REQ-260/262, money review F3):** Record computed net settlement S = cash paid + offsets funded − offsets received; debt = max(S − W, 0), payable = max(released worth − S, 0). Mistaken recovery is owed back through normal next-payout checks, replacing alert/exclusion and staff positive adjustment. Owner informed 30 October, no objection. Built on integrate/req252-264 (`6d2fc593`); full CI and merge pending. No API/schema/migration or launch-gate change.
 
 - **v1.158 — 30 October 2026 (D146 / REQ-260/262; owner 27/29 October):** Supersede D113's no-future-recovery direction with next-payout recovery of actual overpaid cash. Preserve manual deductions through recompute; rule A fixes worth to `max(recomputed pay − manual deductions, 0)` and debt to `max(cash paid − worth, 0)`, never fines. Final audited recovery offsets settle future credits, including zero-cash settlement without a batch; remaining cash retains existing provider/hold/first-bank authority. Add the offset model/placement and migration `0121` after `0120`; refresh the generated inventory and retain the plain paid/remaining-deduction/net driver display. Built on integrate/req252-264 (`98a86547`); full CI/merge and closure remain pending. No deployment, provider or launch-gate change.
 
