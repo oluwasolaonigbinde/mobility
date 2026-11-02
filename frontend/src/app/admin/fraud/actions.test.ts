@@ -1,3 +1,4 @@
+import { ApiError } from "@/lib/api/errors";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -116,5 +117,20 @@ describe("physical spot-check actions", () => {
         },
       },
     );
+  });
+});
+
+it("shows shared busy copy for review and dispute reply", async () => {
+  const busy = () => new ApiError(503, { code: "TRY_AGAIN_SOON", message: "private" });
+  mocks.post.mockRejectedValueOnce(busy());
+  expect(await reviewFraudFlagAction({}, reviewForm("dismiss", "Reviewed evidence"))).toEqual({
+    error: "This page is busy. Try again in a moment.",
+  });
+  const form = new FormData();
+  form.set("dispute_id", DISPUTE_ID);
+  form.set("reply", "We checked your trip.");
+  mocks.post.mockRejectedValueOnce(busy());
+  expect(await replyFraudDisputeAction({}, form)).toEqual({
+    error: "This page is busy. Try again in a moment.",
   });
 });

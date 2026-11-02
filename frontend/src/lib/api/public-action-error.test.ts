@@ -6,6 +6,18 @@ import { notFound, redirect } from "next/navigation";
 afterEach(() => vi.restoreAllMocks());
 
 describe("public action errors", () => {
+  it.each<Readonly<Record<string, string>>>([{}, { OTHER: "Other message" }])(
+    "uses shared busy copy with local allowlists",
+    (messages) => {
+      expect(
+        publicActionError(
+          new ApiError(503, { code: "TRY_AGAIN_SOON", message: "private" }),
+          messages,
+          "Custom fallback",
+        ),
+      ).toBe("This page is busy. Try again in a moment.");
+    },
+  );
   it.each([401, 403, 404, 422, 500])(
     "never forwards arbitrary %s backend text or details",
     (status) => {

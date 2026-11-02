@@ -8,6 +8,7 @@ import { getSessionToken } from "@/lib/auth/session";
 import { createApiClient } from "@/lib/api/client";
 import { cancelCampaignAsStaff } from "@/lib/api/audit-batch2";
 import { ApiError } from "@/lib/api/errors";
+import { publicActionError } from "@/lib/api/public-action-error";
 
 const schema = z.object({
   campaignId: z.uuid(),
@@ -72,8 +73,11 @@ export async function cancelWholeCampaign(
     if (error instanceof ApiError && [403, 404].includes(error.status))
       return { error: "This campaign or cancellation request isn’t available." };
     return {
-      error:
+      error: publicActionError(
+        error,
+        {},
         "Cancellation couldn’t be confirmed. Retry with the same reason to check this request.",
+      ),
     };
   }
 }

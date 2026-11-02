@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/errors";
 
-const mocks = vi.hoisted(() => ({ batchApi: vi.fn(), revalidatePath: vi.fn() }));
+const mocks = vi.hoisted(() => ({ batchApi: vi.fn(), revalidatePath: vi.fn(), post: vi.fn() }));
 vi.mock("./batch-api", () => ({ batchApi: mocks.batchApi }));
+vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ POST: mocks.post }) }));
+vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 
 import {
+  negativeAdjustmentAction,
   batchTransitionAction,
   createAndReserveBatchAction,
   pollLineAction,
@@ -15,6 +18,24 @@ import {
 describe("payout batch actions", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("shows the shared busy copy for adjustments and allowlisted payout actions", async () => {
+    const busy = () =>
+      new ApiError(503, { code: "TRY_AGAIN_SOON", message: "private lock details" });
+    mocks.post.mockRejectedValueOnce(busy());
+    const form = new FormData();
+    form.set("entry_id", "22222222-2222-4222-8222-222222222222");
+    form.set("request_id", "11111111-1111-4111-8111-111111111111");
+    form.set("currency", "NGN");
+    form.set("amount", "100.00");
+    form.set("reason", "Correct trip pay");
+    expect(await negativeAdjustmentAction({}, form)).toEqual({
+      error: "This page is busy. Try again in a moment.",
+    });
+    mocks.batchApi.mockRejectedValueOnce(busy());
+    expect(await previewSelectionAction("NGN", ["22222222-2222-4222-8222-222222222222"])).toEqual({
+      error: "This page is busy. Try again in a moment.",
+    });
+  });
   it("returns nothing to send without a payment-run link for full recovery", async () => {
     mocks.batchApi
       .mockResolvedValueOnce({ id: "11111111-1111-4111-8111-111111111111" })

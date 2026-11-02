@@ -138,3 +138,12 @@ it("redirects an expired session", async () => {
   mocks.cancel.mockRejectedValue(new ApiError(401, { code: "EXPIRED", message: "expired" }));
   await expect(cancelWholeCampaign(input)).rejects.toThrow("redirect:/login");
 });
+
+it("shows the shared busy copy when cancellation authority is locked", async () => {
+  mocks.cancel.mockRejectedValueOnce(
+    new ApiError(503, { code: "TRY_AGAIN_SOON", message: "private" }),
+  );
+  expect(await cancelWholeCampaign(input)).toEqual({
+    error: "This page is busy. Try again in a moment.",
+  });
+});

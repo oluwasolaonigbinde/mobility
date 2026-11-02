@@ -1,6 +1,10 @@
 import { ApiError } from "./errors";
 import { unstable_rethrow } from "next/navigation";
 
+const sharedMessages: Readonly<Record<string, string>> = {
+  TRY_AGAIN_SOON: "This page is busy. Try again in a moment.",
+};
+
 export function publicActionError(
   error: unknown,
   messages: Readonly<Record<string, string>> = {},
@@ -13,5 +17,6 @@ export function publicActionError(
   });
   if (!(error instanceof ApiError)) return fallback;
   const message = Object.hasOwn(messages, error.code) ? messages[error.code] : undefined;
-  return typeof message === "string" ? message : fallback;
+  const shared = Object.hasOwn(sharedMessages, error.code) ? sharedMessages[error.code] : undefined;
+  return typeof message === "string" ? message : (shared ?? fallback);
 }
