@@ -203,7 +203,7 @@ export default async function DriverHomePage() {
             ) : (
               <p className="font-display text-2xl font-semibold">
                 {lastPaid
-                  ? `${lastPaidLabel} ${formatMoney(lastPaid.amount, lastPaid.currency)}`
+                  ? `${formatMoney(lastPaid.amount, lastPaid.currency)} · ${lastPaidLabel}`
                   : days.length
                     ? "See your earnings"
                     : "No earnings yet"}
@@ -211,7 +211,7 @@ export default async function DriverHomePage() {
             )}
             {todayDays.length && lastPaid ? (
               <p className="text-muted mt-3 text-base">
-                {lastPaidLabel} · {formatMoney(lastPaid.amount, lastPaid.currency)}
+                {formatMoney(lastPaid.amount, lastPaid.currency)} · {lastPaidLabel}
               </p>
             ) : null}
             {weeks.map((total) => (

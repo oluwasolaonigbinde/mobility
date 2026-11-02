@@ -50,7 +50,9 @@ export async function ReadyToPay({ searchParams }: { searchParams: Promise<Money
               </Link>
             ) : null}
             <span>
-              {entries.total} available earnings records · page {credits + 1}
+              {entries.items.filter((entry) => entry.eligible).length} payable earnings{" "}
+              {entries.items.filter((entry) => entry.eligible).length === 1 ? "record" : "records"}{" "}
+              on this page · page {credits + 1}
             </span>
             {(credits + 1) * 25 < entries.total ? (
               <Link href={moneyHref(query, { credits: String(credits + 1) })}>Next earnings</Link>
@@ -104,7 +106,7 @@ export default async function PaymentRuns({ searchParams }: { searchParams: Prom
                   <tr className="text-muted border-edge border-b text-left">
                     <th className="py-2 font-normal">Status</th>
                     <th className="py-2 text-right font-normal">Total</th>
-                    <th className="py-2 font-normal">Created</th>
+                    <th className="py-2 pl-4 font-normal">Created</th>
                     <th className="py-2 font-normal">Payments</th>
                     <th className="py-2">
                       <span className="sr-only">Open</span>
@@ -123,7 +125,7 @@ export default async function PaymentRuns({ searchParams }: { searchParams: Prom
                       <td className="py-2 text-right font-medium">
                         {formatMoneyExact(run.total_amount, run.currency)}
                       </td>
-                      <td className="py-2">{formatDateTime(run.created_at)}</td>
+                      <td className="py-2 pl-4">{formatDateTime(run.created_at)}</td>
                       <td className="py-2">
                         {run.line_count}
                         {Object.keys(run.outcomes).length ? (

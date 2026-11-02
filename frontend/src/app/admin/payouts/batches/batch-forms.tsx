@@ -185,11 +185,12 @@ export function CreateBatchForm({
       {recovery ? (
         <div className="border-edge rounded-lg border p-4">
           <p>
-            A saved {recovery.currency} request contains {recovery.ledgerEntryIds.length} credit(s).
-            Retry uses the same draft and selection.
+            A saved {recovery.currency} request contains {recovery.ledgerEntryIds.length}{" "}
+            {recovery.ledgerEntryIds.length === 1 ? "credit" : "credits"}. Retry uses the same draft
+            and selection.
           </p>
           <Link
-            className="underline"
+            className="mr-4 inline-block underline"
             href={moneyHref(query, {
               batch: recovery.requestId,
               line: undefined,
@@ -335,22 +336,25 @@ export function CreateBatchForm({
               {preview.error}
             </p>
           ) : null}
-          <Button
-            type="button"
-            onClick={execute}
-            disabled={
-              pending ||
-              (!recovery && (!chosen.length || !preview?.total_amount || reason.trim().length < 3))
-            }
-          >
-            {pending
-              ? "Confirming reservation…"
-              : recovery
-                ? "Retry saved reservation"
-                : draftId
-                  ? "Reserve this draft"
-                  : "Create and reserve selected credits"}
-          </Button>
+          {!state.done ? (
+            <Button
+              type="button"
+              onClick={execute}
+              disabled={
+                pending ||
+                (!recovery &&
+                  (!chosen.length || !preview?.total_amount || reason.trim().length < 3))
+              }
+            >
+              {pending
+                ? "Confirming reservation…"
+                : recovery
+                  ? "Retry saved reservation"
+                  : draftId
+                    ? "Reserve this draft"
+                    : "Create and reserve selected credits"}
+            </Button>
+          ) : null}
         </>
       ) : null}
       {state.error ? (

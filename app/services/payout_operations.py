@@ -103,7 +103,7 @@ async def eligible_payment_entries(  # noqa: C901
                 remaining_by_trip[trip_scope] = position.batch_payable
             amount = min(entry.amount, remaining_by_trip[trip_scope])
             if amount <= 0:
-                reasons.append("This trip has no unpaid cash authority")
+                reasons.append("Already paid")
             assessment = await load_current_successful_assessment(
                 session, trip_id=entry.trip_session_id, settings=get_settings()
             )

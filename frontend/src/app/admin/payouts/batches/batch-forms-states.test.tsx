@@ -147,6 +147,9 @@ describe("payout form states", () => {
     await screen.findByText(/To bank/);
     await clickWhenEnabled(user, "Create and reserve selected credits");
     expect(await screen.findByRole("status")).toHaveTextContent("Reservation confirmed");
+    expect(
+      screen.queryByRole("button", { name: "Retry saved reservation" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Review payment run" })).toHaveAttribute(
       "href",
       "/admin/money?tab=runs&batch=batch-1",

@@ -47,7 +47,7 @@ export async function submitFraudDisputeAction(
         return { error: "Your session is no longer valid. Sign in again before retrying." };
       }
       if (error.status === 409) {
-        return { error: "A dispute already exists for this assessment. Refresh to see it." };
+        return { error: "A dispute already exists for this trip. Refresh to see it." };
       }
       return { error: publicActionError(error) };
     }

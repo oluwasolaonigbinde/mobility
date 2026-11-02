@@ -31,7 +31,7 @@ export function EarningsSearch({ query }: { query: MoneyQuery }) {
         onChange={(event) => setCurrency(event.currentTarget.value)}
         placeholder="Currency"
         maxLength={3}
-        className="border-edge bg-raised w-24 rounded-lg border px-3 py-2 uppercase"
+        className="border-edge bg-raised w-32 rounded-lg border px-3 py-2 uppercase"
       />
       <button
         disabled={empty && !applied}

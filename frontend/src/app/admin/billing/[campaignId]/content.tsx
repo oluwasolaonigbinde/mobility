@@ -458,7 +458,7 @@ export default async function AdminCampaignBillingPage({
                     <Button type="submit">Issue invoice</Button>
                   </form>
                 ) : invoice.status === "draft" ? (
-                  <p className="text-amber mt-4 text-sm">
+                  <p role="alert" className="text-coral mt-4 text-sm">
                     Invoices can&apos;t be issued yet: Terrax&apos;s bank details and the
                     accountant&apos;s check are still needed.
                   </p>

@@ -98,8 +98,8 @@ export function alertDetail(alert: AutomaticAlert): string | null {
       typeof detail.count === "number" &&
       Number.isSafeInteger(detail.count) &&
       detail.count > 0
-      ? `${label} (${detail.count >= 1000 ? "1,000+" : detail.count}). Follow the operations runbook.`
-      : "Review the operations runbook.";
+      ? `${label} (${detail.count >= 1000 ? "1,000+" : detail.count}). Check the affected payments and resolve the issue.`
+      : "Check the affected payments and resolve the issue.";
   }
   if (alert.kind === "daily_limit") {
     if (detail.rates_differ) return "The driver's campaigns have different day rates that day.";

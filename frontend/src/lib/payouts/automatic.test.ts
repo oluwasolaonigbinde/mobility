@@ -86,7 +86,9 @@ describe("business-health Finance alerts", () => {
       { check: "stale_trips", count: "secret" },
       {},
     ]) {
-      expect(alertDetail(alert("business_health", detail))).toBe("Review the operations runbook.");
+      expect(alertDetail(alert("business_health", detail))).toBe(
+        "Check the affected payments and resolve the issue.",
+      );
     }
   });
 });

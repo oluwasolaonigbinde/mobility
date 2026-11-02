@@ -86,6 +86,36 @@ describe("bounded payout pages", () => {
     );
   });
 
+  it("counts only payable rows on this page with singular wording", async () => {
+    mocks.api.mockResolvedValueOnce({ items: [{ eligible: true }, { eligible: false }], total: 2 });
+    render(await ReadyToPay({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByText(/1 payable earnings record on this page/)).toBeVisible();
+  });
+
+  it("does not show a missing provider answer above an existing check", async () => {
+    mocks.api.mockResolvedValueOnce({ id: "batch", lines: [line] }).mockResolvedValueOnce({
+      items: [
+        {
+          id: "check",
+          outcome: "unknown",
+          source: "poll",
+          applied: false,
+          provider_occurred_at: summary.created_at,
+          created_at: summary.created_at,
+        },
+      ],
+      total: 1,
+      latest_submission_outcome: null,
+    });
+    render(
+      await LineHistoryPage({
+        params: Promise.resolve({ batchId: "batch", lineId: "line" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    expect(screen.getByText(/Provider check/)).toBeVisible();
+    expect(screen.queryByText(/No provider answer recorded/)).not.toBeInTheDocument();
+  });
   it("shows ready-to-pay earnings on their own screen with their own paging", async () => {
     mocks.api.mockResolvedValueOnce({ items: [], total: 80 });
     render(

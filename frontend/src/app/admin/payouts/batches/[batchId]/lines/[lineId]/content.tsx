@@ -50,12 +50,14 @@ export default async function PaymentHistory({
       </Link>
       <p>{formatMoneyExact(line.amount, line.currency)}</p>
       <NegativeAdjustmentForm entryId={line.ledger_entry_id} currency={line.currency} />
-      <p>
-        Latest provider answer:{" "}
-        {history.latest_submission_outcome
-          ? outcomeLabel(history.latest_submission_outcome)
-          : "No provider answer recorded"}
-      </p>
+      {history.latest_submission_outcome || !history.items.length ? (
+        <p>
+          Latest provider answer:{" "}
+          {history.latest_submission_outcome
+            ? outcomeLabel(history.latest_submission_outcome)
+            : "No provider answer recorded"}
+        </p>
+      ) : null}
       {history.items.map((event) => (
         <Panel key={event.id} className="space-y-2 p-4">
           <p>

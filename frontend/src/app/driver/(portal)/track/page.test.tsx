@@ -56,3 +56,15 @@ it("shows the live-job conflict and keeps the current trip available for recover
     expect.objectContaining({ assignment: null, initialTrip: { id: "trip" } }),
   );
 });
+
+it("hides the empty tracker panel for conflicting live jobs without an active trip", async () => {
+  mocks.journey.mockResolvedValue({
+    journey: { steps: [] },
+    currentJobError: "Two jobs are live",
+    trackerAssignment: null,
+    currentTrip: null,
+  });
+  render(await Track());
+  expect(screen.getByRole("alert")).toHaveTextContent("Two jobs are live");
+  expect(screen.queryByText("Trip tracker")).not.toBeInTheDocument();
+});

@@ -293,7 +293,7 @@ it("leads with the last actual payment when today's amount is zero", async () =>
       },
     });
     render(await Home());
-    expect(screen.getByText("Paid yesterday ₦10,000.00")).toBeVisible();
+    expect(screen.getByText("₦10,000.00 · Paid yesterday")).toBeVisible();
     expect(screen.queryByText(/Today ₦|Being checked/)).not.toBeInTheDocument();
   } finally {
     vi.useRealTimers();
@@ -325,7 +325,7 @@ it("orders payments by payment time rather than work day", async () => {
     },
   });
   render(await Home());
-  expect(screen.getByText("Paid 10 Sept ₦10,000.00")).toBeVisible();
+  expect(screen.getByText("₦10,000.00 · Paid 10 Sept")).toBeVisible();
   expect(screen.queryByText(/Today ₦/)).not.toBeInTheDocument();
 });
 it("shows an honest empty money state without a zero Today headline", async () => {

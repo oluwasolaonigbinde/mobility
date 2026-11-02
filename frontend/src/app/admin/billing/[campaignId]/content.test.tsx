@@ -245,6 +245,9 @@ it("shows the server's funding refusal in plain words", async () => {
     }),
   );
   expect(screen.getByText("Not enough cleared funding for this approval.")).toBeVisible();
+  expect(screen.getByText("Not enough cleared funding for this approval.")).toHaveClass(
+    "text-coral",
+  );
   expect(screen.getByRole("button", { name: "Record funding approval" })).toBeVisible();
 });
 it.each([

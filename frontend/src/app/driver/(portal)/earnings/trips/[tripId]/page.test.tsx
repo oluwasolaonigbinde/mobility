@@ -140,6 +140,16 @@ describe("DriverTripEarningsPage", () => {
     },
   );
 
+  it("explains partial recovery using the existing amounts", async () => {
+    get.mockResolvedValue({
+      data: breakdown({ amount: "9700.00", cash_paid: "10000.00", to_deduct: "208.92" }),
+    });
+    render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-v4" }) }));
+    expect(screen.getByText(/₦91.08 already deducted/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Entries for this trip" }),
+    ).not.toBeInTheDocument();
+  });
   it("shows no deduction note once nothing is left to deduct", async () => {
     get.mockResolvedValue({ data: breakdown({ amount: "9900.00", to_deduct: "0.00" }) });
     render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-v4" }) }));

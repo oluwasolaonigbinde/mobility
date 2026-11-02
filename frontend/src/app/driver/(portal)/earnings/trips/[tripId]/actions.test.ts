@@ -55,7 +55,7 @@ describe("submitFraudDisputeAction", () => {
     );
 
     await expect(submitFraudDisputeAction({}, disputeForm("Please review."))).resolves.toEqual({
-      error: "A dispute already exists for this assessment. Refresh to see it.",
+      error: "A dispute already exists for this trip. Refresh to see it.",
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });

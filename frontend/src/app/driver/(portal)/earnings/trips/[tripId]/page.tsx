@@ -132,6 +132,12 @@ export default async function DriverTripEarningsPage({
     );
   }
   const data = breakdown.data;
+  const alreadyDeducted = Math.max(
+    0,
+    Math.round(
+      (Number(data.cash_paid ?? 0) - Number(data.amount) - Number(data.to_deduct ?? 0)) * 100,
+    ) / 100,
+  );
   const holds = holdsResponse.data.items ?? [];
 
   const excluded = Object.entries(data.excluded_seconds_by_reason ?? {});
@@ -159,6 +165,9 @@ export default async function DriverTripEarningsPage({
           {data.to_deduct && Number(data.to_deduct) > 0 ? (
             <p className="micro text-amber mt-2">
               {paidBeforeDeduction(data.cash_paid ?? "0.00", data.to_deduct, data.currency)}
+              {alreadyDeducted > 0
+                ? ` · ${formatMoneyExact(alreadyDeducted, data.currency)} already deducted`
+                : null}
             </p>
           ) : null}
           {data.superseded_by_recompute ? (
@@ -262,41 +271,43 @@ export default async function DriverTripEarningsPage({
           ) : null}
         </Panel>
 
-        <Panel className="overflow-hidden">
-          <div className="border-edge border-b px-5 py-3.5">
-            <h2 className="micro text-muted">Entries for this trip</h2>
-          </div>
-          <ul className="divide-edge/60 divide-y">
-            {data.entries.map((e) => (
-              <li key={e.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
-                <div className="min-w-0">
-                  <p className="truncate text-sm">
-                    {e.entry_type === "reversal"
-                      ? "Deduction"
-                      : (e.description ?? e.entry_type.replace(/_/g, " "))}
-                  </p>
-                  <p className="micro text-faint mt-0.5">
-                    {formatDate(e.work_days?.[0]?.day ?? e.occurred_at)}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="font-mono text-sm">
-                    {e.entry_type === "reversal" ? "−" : ""}
-                    {formatMoneyExact(e.amount, e.currency)}
-                  </span>
-                  {e.entry_type === "reversal" && e.status !== "voided" ? (
-                    // A correction is taken off pay; its ledger status is not a release.
-                    <StatusChip tone="amber">Deduction</StatusChip>
-                  ) : (
-                    <StatusChip tone={statusTone[e.status]}>
-                      {driverEarningsStatus[e.status]?.label ?? "Unknown"}
-                    </StatusChip>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Panel>
+        {data.entries.length > 0 ? (
+          <Panel className="overflow-hidden">
+            <div className="border-edge border-b px-5 py-3.5">
+              <h2 className="micro text-muted">Entries for this trip</h2>
+            </div>
+            <ul className="divide-edge/60 divide-y">
+              {data.entries.map((e) => (
+                <li key={e.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm">
+                      {e.entry_type === "reversal"
+                        ? "Deduction"
+                        : (e.description ?? e.entry_type.replace(/_/g, " "))}
+                    </p>
+                    <p className="micro text-faint mt-0.5">
+                      {formatDate(e.work_days?.[0]?.day ?? e.occurred_at)}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="font-mono text-sm">
+                      {e.entry_type === "reversal" ? "−" : ""}
+                      {formatMoneyExact(e.amount, e.currency)}
+                    </span>
+                    {e.entry_type === "reversal" && e.status !== "voided" ? (
+                      // A correction is taken off pay; its ledger status is not a release.
+                      <StatusChip tone="amber">Deduction</StatusChip>
+                    ) : (
+                      <StatusChip tone={statusTone[e.status]}>
+                        {driverEarningsStatus[e.status]?.label ?? "Unknown"}
+                      </StatusChip>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        ) : null}
       </div>
     </FreshDriverAuthority>
   );
