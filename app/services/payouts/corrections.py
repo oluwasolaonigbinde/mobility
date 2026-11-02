@@ -33,6 +33,7 @@ from app.services.payouts.common import (
     correction_release_at_required,
     lagos_day_utc_range,
     paycap_lock_key,
+    recompute_requires_correction_order,
     signed_ledger_amount_expression,
     utc_now,
 )
@@ -453,6 +454,20 @@ async def write_day_differentials(  # noqa: C901
             "Driver profile was not found",
             status_code=status.HTTP_404_NOT_FOUND,
         )
+    # A direct zero-delta run writes no position. Reject changed day amounts
+    # before writing any trip; correction orders persist even zero-delta positions.
+    if correction_order_id is None:
+        for target in computation.trips:
+            if target.delta_amount != 0 or target.amount_by_day is None:
+                continue
+            calculation = await session.get(PayoutCalculation, target.payout_calculation_id)
+            if calculation is None:
+                raise recompute_requires_correction_order()
+            _, previous = await latest_daily_rate_position(session, calculation)
+            if {day: Decimal(value) for day, value in previous.items()} != {
+                day: Decimal(value) for day, value in target.amount_by_day.items()
+            }:
+                raise recompute_requires_correction_order()
     outcomes: list[RecomputeDayTripOutcome] = []
     adjustment_count = 0
     reversal_count = 0

@@ -228,6 +228,6 @@ async def driver_trip_earnings_breakdown(
         superseded_by_recompute=superseded,
         entries=entries,
         daily_rate_days=daily_rate_days,
-        cash_paid=position.cash_paid,
+        cash_paid=position.cash_paid + position.offsets_funded,
         to_deduct=position.to_deduct,
     )
