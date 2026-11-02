@@ -294,7 +294,6 @@ async def reserve_payout_batch(  # noqa: C901
     with session.no_autoflush:
         await require_active_admin(session, actor_user_id)
     reason = _reason(reason)
-    # Check existence without locking; the fraud-scope -> batch lock order below stays intact.
     offsets = list(
         (
             await session.scalars(
@@ -308,13 +307,13 @@ async def reserve_payout_batch(  # noqa: C901
         raise _error(
             "PAYOUT_DRAFT_RETRY_CONFLICT", "This recovery reference belongs to another action"
         )
-    if offsets and (await session.get(PayoutBatch, batch_id)) is None:
+    replay_batch = await session.get(PayoutBatch, batch_id) if offsets else None
+    if offsets and replay_batch is None:
         if set(ledger_entry_ids) != {offset.funding_entry_id for offset in offsets}:
             raise _error(
                 "PAYOUT_DRAFT_RETRY_CONFLICT", "This recovery reference has a different selection"
             )
     if offsets and set(ledger_entry_ids) == {offset.funding_entry_id for offset in offsets}:
-        replay_batch = await session.get(PayoutBatch, batch_id)
         if replay_batch is None:
             return None, ()
         if replay_batch.status == "draft" and replay_batch.created_by_user_id == actor_user_id:
@@ -322,11 +321,11 @@ async def reserve_payout_batch(  # noqa: C901
             await session.flush()
             return None, ()
     if offsets:
-        replay_batch = await session.get(PayoutBatch, batch_id)
         if replay_batch is not None and replay_batch.status == "draft":
             raise _error(
                 "PAYOUT_DRAFT_RETRY_CONFLICT", "This recovery reference has a different selection"
             )
+    # Check existence without locking; the fraud-scope -> batch lock order below stays intact.
     if await session.scalar(select(PayoutBatch.id).where(PayoutBatch.id == batch_id)) is None:
         raise _error(
             "PAYOUT_BATCH_NOT_FOUND",

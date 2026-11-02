@@ -14,8 +14,8 @@ order as PostgreSQL's uuid comparison):
 3. Trip scopes (``lock_fraud_hold_scope(s)``): trip advisory key, then the trip
    row ``FOR UPDATE``.
 4. Route-replay fingerprint keys.
-5. Batch/line/intent, flag and ledger rows, then the driver money row
-   (``lock_driver_money_scope``), then payees.
+5. Batch/line/intent and flag rows, then the driver money row
+   (``lock_driver_money_scope``), then ledger rows, then payees.
 
 Try-locks (``try_lock_fraud_hold_scope``) never wait, so they may be taken out
 of this order. Route replay holds fingerprint keys and only try-locks other

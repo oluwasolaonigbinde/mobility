@@ -48,7 +48,7 @@ def overpaid_deductions(entries, position: TripMoneyPosition) -> list[tuple[obje
     deduction first, never more than its own amount: extra cash with no recorded
     deduction (a duplicate transfer, say) is not presented as one.
     """
-    remaining = position.to_deduct
+    remaining = position.debt
     parts: list[tuple[object, Decimal]] = []
     deductions = sorted(
         (
@@ -229,5 +229,5 @@ async def driver_trip_earnings_breakdown(
         entries=entries,
         daily_rate_days=daily_rate_days,
         cash_paid=position.cash_paid + position.offsets_funded,
-        to_deduct=position.to_deduct,
+        to_deduct=position.debt,
     )

@@ -27,7 +27,10 @@ export function NegativeAdjustmentForm({
     <details className="mt-3 text-sm">
       <summary>Record a negative adjustment</summary>
       <form action={action} className="mt-2 space-y-2">
-        <p>This records a correction on this trip. It does not take money from another trip.</p>
+        <p>
+          This records a correction on this trip. If this trip was already paid, the difference
+          comes off the driver&apos;s next payout.
+        </p>
         <input type="hidden" name="entry_id" value={entryId} />
         <input type="hidden" name="currency" value={currency} />
         <label className="block">

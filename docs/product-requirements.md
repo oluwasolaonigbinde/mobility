@@ -69,7 +69,7 @@ installation approval lasts seven days, with no daily display proof, nonce,
 challenge or weekly hours floor; spot checks are pass/fail with a note. Personal-data
 requests are manual pending the lawyer's rules. One active admin may approve/apply
 and reconcile money actions with reasons and audit; overpayments use add-only
-manual adjustments, with no automatic debt recovery. Pilot retargeting, audience,
+manual adjustments and recovery of actual overpaid cash through later payouts under D146/D147. Pilot retargeting, audience,
 export/activation and ROI are removed. Phone verification keeps the support number
 and existing expiry/attempt/audit/consent controls without an operator setting.
 Chosen-period reports use Nigeria days, charts and labelled estimates, with no

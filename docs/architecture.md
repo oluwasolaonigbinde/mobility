@@ -2111,7 +2111,7 @@ terms, pay calculation or D43's proportional short-day rule. W1-P hardening
   establishes cash paid. `payout_balances.py` nets non-voided negative entries
   against released trip credits, subtracts actual successful cash and active
   reservations/in-flight lines, and clamps each trip before driver aggregation.
-  Negative adjustments cannot consume a later trip. Partial net lines freeze
+  D146/D147 recover actual overpaid cash from later eligible payouts; deductions only correct the original trip, never impose fines. Partial net lines freeze
   the exact unpaid amount. Replacements cannot exceed that remaining authority.
   All real successes count even when they exceed the original credit; a
   bounded duplicate-cash alert records the exact total and successful line IDs.
@@ -2141,7 +2141,7 @@ Campaign-scoped economic positions reuse the existing money-balance computation,
 while active provider exposure and verified transfer totals are independently
 aggregated over payout-line chains, including replacements of already-paid
 credits and duplicate successes. These overlapping facts are not added into a
-second ledger. No automatic debt allocation remains. Cancellation/settlement
+second ledger. D146/D147 allocate final recovery offsets from eligible future credits, using computed net settlement. Cancellation/settlement
 records never assert physical removal, lifecycle completion or unverified cash.
 
 ## 17. Fraud review & trust workflow (D5)
@@ -3757,7 +3757,7 @@ to avoid substituting an older inside point. No stable marker ID, timestamps,
 heading, identity, per-car selector or trail; randomized order and no-store.
 Use "on the road", including No cars on the road right now. Privacy review
 remains required; this is reduced disclosure, not legal anonymity.
-**[TARGET — D144/D145 / REQ-265; owner, 30 October 2026]** Hide a car's dot once
+**[BUILT — D144/D145 / REQ-265; full CI and merge pending]** Hide a car's dot once
 the delayed (15-minute-old) position has stayed within 200 m for 30 minutes,
 and show it again when it moves. Only pings with reported accuracy ≤75 m
 count as movement; stops under 30 minutes never disappear. The audit policy
@@ -3767,8 +3767,7 @@ evidence and pay are unaffected.
 This replaces D138's always-visible live-trip rule: the REQ-258/264 privacy
 review found a parked car at home could keep uploading and remain visible
 indefinitely. Existing delay/freshness, target/exclusion, ownership and
-no-identity/no-trail rules remain. Sol is building `fix/req265-parked-dot`;
-this paragraph records the approved target, not implemented filtering.
+no-identity/no-trail rules remain. Built on integrate/req252-264 (`7b048586`); full CI and merge pending.
 Performance cards reuse governed estimates/results; no CTR/visits/ROI. Existing
 coverage history remains. Lane A owns report/lifecycle/removal changes (v1.148);
 final integration and migration chaining precede Lane B final reviews.

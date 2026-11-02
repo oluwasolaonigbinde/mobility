@@ -210,7 +210,7 @@ def test_automatic_payout_nets_final_offsets_without_empty_batches(
             position = await trip_money_position(
                 session, trip_session_id=source_trip_id, currency="NGN"
             )
-            assert position.to_deduct == Decimal(remaining)
+            assert position.debt == Decimal(remaining)
 
     asyncio.run(check())
     assert run(db, settings)["outcome"] == "already_ran"

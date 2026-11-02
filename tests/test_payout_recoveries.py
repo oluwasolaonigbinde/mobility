@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from test_mny03a_earnings_release import build_graph
 from test_payout_batches import _seed_authority
 
+from app.core.errors import AppError
 from app.models.disbursement import PayoutBatch, PayoutBatchLine, PayoutRecoveryOffset
 from app.models.payee import Payee
 from app.models.payout import EarningsLedgerEntry, PayoutCalculation
@@ -153,7 +154,7 @@ def test_next_payout_offsets_debt_once_without_zero_cash_batches(
             position = await trip_money_position(
                 session, trip_session_id=source.trip_session_id, currency="NGN"
             )
-            assert position.to_deduct == Decimal(remaining)
+            assert position.debt == Decimal(remaining)
             if not lines:
                 assert result is None
                 assert await session.get(PayoutBatch, request_id) is None
@@ -212,13 +213,13 @@ def test_partial_offsets_carry_forward_and_funding_void_does_not_collect_twice(d
             position = await trip_money_position(
                 session, trip_session_id=source.trip_session_id, currency="NGN"
             )
-            assert position.to_deduct == 0
+            assert position.debt == 0
             funding.status = "voided"
             await session.flush()
             position = await trip_money_position(
                 session, trip_session_id=source.trip_session_id, currency="NGN"
             )
-            assert position.to_deduct == Decimal("40.00")
+            assert position.debt == Decimal("40.00")
             assert await session.scalar(select(func.count(PayoutRecoveryOffset.id))) == 2
 
     asyncio.run(exercise())
@@ -267,7 +268,7 @@ def test_funded_offsets_become_debt_if_funding_trip_worth_falls(db_sessionmaker,
             )
             assert position.cash_paid == 0
             assert position.settled == Decimal("10000.00")
-            assert position.to_deduct == Decimal("10000.00")
+            assert position.debt == Decimal("10000.00")
 
     asyncio.run(exercise())
 
@@ -307,7 +308,7 @@ def test_original_transfer_reversal_restores_cash_authority_and_preview(db_sessi
             assert preview["total_amount"] == Decimal("100.00")
             assert position.settled == Decimal("-100.00")
             assert position.batch_payable == Decimal("10000.00")
-            assert position.to_deduct == 0
+            assert position.debt == 0
             await automatic_final_clean_authority(
                 session,
                 batch=await session.get(PayoutBatch, line.batch_id),
@@ -477,7 +478,7 @@ def test_debt_is_cash_above_trip_worth_not_a_fine(db_sessionmaker, cause, expect
             position = await trip_money_position(
                 session, trip_session_id=source.trip_session_id, currency="NGN"
             )
-            assert position.to_deduct == Decimal(expected)
+            assert position.debt == Decimal(expected)
             assert position.earned_net >= 0
 
     asyncio.run(exercise())
@@ -520,7 +521,7 @@ def test_final_offset_survives_void_and_retry_of_cash(db_sessionmaker, outcome):
                     trip_session_id=source.trip_session_id,
                     currency="NGN",
                 )
-                assert source_position.to_deduct == 0
+                assert source_position.debt == 0
                 assert await session.scalar(select(func.count(PayoutRecoveryOffset.id))) == 1
                 return
             draft = await create_payout_batch_draft(
@@ -537,7 +538,64 @@ def test_final_offset_survives_void_and_retry_of_cash(db_sessionmaker, outcome):
             position = await trip_money_position(
                 session, trip_session_id=source.trip_session_id, currency="NGN"
             )
-            assert position.to_deduct == 0
+            assert position.debt == 0
             assert await session.scalar(select(func.count(PayoutRecoveryOffset.id))) == 1
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("refusal", ["wrong_actor", "different_selection"])
+@pytest.mark.parametrize("recreated_draft", [False, True])
+def test_settled_recovery_reference_refuses_changed_retries(
+    db_sessionmaker, refusal, recreated_draft
+):
+    graph = build_graph(db_sessionmaker, f"retry-refusal-{uuid4().hex[:8]}")
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            funding, _ = await seed_debt(session, graph, payable="40.00")
+            batch = await create_payout_batch_draft(
+                session, currency="NGN", actor_user_id=graph.admin.id, reason="Next payout"
+            )
+            request_id = batch.id
+            result, lines = await reserve_payout_batch(
+                session,
+                batch_id=request_id,
+                ledger_entry_ids=(funding.id,),
+                actor_user_id=graph.admin.id,
+                reason="Next payout",
+            )
+            assert result is None and not lines
+            other = type(graph.admin)(
+                email=f"retry-admin-{uuid4().hex}@example.com",
+                password_hash=graph.admin.password_hash,
+                full_name="Other admin",
+                role="admin",
+                status="active",
+            )
+            session.add(other)
+            await session.flush()
+            if recreated_draft:
+                await create_payout_batch_draft(
+                    session,
+                    currency="NGN",
+                    actor_user_id=graph.admin.id,
+                    request_id=request_id,
+                    reason="Next payout",
+                )
+            before = await session.scalar(select(func.count(PayoutRecoveryOffset.id)))
+            actor = other.id if refusal == "wrong_actor" else graph.admin.id
+            selection = (funding.id,) if refusal == "wrong_actor" else (uuid4(),)
+            with pytest.raises(AppError) as caught:
+                await reserve_payout_batch(
+                    session,
+                    batch_id=request_id,
+                    ledger_entry_ids=selection,
+                    actor_user_id=actor,
+                    reason="Next payout",
+                )
+            assert caught.value.code == "PAYOUT_DRAFT_RETRY_CONFLICT"
+            assert await session.scalar(select(func.count(PayoutRecoveryOffset.id))) == before
+            assert bool(await session.get(PayoutBatch, request_id)) == recreated_draft
 
     asyncio.run(exercise())

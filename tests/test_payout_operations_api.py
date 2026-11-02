@@ -1,6 +1,8 @@
 import asyncio
+from decimal import Decimal
 from uuid import UUID, uuid4
 
+import pytest
 from conftest import auth_headers
 from sqlalchemy import func, select
 from test_mny03a_earnings_release import build_graph
@@ -184,3 +186,45 @@ def test_payout_projection_routes_are_exact_bounded_and_read_only(
         ).status_code
         == 403
     )
+
+
+@pytest.mark.parametrize(
+    "cash,reserved,in_flight,expected",
+    [
+        ("100.00", "0", "0", "Already paid"),
+        ("0", "100.00", "0", "Already reserved or in flight"),
+        ("0", "0", "100.00", "Already reserved or in flight"),
+        ("0", "0", "0", "Nothing left to pay"),
+    ],
+)
+def test_zero_payable_reason_distinguishes_paid_from_unpaid(
+    db_sessionmaker, monkeypatch, cash, reserved, in_flight, expected
+):
+    from app.services import payout_operations
+    from app.services.payout_balances import TripMoneyPosition
+
+    graph = build_graph(db_sessionmaker, f"zero-label-{uuid4().hex[:8]}")
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            entry = await _seed_authority(session, graph)
+
+            async def position(*args, **kwargs):
+                return TripMoneyPosition(
+                    cash_paid=Decimal(cash),
+                    reserved=Decimal(reserved),
+                    in_flight=Decimal(in_flight),
+                )
+
+            monkeypatch.setattr(payout_operations, "trip_money_position", position)
+            result = await payout_operations.eligible_payment_entries(session, limit=25, offset=0)
+            row = next(item for item in result["items"] if item["ledger_entry_id"] == entry.id)
+            assert row["amount"] == 0
+            assert row["eligible"] is False
+            assert expected in row["ineligibility_reasons"]
+            if expected != "Already paid":
+                assert "Already paid" not in row["ineligibility_reasons"]
+            if expected == "Already reserved or in flight":
+                assert "Nothing left to pay" not in row["ineligibility_reasons"]
+
+    asyncio.run(exercise())

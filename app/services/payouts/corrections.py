@@ -31,6 +31,7 @@ from app.services.payouts.common import (
     PAYOUT_V4,
     acquire_paycap_lock,
     correction_release_at_required,
+    is_manual_deduction,
     lagos_day_utc_range,
     paycap_lock_key,
     recompute_requires_correction_order,
@@ -280,8 +281,6 @@ async def _daily_rate_day_target(
         driver_profile_id=driver_profile_id,
         currency=calculation.currency,
     )
-    from app.services.payouts.common import is_manual_deduction
-
     entries = await session.scalars(
         select(EarningsLedgerEntry).where(
             EarningsLedgerEntry.trip_session_id == trip.id,

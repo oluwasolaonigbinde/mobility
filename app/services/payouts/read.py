@@ -150,18 +150,6 @@ async def driver_earnings_summary(
                 ),
                 0,
             ),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (
-                            EarningsLedgerEntry.status != EarningsLedgerEntryStatus.VOIDED.value,
-                            signed_amount,
-                        ),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
             func.count(EarningsLedgerEntry.id),
         )
         .where(*filters)
@@ -187,7 +175,7 @@ async def driver_earnings_summary(
                 released_available_amount=balance.released_available,
                 cash_paid_amount=balance.cash_paid,
                 batch_payable_amount=balance.batch_payable,
-                ledger_entry_count=int(row[6] or 0),
+                ledger_entry_count=int(row[5] or 0),
             )
         )
     if not totals:

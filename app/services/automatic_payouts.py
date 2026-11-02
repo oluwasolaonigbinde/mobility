@@ -820,7 +820,6 @@ async def run_automatic_payouts(  # noqa: C901
         )
     exclusions = _Exclusions()
     included: list[tuple[EarningsLedgerEntry, tuple]] = []
-    running = Decimal("0.00")
     next_cursor = (control.candidate_cursor_at, control.candidate_cursor_id)
     if stubs:
         # A dispute may concern another of the driver's trips. The driver keys
@@ -937,7 +936,6 @@ async def run_automatic_payouts(  # noqa: C901
             if reason is not None:
                 exclusions.add(reason, entry.amount)
                 continue
-            running += entry.amount
             for day in days:
                 cash[entry.driver_profile_id][day] = (
                     cash[entry.driver_profile_id].get(day, Decimal("0.00")) + days[day]
@@ -951,9 +949,9 @@ async def run_automatic_payouts(  # noqa: C901
         id=uuid4(),
         period_key=period,
         currency=AUTOMATIC_CURRENCY,
-        total_amount=running,
-        batch_count=len(by_driver),
-        line_count=len(included),
+        total_amount=Decimal("0.00"),
+        batch_count=0,
+        line_count=0,
         exclusions=exclusions.by_reason,
         settings_fingerprint=_settings_fingerprint(),
     )

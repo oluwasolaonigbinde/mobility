@@ -740,7 +740,7 @@ in-area dots, exclusions, ≥15-minute delay, ≤30-minute point freshness, camp
 filtering only, no identities/stable IDs/trails, and "on the road" wording remain.
 This replaces D138's always-visible live-trip rule after privacy review found
 that a car parked at home could keep uploading and stay visible indefinitely.
-Sol is building `fix/req265-parked-dot`; no build or integration is claimed yet.
+Built on integrate/req252-264 (`7b048586`); full CI and merge pending.
 D138 / REQ-258's stopped-or-moving dot change is Built on integrate/req252-264
 (`e9e990c7`); full CI and merge remain pending.
 Coverage history remains on the existing map. Privacy and

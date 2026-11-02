@@ -80,6 +80,7 @@ async def eligible_payment_entries(  # noqa: C901
     ).all()
     balances = {}
     remaining_by_trip = {}
+    positions_by_trip = {}
     items = []
     totals: dict[str, Decimal] = {}
     for entry, driver_name, campaign_name in rows:
@@ -101,9 +102,16 @@ async def eligible_payment_entries(  # noqa: C901
                     currency=entry.currency,
                 )
                 remaining_by_trip[trip_scope] = position.batch_payable
+                positions_by_trip[trip_scope] = position
+            position = positions_by_trip[trip_scope]
             amount = min(entry.amount, remaining_by_trip[trip_scope])
             if amount <= 0:
-                reasons.append("Already paid")
+                if position.reserved > 0 or position.in_flight > 0:
+                    reasons.append("Already reserved or in flight")
+                else:
+                    reasons.append(
+                        "Already paid" if position.cash_paid > 0 else "Nothing left to pay"
+                    )
             assessment = await load_current_successful_assessment(
                 session, trip_id=entry.trip_session_id, settings=get_settings()
             )
@@ -123,7 +131,8 @@ async def eligible_payment_entries(  # noqa: C901
             )
             .limit(1)
         ):
-            reasons.append("Already reserved or in flight")
+            if "Already reserved or in flight" not in reasons:
+                reasons.append("Already reserved or in flight")
         elif await session.scalar(
             select(PayoutBatchLine.id)
             .where(
@@ -207,7 +216,7 @@ async def preview_payment_selection(
                 session, driver_profile_id=scope[0], currency=scope[1]
             )
             remaining[scope] = sum(
-                (position.to_deduct for position in positions.values()), Decimal("0.00")
+                (position.debt for position in positions.values()), Decimal("0.00")
             )
         part = min(item["amount"], remaining[scope])
         remaining[scope] -= part

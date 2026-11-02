@@ -132,7 +132,7 @@ def _recovery_days(members, position):
         result[allocation.day] = result.get(allocation.day, Decimal(0)) + part
     first_day = min(day.day for _, response in members for day in response.work_days)
     result[first_day] = result.get(first_day, Decimal(0)) + (
-        position.to_deduct - sum(result.values(), Decimal(0))
+        position.debt - sum(result.values(), Decimal(0))
     )
     return result
 

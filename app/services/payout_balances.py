@@ -34,10 +34,6 @@ class TripMoneyPosition:
         return max(self.settled - self.earned_net, ZERO)
 
     @property
-    def to_deduct(self) -> Decimal:
-        return self.debt
-
-    @property
     def settled(self) -> Decimal:
         return self.cash_paid + self.offsets_funded - self.offsets_received
 
@@ -115,9 +111,11 @@ def trip_cash_position(
                 reserved += line.amount
         elif line.status == "failed" and line.id not in predecessor_ids:
             failed += line.amount
-    settled = paid + offsets_funded - offsets_received
+    position = TripMoneyPosition(
+        cash_paid=paid, offsets_funded=offsets_funded, offsets_received=offsets_received
+    )
     released_net = max(min(released - negatives, earned), ZERO)
-    remaining = max(released_net - settled, ZERO)
+    remaining = max(released_net - position.settled, ZERO)
     payable = max(remaining - reserved - in_flight, ZERO)
     return TripMoneyPosition(
         earned_net=earned,
@@ -264,9 +262,9 @@ async def allocate_payout_recovery(
     )
     remaining = payable
     for (trip_id, currency), position in positions.items():
-        if trip_id == entry.trip_session_id or position.to_deduct <= ZERO:
+        if trip_id == entry.trip_session_id or position.debt <= ZERO:
             continue
-        amount = min(remaining, position.to_deduct)
+        amount = min(remaining, position.debt)
         if amount <= ZERO:
             break
         offset = PayoutRecoveryOffset(
