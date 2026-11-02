@@ -307,6 +307,26 @@ def test_duplicate_cash_above_trip_worth_is_recovered():
     assert (day["amount"], day["to_deduct"]) == (Decimal("100.00"), Decimal("100.00"))
 
 
+@pytest.mark.parametrize("recovered,remaining", [("40.00", "60.00"), ("100.00", "0.00")])
+def test_zero_worth_day_stays_paid_as_recovery_settles(recovered, remaining):
+    members = [paid_credit("100.00"), deduction("100.00")]
+    [day], _ = group_earnings_days(
+        [entry for entry, _ in members],
+        [response for _, response in members],
+        set(),
+        {
+            (TRIP, "NGN"): TripMoneyPosition(
+                earned_net=Decimal(0),
+                cash_paid=Decimal("100.00"),
+                offsets_received=Decimal(recovered),
+            )
+        },
+    )
+    assert day["amount"] == 0
+    assert day["to_deduct"] == Decimal(remaining)
+    assert day["status"] == "paid"
+
+
 def test_day_mixing_an_overpaid_trip_and_an_unpaid_trip():
     other = uuid4()
     [day] = show(

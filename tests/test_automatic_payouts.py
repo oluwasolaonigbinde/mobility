@@ -110,6 +110,59 @@ def install_automatic(db, *, actor_status: str = "disabled") -> None:
 REAL_BANK_ACCOUNT_PAID_BEFORE = automatic.bank_account_paid_before
 
 
+@pytest.mark.parametrize("original_reversed", [False, True])
+def test_automatic_pays_only_remaining_authority_after_manual_batch_void(
+    postgis_db_sessionmaker, settings, original_reversed
+):
+    from test_payout_recoveries import seed_debt
+
+    from app.services.disbursements import (
+        create_payout_batch_draft,
+        reserve_payout_batch,
+        void_payout_batch,
+    )
+
+    db = postgis_db_sessionmaker
+    install_automatic(db)
+    graph = clean_graph(
+        db,
+        settings,
+        f"auto-void-offset-{uuid4().hex[:8]}",
+        daily_rate_naira=Decimal("1000.00"),
+        daily_target_miles=Decimal("1.00"),
+    )
+    funding_id = entry_for(db, graph.trip.id).id
+
+    async def seed():
+        async with db() as session:
+            funding = await session.get(EarningsLedgerEntry, funding_id)
+            _, source = await seed_debt(session, graph, funding=funding, deduction="300.00")
+            draft = await create_payout_batch_draft(
+                session, currency="NGN", actor_user_id=graph.admin.id, reason="Next payout"
+            )
+            batch, lines = await reserve_payout_batch(
+                session,
+                batch_id=draft.id,
+                ledger_entry_ids=(funding.id,),
+                actor_user_id=graph.admin.id,
+                reason="Next payout",
+            )
+            assert lines[0].amount == Decimal("700.00")
+            await void_payout_batch(session, batch_id=batch.id, actor_user_id=graph.admin.id)
+            if original_reversed:
+                original = await session.scalar(
+                    select(PayoutBatchLine).where(PayoutBatchLine.ledger_entry_id == source.id)
+                )
+                original.status = "failed"
+                source.status = "available"
+            await session.commit()
+
+    asyncio.run(seed())
+    result = run(db, settings)
+    assert result["total_amount"] == "700.00"
+    assert result["line_count"] == 1
+
+
 @pytest.mark.parametrize(
     "rate,cash,remaining", [("600.00", "500.00", "0.00"), ("40.00", "0.00", "60.00")]
 )

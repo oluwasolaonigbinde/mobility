@@ -206,12 +206,6 @@ async def preview_payment_selection(
             positions = await driver_recovery_positions(
                 session, driver_profile_id=scope[0], currency=scope[1]
             )
-            if any(position.recovery_inconsistent for position in positions.values()):
-                raise AppError(
-                    "PAYOUT_RECOVERY_REVIEW_REQUIRED",
-                    "Check this driver's deductions",
-                    status_code=409,
-                )
             remaining[scope] = sum(
                 (position.to_deduct for position in positions.values()), Decimal("0.00")
             )

@@ -84,7 +84,7 @@ from app.services.notifications import create_active_admin_notices
 from app.services.payout_balances import (
     allocate_payout_recovery,
     lock_driver_money_scope,
-    recovery_needs_review,
+    trip_money_position,
 )
 from app.services.payout_operations import _outcome
 from app.services.payouts.common import PAYOUT_V4, lagos_day_for, lagos_day_utc_range
@@ -866,11 +866,6 @@ async def run_automatic_payouts(  # noqa: C901
                 break
             next_cursor = (stub.occurred_at, stub.id)
             entry = entries[stub.id]
-            if await recovery_needs_review(
-                session, driver_profile_id=entry.driver_profile_id, currency=entry.currency
-            ):
-                exclusions.add("recovery_needs_review", entry.amount)
-                continue
             if (
                 entry.status != EarningsLedgerEntryStatus.AVAILABLE.value
                 or entry.entry_type != EarningsLedgerEntryType.TRIP_PAYOUT.value
@@ -981,10 +976,16 @@ async def run_automatic_payouts(  # noqa: C901
                 for entry, authority in sorted(
                     by_driver[driver_profile_id], key=lambda item: str(item[0].id)
                 ):
+                    position = await trip_money_position(
+                        session, trip_session_id=entry.trip_session_id, currency=entry.currency
+                    )
+                    payable = min(entry.amount, position.batch_payable)
+                    if payable <= 0:
+                        continue
                     amount = await allocate_payout_recovery(
                         session,
                         entry=entry,
-                        payable=entry.amount,
+                        payable=payable,
                         request_id=run.id,
                         automatic_run_id=run.id,
                     )
@@ -1078,11 +1079,6 @@ async def automatic_final_clean_authority(
     driver_profile_ids: tuple[UUID, ...],
 ) -> dict[str, object]:
     """Extra final-gate checks for an automatic SUBMIT (A10). Callers hold the locks."""
-    for driver_id in driver_profile_ids:
-        if await recovery_needs_review(
-            session, driver_profile_id=driver_id, currency=batch.currency
-        ):
-            raise _error("PAYOUT_RECOVERY_REVIEW_REQUIRED", "Check this driver's deductions")
     if await session.scalar(
         select(FraudFlag.id).where(FraudFlag.trip_session_id.in_(trip_ids)).limit(1)
     ):

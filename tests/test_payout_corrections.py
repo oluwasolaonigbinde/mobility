@@ -57,7 +57,8 @@ RELEASE_AT = datetime(2026, 9, 1, 12, 0, tzinfo=UTC)
     [
         ("600.00", "600.00", False, "0.00"),
         ("900.00", "1000.00", False, "-100.00"),
-        ("600.00", "600.00", True, "200.00"),
+        ("600.00", "600.00", True, "0.00"),
+        ("100.00", "100.00", False, "0.00"),
     ],
 )
 def test_manual_deduction_survives_correction(
@@ -113,8 +114,8 @@ def test_manual_deduction_survives_correction(
         true_posted = Decimal("-200.00") if voided else Decimal(posted) - Decimal("200.00")
         assert target.previous_posted_amount == true_posted
         assert target.delta_amount == Decimal(expected_delta)
-        assert true_posted + target.delta_amount == (
-            Decimal("0.00") if voided else Decimal(rate) - Decimal("200.00")
+        assert max(true_posted + target.delta_amount, Decimal(0)) == (
+            Decimal("0.00") if voided else max(Decimal(rate) - Decimal("200.00"), Decimal(0))
         )
         order = await create_correction_order(
             session,
@@ -144,9 +145,13 @@ def test_manual_deduction_survives_correction(
                 )
             )
         ).all()
-        assert sum(
-            ((-e.amount if e.entry_type == "reversal" else e.amount) for e in entries), Decimal(0)
-        ) == (Decimal(0) if voided else Decimal(rate) - Decimal("200.00"))
+        assert max(
+            sum(
+                ((-e.amount if e.entry_type == "reversal" else e.amount) for e in entries),
+                Decimal(0),
+            ),
+            Decimal(0),
+        ) == (Decimal(0) if voided else max(Decimal(rate) - Decimal("200.00"), Decimal(0)))
 
     service(postgis_db_sessionmaker, exercise)
 

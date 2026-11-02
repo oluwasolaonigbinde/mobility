@@ -289,6 +289,8 @@ async def _daily_rate_day_target(
         )
     )
     deductions = sum((entry.amount for entry in entries if is_manual_deduction(entry)), Decimal(0))
+    worth = max(target_amount - deductions, Decimal(0))
+    delta = Decimal(0) if worth == 0 and posted <= 0 else worth - posted
     return DayTripTarget(
         trip_session_id=trip.id,
         vehicle_id=trip.vehicle_id,
@@ -297,7 +299,7 @@ async def _daily_rate_day_target(
         currency=calculation.currency,
         previous_posted_amount=posted,
         target_amount=target_amount,
-        delta_amount=quantize_2(max(target_amount - deductions, Decimal(0)) - posted),
+        delta_amount=quantize_2(delta),
         eligible_seconds=eligible_seconds,
         excluded_seconds_by_reason=excluded,
         voided=voided,
