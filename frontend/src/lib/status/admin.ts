@@ -74,8 +74,9 @@ const contexts: Record<string, Record<string, string>> = {
     issued: "Issued report",
   },
   receipt: {
-    observed: "Received",
-    recorded: "Received",
+    observed: "Recorded – being checked",
+    recorded: "Recorded – being checked",
+    reconciled: "Amount matched – awaiting confirmation",
     confirmed: "Confirmed",
     reversed: "Reversed",
   },

@@ -1,6 +1,12 @@
 import { expect, it } from "vitest";
 import { adminStatus, adminTone, paymentRunStatus } from "./admin";
 import { advertiserStatus } from "./advertiser";
+it("matches advertiser receipt labels without implying an unchecked payment is confirmed", () => {
+  expect(adminStatus("observed", "receipt")).toBe("Recorded – being checked");
+  expect(adminStatus("reconciled", "receipt")).toBe("Amount matched – awaiting confirmation");
+  expect(adminStatus("confirmed", "receipt")).toBe("Confirmed");
+  expect(adminStatus("unrecognised_receipt_state", "receipt")).toBe("Unknown status");
+});
 it("uses context-specific staff words without leaking internal keys", () => {
   expect(adminStatus("pending", "driver")).toBe("Applicant");
   expect(adminStatus("pending_review", "campaign")).toBe("For review");
