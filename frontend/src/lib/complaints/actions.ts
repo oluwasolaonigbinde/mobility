@@ -62,7 +62,7 @@ function explain(error: unknown, notFound: string): ComplaintActionState {
     return { error: "Cardvert couldn't send this right now. Check your connection and try again." };
   }
   if (error.status === 401 || error.status === 403) {
-    return { error: "Your session has ended. Sign in again, then try again." };
+    return { error: "You've been signed out. Sign in again, then try again." };
   }
   if (
     error.code === "ADVERTISER_ORGANIZATION_NOT_FOUND" ||

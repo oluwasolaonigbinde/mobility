@@ -21,7 +21,11 @@ export async function mutationBoundary(request: NextRequest): Promise<NextRespon
     if (!["http:", "https:"].includes(origin.protocol) || origin.origin !== configured)
       throw new Error("Invalid origin");
   } catch {
-    return deny(503, "BFF_ORIGIN_UNAVAILABLE", "The browser request boundary is unavailable");
+    return deny(
+      503,
+      "BFF_ORIGIN_UNAVAILABLE",
+      "Something went wrong. Refresh the page and try again.",
+    );
   }
   const path = request.nextUrl.pathname;
   const site = request.headers.get("sec-fetch-site");
@@ -33,7 +37,7 @@ export async function mutationBoundary(request: NextRequest): Promise<NextRespon
     (mode !== null && !["cors", "same-origin"].includes(mode)) ||
     (destination !== null && destination !== "empty")
   )
-    return deny(403, "BFF_ORIGIN_DENIED", "The browser request origin is not permitted");
+    return deny(403, "BFF_ORIGIN_DENIED", "Something went wrong. Refresh the page and try again.");
 
   const bodyless =
     request.method === "POST" &&
@@ -62,12 +66,20 @@ export async function mutationBoundary(request: NextRequest): Promise<NextRespon
           }
         }
       } catch {
-        return deny(400, "BFF_BODY_UNREADABLE", "The request body could not be read");
+        return deny(
+          400,
+          "BFF_BODY_UNREADABLE",
+          "Something went wrong. Refresh the page and try again.",
+        );
       } finally {
         reader?.releaseLock();
       }
     }
   } else if (mediaType !== "application/json") {
-    return deny(415, "BFF_MEDIA_TYPE_DENIED", "This command requires application/json");
+    return deny(
+      415,
+      "BFF_MEDIA_TYPE_DENIED",
+      "Something went wrong. Refresh the page and try again.",
+    );
   }
 }

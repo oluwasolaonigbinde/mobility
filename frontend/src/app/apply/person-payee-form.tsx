@@ -59,7 +59,7 @@ export function PersonPayeeForm({ accessToken }: { accessToken: string }) {
         .files?.[0];
       const photo = (formElement.elements.namedItem("driver_photo") as HTMLInputElement).files?.[0];
       if (!(license instanceof File) || !(photo instanceof File)) {
-        throw new Error("Add your driver's licence and a photo of you.");
+        throw new Error("Add your driving licence and a photo of you.");
       }
       if (form.get("agreement_accepted") !== "on")
         throw new Error("Read and agree to the driver agreement.");

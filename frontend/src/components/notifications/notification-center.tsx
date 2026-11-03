@@ -35,16 +35,14 @@ async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     throw new NotificationRequestError(
       response.status,
-      typeof body === "object" && body !== null && "error" in body
-        ? (body.error?.message ?? "Notification request failed")
-        : "Notification request failed",
+      "Couldn't update notifications. Try again.",
     );
   }
   return body as T;
 }
 
-function mutationErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
+function mutationErrorMessage(_error: unknown, fallback: string): string {
+  return fallback;
 }
 
 function useDocumentVisible() {

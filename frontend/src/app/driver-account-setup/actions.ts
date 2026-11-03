@@ -45,7 +45,7 @@ export async function completeDriverAccountSetupAction(
       error: publicActionError(
         error,
         {
-          DRIVER_ACCOUNT_SETUP_INVALID: "This setup action is invalid, expired, or already used.",
+          DRIVER_ACCOUNT_SETUP_INVALID: "This link has expired or has already been used.",
           PASSWORD_TOO_SHORT: "Use at least 12 characters.",
         },
         "Account setup is temporarily unavailable. Try again later.",

@@ -32,7 +32,7 @@ export async function bffResponse<T>(
       {
         error: {
           code: "INTERNAL_SERVER_ERROR",
-          message: "The request could not be completed",
+          message: "That didn't work. Please try again.",
           details: {},
         },
       },

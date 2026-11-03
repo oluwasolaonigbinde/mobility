@@ -10,7 +10,7 @@ import { BrandWordmark } from "./brand-wordmark";
 export type { NavItem };
 
 const roleLabel: Record<string, string> = {
-  admin: "Admin / Ops",
+  admin: "Staff",
   advertiser: "Advertiser",
   driver: "Driver",
 };
@@ -48,7 +48,7 @@ export function AppShell({
           <SidebarNav items={nav} />
           <div className="border-edge mt-auto border-t p-4">
             <p className="truncate text-sm font-medium">{me.user.full_name}</p>
-            <p className="micro text-faint mt-0.5">{roleLabel[me.user.role] ?? me.user.role}</p>
+            <p className="micro text-faint mt-0.5">{roleLabel[me.user.role] ?? "Account"}</p>
             <SessionLogoutButton
               label="Sign out"
               className="text-muted hover:text-coral text-sm font-medium transition-colors"
@@ -93,7 +93,7 @@ export function AppShell({
               >
                 <p className="text-ink truncate text-sm font-medium">{me.user.full_name}</p>
                 <p className="micro text-faint mt-0.5 mb-4">
-                  {roleLabel[me.user.role] ?? me.user.role}
+                  {roleLabel[me.user.role] ?? "Account"}
                 </p>
                 <p className="text-ink mb-3 text-sm font-medium">Change password</p>
                 <ChangePasswordForm />

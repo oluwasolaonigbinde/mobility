@@ -108,7 +108,7 @@ describe("raise complaint actions", () => {
       apiError(404, "DRIVER_PROFILE_NOT_FOUND"),
       "Your account can't use Help right now. Sign in again, then try again.",
     ],
-    [apiError(401, "INVALID_TOKEN"), "Your session has ended. Sign in again, then try again."],
+    [apiError(401, "INVALID_TOKEN"), "You've been signed out. Sign in again, then try again."],
     [
       apiError(409, "COMPLAINT_REPLAY_CONFLICT"),
       "This was already sent with different details. Refresh the page to see it.",

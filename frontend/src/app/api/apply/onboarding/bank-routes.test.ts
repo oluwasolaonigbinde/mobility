@@ -82,7 +82,7 @@ it("preserves a denied account check as an error while redacting private backend
   expect(denied).toEqual({
     error: {
       code: "BANK_CHECK_INVALID",
-      message: "The request could not be completed. Check the details and try again.",
+      message: "That didn't work. Please try again.",
       details: {},
       request_id: "bank-denial-1",
     },

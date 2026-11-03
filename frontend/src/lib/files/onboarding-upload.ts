@@ -25,8 +25,7 @@ function assertActive(progress: DocumentUploadProgress) {
   if (progress.cancelled) throw new Error(CHOOSE_FILES_AGAIN);
 }
 
-const CODE_NOT_WORKING =
-  "This code doesn't work. It may be mistyped, expired or replaced. Get a new code on the first step. Already have sign-in details? Sign in.";
+const CODE_NOT_WORKING = "This link doesn't work any more. Ask for a new one on the Apply page.";
 const CHOOSE_FILES_AGAIN = "Please choose your files again, then send.";
 const CHECK_DETAILS = "Some details aren't right. Check what you typed, then send again.";
 
@@ -40,7 +39,7 @@ const APPLICANT_MESSAGES: Record<string, string> = {
   VEHICLE_ONBOARDING_AUTHORITY_INVALID: CODE_NOT_WORKING,
   FILE_SCOPE_NOT_FOUND: CODE_NOT_WORKING,
   PERSON_PAYEE_APPROVAL_REQUIRED:
-    "Wait until your ID and bank details are approved, then add your car. Check with your application reference on the first step.",
+    "Wait until your ID and bank details are approved, then add your car. We'll email you when it's time.",
   PERSON_PAYEE_RESUBMISSION_NOT_ALLOWED:
     "We already have your ID and bank details. You can send them again only if we ask for changes.",
   PERSON_PAYEE_RETRY_CONFLICT: CHECK_DETAILS,
@@ -64,7 +63,6 @@ export async function onboardingResponseJson<T>(response: Response): Promise<T> 
     const error = body && typeof body === "object" && "error" in body ? body.error : undefined;
     throw new Error(
       (error?.code ? APPLICANT_MESSAGES[error.code] : undefined) ||
-        error?.message ||
         "Something went wrong. Please try again.",
     );
   }

@@ -459,7 +459,9 @@ describe("NotificationCenter", () => {
     fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
     await screen.findByText("Trip verified");
     fireEvent.click(screen.getByRole("button", { name: "Mark read" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Read request failed");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not mark the notification as read.",
+    );
     expect(screen.getByText("Trip verified")).toBeVisible();
     expect(screen.getByRole("button", { name: /^notifications/i })).toHaveTextContent("1");
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
@@ -468,7 +470,7 @@ describe("NotificationCenter", () => {
     const email = screen.getByLabelText("Also send updates by email");
     fireEvent.click(email);
     await waitFor(() => expect(preferenceAttempts).toBe(1));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Preference request failed");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not save email preferences.");
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(preferenceAttempts).toBe(2));
   });

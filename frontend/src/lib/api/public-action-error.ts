@@ -8,7 +8,7 @@ const sharedMessages: Readonly<Record<string, string>> = {
 export function publicActionError(
   error: unknown,
   messages: Readonly<Record<string, string>> = {},
-  fallback = "The request could not be completed. Check the details and try again.",
+  fallback = "That didn't work. Please try again.",
 ): string {
   unstable_rethrow(error);
   // Never log backend text/details, submitted values, URLs or arbitrary error objects.

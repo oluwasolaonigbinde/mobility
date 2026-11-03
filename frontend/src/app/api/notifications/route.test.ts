@@ -108,7 +108,7 @@ describe("notification BFF routes", () => {
     expect(rejectedBody).toEqual({
       error: {
         code: "FORBIDDEN_ROLE",
-        message: "The request could not be completed. Check the details and try again.",
+        message: "That didn't work. Please try again.",
         details: {},
         request_id: "request-1",
       },

@@ -8,7 +8,7 @@ vi.mock("./actions", () => ({ requestPasswordResetAction }));
 import ForgotPasswordPage from "./page";
 
 const genericResponse =
-  "If an eligible account exists, reset instructions will be sent to its email address.";
+  "If that email has an account, we've sent a link to reset your password. Check your inbox.";
 
 describe("password reset request page", () => {
   beforeEach(() => requestPasswordResetAction.mockReset());

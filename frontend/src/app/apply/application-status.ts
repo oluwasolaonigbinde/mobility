@@ -4,7 +4,7 @@ export interface ApplicationStagePresentation {
   tone: "text-green" | "text-amber" | "text-coral" | "text-muted";
 }
 
-const SEND_WITH_CODE = "Send this step with the code from your email, or get a new code below.";
+const SEND_WITH_CODE = "Use the link in your email to send this step, or ask for a new link below.";
 
 const STAGES: Record<string, ApplicationStagePresentation> = {
   not_submitted: {

@@ -46,7 +46,7 @@ describe("completeDriverAccountSetupAction", () => {
     const result = await completeDriverAccountSetupAction({}, setupForm());
 
     expect(result).toEqual({
-      error: "This setup action is invalid, expired, or already used.",
+      error: "This link has expired or has already been used.",
     });
     expect(JSON.stringify(result)).not.toContain("application 42");
     expect(JSON.stringify(result)).not.toContain("token row 7");

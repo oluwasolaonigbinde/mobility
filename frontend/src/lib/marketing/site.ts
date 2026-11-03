@@ -136,7 +136,7 @@ export const HOW_IT_WORKS = {
       n: "01",
       title: "Plan the campaign",
       /** PRODUCT STEPS 01 — quotation is built per campaign; areas and vehicles are chosen. */
-      body: "Define the audience, the areas, the vehicles and the length of the campaign.",
+      body: "Choose the areas, the cars and the length of the campaign.",
     },
     {
       n: "02",
@@ -153,7 +153,7 @@ export const HOW_IT_WORKS = {
        */
       title: "Move and report",
       /** PRODUCT REPORT — a Campaign Performance Analysis is standard for every campaign. */
-      body: "The campaign travels the city with its vehicles, and you receive a campaign report when it ends.",
+      body: "The campaign travels the city with its vehicles, and you receive weekly and final reports.",
     },
   ] as const satisfies readonly Step[],
 } as const;
@@ -204,7 +204,7 @@ export const CARDVERT = {
    * separate company or a campaign format. The design page framed it as the
    * campaign product; this states what it actually is.
    */
-  lead: "Cardvert is the Terrax Media platform. Brands plan a campaign in it, approved drivers run their campaign time through it, and a single vehicle or a coordinated fleet becomes part of the streets, neighbourhoods and daily journeys that shape attention.",
+  lead: "Cardvert is the Terrax Media platform. Brands plan a campaign in it, approved drivers run their jobs through it, and a single vehicle or a coordinated fleet becomes part of the streets, neighbourhoods and daily journeys that shape attention.",
   imageAlt:
     "Illustration of three unbranded vehicles travelling a shared city corridor, with their routes drawn as dashed lines across a simplified street grid.",
   cards: [
