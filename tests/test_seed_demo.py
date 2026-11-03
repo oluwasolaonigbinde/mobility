@@ -1711,6 +1711,7 @@ def test_seed_business_ownership_and_applicant_financial_separation(
     postgis_db_client,
     settings,
     monkeypatch,
+    seed_private_storage,
 ):
     import json
 
@@ -2079,6 +2080,90 @@ def test_seed_business_ownership_and_applicant_financial_separation(
             return campaigns
 
     campaigns = asyncio.run(check())
+
+    async def approve_preview_car():
+        from app.models.kyc import VehicleEvidenceDocument, VehicleEvidenceSubmission
+        from app.schemas.driver_onboarding import VehicleReviewDecisionCreate
+        from app.services.stored_files import issue_admin_file_download
+        from app.services.vehicle_onboarding import review_application_vehicle
+        from app.services.vehicles import list_admin_vehicles
+
+        async with postgis_db_sessionmaker() as session:
+            rows, total = await list_admin_vehicles(
+                session,
+                limit=100,
+                offset=0,
+                vehicle_status="pending",
+                vehicle_type=None,
+                plate_country_code=None,
+                driver_profile_id=None,
+            )
+            assert total == 1 and rows[0][0].plate_number == "ABJ-603-MR"
+            car = rows[0][0]
+            submission = await session.scalar(
+                select(VehicleEvidenceSubmission).where(
+                    VehicleEvidenceSubmission.vehicle_id == car.id
+                )
+            )
+            assert submission.status == "pending_review"
+            reviewer = await session.scalar(
+                select(User).where(User.role == "admin", User.status == "active").order_by(User.id)
+            )
+            application = await session.scalar(
+                select(DriverApplication).where(
+                    DriverApplication.driver_profile_id == car.driver_profile_id
+                )
+            )
+            documents = list(
+                await session.scalars(
+                    select(VehicleEvidenceDocument).where(
+                        VehicleEvidenceDocument.submission_id == submission.id
+                    )
+                )
+            )
+            assert len(documents) == 3
+            for document in documents:
+                stored = await session.get(StoredFile, document.stored_file_id)
+                assert (
+                    seed_private_storage.contents[stored.storage_key]
+                    == (
+                        Path(__file__).parents[1] / "app/seeds/assets" / stored.original_filename
+                    ).read_bytes()
+                )
+                download = await issue_admin_file_download(
+                    session,
+                    actor_user_id=reviewer.id,
+                    file_id=stored.id,
+                    access_purpose="kyc_review",
+                    reason=f"vehicle_approval:{submission.id}",
+                    storage=seed_private_storage,
+                    settings=settings,
+                )
+                assert download.url
+            settings.email_provider = ""
+            view = await review_application_vehicle(
+                session,
+                settings=settings,
+                application_id=application.id,
+                vehicle_id=car.id,
+                submission_id=submission.id,
+                actor_user_id=reviewer.id,
+                payload=VehicleReviewDecisionCreate(
+                    client_request_id=uuid4(),
+                    decision="approved",
+                    reason_code="complete_current_evidence",
+                    owner_match_confirmed=True,
+                    vehicle_identity_confirmed=True,
+                    roadworthy_confirmed=True,
+                    pilot_car_confirmed=True,
+                    documents_readable_confirmed=True,
+                    valid_until=datetime.now(UTC) + timedelta(days=90),
+                ),
+            )
+            assert view.submission.status == "approved"
+            await session.commit()
+
+    asyncio.run(approve_preview_car())
     headers = auth_headers(
         postgis_db_client, graph.advertiser.email, DEMO_PASSWORDS[graph.advertiser.email]
     )

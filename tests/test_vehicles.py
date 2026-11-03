@@ -358,3 +358,20 @@ def test_advertiser_and_unauthenticated_users_are_rejected_from_vehicle_endpoint
     assert advertiser_response.json()["error"]["code"] == "FORBIDDEN_ROLE"
     assert unauthenticated_response.status_code == http_status.HTTP_401_UNAUTHORIZED
     assert unauthenticated_response.json()["error"]["code"] == "AUTHENTICATION_REQUIRED"
+
+
+def test_legacy_pending_car_is_in_review_list_and_badge(db_client, db_sessionmaker):
+    create_test_user(db_sessionmaker, email="legacy-staff@example.test", password=PASSWORD)
+    _, profile = create_driver_with_profile(db_sessionmaker, "legacy-driver@example.test")
+    car = create_test_vehicle(
+        db_sessionmaker, driver_profile_id=profile.id, vehicle_status=VehicleStatus.PENDING
+    )
+    headers = auth_headers(db_client, "legacy-staff@example.test", PASSWORD)
+    queue = db_client.get("/api/v1/admin/vehicles?status=pending", headers=headers).json()
+    assert queue["total"] == 1 and [row["id"] for row in queue["items"]] == [str(car.id)]
+    assert (
+        db_client.get("/api/v1/admin/badge-summary", headers=headers).json()["source_counts"][
+            "cars"
+        ]
+        == 1
+    )

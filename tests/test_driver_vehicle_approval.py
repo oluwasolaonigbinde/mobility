@@ -733,6 +733,16 @@ def test_rejected_vehicle_can_resubmit_as_a_new_immutable_revision(
     )
     assert rejected.status_code == 200
     assert rejected.json()["status"] == "rejected"
+    headers = auth_headers(db_client, admin.email, PASSWORD)
+    assert (
+        db_client.get("/api/v1/admin/vehicles?status=pending", headers=headers).json()["total"] == 0
+    )
+    assert (
+        db_client.get("/api/v1/admin/badge-summary", headers=headers).json()["source_counts"][
+            "cars"
+        ]
+        == 0
+    )
     token = _current_access_token(db_sessionmaker, settings, application)
     resubmitted = db_client.post(
         "/api/v1/auth/driver-onboarding/vehicle",
@@ -762,6 +772,14 @@ def test_rejected_vehicle_can_resubmit_as_a_new_immutable_revision(
             )
 
     assert asyncio.run(statuses()) == ["rejected", "pending_review"]
+    queue = db_client.get("/api/v1/admin/vehicles?status=pending", headers=headers).json()
+    assert [row["id"] for row in queue["items"]] == [submitted["vehicle_id"]]
+    assert (
+        db_client.get("/api/v1/admin/badge-summary", headers=headers).json()["source_counts"][
+            "cars"
+        ]
+        == 1
+    )
 
 
 def test_applicant_car_list_shows_only_their_own_cars_by_plate(

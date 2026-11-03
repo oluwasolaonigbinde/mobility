@@ -574,6 +574,8 @@ it.each([
   ["rejected", false, "pending_review", "Next: wait for the driver to send new details."],
   ["approved", false, "pending_review", "Next: check bank details."],
   ["approved", true, "pending_review", "Next: check the car and its documents."],
+  ["approved", true, "expired", "Next: wait for the driver to send new car documents."],
+  ["approved", true, "rejected", "Next: wait for the driver to send new car documents."],
   ["approved", true, "approved", "Next: complete sign-in setup."],
 ])(
   "prioritizes %s documents, bank %s, car %s before invited sign-in",
@@ -677,3 +679,20 @@ it.each(["active", "disabled", "suspended", "invited"])(
     ).toBe(status === "active");
   },
 );
+
+it.each([
+  ["suspended", "approved", "Suspended"],
+  ["pending", "expired", "Expired"],
+])("keeps car %s and evidence %s truthful", async (status, evidence, label) => {
+  reads({ app: { ...application, vehicle: { ...application.vehicle, status: evidence } } });
+  const normal = mocks.get.getMockImplementation()!;
+  mocks.get.mockImplementation(async (path, opts) =>
+    path.endsWith("/vehicles")
+      ? { data: { items: [{ id: "car", plate_number: "ABJ-TEST", status }], total: 1 } }
+      : normal(path, opts),
+  );
+  render(await DriverHub({ driverId }));
+  expect(
+    within(screen.getByRole("heading", { name: "ABJ-TEST" }).parentElement!).getByText(label),
+  ).toBeVisible();
+});

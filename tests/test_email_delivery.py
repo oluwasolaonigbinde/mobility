@@ -889,3 +889,42 @@ def test_email_service_adapter_failures_clear_claim_and_respect_attempt_cap(
                 assert stored.delivery_claim_expires_at is None
 
     asyncio.run(run())
+
+
+def test_review_email_missing_user_after_claim_fails_without_sending(settings, monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.services import email_delivery
+
+    token = uuid4()
+    notice = SimpleNamespace(
+        id=uuid4(),
+        recipient_user_id=uuid4(),
+        payload={},
+        type_key="driver_id_approved",
+        delivery_claim_token=token,
+        attempt_count=1,
+    )
+    session = AsyncMock()
+    session.get.return_value = None
+    session.scalar.return_value = notice
+    context = MagicMock()
+    context.__aenter__ = AsyncMock(return_value=session)
+    context.__aexit__ = AsyncMock(return_value=False)
+    monkeypatch.setattr(
+        email_delivery, "_claim", AsyncMock(return_value=(token, notice, "driver@example.test"))
+    )
+    adapter = RecordingEmailAdapter()
+    result = asyncio.run(
+        process_email_notification(
+            lambda: context,
+            notification_id=notice.id,
+            settings=settings,
+            email_adapter=adapter,
+            now=datetime.now(UTC),
+        )
+    )
+    assert result == "failed" and adapter.messages == []
+    assert notice.last_error_code == "driver_review_inactive"
+    session.commit.assert_awaited_once()

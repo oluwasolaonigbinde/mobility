@@ -748,12 +748,8 @@ async def _ensure_applicant_review(session, *, application, person, stage, staff
 async def _ensure_applicant_vehicle(session, *, application, person, token, staff, settings, clock):
     from app.schemas.driver_onboarding import (
         ApplicantVehicleSubmissionCreate,
-        VehicleReviewDecisionCreate,
     )
-    from app.services.driver_account_setup import initiate_driver_account_setup
-    from app.services.stored_files import issue_admin_file_download
     from app.services.vehicle_onboarding import (
-        review_application_vehicle,
         submit_application_vehicle,
     )
 
@@ -791,46 +787,7 @@ async def _ensure_applicant_vehicle(session, *, application, person, token, staf
     )
     if view.submission is None:
         raise ValueError("Expected demo vehicle submission is missing")
-    clock[0] += timedelta(hours=1)
-    for file_id in files.values():
-        await issue_admin_file_download(
-            session,
-            actor_user_id=staff[3].id,
-            file_id=file_id,
-            access_purpose="kyc_review",
-            reason=f"vehicle_approval:{view.submission.id}",
-            storage=build_storage_provider(settings),
-            settings=settings,
-        )
-    await review_application_vehicle(
-        session,
-        settings=settings,
-        application_id=application.id,
-        vehicle_id=view.submission.vehicle_id,
-        submission_id=view.submission.id,
-        actor_user_id=staff[3].id,
-        payload=VehicleReviewDecisionCreate(
-            client_request_id=uuid5(application.id, "vehicle-review"),
-            decision=KycSubmissionStatus.APPROVED,
-            reason_code=VehicleReviewReason.COMPLETE_CURRENT_EVIDENCE,
-            owner_match_confirmed=True,
-            vehicle_identity_confirmed=True,
-            roadworthy_confirmed=True,
-            pilot_car_confirmed=True,
-            documents_readable_confirmed=True,
-            valid_until=datetime.now(UTC) + timedelta(days=90),
-        ),
-    )
-    from app.adapters.messaging.email import email_is_available
-
-    if email_is_available(settings):
-        await initiate_driver_account_setup(
-            session,
-            application_id=application.id,
-            actor_user_id=staff[3].id,
-            client_request_id=uuid5(application.id, "account-setup"),
-            settings=settings,
-        )
+    # Leave exactly one current car submission for staff to review in the preview.
 
 
 async def ensure_primary_demo_documents(session, *, driver, profile, vehicle, reviewer, settings):

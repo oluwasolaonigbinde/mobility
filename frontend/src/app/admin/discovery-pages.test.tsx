@@ -217,3 +217,10 @@ it("Applicants includes applications and staff-added pending profiles in one pag
     "/admin/drivers?tab=applicants&q=Pending&offset=0",
   );
 });
+
+it("names an empty car approval queue correctly", async () => {
+  mocks.get.mockResolvedValue({ data: { items: [], total: 0 } });
+  render(await AdminDriversPage(props({ source: "cars" })));
+  expect(screen.getByText("No cars to approve.")).toBeVisible();
+  expect(screen.queryByText("No drivers recorded.")).not.toBeInTheDocument();
+});

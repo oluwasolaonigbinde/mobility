@@ -374,3 +374,12 @@ const otherActions: Record<string, string> = {
 export function adminActivity(action: string): string {
   return actions[action] ?? otherActions[action] ?? "Activity recorded";
 }
+
+export function adminActor(email: string | null | undefined, name?: string | null): string {
+  if (
+    email === "report-automation@cardvert.invalid" ||
+    email === "automatic-payouts@cardvert.invalid"
+  )
+    return "System";
+  return name ?? email ?? "System";
+}

@@ -125,7 +125,9 @@ export default async function DriversPage({
                   ? "No matching drivers."
                   : applicants
                     ? "No applicants waiting."
-                    : "No drivers recorded."}
+                    : cars
+                      ? "No cars to approve."
+                      : "No drivers recorded."}
             </p>
           ) : (
             <div className="grid gap-3">

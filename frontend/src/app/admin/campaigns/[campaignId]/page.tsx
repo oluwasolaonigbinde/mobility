@@ -11,7 +11,7 @@ import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
-import { adminActivity, adminStatus, adminTone } from "@/lib/status/admin";
+import { adminActor, adminActivity, adminStatus, adminTone } from "@/lib/status/admin";
 import { formatDate, formatDateRange, formatMoneyExact } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -631,7 +631,7 @@ export default async function CampaignHub({
                 activity.data.items.map((event) => (
                   <p className="mb-2 text-sm" key={event.id}>
                     {formatDate(event.created_at)} · {adminActivity(event.action)} ·{" "}
-                    {activityNames.get(event.actor_user_id ?? "") ?? event.actor_email ?? "System"}
+                    {adminActor(event.actor_email, activityNames.get(event.actor_user_id ?? ""))}
                   </p>
                 ))
               )}

@@ -191,3 +191,10 @@ it("labels the literal action codes written by application flows", () => {
   ])
     expect(adminActivity(code), code).not.toBe("Activity recorded");
 });
+import { adminActor } from "./admin";
+it("maps automation actors consistently while keeping human names and addresses", () => {
+  expect(adminActor("report-automation@cardvert.invalid", "Report automation")).toBe("System");
+  expect(adminActor("automatic-payouts@cardvert.invalid")).toBe("System");
+  expect(adminActor("staff@example.test", "Ada")).toBe("Ada");
+  expect(adminActor("staff@example.test")).toBe("staff@example.test");
+});

@@ -1,3 +1,4 @@
+import { adminActor } from "@/lib/status/admin";
 import { adminValueFailure } from "@/lib/api/admin-read";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -319,7 +320,7 @@ export default async function CompanyHub({
                   {activity.items.map((event) => (
                     <li key={event.id}>
                       <p>
-                        {event.actor_email ?? "System"} · {adminActivity(event.action)} ·{" "}
+                        {adminActor(event.actor_email)} · {adminActivity(event.action)} ·{" "}
                         {formatDate(event.created_at)}
                       </p>
                     </li>

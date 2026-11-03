@@ -7,7 +7,7 @@ import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
-import { adminActivity, adminStatus, adminTone } from "@/lib/status/admin";
+import { adminActor, adminActivity, adminStatus, adminTone } from "@/lib/status/admin";
 import { formatDate, formatMoneyExact } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -205,6 +205,14 @@ export default async function DriverHub({
   const account = accounts.data?.items.find((u) => u.id === userId);
   const p = documents.data?.person_payee;
   const v = application?.vehicle;
+  const carStatus = (car: { id: string; status: string }) => {
+    const evidenceStatus = documents.data?.vehicles?.find(
+      (row) => row.vehicle_id === car.id,
+    )?.status;
+    return car.status === "pending" && evidenceStatus !== "approved"
+      ? (evidenceStatus ?? car.status)
+      : car.status;
+  };
   const status = driver?.onboarding_status ?? application!.status;
   // Sign-in setup is the next step only after every review is finished.
   const next =
@@ -216,13 +224,15 @@ export default async function DriverHub({
           ? "Next: review identity documents."
           : application && !p?.bank_account_verified
             ? "Next: check bank details."
-            : application && v?.status !== "approved"
-              ? "Next: check the car and its documents."
-              : account?.status === "invited"
-                ? "Next: complete sign-in setup."
-                : status === "pending"
-                  ? "Next: review this driver's status."
-                  : null;
+            : v?.status === "expired" || v?.status === "rejected"
+              ? "Next: wait for the driver to send new car documents."
+              : application && v?.status !== "approved"
+                ? "Next: check the car and its documents."
+                : account?.status === "invited"
+                  ? "Next: complete sign-in setup."
+                  : status === "pending"
+                    ? "Next: review this driver's status."
+                    : null;
   const selectedTrip = query.trip
     ? trips.data?.items.find((t) => t.trip_session_id === query.trip)
     : undefined;
@@ -414,15 +424,7 @@ export default async function DriverHub({
                       <div>
                         <h3 className="font-medium">{car.plate_number}</h3>
                         <p className="text-muted text-sm">
-                          {[
-                            car.make,
-                            car.model,
-                            car.color,
-                            adminStatus(
-                              documents.data?.vehicles?.find((row) => row.vehicle_id === car.id)
-                                ?.status ?? car.status,
-                            ),
-                          ]
+                          {[car.make, car.model, car.color, adminStatus(carStatus(car))]
                             .filter(Boolean)
                             .join(" · ")}
                         </p>
@@ -691,7 +693,7 @@ export default async function DriverHub({
                   activity.data?.items.map((event) => (
                     <p className="mb-2 text-sm" key={event.id}>
                       {formatDate(event.created_at)} · {adminActivity(event.action)} ·{" "}
-                      {event.actor_email ?? "System"}
+                      {adminActor(event.actor_email)}
                     </p>
                   ))
                 )}
