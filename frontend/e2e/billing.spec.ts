@@ -45,7 +45,7 @@ test("admin can discover campaign commercial billing", async ({ page }) => {
     .getByRole("link", { name: /^Money/ })
     .click();
   await expect(page.getByRole("heading", { name: "Money", exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Invoices & payments", exact: true }).click();
+  await page.getByRole("link", { name: "Invoices", exact: true }).click();
   await page.getByRole("link", { name: "Marula Kitchens — Abuja Lunch Routes" }).click();
   await page.waitForURL(/\/campaigns\/[a-f0-9-]{36}/);
   await expect(page.getByRole("heading", { name: "Quotation" })).toBeVisible();
@@ -92,7 +92,7 @@ test("advertiser sees canonical company, billing and accepted terms", async ({ p
     quotationSection.getByRole("heading", { name: "Quotation and payments" }),
   ).toBeVisible();
   await expect(quotationSection.getByText("Accepted", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Accepted quotation receipt")).toBeVisible();
+  await expect(page.getByLabel("Accepted quotation")).toBeVisible();
   await expect(page.getByRole("button", { name: "Request custom quotation" })).not.toBeVisible();
   // D128 keeps invoices in Billing; D129 retains the campaign's Booked summary.
   await expect(page.getByRole("heading", { name: /^Booked:/ })).toBeVisible();
@@ -143,7 +143,7 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
   await page.getByLabel("Campaign end date").fill("2026-10-31");
   await page.getByLabel("Vehicle count").fill("2");
   await page.getByLabel("Payment terms and supporting notes").fill("Payment before production");
-  await page.getByRole("button", { name: "Save quotation version" }).click();
+  await page.getByRole("button", { name: "Save quotation" }).click();
   await expect(page.getByText(new RegExp(quoteReference))).toBeVisible();
 
   await page.context().clearCookies();
@@ -173,13 +173,13 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
   await expect(acceptance).toBeVisible();
   await acceptance.check();
   await page.getByRole("button", { name: "Accept these exact terms" }).click();
-  const acceptedReceipt = page.getByLabel("Accepted quotation receipt");
+  const acceptedReceipt = page.getByLabel("Accepted quotation");
   await expect(acceptedReceipt).toContainText(quoteReference);
   await expect(acceptedReceipt.getByText("Accepted and fixed", { exact: true })).toBeVisible();
   const acceptedText = await acceptedReceipt.innerText();
   await page.reload();
   await openCampaignDetails(page);
-  await expect(page.getByLabel("Accepted quotation receipt")).toHaveText(acceptedText, {
+  await expect(page.getByLabel("Accepted quotation")).toHaveText(acceptedText, {
     useInnerText: true,
   });
 

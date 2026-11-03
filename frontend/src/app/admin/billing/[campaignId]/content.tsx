@@ -104,7 +104,7 @@ export default async function AdminCampaignBillingPage({
         className="mb-4 inline-block underline"
         href={`/admin/campaigns/${campaignId}?drawer=closeout#money`}
       >
-        Review settlement and payout position
+        See money summary
       </Link>
       {notice.error ? <p className="text-coral mb-4 text-sm">{notice.error}</p> : null}
       <div className="grid gap-6 lg:grid-cols-2">
@@ -125,9 +125,7 @@ export default async function AdminCampaignBillingPage({
             <dl className="space-y-3 text-sm">
               <div>
                 <dt className="micro text-muted">Reference</dt>
-                <dd>
-                  {latest.quote_reference} · version {latest.revision_number}
-                </dd>
+                <dd>{latest.quote_reference}</dd>
               </div>
               <div>
                 <dt className="micro text-muted">Net</dt>
@@ -279,7 +277,7 @@ export default async function AdminCampaignBillingPage({
                 defaultValue={latest ? String(latest.payment_terms.notes ?? "") : undefined}
                 required
               />
-              <Button type="submit">Save quotation version</Button>
+              <Button type="submit">Save quotation</Button>
             </QuotationForm>
           ) : !latest && !commercial.terms ? (
             <p className="text-muted text-sm">The advertiser has not requested a quotation.</p>
@@ -339,7 +337,7 @@ export default async function AdminCampaignBillingPage({
                     required
                   />
                   <div className="grid grid-cols-2 gap-4">
-                    <Field name="observed_amount" label="Observed amount" required />
+                    <Field name="observed_amount" label="Amount received" required />
                     <Field
                       name="expected_amount"
                       label="Expected amount"
@@ -348,7 +346,7 @@ export default async function AdminCampaignBillingPage({
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <Field name="allocation_amount" label="Allocation amount (optional)" />
+                    <Field name="allocation_amount" label="Amount for this campaign (optional)" />
                     <Field
                       name="currency"
                       label="Currency"
@@ -357,7 +355,7 @@ export default async function AdminCampaignBillingPage({
                     />
                   </div>
                   <Field name="payer_name" label="Payer name" required />
-                  <Field name="evidence_reference" label="Evidence reference" required />
+                  <Field name="evidence_reference" label="Proof of payment reference" required />
                   <Button type="submit">Check and record transfer</Button>
                 </form>
               </>
@@ -512,7 +510,7 @@ export default async function AdminCampaignBillingPage({
                   </p>
                 </div>
                 <StatusChip tone={receiptEntry.current_status === "reversed" ? "coral" : "green"}>
-                  {receiptEntry.current_status ?? "observed"}
+                  {adminStatus(receiptEntry.current_status ?? "recorded", "receipt")}
                 </StatusChip>
               </div>
               {receiptEntry.current_status !== "reversed" ? (
@@ -541,11 +539,11 @@ export default async function AdminCampaignBillingPage({
                   className="mt-5 grid gap-3 md:grid-cols-2"
                 >
                   <Field name="amount" label="Refund amount" required />
-                  <Field name="settlement_provider" label="Settlement provider" required />
-                  <Field name="external_reference" label="External settlement reference" required />
+                  <Field name="settlement_provider" label="Paid back through" required />
+                  <Field name="external_reference" label="Reference" required />
                   <Field name="reason" label="Settlement reason" required />
                   <div className="md:col-span-2">
-                    <Button type="submit">Record refund settlement</Button>
+                    <Button type="submit">Record refund</Button>
                   </div>
                 </form>
               )}
@@ -576,7 +574,8 @@ export default async function AdminCampaignBillingPage({
                     {settlement.reason} · {formatDate(settlement.recorded_at)}
                   </p>
                   <p className="micro text-muted mt-1">
-                    {settlement.settlement_provider} · {settlement.external_reference}
+                    {settlement.settlement_provider === "bank_transfer" ? "Bank transfer" : "Other"}{" "}
+                    · {settlement.external_reference}
                   </p>
                 </div>
                 <p className="font-mono text-sm">
@@ -593,12 +592,7 @@ export default async function AdminCampaignBillingPage({
           <Panel className="p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="font-display text-xl font-semibold">
-                  Funding and permission to start production
-                </h2>
-                <p className="micro text-muted mt-1">
-                  The amount owed to drivers is separate from the advertiser price.
-                </p>
+                <h2 className="font-display text-xl font-semibold">Payment and production start</h2>
               </div>
               <StatusChip
                 tone={
@@ -648,9 +642,8 @@ export default async function AdminCampaignBillingPage({
             {commercial.financial_authority && !commercial.production_start ? (
               <div className="mt-5">
                 <p className="text-muted mb-3 text-sm">
-                  Pay-before-production campaigns start after the full 24-hour waiting period,
-                  unless the advertiser’s recorded permission for an earlier start is supplied. The
-                  server rechecks the boundary.
+                  Production starts after the 24-hour wait, unless the advertiser agreed to start
+                  earlier.
                 </p>
                 <form
                   action={recordProductionStartAction.bind(

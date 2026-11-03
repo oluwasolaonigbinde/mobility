@@ -26,7 +26,7 @@ export const dailyRateFormSchema = z.object({
       "The start must be in the future — past days change only through a correction",
     )
     .transform((v) => new Date(v).toISOString()),
-  reason: z.string().trim().min(1, "A reason is required — it is recorded in the audit trail"),
+  reason: z.string().trim().min(1, "A reason is required"),
 });
 
 export type DailyRateFormValues = z.infer<typeof dailyRateFormSchema>;

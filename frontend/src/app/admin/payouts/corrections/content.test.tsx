@@ -83,4 +83,39 @@ describe("selected pay corrections", () => {
     expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(mocks.actions).not.toHaveBeenCalled();
   });
+  it("keeps per-trip amounts and links while hiding raw calculation data", async () => {
+    const tripId = "11111111-1111-4111-8111-111111111111";
+    const driverId = "22222222-2222-4222-8222-222222222222";
+    mocks.get
+      .mockResolvedValueOnce({ data: { items: [], total: 0 } })
+      .mockResolvedValueOnce({
+        data: {
+          ...order,
+          projected_delta: {
+            fingerprint: "internal-hash",
+            trips: [
+              {
+                trip_session_id: tripId,
+                driver_profile_id: driverId,
+                previous_posted_amount: "10.00",
+                target_amount: "12.00",
+                delta_amount: "2.00",
+                currency: "NGN",
+              },
+            ],
+          },
+        },
+      })
+      .mockResolvedValueOnce({ data: { id: "campaign", name: "Named campaign" } });
+    render(await Content({ query: { tab: "corrections", correction: "selected" } }));
+    expect(screen.getByRole("link", { name: "Trip 1" })).toHaveAttribute(
+      "href",
+      `/admin/drivers/${driverId}?trip=${tripId}#trips-and-pay`,
+    );
+    const rows = screen.getByRole("list", { name: "Trip pay changes" });
+    expect(rows).toHaveTextContent("Current: ₦10.00 · Correct: ₦12.00");
+    expect(rows).toHaveTextContent("Change: ₦2.00");
+    expect(rows).not.toHaveTextContent(/trip_session_id|internal-hash/);
+    expect(screen.queryByText("Recorded calculation details")).not.toBeInTheDocument();
+  });
 });

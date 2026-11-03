@@ -122,7 +122,7 @@ export default async function Invoices({ query }: { query: MoneyQuery }) {
                 {campaign.organization.name} · {adminStatus(invoiceState(invoice), "invoice")} ·{" "}
                 {formatMoneyExact(invoice.effective_obligation_amount, invoice.currency)}
               </p>
-              <p>Recorded funding: {formatMoneyExact(invoice.funded_amount, invoice.currency)}</p>
+              <p>Paid: {formatMoneyExact(invoice.funded_amount, invoice.currency)}</p>
             </li>
           ))}
         </ul>

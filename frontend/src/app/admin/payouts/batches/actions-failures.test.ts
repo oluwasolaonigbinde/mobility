@@ -39,12 +39,12 @@ describe("payout action failure paths", () => {
     mocks.post.mockRejectedValueOnce(new Error("lost response"));
     const form = adjustment();
     expect(await negativeAdjustmentAction({}, form)).toEqual({
-      error: "No result was confirmed. Retry the same adjustment or check the ledger.",
+      error: "We couldn't confirm this. Check the trip's pay before trying again.",
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
     mocks.post.mockResolvedValueOnce({ data: { id: version } });
     expect(await negativeAdjustmentAction({}, form)).toEqual({
-      done: "Negative adjustment recorded. Other trips' pay is unchanged.",
+      done: "Deduction recorded.",
     });
     expect(mocks.post.mock.calls[0]).toEqual(mocks.post.mock.calls[1]);
     expect(mocks.post).toHaveBeenLastCalledWith(
@@ -72,13 +72,13 @@ describe("payout action failure paths", () => {
 
   it("refuses an invalid preview selection before calling the server", async () => {
     expect(await previewSelectionAction("ngn", [entry])).toEqual({
-      error: "Select available credits in one currency.",
+      error: "Select payments in one currency.",
     });
     expect(await previewSelectionAction("NGN", [])).toEqual({
-      error: "Select available credits in one currency.",
+      error: "Select payments in one currency.",
     });
     expect(await previewSelectionAction("NGN", ["not-a-uuid"])).toEqual({
-      error: "Select available credits in one currency.",
+      error: "Select payments in one currency.",
     });
     expect(mocks.batchApi).not.toHaveBeenCalled();
   });
@@ -88,26 +88,27 @@ describe("payout action failure paths", () => {
       new ApiError(409, { code: "PAYOUT_ENTRY_HELD", message: "internal hold detail" }),
     );
     expect(await previewSelectionAction("NGN", [entry])).toEqual({
-      error: "A selected credit is now held for review. Refresh available earnings.",
+      error: "A selected payment is now on hold. Refresh the list.",
     });
     mocks.batchApi.mockRejectedValueOnce(new Error("socket hang up"));
     expect(await previewSelectionAction("NGN", [entry])).toEqual({
-      error: "Selection could not be verified. Refresh available earnings.",
+      error: "Refresh the list and select again.",
     });
   });
 
   it("keeps the current line authoritative when polling fails or input is invalid", async () => {
     const invalid = new FormData();
     invalid.set("line_id", "line");
-    expect(await pollLineAction({}, invalid)).toEqual({ error: "Invalid selected payment" });
+    expect(await pollLineAction({}, invalid)).toEqual({
+      error: "Something went wrong. Refresh and try again.",
+    });
 
     mocks.batchApi.mockRejectedValueOnce(new Error("timeout"));
     const form = new FormData();
     form.set("reason", "Staff payment review");
     form.set("line_id", entry);
     expect(await pollLineAction({}, form)).toEqual({
-      error:
-        "No verified result could be confirmed. The current payment status remains authoritative.",
+      error: "No confirmed payment result yet.",
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
@@ -117,7 +118,7 @@ describe("payout action failure paths", () => {
       data: { bank_code: "058", account_number: "0123456789", account_name: "Ada" },
     });
     const result = await maskedDestinationAction(version);
-    expect(result).toEqual({ mask: "Bank 058 · account ending 6789" });
+    expect(result).toEqual({ mask: "GTBank · account ending 6789" });
     expect(JSON.stringify(result)).not.toContain("0123456789");
     expect(JSON.stringify(result)).not.toContain("Ada");
     expect(mocks.post).toHaveBeenCalledWith(
@@ -131,13 +132,13 @@ describe("payout action failure paths", () => {
 
   it("refuses invalid, missing, forbidden and unavailable destination reviews", async () => {
     expect(await maskedDestinationAction("version")).toEqual({
-      error: "Select a verified destination.",
+      error: "Select a checked bank account.",
     });
     expect(mocks.post).not.toHaveBeenCalled();
 
     mocks.post.mockResolvedValueOnce({ data: undefined });
     expect(await maskedDestinationAction(version)).toEqual({
-      error: "Destination could not be verified.",
+      error: "We couldn't check this bank account.",
     });
 
     mocks.post.mockRejectedValueOnce(
@@ -149,7 +150,7 @@ describe("payout action failure paths", () => {
 
     mocks.post.mockRejectedValueOnce(new ApiError(500, { code: "INTERNAL", message: "boom" }));
     expect(await maskedDestinationAction(version)).toEqual({
-      error: "Destination details are unavailable. No payment has been authorized.",
+      error: "Bank details can't be shown. Nothing was approved.",
     });
   });
 });

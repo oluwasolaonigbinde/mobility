@@ -58,24 +58,28 @@ describe("automatic payout copy helpers", () => {
     expect(alertDetail(alert("daily_limit", { rates_differ: true }))).toMatch(
       /different day rates/,
     );
-    expect(alertDetail(alert("daily_limit", { other_pay_type_same_day: true }))).toMatch(/hourly/);
+    expect(alertDetail(alert("daily_limit", { other_pay_type_same_day: true }))).toMatch(
+      /another type of pay/,
+    );
     expect(alertDetail(alert("daily_limit", { earned: "9000.00", ceiling: "8000.00" }))).toBe(
       "Earned ₦9000.00 against a day rate of ₦8000.00.",
     );
     expect(alertDetail(alert("daily_limit", {}))).toBeNull();
     expect(alertDetail(alert("run_failed", { reason: "provider_unavailable" }))).toMatch(
-      /No payment provider/,
+      /Payouts aren't connected/,
     );
-    expect(alertDetail(alert("run_failed", { reason: "actor_changed" }))).toMatch(/identity/);
+    expect(alertDetail(alert("run_failed", { reason: "actor_changed" }))).toMatch(
+      /payout account settings/,
+    );
     expect(alertDetail(alert("failed_payment", {}))).toBeNull();
   });
 });
 
 describe("business-health Finance alerts", () => {
   it("shows allowlisted checks and bounded counts without exposing arbitrary detail", () => {
-    expect(alertLabel("business_health")).toBe("Business health needs attention");
+    expect(alertLabel("business_health")).toBe("System check needs attention");
     expect(alertDetail(alert("business_health", { check: "stale_trips", count: 3 }))).toContain(
-      "Trips need an evidence or activity review (3)",
+      "Some trips need checking (3)",
     );
     expect(
       alertDetail(alert("business_health", { check: "stuck_payouts", count: 1000 })),
@@ -87,8 +91,18 @@ describe("business-health Finance alerts", () => {
       {},
     ]) {
       expect(alertDetail(alert("business_health", detail))).toBe(
-        "Check the affected payments and resolve the issue.",
+        detail.check === "stale_trips" ? "Review the affected trips." : "Please look into this.",
       );
     }
   });
+});
+
+it.each([
+  ["email_failures", /email delivery settings/],
+  ["gps_rejections", /location updates/],
+  ["partition_coverage", /location storage/],
+])("gives relevant advice for %s", (check, advice) => {
+  const text = alertDetail(alert("business_health", { check, count: 1 }));
+  expect(text).toMatch(advice);
+  expect(text).not.toMatch(/affected payments/);
 });

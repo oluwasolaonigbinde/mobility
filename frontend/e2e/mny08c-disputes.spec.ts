@@ -54,7 +54,7 @@ test("driver dispute and staff reply persist across the isolated cross-role flow
     await hold.getByRole("button", { name: "Submit dispute" }).click();
     await expect(hold.getByText(message)).toBeVisible();
     await expect(hold.getByText("Waiting for a reply")).toBeVisible();
-    await expect(hold).not.toContainText(/Detection evidence|fingerprint|matched trip/i);
+    await expect(hold).not.toContainText(/Why this trip was flagged|fingerprint|matched trip/i);
 
     await page.context().clearCookies();
     await login(page, "admin@demo.mobility.local", "DemoAdmin12345!", "admin");
@@ -73,7 +73,9 @@ test("driver dispute and staff reply persist across the isolated cross-role flow
     await expect(reloadedHold.getByText(message)).toBeVisible();
     await expect(reloadedHold.getByText(reply)).toBeVisible();
     await expect(reloadedHold.getByText("Replied", { exact: true })).toBeVisible();
-    await expect(reloadedHold).not.toContainText(/Detection evidence|fingerprint|matched trip/i);
+    await expect(reloadedHold).not.toContainText(
+      /Why this trip was flagged|fingerprint|matched trip/i,
+    );
   } finally {
     // Release only this attempt's dispute; immutable notices and audit evidence remain.
     psql(

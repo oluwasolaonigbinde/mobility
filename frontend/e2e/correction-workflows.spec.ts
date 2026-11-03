@@ -35,7 +35,7 @@ for (const stage of [
     endpoint: "vehicle",
     step: "car",
     button: "Submit vehicle evidence",
-    fields: ["Vehicle registration", "Current insurance", "Vehicle photo"],
+    fields: ["Vehicle registration", "Current insurance", "Car photo"],
     fileId: "registration_file_id",
   },
 ]) {

@@ -15,12 +15,9 @@ it("retains one adjustment reference through uncertainty and locks a confirmed r
   render(<NegativeAdjustmentForm entryId="credit" currency="NGN" />);
   expect(screen.getByText(/If this trip was already paid/)).toBeInTheDocument();
   const user = userEvent.setup();
-  await user.click(screen.getByText("Record a negative adjustment"));
+  await user.click(screen.getByText("Take money off this trip"));
   await user.type(screen.getByRole("textbox", { name: "Amount to subtract" }), "20.25");
-  await user.type(
-    screen.getByRole("textbox", { name: "Adjustment reason" }),
-    "Correct overpayment",
-  );
+  await user.type(screen.getByRole("textbox", { name: "Reason" }), "Correct overpayment");
   await user.click(screen.getByRole("button", { name: "Record negative adjustment" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Retry the same adjustment");
   await user.click(screen.getByRole("button", { name: "Record negative adjustment" }));

@@ -25,7 +25,7 @@ export function NegativeAdjustmentForm({
   );
   return (
     <details className="mt-3 text-sm">
-      <summary>Record a negative adjustment</summary>
+      <summary>Take money off this trip</summary>
       <form action={action} className="mt-2 space-y-2">
         <p>
           This records a correction on this trip. If this trip was already paid, the difference
@@ -34,7 +34,7 @@ export function NegativeAdjustmentForm({
         <input type="hidden" name="entry_id" value={entryId} />
         <input type="hidden" name="currency" value={currency} />
         <label className="block">
-          Nigeria day (required if the trip spans days)
+          Day (if the trip ran past midnight)
           <input
             name="lagos_day"
             type="date"
@@ -57,7 +57,7 @@ export function NegativeAdjustmentForm({
           />
         </label>
         <label className="block">
-          Adjustment reason
+          Reason
           <textarea
             name="reason"
             required
@@ -65,7 +65,7 @@ export function NegativeAdjustmentForm({
             onChange={(event) => setReason(event.target.value)}
             minLength={3}
             maxLength={500}
-            aria-label="Adjustment reason"
+            aria-label="Reason"
             className="border-edge bg-raised text-ink block w-full rounded border p-2"
           />
         </label>

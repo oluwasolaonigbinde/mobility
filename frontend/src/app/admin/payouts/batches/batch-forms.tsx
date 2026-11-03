@@ -32,10 +32,15 @@ const REASONS: Record<string, string> = {
   "Already reserved or in flight": "Already set aside in a payment run or being sent",
   "Use the existing failed-line recovery":
     "An earlier payment of this failed — recover it from that payment run",
+  "The payee has no verified bank-account version": "Bank details not checked yet",
+  "The verified account does not bind the current payee version":
+    "Bank details need checking again",
+  "The current bank-account version has no authorized payout verification":
+    "Bank details not checked yet",
   "Payee is missing": "No bank account on file for this driver",
 };
 export function plainReason(reason: string) {
-  return REASONS[reason] ?? reason;
+  return REASONS[reason] ?? "Payment needs checking";
 }
 
 export function MaskedDestination({ versionId }: { versionId: string }) {
@@ -117,7 +122,7 @@ export function CreateBatchForm({
       } catch {
         setState({
           error:
-            "Saved recovery is unavailable. Check your existing drafts before starting a payment run.",
+            "This browser can't create payment runs. Check your saved runs or use Chrome, Edge or Safari.",
         });
       }
     };
@@ -131,8 +136,7 @@ export function CreateBatchForm({
     start(async () => {
       if (!navigator.locks) {
         setState({
-          error:
-            "Safe multi-tab recovery is unavailable in this browser. Open an existing draft or use a browser with Web Locks.",
+          error: "This browser can't create payment runs. Use Chrome, Edge or Safari.",
         });
         return;
       }
@@ -141,7 +145,7 @@ export function CreateBatchForm({
           let saved = readDraftRecovery(localStorage, actorId);
           if (draftId && saved && saved.requestId !== draftId) {
             setState({
-              error: "Recover the saved payment run before working on a different draft.",
+              error: "Finish your last payment run first.",
             });
             return;
           }
@@ -171,8 +175,7 @@ export function CreateBatchForm({
           }
         } catch {
           setState({
-            error:
-              "The request could not be confirmed. Keep this page and recover the existing draft before trying again.",
+            error: "We couldn't confirm this. Open your saved payment run before trying again.",
           });
         }
       });
@@ -184,11 +187,7 @@ export function CreateBatchForm({
       </p>
       {recovery ? (
         <div className="border-edge rounded-lg border p-4">
-          <p>
-            A saved {recovery.currency} request contains {recovery.ledgerEntryIds.length}{" "}
-            {recovery.ledgerEntryIds.length === 1 ? "credit" : "credits"}. Retry uses the same draft
-            and selection.
-          </p>
+          <p>You have an unfinished payment run. Finish it first.</p>
           <Link
             className="mr-4 inline-block underline"
             href={moneyHref(query, {
@@ -218,7 +217,7 @@ export function CreateBatchForm({
                 })
               }
             >
-              Review a different selection for this draft
+              Change selection
             </Button>
           ) : null}
           {state.done ? (
@@ -232,7 +231,7 @@ export function CreateBatchForm({
                 setState({});
               }}
             >
-              Finish recovery
+              Finish
             </Button>
           ) : null}
         </div>
@@ -301,14 +300,14 @@ export function CreateBatchForm({
           ))}
         </ul>
       ) : (
-        <p className="text-muted">No available credits match these filters.</p>
+        <p className="text-muted">Nothing to pay matches these filters.</p>
       )}
       {recovery || chosen.length ? (
         <>
           <label className="text-muted block text-sm">
-            Preparation reason
+            Reason
             <textarea
-              aria-label="Preparation reason"
+              aria-label="Payment run reason"
               minLength={3}
               maxLength={500}
               required
@@ -327,7 +326,7 @@ export function CreateBatchForm({
                 start(async () => setPreview(await previewSelectionAction(currency!, selected)))
               }
             >
-              Review selected credits
+              Review selected payments
             </Button>
           ) : null}
           {preview?.total_amount ? (
@@ -356,12 +355,12 @@ export function CreateBatchForm({
               }
             >
               {pending
-                ? "Confirming reservation…"
+                ? "Creating…"
                 : recovery
-                  ? "Retry saved reservation"
+                  ? "Try again"
                   : draftId
-                    ? "Reserve this draft"
-                    : "Create and reserve selected credits"}
+                    ? "Create payment run"
+                    : "Create payment run"}
             </Button>
           ) : null}
         </>
@@ -415,20 +414,17 @@ export function BatchActions({
       className="flex flex-wrap gap-2"
       onSubmit={(event) => {
         const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-        if (
-          submitter?.value === "void" &&
-          !window.confirm("Release this payment run's unsent reservations?")
-        )
+        if (submitter?.value === "void" && !window.confirm("Cancel this payment run?"))
           event.preventDefault();
       }}
     >
       <input type="hidden" name="batch_id" value={batchId} />
       {needsReason ? (
         <label className="text-muted w-full text-sm">
-          Approval or replacement reason
+          Reason
           <textarea
             name="reason"
-            aria-label="Approval or replacement reason"
+            aria-label="Reason"
             minLength={3}
             maxLength={500}
             required
@@ -451,7 +447,7 @@ export function BatchActions({
             disabled={pending}
             variant="ghost"
           >
-            Void reservation
+            Cancel this payment run
           </Button>
           {providerReady === false ? (
             <p className="text-muted w-full text-sm">
@@ -459,16 +455,14 @@ export function BatchActions({
             </p>
           ) : (
             <Button type="submit" name="intent" value="submit" formNoValidate disabled={pending}>
-              Queue submission
+              Send payments
             </Button>
           )}
         </>
       ) : (
         <>
           <p className="text-muted w-full text-sm">
-            Terminally failed payments require a newer verified bank version with a different bank
-            or account number and an approved replacement. Ambiguous submissions retain their
-            original recovery key.
+            To retry a failed payment, update the driver&apos;s bank details first.
           </p>
           <Button type="submit" name="intent" value="retry_failed" disabled={pending}>
             Request replacement for failed payments
@@ -508,10 +502,10 @@ export function PollLineAction({ lineId }: { lineId: string }) {
     <form action={action} className="mt-2">
       <input type="hidden" name="line_id" value={lineId} />
       <label className="text-muted block text-sm">
-        Reconciliation reason
+        Reason
         <textarea
           name="reason"
-          aria-label="Reconciliation reason"
+          aria-label="Reason"
           minLength={3}
           maxLength={500}
           required
@@ -519,7 +513,7 @@ export function PollLineAction({ lineId }: { lineId: string }) {
         />
       </label>
       <Button type="submit" disabled={pending} variant="ghost">
-        {pending ? "Verifying…" : "Check provider result"}
+        {pending ? "Verifying…" : "Check payment result"}
       </Button>
       {state.error ? (
         <p role="alert" className="text-coral text-sm">

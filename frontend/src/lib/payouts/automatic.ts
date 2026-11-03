@@ -36,7 +36,7 @@ export function reconciliationDay(raw: string | undefined, now: Date = new Date(
 }
 
 const ALERT_LABELS: Record<string, string> = {
-  business_health: "Business health needs attention",
+  business_health: "System check needs attention",
   failed_payment: "A payment failed",
   duplicate_payment: "A possible duplicate payment",
   daily_limit: "Above one day's pay — kept for a person to check",
@@ -50,14 +50,14 @@ export function alertLabel(kind: string): string {
 
 const REASON_LABELS: Record<string, string> = {
   fraud_hold: "Trip under review",
-  fraud_flag: "Trip had a review flag",
+  fraud_flag: "Trip needed checking",
   open_dispute: "Driver has an open dispute",
-  assessment_not_current: "Trip check not up to date",
+  assessment_not_current: "Trip check is out of date",
   payee_unverified: "Check and verify the driver’s bank details before paying",
   new_bank_destination: "First payment to this bank account",
   debt_outstanding: "Driver owes money back",
   adjusted_trip: "Pay was corrected",
-  not_daily_rate: "Not daily-rate pay",
+  not_daily_rate: "Not daily pay",
   daily_limit: "Above one day's pay",
 };
 
@@ -85,25 +85,36 @@ export function alertDetail(alert: AutomaticAlert): string | null {
   if (alert.kind === "business_health") {
     const checks: Record<string, string> = {
       stuck_payouts: "Payments have stopped making progress",
-      unprocessed_webhooks: "Payment updates are waiting to be processed",
+      unprocessed_webhooks: "Payment updates are waiting",
       paused_payouts: "Automatic payouts have been paused for over a day",
-      gps_rejections: "An unusual share of GPS uploads was rejected",
-      gps_telemetry_unavailable: "GPS upload monitoring is unavailable",
-      stale_trips: "Trips need an evidence or activity review",
-      partition_coverage: "GPS storage needs its next partition",
+      gps_rejections: "Many location updates were rejected",
+      gps_telemetry_unavailable: "Location check isn't working",
+      stale_trips: "Some trips need checking",
+      partition_coverage: "Location storage needs extending",
       email_failures: "Emails failed or are waiting too long",
     };
+    const advice: Record<string, string> = {
+      stuck_payouts: "Check the pending payments.",
+      unprocessed_webhooks: "Check incoming payment updates.",
+      paused_payouts: "Review the pause before resuming payouts.",
+      gps_rejections: "Check the affected trips and location updates.",
+      gps_telemetry_unavailable: "Restore location monitoring.",
+      stale_trips: "Review the affected trips.",
+      partition_coverage: "Extend location storage.",
+      email_failures: "Check email delivery settings and failed emails.",
+    };
+    const nextStep = typeof detail.check === "string" ? advice[detail.check] : undefined;
     const label = typeof detail.check === "string" ? checks[detail.check] : undefined;
     return label &&
       typeof detail.count === "number" &&
       Number.isSafeInteger(detail.count) &&
       detail.count > 0
-      ? `${label} (${detail.count >= 1000 ? "1,000+" : detail.count}). Check the affected payments and resolve the issue.`
-      : "Check the affected payments and resolve the issue.";
+      ? `${label} (${detail.count >= 1000 ? "1,000+" : detail.count}). ${nextStep ?? "Please look into this."}`
+      : (nextStep ?? "Please look into this.");
   }
   if (alert.kind === "daily_limit") {
     if (detail.rates_differ) return "The driver's campaigns have different day rates that day.";
-    if (detail.other_pay_type_same_day) return "The driver also earned hourly pay that day.";
+    if (detail.other_pay_type_same_day) return "This day includes another type of pay.";
     if (typeof detail.earned === "string" && typeof detail.ceiling === "string") {
       return `Earned ₦${detail.earned} against a day rate of ₦${detail.ceiling}.`;
     }
@@ -111,8 +122,8 @@ export function alertDetail(alert: AutomaticAlert): string | null {
   }
   if (alert.kind === "run_failed") {
     return detail.reason === "provider_unavailable"
-      ? "No payment provider is connected yet."
-      : "The Cardvert payout identity is missing or was changed.";
+      ? "Payouts aren't connected yet."
+      : "Restore the payout account settings to continue.";
   }
   return null;
 }

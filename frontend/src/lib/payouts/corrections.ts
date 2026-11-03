@@ -52,3 +52,35 @@ export function summarizeProjectedDelta(delta: unknown): ProjectedDeltaSummary |
     currency,
   };
 }
+
+/** Only the per-trip amounts needed to review a correction; no internal calculation data. */
+export function projectedTripRows(delta: unknown) {
+  if (typeof delta !== "object" || delta === null) return [];
+  const trips = (delta as { trips?: unknown }).trips;
+  if (!Array.isArray(trips)) return [];
+  return trips.flatMap((trip: unknown) => {
+    if (typeof trip !== "object" || trip === null) return [];
+    const row = trip as Record<string, unknown>;
+    if (
+      typeof row.trip_session_id !== "string" ||
+      typeof row.driver_profile_id !== "string" ||
+      !z.string().uuid().safeParse(row.driver_profile_id).success ||
+      !z.string().uuid().safeParse(row.trip_session_id).success ||
+      typeof row.previous_posted_amount !== "string" ||
+      typeof row.target_amount !== "string" ||
+      typeof row.delta_amount !== "string" ||
+      typeof row.currency !== "string"
+    )
+      return [];
+    return [
+      {
+        id: row.trip_session_id,
+        driverId: row.driver_profile_id,
+        previous: row.previous_posted_amount,
+        target: row.target_amount,
+        change: row.delta_amount,
+        currency: row.currency,
+      },
+    ];
+  });
+}

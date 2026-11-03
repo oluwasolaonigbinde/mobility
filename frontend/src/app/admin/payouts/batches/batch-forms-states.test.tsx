@@ -84,10 +84,8 @@ describe("payout form states", () => {
 
   it("states when no credits match and keeps creation disabled", () => {
     render(<CreateBatchForm entries={[]} actorId="maker" />);
-    expect(screen.getByText("No available credits match these filters.")).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: "Create and reserve selected credits" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText("Nothing to pay matches these filters.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Create payment run" })).not.toBeInTheDocument();
   });
 
   it("clears the preview when a selection is removed", async () => {
@@ -96,20 +94,20 @@ describe("payout form states", () => {
     render(<CreateBatchForm entries={[entry]} actorId="maker" />);
     await user.click(screen.getByRole("checkbox"));
     await user.type(
-      screen.getByRole("textbox", { name: "Preparation reason" }),
+      screen.getByRole("textbox", { name: "Payment run reason" }),
       "Staff payment review",
     );
-    await clickWhenEnabled(user, "Review selected credits");
+    await clickWhenEnabled(user, "Review selected payments");
     expect(await screen.findByText(/To bank/)).toBeTruthy();
     await checkWhenEnabled(user);
     expect(screen.queryByText(/To bank/)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Review selected credits" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Review selected payments" })).toBeNull();
   });
 
   it("warns when saved recovery storage cannot be read", () => {
     localStorage.setItem("cardvert-payout-draft:maker", "{not json");
     render(<CreateBatchForm entries={[entry]} actorId="maker" />);
-    expect(screen.getByRole("alert")).toHaveTextContent("Saved recovery is unavailable");
+    expect(screen.getByRole("alert")).toHaveTextContent("This browser can't create payment runs.");
   });
 
   it("keeps the saved request when the reservation call itself fails", async () => {
@@ -119,14 +117,14 @@ describe("payout form states", () => {
     render(<CreateBatchForm entries={[entry]} actorId="maker" />);
     await user.click(screen.getByRole("checkbox"));
     await user.type(
-      screen.getByRole("textbox", { name: "Preparation reason" }),
+      screen.getByRole("textbox", { name: "Payment run reason" }),
       "Staff payment review",
     );
-    await clickWhenEnabled(user, "Review selected credits");
+    await clickWhenEnabled(user, "Review selected payments");
     await screen.findByText(/To bank/);
-    await clickWhenEnabled(user, "Create and reserve selected credits");
+    await clickWhenEnabled(user, "Create payment run");
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "recover the existing draft before trying again",
+      "Open your saved payment run before trying again",
     );
     expect(localStorage.getItem("cardvert-payout-draft:maker")).not.toBeNull();
   });
@@ -141,21 +139,19 @@ describe("payout form states", () => {
     render(<CreateBatchForm entries={[entry]} actorId="maker" />);
     await user.click(screen.getByRole("checkbox"));
     await user.type(
-      screen.getByRole("textbox", { name: "Preparation reason" }),
+      screen.getByRole("textbox", { name: "Payment run reason" }),
       "Staff payment review",
     );
-    await clickWhenEnabled(user, "Review selected credits");
+    await clickWhenEnabled(user, "Review selected payments");
     await screen.findByText(/To bank/);
-    await clickWhenEnabled(user, "Create and reserve selected credits");
+    await clickWhenEnabled(user, "Create payment run");
     expect(await screen.findByRole("status")).toHaveTextContent("Reservation confirmed");
-    expect(
-      screen.queryByRole("button", { name: "Retry saved reservation" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Review payment run" })).toHaveAttribute(
       "href",
       "/admin/money?tab=runs&batch=batch-1",
     );
-    await clickWhenEnabled(user, "Finish recovery");
+    await clickWhenEnabled(user, "Finish");
     expect(localStorage.getItem("cardvert-payout-draft:maker")).toBeNull();
     expect(screen.queryByRole("status")).toBeNull();
     expect(screen.getByRole("checkbox")).not.toBeChecked();
@@ -170,7 +166,7 @@ describe("payout form states", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Administrator access is required.");
     unmount();
 
-    calls.mask.mockResolvedValueOnce({ mask: "Bank 058 · account ending 6789" });
+    calls.mask.mockResolvedValueOnce({ mask: "GTBank · account ending 6789" });
     render(<MaskedDestination versionId="version" />);
     await fillReasons();
     await userEvent.click(screen.getByRole("button", { name: "Show bank details" }));
@@ -188,28 +184,28 @@ describe("payout form states", () => {
     calls.transition.mockResolvedValue({ error: "The saved instructions changed." });
     render(<BatchActions batchId="batch-1" status="reserved" />);
     await fillReasons();
-    await userEvent.click(screen.getByRole("button", { name: "Void reservation" }));
-    expect(confirm).toHaveBeenCalledWith("Release this payment run's unsent reservations?");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel this payment run" }));
+    expect(confirm).toHaveBeenCalledWith("Cancel this payment run?");
     expect(calls.transition).not.toHaveBeenCalled();
     await fillReasons();
-    await userEvent.click(screen.getByRole("button", { name: "Queue submission" }));
+    await userEvent.click(screen.getByRole("button", { name: "Send payments" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("saved instructions changed");
     expect((calls.transition.mock.calls[0]![1] as FormData).get("intent")).toBe("submit");
   });
 
   it("reports line verification results and refusals", async () => {
-    calls.poll.mockResolvedValueOnce({ done: "Verified provider result applied to this line" });
+    calls.poll.mockResolvedValueOnce({ done: "Payment result added." });
     const { unmount } = render(<PollLineAction lineId="line-1" />);
     await fillReasons();
-    await userEvent.click(screen.getByRole("button", { name: "Check provider result" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Verified provider result");
+    await userEvent.click(screen.getByRole("button", { name: "Check payment result" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Payment result added.");
     expect((calls.poll.mock.calls[0]![1] as FormData).get("line_id")).toBe("line-1");
     unmount();
 
     calls.poll.mockResolvedValueOnce({ error: "Manual verification requires another admin." });
     render(<PollLineAction lineId="line-1" />);
     await fillReasons();
-    await userEvent.click(screen.getByRole("button", { name: "Check provider result" }));
+    await userEvent.click(screen.getByRole("button", { name: "Check payment result" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("another admin");
   });
   it("keeps list context when opening the actual confirmed replacement run", async () => {

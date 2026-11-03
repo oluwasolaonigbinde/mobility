@@ -115,9 +115,9 @@ describe("Trip check work lists", () => {
     expect(card.textContent!.indexOf("Ada Driver")).toBeLessThan(
       card.textContent!.indexOf("Speed higher than the review limit"),
     );
-    expect(card.textContent!.trim().endsWith("Trip trip · Review flag")).toBe(true);
+    expect(card).not.toHaveTextContent("Trip trip · Review flag");
   });
-  it("keeps an in-person check reason plain and its check ID secondary", async () => {
+  it("keeps an in-person check reason plain and hides its internal ID", async () => {
     const checked = {
       ...flag,
       flag_type: "physical_spot_check_failed",
@@ -133,7 +133,7 @@ describe("Trip check work lists", () => {
 
     const reason = screen.getByText("An in-person check found a problem");
     expect(reason).not.toHaveTextContent(/Result|Gps|check-reference|\{\}/);
-    expect(screen.getByText(/Trip trip .* Check check-reference/)).toHaveClass("text-faint");
+    expect(screen.queryByText(/Check check-reference/)).not.toBeInTheDocument();
   });
 
   it("lists trips with the same route for a route-match review", async () => {
@@ -150,7 +150,7 @@ describe("Trip check work lists", () => {
     render(await page({ flag: "flag" }));
     const matches = screen.getByRole("region", { name: "Matching trips" });
     expect(within(matches).getByText("Ada Driver")).toBeVisible();
-    expect(within(matches).getByText(/Trip earlier/)).toBeVisible();
+    expect(within(matches).queryByText(/Trip earlier/)).not.toBeInTheDocument();
     expect(screen.getByText("Same route as 1 other trip")).toBeVisible();
     expect(screen.getByText("The driver hasn't disputed this.")).toBeVisible();
   });
@@ -218,7 +218,7 @@ describe("Trip check work lists", () => {
     });
     render(await page({ flag: "flag", disputes_offset: "100" }));
     expect(screen.getByText(/this review is unresolved and pay stays held/)).toBeVisible();
-    expect(screen.getByRole("list", { name: "Detection evidence" })).toBeVisible();
+    expect(screen.getByRole("list", { name: "Why this trip was flagged" })).toBeVisible();
     expect(screen.getByText("Driver explanation 100")).toBeVisible();
     expect(screen.getByRole("button", { name: "Reply to driver" })).toBeVisible();
   });

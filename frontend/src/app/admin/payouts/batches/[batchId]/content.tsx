@@ -80,9 +80,7 @@ export default async function BatchDetailPage({
               {batch.approved_at ? ` · ${formatDateTime(batch.approved_at)}` : ""}
             </p>
             <p className="text-muted text-sm">
-              These earnings passed every automatic payout check, so no person approved them.
-              Cardvert sends each payment when automatic payouts are running; provider evidence
-              still decides each payment&apos;s outcome. Follow up problems on{" "}
+              Follow up problems on{" "}
               <Link className="underline" href="/admin/money?tab=automatic">
                 Automatic payouts
               </Link>
@@ -97,10 +95,6 @@ export default async function BatchDetailPage({
             <p>
               Approved by: <strong>{batch.checker_name ?? "Awaiting approval"}</strong>
               {batch.approved_at ? ` · ${formatDateTime(batch.approved_at)}` : ""}
-            </p>
-            <p className="text-muted text-sm">
-              An admin approves the saved instructions with a reason. Provider evidence determines
-              each line&apos;s outcome; the same admin may verify it with a reason.
             </p>
           </>
         )}
@@ -133,7 +127,7 @@ export default async function BatchDetailPage({
           />
         ) : null}
         {batch.status === "draft" && batch.created_by_user_id !== me.user.id ? (
-          <p>Only the person who prepared this draft can reserve it.</p>
+          <p>Only the person who prepared this can continue it.</p>
         ) : null}
       </Panel>
       {credits ? (
@@ -159,13 +153,12 @@ export default async function BatchDetailPage({
         {detail.lines.map((line) => (
           <Panel key={line.id} className="min-w-0 space-y-2 p-4">
             <h3 className="font-semibold break-words">{line.driver_name}</h3>
-            <p>Payee: {line.payee_name}</p>
+            <p>Paid to: {line.payee_name}</p>
             <p className="font-mono">{formatMoneyExact(line.amount, line.currency)}</p>
             <p>{outcomeLabel(line.outcome)}</p>
             {line.reconciled_at ? (
               <p className="text-muted text-sm">
-                Provider evidence: {formatDateTime(line.reconciled_at)} ·{" "}
-                {line.reconciler_name ?? "Verified provider event"}
+                Payment result: {formatDateTime(line.reconciled_at)}
               </p>
             ) : null}
             <MaskedDestination versionId={line.bank_account_version_id} />
@@ -182,7 +175,7 @@ export default async function BatchDetailPage({
         ))}
       </div>
       {!detail.lines.length ? <p className="text-muted">No payments on this page.</p> : null}
-      <nav className="flex gap-4" aria-label="Payment line pages">
+      <nav className="flex gap-4" aria-label="Payment pages">
         {page > 0 ? (
           <Link
             href={moneyHref(query, {

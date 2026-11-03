@@ -31,8 +31,8 @@ it.each([
   const result = await processTripAction({}, form);
   expect(result.error).toBeUndefined();
   expect(result.steps).toHaveLength(3);
-  expect(result.steps?.[0]).toContain("1 trip review(s)");
-  expect(result.steps?.[2]).toContain("Pay status: " + label);
+  expect(result.steps?.[0]).toBe("Trip recalculated: 0.6 miles");
+  expect(result.steps?.[2]).toContain("Status: " + label);
   expect(result.steps?.join(" ")).not.toMatch(/fraud|ledger|raw_review_code|unknown_wire_status/);
   expect(mocks.post).toHaveBeenNthCalledWith(3, "/api/v1/admin/trips/{trip_id}/calculate-payout", {
     params: { path: { trip_id: "11111111-1111-4111-8111-111111111111" } },

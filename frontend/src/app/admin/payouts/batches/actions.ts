@@ -1,5 +1,6 @@
 "use server";
 
+import { bankDisplayName } from "@/lib/driver/bank-name";
 import { unstable_rethrow } from "next/navigation";
 
 import { revalidatePath } from "next/cache";
@@ -34,7 +35,7 @@ export async function previewSelectionAction(
       })
       .safeParse({ currency, ledgerEntryIds }).success
   ) {
-    return { error: "Select available credits in one currency." };
+    return { error: "Select payments in one currency." };
   }
   try {
     return await batchApi<{ currency: string; total_amount: string }>("/selection-preview", {
@@ -44,11 +45,7 @@ export async function previewSelectionAction(
   } catch (error) {
     unstable_rethrow(error);
     return {
-      error: publicActionError(
-        error,
-        moneyErrors,
-        "Selection could not be verified. Refresh available earnings.",
-      ),
+      error: publicActionError(error, moneyErrors, "Refresh the list and select again."),
     };
   }
 }
@@ -56,24 +53,20 @@ export async function previewSelectionAction(
 const moneyErrors: Record<string, string> = {
   DISBURSEMENT_PROVIDER_UNAVAILABLE: "Run saved, not sent. Payments are not connected.",
   PAYOUT_BATCH_NOT_APPROVED: "An admin must approve the payment run before submission.",
-  PAYOUT_ENTRY_HELD: "A selected credit is now held for review. Refresh available earnings.",
-  PAYOUT_ASSESSMENT_NOT_CURRENT:
-    "A selected credit needs a current successful assessment. Refresh available earnings.",
+  PAYOUT_ENTRY_HELD: "A selected payment is now on hold. Refresh the list.",
+  PAYOUT_ASSESSMENT_NOT_CURRENT: "A selected payment needs checking. Refresh the list.",
   PAYOUT_ENTRY_ALREADY_RESERVED:
     "A selected earning is already reserved for a payment run. Open that payment run.",
-  PAYOUT_ENTRY_INELIGIBLE: "A selected credit is no longer eligible. Refresh available earnings.",
-  PAYOUT_BATCH_NOT_DRAFT:
-    "This draft was already reserved with different earnings. Open the existing payment run.",
-  PAYOUT_DRAFT_RETRY_CONFLICT:
-    "This recovery reference cannot be reused. Open your existing draft.",
+  PAYOUT_ENTRY_INELIGIBLE: "A selected payment is no longer ready. Refresh the list.",
+  PAYOUT_BATCH_NOT_DRAFT: "This payment run has changed. Refresh and start again.",
+  PAYOUT_DRAFT_RETRY_CONFLICT: "This payment run has changed. Refresh and start again.",
   PAYOUT_PAYEE_VERSION_STALE:
     "The bank details changed. Refresh and review the current bank details.",
   PAYOUT_BANK_ACCOUNT_UNVERIFIED:
     "The bank details require verification by an authorized staff member.",
   PAYOUT_RESOLVED_LINES_NOT_RETRYABLE:
-    "A failed payment requires a newer verified bank version with a different bank or account number. Replacing the encrypted record or entering the same bank details does not allow a replacement payment.",
-  PAYOUT_UNRESOLVED_LINES_REMAIN:
-    "Wait for verified results on every payment sent to the provider before requesting a replacement.",
+    "Bank details must change before this payment can be sent again.",
+  PAYOUT_UNRESOLVED_LINES_REMAIN: "Wait for the result on every payment first.",
   PAYOUT_FAILED_LINES_MISSING: "This payment run has no failed payments to replace.",
   FORBIDDEN_ROLE: "Your account no longer has administrator access.",
 };
@@ -129,8 +122,8 @@ export async function createAndReserveBatchAction(
     return {
       done:
         reserved.status === "reserved"
-          ? "Reservation confirmed. Open the payment run to review its current status."
-          : "Existing payment run recovered; no new reservation was created. Open the payment run to review its current status.",
+          ? "Payment run created."
+          : "This payment run already exists.",
       batchId: draft.id,
     };
   } catch (error) {
@@ -139,7 +132,7 @@ export async function createAndReserveBatchAction(
       error: publicActionError(
         error,
         moneyErrors,
-        "The response could not be confirmed. Retry this saved request or open its draft; do not start a second payment run.",
+        "We couldn't confirm that. Check the list before starting another payment run.",
       ),
       batchId: parsed.data.requestId,
     };
@@ -161,7 +154,7 @@ export async function batchTransitionAction(
     intent: String(formData.get("intent") ?? ""),
     reason: String(formData.get("reason") ?? ""),
   });
-  if (!parsed.success) return { error: "Invalid payment run action" };
+  if (!parsed.success) return { error: "Something went wrong. Refresh and try again." };
   const needsReason = parsed.data.intent === "approve" || parsed.data.intent === "retry_failed";
   if (needsReason && parsed.data.reason.length < 3)
     return { error: "Give a reason between 3 and 500 characters." };
@@ -175,11 +168,9 @@ export async function batchTransitionAction(
     return {
       done: {
         approve: "Payment run approved",
-        submit:
-          "Submission queued. This does not confirm submission or payment; check each payment for provider evidence.",
-        retry_failed:
-          "Replacement reserved. Review its saved instructions and approve it with a reason before submission.",
-        void: "Unsent payment reservations released",
+        submit: "Sending started. Check each payment for the result.",
+        retry_failed: "Replacement ready. Approve it to send.",
+        void: "Payment run cancelled.",
       }[parsed.data.intent],
       ...(parsed.data.intent === "retry_failed" ? { batchId: result.id } : {}),
     };
@@ -208,22 +199,18 @@ export async function pollLineAction(
     line_id: String(formData.get("line_id") ?? ""),
     reason: String(formData.get("reason") ?? ""),
   });
-  if (!parsed.success) return { error: "Invalid selected payment" };
+  if (!parsed.success) return { error: "Something went wrong. Refresh and try again." };
   try {
     await batchApi<PayoutBatch>(`/lines/${parsed.data.line_id}/poll`, {
       method: "POST",
       body: JSON.stringify({ reason: parsed.data.reason }),
     });
     revalidatePath("/admin/money");
-    return { done: "Verified provider result applied to this payment" };
+    return { done: "Payment result added." };
   } catch (error) {
     unstable_rethrow(error);
     return {
-      error: publicActionError(
-        error,
-        moneyErrors,
-        "No verified result could be confirmed. The current payment status remains authoritative.",
-      ),
+      error: publicActionError(error, moneyErrors, "No confirmed payment result yet."),
     };
   }
 }
@@ -232,7 +219,7 @@ export async function maskedDestinationAction(
   versionId: string,
 ): Promise<{ mask?: string; error?: string }> {
   if (!z.string().uuid().safeParse(versionId).success)
-    return { error: "Select a verified destination." };
+    return { error: "Select a checked bank account." };
   try {
     const api = createApiClient(await getSessionToken());
     const { data } = await api.POST(
@@ -242,15 +229,17 @@ export async function maskedDestinationAction(
         body: { purpose: "payout_destination_review" },
       },
     );
-    if (!data) return { error: "Destination could not be verified." };
-    return { mask: `Bank ${data.bank_code} · account ending ${data.account_number.slice(-4)}` };
+    if (!data) return { error: "We couldn't check this bank account." };
+    return {
+      mask: `${bankDisplayName(data.bank_code)} · account ending ${data.account_number.slice(-4)}`,
+    };
   } catch (error) {
     unstable_rethrow(error);
     return {
       error:
         error instanceof ApiError && error.status === 403
           ? "Administrator access is required."
-          : "Destination details are unavailable. No payment has been authorized.",
+          : "Bank details can't be shown. Nothing was approved.",
     };
   }
 }
@@ -285,14 +274,14 @@ export async function negativeAdjustmentAction(
       body: { ...body, lagos_day: rawDay || null },
     });
     revalidatePath("/admin/money");
-    return { done: "Negative adjustment recorded. Other trips' pay is unchanged." };
+    return { done: "Deduction recorded." };
   } catch (error) {
     unstable_rethrow(error);
     return {
       error:
         error instanceof ApiError
           ? publicActionError(error)
-          : "No result was confirmed. Retry the same adjustment or check the ledger.",
+          : "We couldn't confirm this. Check the trip's pay before trying again.",
     };
   }
 }

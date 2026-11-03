@@ -64,7 +64,7 @@ describe("publishDailyRateAction", () => {
     );
     const input = form();
     expect(await publishDailyRateAction({}, input)).toEqual({
-      error: "The request could not be completed. Check the details and try again.",
+      error: "That didn't work. Please try again.",
       values: Object.fromEntries(input.entries()),
     });
 

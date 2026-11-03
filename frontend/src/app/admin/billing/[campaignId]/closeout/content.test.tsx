@@ -24,7 +24,7 @@ describe("recorded campaign money position", () => {
     render(await MoneyCloseoutPage(props));
     expect(screen.getByText("No cancellation has been recorded.")).toBeVisible();
     expect(screen.getByText("No settlement has been recorded on this page.")).toBeVisible();
-    expect(screen.getByText(/do not confirm physical removal/)).toBeVisible();
+    expect(screen.queryByText(/do not confirm physical removal/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
   it("shows verified cash and provider exposure without a debt balance", async () => {
@@ -64,14 +64,16 @@ describe("recorded campaign money position", () => {
     });
     render(await MoneyCloseoutPage({ ...props, searchParams: Promise.resolve({ page: "1" }) }));
     expect(api).toHaveBeenCalledWith("/campaigns/campaign/position?limit=25&offset=25");
-    expect(screen.getByText("Verified cash paid: ₦10.01")).toBeVisible();
-    expect(screen.getByText("Confirmed provider transfers: ₦20.02")).toBeVisible();
-    expect(screen.getByText("Payments awaiting a provider result: ₦40.03")).toBeVisible();
+    expect(screen.getByText("Cash paid: ₦10.01")).toBeVisible();
+    expect(screen.getByText("Transfers paid: ₦20.02")).toBeVisible();
+    expect(screen.getByText("Waiting for a payment result: ₦40.03")).toBeVisible();
     expect(screen.getByText("Saved, not sent yet: ₦30.02")).toBeVisible();
     expect(screen.queryByText(/Waiting for approval/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Recorded pay totals count each credit once/)).toBeVisible();
+    expect(
+      screen.queryByText(/Recorded pay totals count each credit once/),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/Amount the driver owes/)).toBeNull();
-    expect(screen.getByText("Physical removal requires evidence")).toBeVisible();
+    expect(screen.queryByText("Physical removal requires evidence")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute(
       "href",
       "/admin/campaigns/campaign?drawer=closeout&page=2#money",

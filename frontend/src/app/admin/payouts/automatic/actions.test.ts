@@ -38,7 +38,7 @@ describe("automatic payout actions", () => {
 
   it("refuses a short reason and maps known refusal codes without exposing backend text", async () => {
     expect(await switchAutomaticPayoutsAction({}, form({ intent: "pause", reason: "x" }))).toEqual({
-      error: "Give a reason of at least 3 characters — it is kept in the audit trail",
+      error: "Give a reason of at least 3 characters",
     });
     expect(mocks.post).not.toHaveBeenCalled();
     mocks.post.mockRejectedValueOnce(

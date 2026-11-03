@@ -41,7 +41,7 @@ export function OrderActions({
                 name="release_at"
                 type="datetime-local"
                 required
-                aria-label="Release at"
+                aria-label="Pay on"
                 className="border-edge bg-raised text-ink focus:border-amber h-9 rounded-lg border px-2.5 font-mono text-xs focus:outline-none"
               />
             </label>

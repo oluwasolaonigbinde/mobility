@@ -11,12 +11,7 @@ import { adminStatus } from "@/lib/status/admin";
 import { ReviewActions } from "../fraud/review-actions";
 import { DisputeReplyActions } from "../fraud/dispute-actions";
 import { SpotCheckForm } from "../fraud/spot-check-actions";
-import {
-  evidenceVerificationId,
-  matchedTripIds,
-  readableEvidence,
-  tripReviewReason,
-} from "../fraud/evidence";
+import { matchedTripIds, readableEvidence, tripReviewReason } from "../fraud/evidence";
 import { HubDrawer } from "../hub-drawer";
 import { QueueUnavailable } from "../queue-search";
 import { worklistHref } from "../worklist-reads";
@@ -206,7 +201,7 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
   for (const row of flags?.items ?? []) addSummary(row.trip_session_id, row);
   for (const row of visibleChecks ?? []) addSummary(row.source_trip_session_id, row);
   if (selectedTrip && selectedContext) summaries.set(selectedTrip, selectedContext);
-  // Driver, trip time and the plain reason come first; IDs stay available but secondary (D38c).
+  // Driver, trip time and the plain reason identify each check.
   const line = (tripId: string) => {
     const context = summaries.get(tripId);
     return context ? (
@@ -220,14 +215,6 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
       <QueueUnavailable />
     );
   };
-  const ids = (...pairs: [string, string | null | undefined][]) => (
-    <p className="text-faint mt-2 text-xs break-all">
-      {pairs
-        .filter((pair): pair is [string, string] => Boolean(pair[1]))
-        .map(([label, value]) => `${label} ${value}`)
-        .join(" · ")}
-    </p>
-  );
   const total = tab === "suspicious" ? flags?.total : checkPage?.total;
   const listHref = (changes: Partial<Query>) =>
     href({
@@ -301,11 +288,6 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
                         <p className="text-muted text-sm">
                           {adminStatus(flag.status)} · Pay held: {held(flag)}
                         </p>
-                        {ids(
-                          ["Trip", flag.trip_session_id],
-                          ["Review", flag.id],
-                          ["Check", evidenceVerificationId(flag.evidence)],
-                        )}
                       </Link>
                     </li>
                   ))
@@ -326,7 +308,6 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
                           {adminStatus(check.status)} inspection · recorded{" "}
                           {formatDateTime(check.issued_at)}
                         </p>
-                        {ids(["Trip", check.source_trip_session_id])}
                       </Link>
                     </li>
                   ))
@@ -369,7 +350,7 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
               {selectedFlag.resolution_note ? (
                 <p className="mb-4">Decision: {selectedFlag.resolution_note}</p>
               ) : null}
-              <ul aria-label="Detection evidence" className="mb-4 list-disc pl-5 text-sm">
+              <ul aria-label="Why this trip was flagged" className="mb-4 list-disc pl-5 text-sm">
                 {readableEvidence(selectedFlag.evidence).map((text) => (
                   <li key={text}>{text}</li>
                 ))}
@@ -391,7 +372,6 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
                         ) : (
                           <p className="text-muted">Trip details couldn&apos;t be loaded.</p>
                         )}
-                        {ids(["Trip", id])}
                       </li>
                     ))}
                   </ul>
@@ -456,12 +436,6 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
               ) : (
                 <p className="text-muted mt-5">The driver hasn&apos;t disputed this.</p>
               )}
-              {ids(
-                ["Trip", selectedFlag.trip_session_id],
-                ["Review", selectedFlag.id],
-                ["Job", selectedFlag.assignment_id],
-                ["Check", evidenceVerificationId(selectedFlag.evidence)],
-              )}
             </>
           )}
         </HubDrawer>
@@ -480,7 +454,6 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
               <p className="mt-3">
                 {adminStatus(selectedCheck.status)} · {selectedCheck.result_note}
               </p>
-              {ids(["Trip", selectedCheck.source_trip_session_id], ["Check", selectedCheck.id])}
             </>
           )}
         </HubDrawer>

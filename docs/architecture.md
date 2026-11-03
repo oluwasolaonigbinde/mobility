@@ -3516,6 +3516,7 @@ financial decision/release authority remain unchanged.
 
 ### 27.8 Brand and simpler portal screens (D95–D99, REQ-181–186) **[TARGET — Phase 1 in progress]**
 
+D154 / REQ-288/289 removes staff-visible hashes, raw trip/check/run IDs and calculation JSON. Names, dates and plates retain trip context; pay corrections show per-trip current/correct/change amounts and links. Stored data, review controls and financial authority are unchanged.
 One white/brand-green palette applies to signed-in screens; advertiser/driver
 headers pair the official Terrax mark with Cardvert. Admin is palette-only.
 Advertiser Home has running campaigns and cars on the road, a new-campaign
@@ -4069,6 +4070,7 @@ production/rehearsal and hardened environment requirements remain unchanged.
 These amendments are approved implementation scope, pending source verification.
 
 ## 34. Doc changelog
+- **v1.165 — 3 November 2026 (REQ-288/289/291, D154):** Staff money uses short labels and check-specific advice. Raw staff identifiers/JSON leave presentation; per-trip correction review, stored records and payment authority remain. Controller reviews/CI pending.
 - **v1.164 — 3 November 2026 (REQ-288/289, D152/153):** Advertiser change screens omit driver-pay details. Earlier-start consent uses plain version-2 wording; refund, funding and API authority remain unchanged. Controller review/CI pending.
 - **v1.163 — 3 November 2026 (REQ-288–294, D151):** Plain current product wording; raw driver support presentation removed, Phone check and copied readiness retained. Controller review/CI and physical-phone checks remain pending.
 - **v1.162 — 3 November 2026 (REQ-272–287, D148–150):** Record the bounded preview process fixes: payment availability, truthful unsent earnings/settlement and invoice balances, secure direct review-email continuation, quote-reference conflicts, safe report download names, map fallback and durable synthetic seeds. Staging seeding requires explicit opt-in without relaxing hardened configuration. B8, controller judgement under the owner's 3 Nov 2026 mandate, reported to the owner, takes 0–100% to four decimal places using exact decimal strings, including saved display, and confirms positive values below 1% once per save; the six-place stored rate, server checks and calculations stay unchanged. Implementation is local; final seed/rehearsal verification, controller reviews, CI and hosted/device evidence remain incomplete.

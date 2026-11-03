@@ -37,19 +37,18 @@ function StatusPanel({ status }: { status: AutomaticStatus }) {
       {status.paused ? (
         <p className="font-medium">Paused — Cardvert is not sending automatic payouts.</p>
       ) : status.runnable ? (
-        <p className="font-medium">Running — Cardvert pays clean daily-rate earnings.</p>
+        <p className="font-medium">Running.</p>
       ) : (
         <p className="font-medium">Set up, but not running yet.</p>
       )}
       {!status.provider_ready ? (
         <p className="text-muted text-sm">
-          No payment provider is connected yet, so no money can be sent.
+          Payouts aren&apos;t connected yet, so no money can be sent.
         </p>
       ) : null}
       {!status.identity_ready ? (
         <p className="text-coral text-sm">
-          The Cardvert payout identity is missing or was changed. Automatic payouts stay stopped
-          until it is restored.
+          Automatic payouts are stopped. Restore the payout account settings to continue.
         </p>
       ) : null}
       <dl className="grid gap-2 text-sm sm:grid-cols-2">
@@ -61,7 +60,7 @@ function StatusPanel({ status }: { status: AutomaticStatus }) {
           <dt className="text-muted">Last run</dt>
           <dd>
             {status.last_run
-              ? `${formatWat(status.last_run.created_at)} (WAT) · ${status.last_run.line_count} payments · ${formatMoneyExact(status.last_run.total_amount, status.currency)}`
+              ? `${formatWat(status.last_run.created_at)} (WAT) · ${status.last_run.line_count} payment${status.last_run.line_count === 1 ? "" : "s"} · ${formatMoneyExact(status.last_run.total_amount, status.currency)}`
               : "No run yet"}
           </dd>
         </div>
@@ -76,18 +75,6 @@ function StatusPanel({ status }: { status: AutomaticStatus }) {
           {formatWat(status.pause_changed_at)} (WAT): “{status.pause_reason}”
         </p>
       ) : null}
-      <details className="text-sm">
-        <summary className="cursor-pointer">What is paid automatically</summary>
-        <p className="text-muted mt-2">
-          Only clean daily-rate earnings: no review hold, flag or open dispute, a verified bank
-          account, and never more than one day&apos;s rate per driver per day across campaigns.
-          Everything else stays{" "}
-          <Link className="underline" href="/admin/money?tab=ready">
-            ready to pay
-          </Link>{" "}
-          for a person to prepare and approve.
-        </p>
-      </details>
       {status.paused ? (
         <PauseSwitchForm paused />
       ) : (
@@ -137,9 +124,6 @@ function AlertsPanel({
                     : ""}
                 </p>
                 {detail ? <p className="text-sm">{detail}</p> : null}
-                {alert.kind === "submission_blocked" && alert.batch_id ? (
-                  <p className="text-muted text-sm break-all">Payment run {alert.batch_id}</p>
-                ) : null}
                 {alert.batch_id ? (
                   <Link
                     className="text-sm underline"
@@ -275,7 +259,9 @@ function ReconciliationPanel({
               </tbody>
             </table>
           </div>
-          <p className="text-muted text-xs">{data.total} automatic payments started this day.</p>
+          <p className="text-muted text-xs">
+            {data.total} automatic {data.total === 1 ? "payment" : "payments"} started this day.
+          </p>
           <Pagination
             total={data.total}
             limit={100}

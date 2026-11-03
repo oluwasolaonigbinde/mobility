@@ -67,8 +67,8 @@ describe("Money tabs: one job per screen", () => {
     ).toEqual([
       ["Payment runs", "/admin/money?tab=runs"],
       ["Ready to pay", "/admin/money?tab=ready"],
-      ["Automatic payouts", "/admin/money?tab=automatic"],
-      ["Invoices & payments", "/admin/money?tab=invoices"],
+      ["Automatic", "/admin/money?tab=automatic"],
+      ["Invoices", "/admin/money?tab=invoices"],
       ["Corrections", "/admin/money?tab=corrections"],
     ]);
   });

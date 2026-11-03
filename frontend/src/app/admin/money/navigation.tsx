@@ -3,8 +3,8 @@ export type MoneySearch = Record<string, string | string[] | undefined>;
 export const MONEY_TABS = [
   ["runs", "Payment runs"],
   ["ready", "Ready to pay"],
-  ["automatic", "Automatic payouts"],
-  ["invoices", "Invoices & payments"],
+  ["automatic", "Automatic"],
+  ["invoices", "Invoices"],
   ["corrections", "Corrections"],
 ] as const;
 export function moneyQuery(query: MoneySearch): MoneyQuery {

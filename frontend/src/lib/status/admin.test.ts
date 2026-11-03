@@ -28,19 +28,19 @@ it("uses context-specific staff words without leaking internal keys", () => {
 });
 
 it("preserves provider payment meanings and hides unrecognized wire outcomes", () => {
-  expect(adminStatus("queued", "payment_outcome")).toBe("Queued — not submitted");
-  expect(adminStatus("reserved", "payment_outcome")).toBe("Reserved — not sent");
+  expect(adminStatus("queued", "payment_outcome")).toBe("Waiting to send");
+  expect(adminStatus("reserved", "payment_outcome")).toBe("Waiting to send");
   expect(paymentRunStatus({ status: "reserved", approved_at: null })).toBe("Waiting for approval");
   expect(paymentRunStatus({ status: "reserved", approved_at: "2026-10-26T12:00:00Z" })).toBe(
     "Approved — not sent yet",
   );
   expect(paymentRunStatus({ status: "reconciled", approved_at: "2026-10-26T12:00:00Z" })).toBe(
-    "Provider results recorded",
+    "Payment results recorded",
   );
-  expect(adminStatus("submitted", "payment_outcome")).toBe("Submitted — awaiting verification");
-  expect(adminStatus("provider_unknown", "payment_outcome")).toBe("Provider outcome unknown");
-  expect(adminStatus("unknown", "payment_outcome")).toBe("Provider outcome unknown");
-  expect(adminStatus("succeeded", "payment_outcome")).toBe("Verified paid");
+  expect(adminStatus("submitted", "payment_outcome")).toBe("Sent — awaiting confirmation");
+  expect(adminStatus("provider_unknown", "payment_outcome")).toBe("Payment result not known");
+  expect(adminStatus("unknown", "payment_outcome")).toBe("Payment result not known");
+  expect(adminStatus("succeeded", "payment_outcome")).toBe("Paid");
   expect(adminStatus("failed", "payment_outcome")).toBe("Failed");
   expect(adminStatus("void", "payment_outcome")).toBe("Voided");
   expect(adminStatus("private_internal_state", "payment_outcome")).toBe("Unknown status");

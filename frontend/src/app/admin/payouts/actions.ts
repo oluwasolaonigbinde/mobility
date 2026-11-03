@@ -17,7 +17,7 @@ export interface ProcessTripState {
   steps?: string[];
 }
 
-const tripIdSchema = z.string().uuid("Enter a valid trip ID (UUID)");
+const tripIdSchema = z.string().uuid("Enter a valid trip ID");
 
 /**
  * The full trip → money pipeline, in order:
@@ -32,7 +32,7 @@ export async function processTripAction(
   formData: FormData,
 ): Promise<ProcessTripState> {
   const parsed = tripIdSchema.safeParse(String(formData.get("trip_id") ?? "").trim());
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid trip ID" };
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Enter a valid trip ID" };
   const tripId = parsed.data;
 
   const api = createApiClient(await getSessionToken());
@@ -48,8 +48,8 @@ export async function processTripAction(
     );
     steps.push(
       analytics
-        ? `Analytics: ${analytics.valid_ping_count}/${analytics.ping_count} valid pings, ${(Number(analytics.distance_m ?? 0) / 1000).toFixed(1)} km, quality ${analytics.quality_score ?? "—"}${(analytics.fraud_flags ?? []).length ? `, ${(analytics.fraud_flags ?? []).length} trip review(s)` : ""}`
-        : "Analytics recomputed",
+        ? `Trip recalculated: ${(Number(analytics.distance_m ?? 0) / 1609.344).toFixed(1)} miles`
+        : "Trip recalculated",
     );
 
     const { data: estimate } = await api.POST(
@@ -61,8 +61,8 @@ export async function processTripAction(
     );
     steps.push(
       estimate
-        ? `Impressions: ${Math.round(Number(estimate.estimated_impressions ?? 0)).toLocaleString()} estimated (confidence ${estimate.confidence_score ?? "—"})`
-        : "Impressions estimated",
+        ? `Estimated views: ${Math.round(Number(estimate.estimated_impressions ?? 0)).toLocaleString()}`
+        : "Views estimated",
     );
 
     const { data: payout } = await api.POST("/api/v1/admin/trips/{trip_id}/calculate-payout", {
@@ -71,12 +71,15 @@ export async function processTripAction(
     });
     steps.push(
       payout
-        ? `Payment breakdown: ${formatMoney(payout.final_payout, payout.currency)} · Pay status: ${adminStatus(payout.ledger_entry?.status)}`
-        : "Payment breakdown calculated",
+        ? `Trip pay: ${formatMoney(payout.final_payout, payout.currency)} · Status: ${adminStatus(payout.ledger_entry?.status)}`
+        : "Trip pay calculated",
     );
   } catch (error) {
     unstable_rethrow(error);
-    const reason = error instanceof ApiError ? publicActionError(error) : "server unreachable";
+    const reason =
+      error instanceof ApiError
+        ? publicActionError(error)
+        : "Could not reach the server. Try again.";
     return { error: `${reason}${steps.length ? ` (completed: ${steps.join(" · ")})` : ""}`, steps };
   }
 

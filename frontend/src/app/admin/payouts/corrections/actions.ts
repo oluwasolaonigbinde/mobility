@@ -46,7 +46,7 @@ export async function newOrderAction(
   const api = createApiClient(await getSessionToken());
   try {
     if (intent === "create") {
-      if (!reason) return { error: "A reason is required — it is recorded in the audit trail" };
+      if (!reason) return { error: "A reason is required" };
       await api.POST("/api/v1/admin/payouts/correction-orders", {
         body: { campaign_id, lagos_day, reason },
       });
@@ -57,7 +57,7 @@ export async function newOrderAction(
       params: { query: { campaign_id, lagos_day } },
     });
     const summary = data ? summarizeProjectedDelta(data.projected_delta) : null;
-    if (!data || !summary) return { error: "The projection came back in an unexpected shape." };
+    if (!data || !summary) return { error: "The preview couldn't be loaded." };
     return {
       projection: {
         ...summary,

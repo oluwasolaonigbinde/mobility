@@ -32,16 +32,7 @@ export default async function MoneyCloseoutPage({
       <Link className="underline" href={`/admin/campaigns/${campaignId}#money`}>
         Back to campaign Money
       </Link>
-      <PageHeader title="Settlement and payout position" eyebrow={position.campaign_name} />
-      <p className="text-muted">
-        Recorded financial facts only. These records do not confirm physical removal, operational
-        completion or an unverified transfer.
-      </p>
-      <p className="text-muted">
-        Recorded pay totals count each credit once. Payment instructions and confirmed provider
-        transfers are shown separately: late responses can leave payments unresolved or cause
-        duplicate transfers even after the pay record is marked paid.
-      </p>
+      <PageHeader title="Money summary" eyebrow={position.campaign_name} />
       <Panel className="space-y-2 p-4">
         <h2 className="font-display text-xl">Cancellation</h2>
         {position.cancellation ? (
@@ -69,13 +60,13 @@ export default async function MoneyCloseoutPage({
             </h3>
             {(
               [
-                ["Earned net", item.earned_net],
-                ["Ready for a payment run", item.unbatched_available],
+                ["Earned", item.earned_net],
+                ["Ready to pay", item.unbatched_available],
                 ["Saved, not sent yet", item.reserved],
-                ["Payments awaiting a provider result", item.in_flight],
-                ["Confirmed failed payments", item.terminal_failed],
-                ["Verified cash paid", item.cash_paid],
-                ["Confirmed provider transfers", item.provider_verified_paid],
+                ["Waiting for a payment result", item.in_flight],
+                ["Failed payments", item.terminal_failed],
+                ["Cash paid", item.cash_paid],
+                ["Transfers paid", item.provider_verified_paid],
               ] as const
             ).map(([label, amount]) => (
               <p key={label} className="text-sm">
@@ -97,11 +88,6 @@ export default async function MoneyCloseoutPage({
         </Panel>
       ))}
       {!position.settlements.length ? <p>No settlement has been recorded on this page.</p> : null}
-      {position.external_blockers.map((blocker) => (
-        <p key={blocker} className="text-amber">
-          {blocker}
-        </p>
-      ))}
       <nav aria-label="Money position pages" className="flex gap-4">
         {page > 0 ? (
           <Link href={`/admin/campaigns/${campaignId}?drawer=closeout&page=${page - 1}#money`}>

@@ -27,7 +27,7 @@ export function DailyRatePanel({
       <form action={formAction} className="flex flex-col gap-6" noValidate>
         <input type="hidden" name="campaign_id" value={campaignId} />
         <fieldset className="grid gap-4 sm:grid-cols-2" disabled={pending}>
-          <legend className="micro text-muted mb-3">New version — daily rate (NGN)</legend>
+          <legend className="micro text-muted mb-3">New daily pay (₦)</legend>
           <Field
             label="Day rate (₦)"
             name="daily_rate_naira"
@@ -45,7 +45,7 @@ export function DailyRatePanel({
             error={fieldError("daily_target_miles")}
           />
           <Field
-            label="Starts (future)"
+            label="Starts on"
             name="effective_from"
             defaultValue={previous("effective_from")}
             type="datetime-local"
@@ -56,7 +56,7 @@ export function DailyRatePanel({
             label="Reason"
             name="reason"
             defaultValue={previous("reason")}
-            placeholder="for example: on-request areas"
+            placeholder="Why is the pay changing?"
             error={fieldError("reason")}
           />
         </fieldset>
@@ -78,25 +78,19 @@ export function DailyRatePanel({
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? "Publishing…" : "Publish daily rate"}
         </Button>
-        <p className="micro text-faint">
-          Only in-area miles count, with no minimum. Shorter days earn a proportional share up to
-          the day rate. Stops of up to 5 minutes count as driving; longer stops add no miles (fixed
-          by Cardvert). Drivers keep the terms they accepted; past days change only through a
-          correction.
-        </p>
+        <p className="micro text-faint">Drivers keep the pay terms they accepted.</p>
       </form>
 
       <div>
-        <h3 className="micro text-muted mb-3">Version history</h3>
+        <h3 className="micro text-muted mb-3">Pay history</h3>
         {revisions.length === 0 ? (
-          <p className="text-muted text-sm">No pay versions for this campaign yet.</p>
+          <p className="text-muted text-sm">No pay history for this campaign yet.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-edge micro text-muted border-b text-left">
-                  <th className="py-2 pr-4 font-normal">#</th>
-                  <th className="px-4 py-2 font-normal">Starts</th>
+                  <th className="px-4 py-2 font-normal">Pay from</th>
                   <th className="px-4 py-2 text-right font-normal">Day rate</th>
                   <th className="px-4 py-2 text-right font-normal">Daily miles</th>
                   <th className="py-2 pl-4 font-normal">Reason</th>
@@ -105,7 +99,6 @@ export function DailyRatePanel({
               <tbody>
                 {revisions.map((r) => (
                   <tr key={r.id} className="border-edge/60 border-b text-xs last:border-0">
-                    <td className="py-3 pr-4 font-mono">Version {r.revision_number}</td>
                     <td className="px-4 py-3 font-mono">{formatDateTime(r.effective_from)}</td>
                     <td className="px-4 py-3 text-right font-mono">
                       {formatMoneyExact(r.daily_rate_naira)}

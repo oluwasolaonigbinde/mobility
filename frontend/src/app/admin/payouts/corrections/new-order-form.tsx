@@ -73,10 +73,6 @@ export function NewOrderForm() {
               {p.tripCount} ({p.adjustmentCount} up · {p.reversalCount} down)
             </dd>
           </dl>
-          <details className="micro text-faint mt-2 break-all">
-            <summary>Recorded preview details</summary>
-            {p.fingerprint}
-          </details>
         </div>
       ) : null}
 
@@ -96,8 +92,7 @@ export function NewOrderForm() {
         </Button>
       </div>
       <p className="micro text-faint">
-        Approve and apply the correction with a reason. Extra pay becomes available to drivers on
-        the date chosen when it is approved.
+        Extra pay becomes available on the date chosen at approval.
       </p>
     </form>
   );

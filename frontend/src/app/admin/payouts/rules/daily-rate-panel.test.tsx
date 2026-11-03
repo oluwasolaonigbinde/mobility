@@ -60,18 +60,13 @@ describe("DailyRatePanel", () => {
       />,
     );
 
-    for (const label of [
-      "Day rate (₦)",
-      "Daily miles for a full day",
-      "Starts (future)",
-      "Reason",
-    ]) {
+    for (const label of ["Day rate (₦)", "Daily miles for a full day", "Starts on", "Reason"]) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
     expect(screen.queryByRole("combobox")).toBeNull();
     expect(screen.queryByLabelText(/Deduction|Minimum miles|Share of miles/)).toBeNull();
     const headers = screen.getAllByRole("columnheader").map((cell) => cell.textContent);
-    expect(headers).toEqual(["#", "Starts", "Day rate", "Daily miles", "Reason"]);
+    expect(headers).toEqual(["Pay from", "Day rate", "Daily miles", "Reason"]);
     expect(headers.join(" ")).not.toMatch(/hour/i);
     const [daily] = screen.getAllByRole("row").slice(1);
     if (!daily) throw new Error("expected daily row");
@@ -83,7 +78,7 @@ describe("DailyRatePanel", () => {
   it("allows publication with an empty history", () => {
     render(<DailyRatePanel campaignId={CAMPAIGN_ID} revisions={[]} />);
 
-    expect(screen.getByText("No pay versions for this campaign yet.")).toBeInTheDocument();
+    expect(screen.getByText("No pay history for this campaign yet.")).toBeInTheDocument();
     expect(screen.getByLabelText("Day rate (₦)")).toBeEnabled();
     expect(screen.getByRole("button", { name: "Publish daily rate" })).toBeEnabled();
   });

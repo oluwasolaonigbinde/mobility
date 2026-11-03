@@ -19,7 +19,9 @@ const MESSAGES = {
 
 function fail(campaignId: string, error: unknown): never {
   const message =
-    error instanceof ApiError ? publicActionError(error, MESSAGES) : "The billing action failed";
+    error instanceof ApiError
+      ? publicActionError(error, MESSAGES)
+      : "That didn't work. Please try again.";
   redirect(`${path(campaignId)}?error=${encodeURIComponent(message)}#money`);
 }
 

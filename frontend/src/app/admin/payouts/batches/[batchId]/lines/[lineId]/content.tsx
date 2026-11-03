@@ -52,32 +52,29 @@ export default async function PaymentHistory({
       <NegativeAdjustmentForm entryId={line.ledger_entry_id} currency={line.currency} />
       {history.latest_submission_outcome || !history.items.length ? (
         <p>
-          Latest provider answer:{" "}
+          Payment result:{" "}
           {history.latest_submission_outcome
             ? outcomeLabel(history.latest_submission_outcome)
-            : "No provider answer recorded"}
+            : "No payment result yet"}
         </p>
       ) : null}
       {history.items.map((event) => (
         <Panel key={event.id} className="space-y-2 p-4">
           <p>
-            {outcomeLabel(event.outcome)} ·{" "}
-            {event.applied ? "Applied to this payment" : "Recorded without changing this payment"}
+            {outcomeLabel(event.outcome)} · {event.applied ? "Added" : "Noted"}
           </p>
           <p>
             {event.source === "webhook"
-              ? "Provider event"
+              ? "Payment update"
               : event.source === "poll"
-                ? "Provider check"
-                : "Verified check"}{" "}
-            · provider time {formatDateTime(event.provider_occurred_at)}
+                ? "Payment check"
+                : "Confirmed check"}{" "}
+            · Time {formatDateTime(event.provider_occurred_at)}
           </p>
           <p className="text-muted text-sm">Recorded {formatDateTime(event.created_at)}</p>
         </Panel>
       ))}
-      {!history.items.length ? (
-        <p>No verified final result has been recorded. This does not mean failed or paid.</p>
-      ) : null}
+      {!history.items.length ? <p>No confirmed payment result yet.</p> : null}
       {line.status === "submitted" || line.status === "failed" ? (
         <PollLineAction lineId={lineId} />
       ) : null}

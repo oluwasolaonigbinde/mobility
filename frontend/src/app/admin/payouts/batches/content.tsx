@@ -50,9 +50,9 @@ export async function ReadyToPay({ searchParams }: { searchParams: Promise<Money
               </Link>
             ) : null}
             <span>
-              {entries.items.filter((entry) => entry.eligible).length} payable earnings{" "}
-              {entries.items.filter((entry) => entry.eligible).length === 1 ? "record" : "records"}{" "}
-              on this page · page {credits + 1}
+              {entries.items.filter((entry) => entry.eligible).length} payment
+              {entries.items.filter((entry) => entry.eligible).length === 1 ? "" : "s"} ready on
+              this page · page {credits + 1}
             </span>
             {(credits + 1) * 25 < entries.total ? (
               <Link href={moneyHref(query, { credits: String(credits + 1) })}>Next earnings</Link>
@@ -162,7 +162,7 @@ export default async function PaymentRuns({ searchParams }: { searchParams: Prom
               <Link href={moneyHref(query, { runs: String(runs - 1) })}>Previous runs</Link>
             ) : null}
             <span>
-              {summary.total} payment runs · page {runs + 1}
+              {summary.total} payment {summary.total === 1 ? "run" : "runs"} · page {runs + 1}
             </span>
             {(runs + 1) * 25 < summary.total ? (
               <Link href={moneyHref(query, { runs: String(runs + 1) })}>Next runs</Link>

@@ -73,7 +73,7 @@ describe("payout batch actions", () => {
     data.set("ledger_entry_ids", "22222222-2222-4222-8222-222222222222");
     const result = await createAndReserveBatchAction({}, data);
     expect(result.batchId).toBe("11111111-1111-4111-8111-111111111111");
-    expect(result.error).toMatch(/saved request/);
+    expect(result.error).toMatch(/Check the list before starting another payment run/);
     expect(JSON.stringify(result)).not.toMatch(/provider.invalid|secret/);
   });
 
@@ -84,8 +84,8 @@ describe("payout batch actions", () => {
     data.set("batch_id", "11111111-1111-4111-8111-111111111111");
     data.set("intent", "submit");
     const result = await batchTransitionAction({}, data);
-    expect(result.done).toMatch(/^Submission queued/);
-    expect(result.done).toMatch(/does not confirm submission or payment/);
+    expect(result.done).toMatch(/^Sending started/);
+    expect(result.done).toMatch(/Check each payment for the result/);
   });
 
   it("creates a draft then reserves the exact ledger entries", async () => {
@@ -101,7 +101,7 @@ describe("payout batch actions", () => {
       "22222222-2222-4222-8222-222222222222, 33333333-3333-4333-8333-333333333333",
     );
     const result = await createAndReserveBatchAction({}, form);
-    expect(result.done).toMatch(/reservation confirmed/i);
+    expect(result.done).toMatch(/Payment run created/i);
     expect(mocks.batchApi).toHaveBeenNthCalledWith(1, "", {
       method: "POST",
       body: JSON.stringify({
@@ -136,7 +136,7 @@ describe("payout batch actions", () => {
     form.set("currency", "NGN");
     form.set("ledger_entry_ids", "22222222-2222-4222-8222-222222222222");
     const result = await createAndReserveBatchAction({}, form);
-    expect(result.done).toMatch(/Existing payment run recovered; no new reservation/);
+    expect(result.done).toMatch(/This payment run already exists/);
     expect(result.done).not.toMatch(/Reservation confirmed/);
   });
 
@@ -196,7 +196,7 @@ describe("payout batch actions", () => {
     form.set("reason", "Staff payment review");
     form.set("batch_id", "11111111-1111-4111-8111-111111111111");
     form.set("intent", "retry_failed");
-    expect((await batchTransitionAction({}, form)).error).toMatch(/newer verified bank/);
+    expect((await batchTransitionAction({}, form)).error).toMatch(/Bank details must change/);
   });
 
   it("polls only the selected provider line", async () => {
@@ -205,7 +205,7 @@ describe("payout batch actions", () => {
     form.set("reason", "Staff payment review");
     form.set("line_id", "22222222-2222-4222-8222-222222222222");
     const result = await pollLineAction({}, form);
-    expect(result.done).toMatch(/provider result/i);
+    expect(result.done).toMatch(/Payment result/i);
     expect(mocks.batchApi).toHaveBeenCalledWith(
       "/lines/22222222-2222-4222-8222-222222222222/poll",
       { method: "POST", body: JSON.stringify({ reason: "Staff payment review" }) },

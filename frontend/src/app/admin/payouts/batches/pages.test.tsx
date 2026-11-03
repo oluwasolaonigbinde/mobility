@@ -75,7 +75,7 @@ describe("bounded payout pages", () => {
     );
     const row = screen.getByRole("row", { name: /₦125.10/ });
     expect(within(row).getByText("Waiting for approval")).toBeVisible();
-    expect(within(row).getByText("Queued — not submitted: 2")).toBeVisible();
+    expect(within(row).getByText("Waiting to send: 2")).toBeVisible();
     expect(within(row).getByRole("link", { name: "Review run" })).toHaveAttribute(
       "href",
       "/admin/money?tab=runs&runs=2&status=reserved&batch=batch",
@@ -91,7 +91,7 @@ describe("bounded payout pages", () => {
   it("counts only payable rows on this page with singular wording", async () => {
     mocks.api.mockResolvedValueOnce({ items: [{ eligible: true }, { eligible: false }], total: 2 });
     render(await ReadyToPay({ searchParams: Promise.resolve({}) }));
-    expect(screen.getByText(/1 payable earnings record on this page/)).toBeVisible();
+    expect(screen.getByText(/1 payment ready on this page/)).toBeVisible();
   });
 
   it("does not show a missing provider answer above an existing check", async () => {
@@ -115,8 +115,8 @@ describe("bounded payout pages", () => {
         searchParams: Promise.resolve({}),
       }),
     );
-    expect(screen.getByText(/Provider check/)).toBeVisible();
-    expect(screen.queryByText(/No provider answer recorded/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Payment check/)).toBeVisible();
+    expect(screen.queryByText(/No payment result yet/)).not.toBeInTheDocument();
   });
   it("shows ready-to-pay earnings on their own screen with their own paging", async () => {
     mocks.api.mockResolvedValueOnce({ items: [], total: 80 });
@@ -179,12 +179,12 @@ describe("bounded payout pages", () => {
     mocks.api.mockResolvedValue({ summary, lines: [line], total: 60 });
     render(await BatchDetailPage(detailProps("1")));
     expect(mocks.api).toHaveBeenCalledExactlyOnceWith("/batch/detail?limit=25&offset=25");
-    expect(screen.getByText("Provider outcome unknown")).toBeVisible();
+    expect(screen.getByText("Payment result not known")).toBeVisible();
     expect(screen.getByText("Named Driver")).toBeVisible();
-    expect(screen.queryByText("Verified paid")).not.toBeInTheDocument();
+    expect(screen.queryByText("Paid")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Verify line" })).not.toBeInTheDocument();
     expect(
-      within(screen.getByRole("navigation", { name: "Payment line pages" })).getByRole("link", {
+      within(screen.getByRole("navigation", { name: "Payment pages" })).getByRole("link", {
         name: "Next",
       }),
     ).toHaveAttribute("href", expect.stringContaining("line_page=2"));
@@ -251,9 +251,7 @@ describe("bounded payout pages", () => {
     mocks.api.mockResolvedValue({ summary: { ...summary, status: "draft" }, lines: [], total: 0 });
     render(await BatchDetailPage(detailProps()));
     expect(mocks.api).toHaveBeenCalledTimes(1);
-    expect(
-      screen.getByText("Only the person who prepared this draft can reserve it."),
-    ).toBeVisible();
+    expect(screen.getByText("Only the person who prepared this can continue it.")).toBeVisible();
   });
 
   it("shows verified evidence on paid lines and preserves submitted verification action", async () => {
@@ -272,7 +270,7 @@ describe("bounded payout pages", () => {
     });
     render(await BatchDetailPage(detailProps("bad")));
     expect(screen.getByText("Grace Checker")).toBeVisible();
-    expect(screen.getByText("Submitted — awaiting verification")).toBeVisible();
+    expect(screen.getByText("Sent — awaiting confirmation")).toBeVisible();
     expect(screen.getByRole("button", { name: "Verify line" })).toBeVisible();
   });
 
@@ -293,11 +291,7 @@ describe("bounded payout pages", () => {
         searchParams: Promise.resolve({}),
       }),
     );
-    expect(
-      screen.getByText(
-        "No verified final result has been recorded. This does not mean failed or paid.",
-      ),
-    ).toBeVisible();
+    expect(screen.getByText("No confirmed payment result yet.")).toBeVisible();
   });
 
   it("pages applied and retained provider evidence without changing its meaning", async () => {
@@ -336,8 +330,8 @@ describe("bounded payout pages", () => {
       }),
     );
     expect(mocks.api).toHaveBeenCalledWith("/lines/line/history?limit=25&offset=25");
-    expect(screen.getByText(/Verified paid · Applied to this payment/)).toBeVisible();
-    expect(screen.getByText(/Failed · Recorded without changing this payment/)).toBeVisible();
+    expect(screen.getByText(/Paid · Added/)).toBeVisible();
+    expect(screen.getByText(/Failed · Noted/)).toBeVisible();
     expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute(
       "href",
       expect.stringContaining("history_page=2"),

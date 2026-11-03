@@ -119,8 +119,9 @@ or colour (owner, 27–29 October 2026, REQ-253); D103/D104 money authority stay
 **Current rule:** The business is **Terrax Media**; the product and app are
 **Cardvert** (Q29). Signed-in screens say "Terrax Media" when a person acts
 (reviews, approvals, payments) and "Cardvert" for automatic actions; times read
-"Nigeria time (WAT)" (D38a). Advertiser and driver screens never show hashes,
-run IDs or fingerprints; staff screens and downloads may (D38c). One white and
+"Nigeria time (WAT)" (D38a). Advertiser, driver and staff screens never show hashes,
+run IDs or fingerprints (D154 supersedes D38c staff presentation). Stored records
+and existing issued downloads retain their original data. One white and
 brand-green signed-in design replaces the switchable directions and picker
 (D98/REQ-181/185). Advertiser and driver screens use friendly sans type and the
 Terrax mark beside Cardvert. Advertisers use a side list and a left phone drawer;

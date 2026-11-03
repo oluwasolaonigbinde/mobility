@@ -17,7 +17,7 @@ export interface AutomaticActionState {
 const reason = z
   .string()
   .trim()
-  .min(3, "Give a reason of at least 3 characters — it is kept in the audit trail")
+  .min(3, "Give a reason of at least 3 characters")
   .max(500, "Keep the reason under 500 characters");
 
 const switchSchema = z.object({ intent: z.enum(["pause", "resume"]), reason });

@@ -189,7 +189,7 @@ describe("admin campaign billing page", () => {
       "20000.00",
     );
     expect(screen.getByLabelText("Campaign start date")).toHaveValue("2026-11-01");
-    expect(screen.getByRole("button", { name: "Save quotation version" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save quotation" })).toBeVisible();
   });
 
   it.each([false, true])(
@@ -208,7 +208,7 @@ describe("admin campaign billing page", () => {
           searchParams: Promise.resolve({}),
         }),
       );
-      expect(screen.queryByRole("button", { name: "Save quotation version" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Save quotation" })).toBeNull();
       expect(Boolean(screen.queryByRole("button", { name: "Issue invoice" }))).toBe(available);
       expect(Boolean(screen.queryByText(/bank details and the accountant's check/))).toBe(
         !available,

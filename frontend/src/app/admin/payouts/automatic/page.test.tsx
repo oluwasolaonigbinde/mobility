@@ -155,7 +155,7 @@ describe("AutomaticPayoutsPage", () => {
     ).entries()) {
       expect(problems[index]).toHaveTextContent(driver);
       expect(problems[index]).toHaveTextContent(`₦${amount}`);
-      expect(problems[index]).toHaveTextContent(`Payment run ${run}`);
+      expect(problems[index]).not.toHaveTextContent(`Payment run ${run}`);
       expect(
         within(problems[index]!).getByRole("link", { name: "Open payment run" }),
       ).toHaveAttribute("href", `/admin/money?tab=automatic&batch=${run}&line=${line}`);
@@ -166,18 +166,15 @@ describe("AutomaticPayoutsPage", () => {
     api();
     render(await page());
     expect(mocks.role).toHaveBeenCalledWith("admin");
-    expect(screen.getByText(/No payment provider is connected yet/)).toBeVisible();
+    expect(screen.getByText(/Payouts aren't connected yet/)).toBeVisible();
     expect(screen.getByText("Nothing to follow up.")).toBeVisible();
     expect(screen.getByText("No automatic payouts ran on this day.")).toBeVisible();
     // Pausing and the rules stay folded away until asked for.
     expect(screen.getByRole("button", { name: "Pause automatic payouts" })).not.toBeVisible();
-    expect(screen.getByText(/Only clean daily-rate earnings/)).not.toBeVisible();
+    expect(screen.queryByText(/Only clean daily-rate earnings/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByText("Pause sending"));
     expect(screen.getByRole("button", { name: "Pause automatic payouts" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "ready to pay" })).toHaveAttribute(
-      "href",
-      "/admin/money?tab=ready",
-    );
+    expect(screen.queryByRole("link", { name: "ready to pay" })).not.toBeInTheDocument();
   });
 
   it("shows a running status, open problems and the day's reconciliation", async () => {
@@ -186,7 +183,7 @@ describe("AutomaticPayoutsPage", () => {
     expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/payouts/automatic/reconciliation", {
       params: { query: { day: "2026-09-28", limit: 100, offset: 0 } },
     });
-    expect(screen.getByText(/Running — Cardvert pays clean daily-rate earnings/)).toBeVisible();
+    expect(screen.getByText(/^Running\.$/)).toBeVisible();
     expect(screen.getByText("Daily")).toBeVisible();
     expect(screen.getByText(/3 payments · ₦12,000.00/)).toBeVisible();
     const problem = screen
@@ -207,7 +204,7 @@ describe("AutomaticPayoutsPage", () => {
     expect(problem.closest("#problems")).not.toBeNull();
     expect(screen.getByText("Sent — waiting for the bank")).toBeVisible();
     expect(screen.getByText(/Bank answers recorded: Paid 1 · Paid 1 \(no change\)/)).toBeVisible();
-    expect(screen.getByText("Trip had a review flag: 1 · ₦3,000.00")).toBeVisible();
+    expect(screen.getByText("Trip needed checking: 1 · ₦3,000.00")).toBeVisible();
     expect(screen.getByRole("link", { name: "Ada Driver" })).toHaveAttribute(
       "href",
       "/admin/money?tab=automatic&day=2026-09-28&batch=batch-1&line=line-1",
@@ -255,7 +252,7 @@ describe("AutomaticPayoutsPage", () => {
     api({ status: { ...RUNNING, runnable: false, identity_ready: false } });
     render(await page());
     expect(screen.getByText("Set up, but not running yet.")).toBeVisible();
-    expect(screen.getByText(/payout identity is missing or was changed/)).toBeVisible();
+    expect(screen.getByText(/Restore the payout account settings/)).toBeVisible();
   });
 
   it("keeps each panel's failure separate", async () => {

@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/auth/current-user";
 import { getSessionToken } from "@/lib/auth/session";
 import { formatDate, formatMoneyExact } from "@/lib/format";
 import { adminStatus } from "@/lib/status/admin";
-import { summarizeProjectedDelta } from "@/lib/payouts/corrections";
+import { projectedTripRows, summarizeProjectedDelta } from "@/lib/payouts/corrections";
 import { Pagination } from "@/components/ui/pagination";
 import { FilterChips } from "@/components/ui/tabs";
 import { HubDrawer } from "../../hub-drawer";
@@ -64,9 +64,7 @@ export default async function Corrections({ query }: { query: MoneyQuery }) {
       <details className="border-edge rounded border p-4">
         <summary>Correct a driver&apos;s pay</summary>
         <p className="text-muted my-3 text-sm">
-          Recalculates what drivers on one campaign earned for one day and adds or takes back the
-          difference. Choose the campaign and day to preview it, then approve and apply it with a
-          reason.
+          Choose a campaign and day to preview a pay correction.
         </p>
         <NewOrderForm />
       </details>
@@ -128,7 +126,7 @@ export default async function Corrections({ query }: { query: MoneyQuery }) {
               {delta ? (
                 <p>
                   Expected change: {formatMoneyExact(delta.deltaTotal, delta.currency)} ·{" "}
-                  {delta.tripCount} trips
+                  {delta.tripCount} {delta.tripCount === 1 ? "trip" : "trips"}
                 </p>
               ) : null}
               <OrderActions
@@ -136,12 +134,23 @@ export default async function Corrections({ query }: { query: MoneyQuery }) {
                 status={selected.status}
                 requiresReleaseAt={(delta?.adjustmentCount ?? 0) > 0}
               />
-              <details className="mt-4">
-                <summary>Recorded calculation details</summary>
-                <pre className="max-w-full overflow-auto">
-                  {JSON.stringify(selected.projected_delta, null, 2)}
-                </pre>
-              </details>
+              <ul aria-label="Trip pay changes" className="mt-4 space-y-3">
+                {projectedTripRows(selected.projected_delta).map((trip, index) => (
+                  <li key={trip.id}>
+                    <Link
+                      className="underline"
+                      href={`/admin/drivers/${trip.driverId}?trip=${trip.id}#trips-and-pay`}
+                    >
+                      Trip {index + 1}
+                    </Link>
+                    <p>
+                      Current: {formatMoneyExact(trip.previous, trip.currency)} · Correct:{" "}
+                      {formatMoneyExact(trip.target, trip.currency)}
+                    </p>
+                    <p>Change: {formatMoneyExact(trip.change, trip.currency)}</p>
+                  </li>
+                ))}
+              </ul>
             </>
           )}
         </HubDrawer>
