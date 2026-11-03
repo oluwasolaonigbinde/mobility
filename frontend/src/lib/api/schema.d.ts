@@ -2427,23 +2427,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/advertiser/campaigns/{campaign_id}/cost-summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read advertiser campaign cost summary */
-        get: operations["advertiser_get_campaign_cost_summary_api_v1_advertiser_campaigns__campaign_id__cost_summary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/advertiser/campaigns/{campaign_id}/creatives": {
         parameters: {
             query?: never;
@@ -5482,6 +5465,101 @@ export interface components {
             /** Year */
             year?: number | null;
         };
+        /** AdvertiserCampaignChangeList */
+        AdvertiserCampaignChangeList: {
+            /** Items */
+            items: components["schemas"]["AdvertiserCampaignChangeRead"][];
+        };
+        /** AdvertiserCampaignChangePreviewRead */
+        AdvertiserCampaignChangePreviewRead: {
+            /** After */
+            after: {
+                [key: string]: unknown;
+            };
+            /** Before */
+            before: {
+                [key: string]: unknown;
+            };
+            /** Classifications */
+            classifications: string[];
+            /** Currency */
+            currency: string;
+            /** Outcome */
+            outcome: string;
+            /** Preview Sha256 */
+            preview_sha256: string;
+            /** Source Sha256 */
+            source_sha256: string;
+        };
+        /** AdvertiserCampaignChangeRead */
+        AdvertiserCampaignChangeRead: {
+            /** Applied At */
+            applied_at: string | null;
+            /** Authorization Id */
+            authorization_id: string | null;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /** Classifications */
+            classifications: string[];
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Proposed Changes */
+            proposed_changes: {
+                [key: string]: unknown;
+            };
+            /**
+             * Requested By User Id
+             * Format: uuid
+             */
+            requested_by_user_id: string;
+            /** Review Reason */
+            review_reason: string | null;
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /** Reviewed By User Id */
+            reviewed_by_user_id: string | null;
+            /** Status */
+            status: string;
+        };
+        /** AdvertiserCampaignCommercialRead */
+        AdvertiserCampaignCommercialRead: {
+            budget_check: components["schemas"]["BudgetCheckRead"] | null;
+            expedited_waiver_copy: components["schemas"]["WaiverCopyRead"];
+            financial_authority: components["schemas"]["AdvertiserFinancialAuthorityRead"] | null;
+            /** Invoices */
+            invoices: components["schemas"]["InvoiceRead"][];
+            production_start: components["schemas"]["ProductionStartRead"] | null;
+            quote_request: components["schemas"]["QuoteRequestRead"] | null;
+            /** Revisions */
+            revisions: components["schemas"]["QuoteRevisionRead"][];
+            /** Settlements */
+            settlements: components["schemas"]["SettlementRead"][];
+            terms: components["schemas"]["CommercialTermsRead"] | null;
+            waiver: components["schemas"]["WaiverRead"] | null;
+        };
         /** AdvertiserCampaignRead */
         AdvertiserCampaignRead: {
             /** Budget Amount */
@@ -5532,7 +5610,6 @@ export interface components {
         AdvertiserDashboardSummary: {
             assignments: components["schemas"]["AssignmentStatusCounts"];
             campaigns: components["schemas"]["CampaignStatusCounts"];
-            costs: components["schemas"]["DashboardCostSummary"];
             /** Currency */
             currency: string;
             /** End At */
@@ -5547,6 +5624,45 @@ export interface components {
             /** Start At */
             start_at: string | null;
             trips: components["schemas"]["TripStatusCounts"];
+        };
+        /** AdvertiserFinancialAuthorityRead */
+        AdvertiserFinancialAuthorityRead: {
+            /** Authority Type */
+            authority_type: string;
+            /** Authorized Amount */
+            authorized_amount: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Commercial Terms Id
+             * Format: uuid
+             */
+            commercial_terms_id: string;
+            /** Credit Due At */
+            credit_due_at: string | null;
+            /** Credit Limit */
+            credit_limit: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Effective From
+             * Format: date-time
+             */
+            effective_from: string;
+            /** Funded Cash Amount */
+            funded_cash_amount: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Reason */
+            reason: string;
+            /** Revision Number */
+            revision_number: number;
         };
         /** AdvertiserLoginInviteCreate */
         AdvertiserLoginInviteCreate: {
@@ -6736,31 +6852,6 @@ export interface components {
             /** Start At */
             start_at?: string | null;
         };
-        /** CampaignChangePreviewRead */
-        CampaignChangePreviewRead: {
-            /** After */
-            after: {
-                [key: string]: unknown;
-            };
-            /** Available Liability Amount */
-            available_liability_amount: string;
-            /** Before */
-            before: {
-                [key: string]: unknown;
-            };
-            /** Classifications */
-            classifications: string[];
-            /** Currency */
-            currency: string;
-            /** Outcome */
-            outcome: string;
-            /** Preview Sha256 */
-            preview_sha256: string;
-            /** Requested Liability Amount */
-            requested_liability_amount: string;
-            /** Source Sha256 */
-            source_sha256: string;
-        };
         /** CampaignChangeRead */
         CampaignChangeRead: {
             /** Applied At */
@@ -6821,22 +6912,6 @@ export interface components {
             reviewed_by_user_id: string | null;
             /** Status */
             status: string;
-        };
-        /** CampaignCommercialRead */
-        CampaignCommercialRead: {
-            budget_check: components["schemas"]["BudgetCheckRead"] | null;
-            expedited_waiver_copy: components["schemas"]["WaiverCopyRead"];
-            financial_authority: components["schemas"]["FinancialAuthorityRead"] | null;
-            /** Invoices */
-            invoices: components["schemas"]["InvoiceRead"][];
-            production_start: components["schemas"]["ProductionStartRead"] | null;
-            quote_request: components["schemas"]["QuoteRequestRead"] | null;
-            /** Revisions */
-            revisions: components["schemas"]["QuoteRevisionRead"][];
-            /** Settlements */
-            settlements: components["schemas"]["SettlementRead"][];
-            terms: components["schemas"]["CommercialTermsRead"] | null;
-            waiver: components["schemas"]["WaiverRead"] | null;
         };
         /** CampaignCreate */
         CampaignCreate: {
@@ -7477,7 +7552,6 @@ export interface components {
         CampaignSummary: {
             assignments: components["schemas"]["AssignmentStatusCounts"];
             campaign: components["schemas"]["CampaignReadSummary"];
-            costs: components["schemas"]["app__schemas__reports__CampaignCostSummary"];
             creatives: components["schemas"]["CreativeStatusCounts"];
             /** End At */
             end_at: string | null;
@@ -7496,7 +7570,6 @@ export interface components {
              * Format: uuid
              */
             campaign_id: string;
-            costs: components["schemas"]["app__schemas__reports__CampaignCostSummary"];
             fraud_flags: components["schemas"]["FraudFlagCounts"];
             impressions: components["schemas"]["ImpressionSummary"];
             route_analytics: components["schemas"]["RouteAnalyticsSummary"];
@@ -8191,22 +8264,6 @@ export interface components {
             timezone: string;
             /** Total */
             total: number;
-        };
-        /** DashboardCostCurrencySummary */
-        DashboardCostCurrencySummary: {
-            /** Currency */
-            currency: string;
-            /** Final Payout Total */
-            final_payout_total: string | null;
-            /** Gross Payout Total */
-            gross_payout_total: string | null;
-            /** Ledger Entry Count */
-            ledger_entry_count: number;
-        };
-        /** DashboardCostSummary */
-        DashboardCostSummary: {
-            /** Totals By Currency */
-            totals_by_currency: components["schemas"]["DashboardCostCurrencySummary"][];
         };
         /** DocumentReviewRead */
         DocumentReviewRead: {
@@ -12831,65 +12888,6 @@ export interface components {
              * @default 0
              */
             total: number;
-        };
-        /** CampaignCostCurrencySummary */
-        app__schemas__payouts__CampaignCostCurrencySummary: {
-            /** Blocked Trip Count */
-            blocked_trip_count: number;
-            /** Calculated Trip Count */
-            calculated_trip_count: number;
-            /** Currency */
-            currency: string;
-            /** Final Payout Total */
-            final_payout_total: string | null;
-            /** Gross Payout Total */
-            gross_payout_total: string | null;
-            /** Insufficient Data Trip Count */
-            insufficient_data_trip_count: number;
-            /** Ledger Entry Count */
-            ledger_entry_count: number;
-            /** Ledger Net Total */
-            ledger_net_total: string | null;
-        };
-        /** CampaignCostSummary */
-        app__schemas__payouts__CampaignCostSummary: {
-            /**
-             * Campaign Id
-             * Format: uuid
-             */
-            campaign_id: string;
-            /** End At */
-            end_at: string | null;
-            /** Formula Version */
-            formula_version: string;
-            /** Formula Versions */
-            formula_versions: string[];
-            /** Start At */
-            start_at: string | null;
-            /** Totals By Currency */
-            totals_by_currency: components["schemas"]["app__schemas__payouts__CampaignCostCurrencySummary"][];
-        };
-        /** CampaignCostCurrencySummary */
-        app__schemas__reports__CampaignCostCurrencySummary: {
-            /** Blocked Trip Count */
-            blocked_trip_count: number;
-            /** Calculated Trip Count */
-            calculated_trip_count: number;
-            /** Currency */
-            currency: string;
-            /** Final Payout Total */
-            final_payout_total: string | null;
-            /** Gross Payout Total */
-            gross_payout_total: string | null;
-            /** Insufficient Data Trip Count */
-            insufficient_data_trip_count: number;
-            /** Ledger Entry Count */
-            ledger_entry_count: number;
-        };
-        /** CampaignCostSummary */
-        app__schemas__reports__CampaignCostSummary: {
-            /** Totals By Currency */
-            totals_by_currency: components["schemas"]["app__schemas__reports__CampaignCostCurrencySummary"][];
         };
     };
     responses: never;
@@ -18021,7 +18019,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignChangePreviewRead"];
+                    "application/json": components["schemas"]["AdvertiserCampaignChangePreviewRead"];
                 };
             };
             /** @description Request validation failed */
@@ -18052,7 +18050,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignChangeList"];
+                    "application/json": components["schemas"]["AdvertiserCampaignChangeList"];
                 };
             };
             /** @description Request validation failed */
@@ -18087,7 +18085,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignChangeRead"];
+                    "application/json": components["schemas"]["AdvertiserCampaignChangeRead"];
                 };
             };
             /** @description Request validation failed */
@@ -18118,42 +18116,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignCommercialRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    advertiser_get_campaign_cost_summary_api_v1_advertiser_campaigns__campaign_id__cost_summary_get: {
-        parameters: {
-            query?: {
-                start_at?: string | null;
-                end_at?: string | null;
-                currency?: string | null;
-            };
-            header?: never;
-            path: {
-                campaign_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["app__schemas__payouts__CampaignCostSummary"];
+                    "application/json": components["schemas"]["AdvertiserCampaignCommercialRead"];
                 };
             };
             /** @description Request validation failed */

@@ -6,7 +6,6 @@ from fastapi import APIRouter, Body, Query, status
 
 from app.api.v1.dependencies import (
     AdminUserDependency,
-    AdvertiserUserDependency,
     DriverUserDependency,
     SessionDependency,
     SettingsDependency,
@@ -29,8 +28,6 @@ from app.schemas.disbursements import PayoutNegativeAdjustment
 from app.schemas.payouts import (
     AdminPayoutCalculationRead,
     CalculatePayoutRequest,
-    CampaignCostCurrencySummary,
-    CampaignCostSummary,
     CampaignPayoutRuleListResponse,
     CampaignPayoutRuleRead,
     CampaignPayoutRuleRevisionListResponse,
@@ -69,7 +66,6 @@ from app.services.payouts.common import recompute_requires_correction_order
 from app.services.payouts.engine import calculate_trip_payout
 from app.services.payouts.ledger import ledger_for_calculation
 from app.services.payouts.read import (
-    advertiser_campaign_cost_summary,
     driver_earnings_summary,
     list_driver_ledger_entries,
     list_payout_calculations,
@@ -551,52 +547,6 @@ async def driver_list_earnings_ledger(
         total=total,
         limit=limit,
         offset=offset,
-    )
-
-
-@router.get(
-    "/advertiser/campaigns/{campaign_id}/cost-summary",
-    response_model=CampaignCostSummary,
-    summary="Read advertiser campaign cost summary",
-)
-async def advertiser_get_campaign_cost_summary(
-    campaign_id: UUID,
-    current_user: AdvertiserUserDependency,
-    session: SessionDependency,
-    settings: SettingsDependency,
-    start_at: datetime | None = None,
-    end_at: datetime | None = None,
-    currency: str | None = None,
-) -> CampaignCostSummary:
-    start_at, end_at = ensure_payout_date_range(start_at, end_at)
-    summary = await advertiser_campaign_cost_summary(
-        session,
-        user_id=current_user.id,
-        campaign_id=campaign_id,
-        start_at=start_at,
-        end_at=end_at,
-        currency=currency,
-        settings=settings,
-    )
-    return CampaignCostSummary(
-        campaign_id=summary.campaign_id,
-        formula_version=summary.formula_version,
-        formula_versions=summary.formula_versions,
-        totals_by_currency=[
-            CampaignCostCurrencySummary(
-                currency=total.currency,
-                final_payout_total=total.final_payout_total,
-                gross_payout_total=total.gross_payout_total,
-                ledger_net_total=total.ledger_net_total,
-                calculated_trip_count=total.calculated_trip_count,
-                blocked_trip_count=total.blocked_trip_count,
-                insufficient_data_trip_count=total.insufficient_data_trip_count,
-                ledger_entry_count=total.ledger_entry_count,
-            )
-            for total in summary.totals_by_currency
-        ],
-        start_at=summary.start_at,
-        end_at=summary.end_at,
     )
 
 

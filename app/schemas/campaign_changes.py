@@ -51,16 +51,19 @@ class CampaignChangeCreate(CampaignChangeProposal):
     preview_sha256: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
 
 
-class CampaignChangePreviewRead(BaseModel):
+class AdvertiserCampaignChangePreviewRead(BaseModel):
     before: dict[str, Any]
     after: dict[str, Any]
     source_sha256: str
     preview_sha256: str
     classifications: list[str]
-    requested_liability_amount: Decimal
-    available_liability_amount: Decimal
     currency: str
     outcome: str
+
+
+class CampaignChangePreviewRead(AdvertiserCampaignChangePreviewRead):
+    requested_liability_amount: Decimal
+    available_liability_amount: Decimal
 
 
 class CampaignChangeDecision(BaseModel):
@@ -76,7 +79,7 @@ class CampaignChangeDecision(BaseModel):
         return normalized
 
 
-class CampaignChangeRead(BaseModel):
+class AdvertiserCampaignChangeRead(BaseModel):
     campaign_name: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
@@ -87,16 +90,23 @@ class CampaignChangeRead(BaseModel):
     client_request_id: UUID
     proposed_changes: dict[str, Any]
     classifications: list[str]
-    impact_preview: dict[str, Any]
     status: str
-    requested_liability_amount: Decimal
-    reserved_liability_amount: Decimal | None
     authorization_id: UUID | None
     reviewed_by_user_id: UUID | None
     reviewed_at: datetime | None
     review_reason: str | None
     applied_at: datetime | None
     created_at: datetime
+
+
+class CampaignChangeRead(AdvertiserCampaignChangeRead):
+    impact_preview: dict[str, Any]
+    requested_liability_amount: Decimal
+    reserved_liability_amount: Decimal | None
+
+
+class AdvertiserCampaignChangeList(BaseModel):
+    items: list[AdvertiserCampaignChangeRead]
 
 
 class CampaignChangeList(BaseModel):

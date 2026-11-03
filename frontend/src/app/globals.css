@@ -432,3 +432,32 @@ aside.bg-panel nav p.micro {
 .advertiser-portal select {
   max-width: 100%;
 }
+
+/* Print only the invoice, without reserving space for the portal shell. */
+@media print {
+  body:has(.invoice-document) {
+    background: white;
+    color: black;
+    margin: 0;
+  }
+  body:has(.invoice-document)
+    *:not(:has(.invoice-document)):not(.invoice-document):not(.invoice-document *) {
+    display: none !important;
+  }
+  body:has(.invoice-document) *:has(.invoice-document) {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+  .invoice-document {
+    max-width: none;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    background: white;
+  }
+}

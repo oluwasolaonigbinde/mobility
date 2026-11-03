@@ -82,7 +82,7 @@ export default async function NewCampaignPage({
       </div>
     );
     if (data.status === "active") return askTerrax();
-    let commercial: components["schemas"]["CampaignCommercialRead"] | undefined;
+    let commercial: components["schemas"]["AdvertiserCampaignCommercialRead"] | undefined;
     try {
       ({ data: commercial } = await api.GET(
         "/api/v1/advertiser/campaigns/{campaign_id}/commercial",

@@ -285,6 +285,7 @@ it("shows the server's funding refusal in plain words", async () => {
 });
 it.each([
   ["draft", false],
+  ["void", false],
   ["none", false],
   ["issued", true],
 ] as const)(
@@ -307,6 +308,9 @@ it.each([
         searchParams: Promise.resolve({}),
       }),
     );
+    if (!shown && state !== "none") {
+      expect(screen.getByText("Balance due").nextElementSibling).toHaveTextContent("—");
+    }
     expect(Boolean(screen.queryByRole("button", { name: "Check and record transfer" }))).toBe(
       shown,
     );

@@ -118,7 +118,6 @@ class AdvertiserDashboardSummary(BaseModel):
     assignments: AssignmentStatusCounts
     trips: TripStatusCounts
     impressions: ImpressionSummary
-    costs: DashboardCostSummary
     quality: QualitySummary
 
 
@@ -167,7 +166,6 @@ class CampaignSummary(BaseModel):
     trips: TripStatusCounts
     route_analytics: RouteAnalyticsSummary
     impressions: ImpressionSummary
-    costs: CampaignCostSummary
     fraud_flags: FraudFlagCounts
 
 
@@ -197,7 +195,6 @@ class CampaignTripsResponse(BaseModel):
     trips: TripStatusCounts
     route_analytics: RouteAnalyticsSummary
     impressions: ImpressionSummary
-    costs: CampaignCostSummary
     fraud_flags: FraudFlagCounts
 
 

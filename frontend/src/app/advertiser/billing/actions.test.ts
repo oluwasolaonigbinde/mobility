@@ -35,7 +35,7 @@ describe("startInvoicePayment", () => {
 
   it("rejects a malformed invoice before requesting a checkout", async () => {
     await expect(startInvoicePayment(paymentForm("not-an-invoice"))).rejects.toThrow(
-      "redirect:/advertiser/billing?payment=error&message=Choose+a+valid+invoice.",
+      "redirect:/advertiser/billing?payment=error&code=invalid_invoice",
     );
     expect(mocks.post).not.toHaveBeenCalled();
     expect(mocks.session).not.toHaveBeenCalled();
@@ -58,7 +58,7 @@ describe("startInvoicePayment", () => {
     mocks.post.mockResolvedValueOnce({ data: { checkout_url: null } });
 
     await expect(startInvoicePayment(paymentForm())).rejects.toThrow(
-      "redirect:/advertiser/billing?payment=error&message=Paystack%20is%20still%20preparing%20this%20checkout.%20Please%20try%20again.",
+      "redirect:/advertiser/billing?payment=error&code=checkout_unavailable",
     );
   });
 
@@ -78,7 +78,7 @@ describe("startInvoicePayment", () => {
     mocks.post.mockRejectedValueOnce(new Error("private upstream detail"));
 
     await expect(startInvoicePayment(paymentForm())).rejects.toThrow(
-      "redirect:/advertiser/billing?payment=error&message=Cardvert%20could%20not%20open%20Paystack.%20Check%20your%20payment%20status%20before%20trying%20again.",
+      "redirect:/advertiser/billing?payment=error&code=checkout_unavailable",
     );
   });
 });

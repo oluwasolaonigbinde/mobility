@@ -242,6 +242,25 @@ def test_renderer_is_deterministic_allowlisted_and_csv_is_safe():
     assert frozen == before
 
 
+def test_pdf_headings_use_readable_calendar_dates(monkeypatch):
+    from app.services import campaign_report_rendering as rendering
+
+    frozen = snapshot()
+    frozen["start_date"] = "2026-11-03"
+    frozen["end_date"] = "2026-11-17"
+    paragraphs = []
+    original = rendering.Paragraph
+
+    def capture(text, style):
+        paragraphs.append(text)
+        return original(text, style)
+
+    monkeypatch.setattr(rendering, "Paragraph", capture)
+    assert rendering.render_campaign_pdf(frozen).startswith(b"%PDF-")
+    assert "3 Nov 2026 to 17 Nov 2026 | Nigeria time (WAT)" in paragraphs
+    assert "Campaign dates: 01 Jan 2020 00:00 WAT to 03 Jan 2020 00:00 WAT" in paragraphs
+
+
 def test_weekly_final_boundaries_and_derived_finished():
     end = START + 2 * WEEK + timedelta(days=2)
     assert next_due_window(START, end, START + WEEK - timedelta(microseconds=1), set()) is None

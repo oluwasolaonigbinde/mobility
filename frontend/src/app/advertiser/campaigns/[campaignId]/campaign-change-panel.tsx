@@ -13,7 +13,7 @@ import {
   type CampaignReviewActionState,
 } from "./actions";
 
-type ChangeRequest = components["schemas"]["CampaignChangeRead"];
+type ChangeRequest = components["schemas"]["AdvertiserCampaignChangeRead"];
 
 const initialState: CampaignReviewActionState = {};
 

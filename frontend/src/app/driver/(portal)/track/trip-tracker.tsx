@@ -405,7 +405,7 @@ export function TripTracker({
     if (writerAcquireRef.current) return writerAcquireRef.current;
     if (!("locks" in navigator)) {
       patchRuntime({ webLocks: "unavailable" });
-      setError("This browser can't track trips. Try Chrome or Safari. Try another browser.");
+      setError("This browser can't track trips. Try Chrome or Safari.");
       return false;
     }
     let resolveAcquisition!: (held: boolean) => void;

@@ -124,7 +124,12 @@ def test_change_preview_is_exact_and_creates_no_campaign_request_revision_or_aud
     assert preview.json()["after"]["budget_amount"] == "1200.00"
     assert preview.json()["currency"] == "NGN"
     assert preview.json()["classifications"] == ["expansion"]
-    assert preview.json()["requested_liability_amount"] == "0.00"
+    assert not {
+        "requested_liability_amount",
+        "available_liability_amount",
+        "impact_preview",
+        "reserved_liability_amount",
+    }.intersection(preview.json())
     assert preview.json()["outcome"] == "apply_now"
     assert len(preview.json()["source_sha256"]) == 64
     assert len(preview.json()["preview_sha256"]) == 64
@@ -265,7 +270,12 @@ def test_safe_budget_expansion_applies_immediately_and_retry_converges(
     assert created.json()["id"] == replay.json()["id"]
     assert created.json()["status"] == "applied"
     assert created.json()["classifications"] == ["expansion"]
-    assert created.json()["requested_liability_amount"] == "0.00"
+    assert not {
+        "requested_liability_amount",
+        "available_liability_amount",
+        "impact_preview",
+        "reserved_liability_amount",
+    }.intersection(created.json())
 
     async def current_budget():
         async with db_sessionmaker() as session:

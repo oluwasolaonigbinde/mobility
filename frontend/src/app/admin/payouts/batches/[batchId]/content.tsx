@@ -156,6 +156,7 @@ export default async function BatchDetailPage({
             <p>Paid to: {line.payee_name}</p>
             <p className="font-mono">{formatMoneyExact(line.amount, line.currency)}</p>
             <p>{outcomeLabel(line.outcome)}</p>
+            {line.reconciler_name ? <p>Confirmed by: {line.reconciler_name}</p> : null}
             {line.reconciled_at ? (
               <p className="text-muted text-sm">
                 Payment result: {formatDateTime(line.reconciled_at)}

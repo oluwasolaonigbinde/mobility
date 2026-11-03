@@ -25,7 +25,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-RENDERER_VERSION = "campaign-report-d118-v2"
+RENDERER_VERSION = "campaign-report-d118-v3"
 MAX_ARTIFACT_BYTES = 8 * 1024 * 1024
 MEASURED = (
     ("cars_deployed", "Cars deployed", "cars"),
@@ -148,8 +148,16 @@ def _number(value, unit=""):
     return f"{number:,.0f}"
 
 
+def _report_date(value):
+    if not value:
+        return "Not recorded"
+    day = datetime.fromisoformat(value)
+    return f"{day.day} {day:%b %Y}"
+
+
 def _chart(items, *, key, title, estimated=False):
-    drawing = Drawing(460, 145)
+    drawing = Drawing(460, 160)
+    drawing.translate(0, 12)
     ink = colors.HexColor("#1f2937")
     color = colors.HexColor("#b45309" if estimated else "#1d4ed8")
     drawing.add(String(0, 130, title, fontName="ReportSans", fontSize=10, fillColor=ink))
@@ -216,7 +224,8 @@ def render_campaign_pdf(snapshot: dict) -> bytes:
         [
             paragraph("Campaign report", "Title"),
             paragraph(
-                f"{snapshot['start_date']} to {snapshot['end_date']} | Nigeria time (WAT)",
+                f"{_report_date(snapshot['start_date'])} to {_report_date(snapshot['end_date'])}"
+                " | Nigeria time (WAT)",
                 "ReportNote",
             ),
             paragraph("Measured driving and estimated views are shown separately.", "ReportNote"),
@@ -229,7 +238,8 @@ def render_campaign_pdf(snapshot: dict) -> bytes:
                 paragraph(campaign["name"], "Heading1"),
                 paragraph(f"Status: {_status_label(campaign['status'])}", "ReportNote"),
                 paragraph(
-                    f"Campaign dates: {campaign['start_at']} to {campaign['end_at']}", "ReportNote"
+                    f"Campaign dates: {campaign['start_at']} to {campaign['end_at']}",
+                    "ReportNote",
                 ),
                 paragraph("Measured results", "Heading2"),
             ]

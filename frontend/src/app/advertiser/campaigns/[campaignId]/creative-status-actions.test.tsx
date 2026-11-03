@@ -182,13 +182,13 @@ describe("CreativeStatusActions", () => {
 
   it("reuses the upload identity when the same file is retried after a failure", async () => {
     mocks.upload
-      .mockRejectedValueOnce(new Error("We couldn't check this file. Try again. Retry the upload."))
+      .mockRejectedValueOnce(new Error("We couldn't check this file. Retry the upload."))
       .mockResolvedValueOnce({ storedFileId: STORED_FILE_ID, creativeType: "image" });
     renderActions("rejected");
 
     chooseReplacement(wrap());
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "We couldn't check this file. Try again. Retry the upload.",
+      "We couldn't check this file. Retry the upload.",
     );
     expect(screen.queryByRole("button", { name: "Replace and submit" })).not.toBeInTheDocument();
 

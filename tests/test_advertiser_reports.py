@@ -466,8 +466,8 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(
     assert dashboard_data["impressions"]["estimated_impressions"] == "500.00"
     assert dashboard_data["impressions"]["estimated_trip_count"] == 1
     assert dashboard_data["impressions"]["insufficient_data_trip_count"] == 1
-    assert dashboard_data["costs"]["totals_by_currency"][0]["final_payout_total"] == "1200.00"
-    assert dashboard_data["costs"]["totals_by_currency"][0]["ledger_entry_count"] == 1
+    assert "costs" not in dashboard_data
+    assert "costs" not in dashboard_data
     assert dashboard_data["quality"]["fraud_flags"]["open"] == 1
     assert dashboard_data["quality"]["fraud_flags"]["dismissed"] == 1
     assert dashboard_data["quality"]["fraud_flags"]["high"] == 1
@@ -487,8 +487,8 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(
     assert summary_data["zones"] == {"total": 2, "target": 1, "exclusion": 1}
     assert summary_data["route_analytics"]["analyzed_trip_count"] == 2
     assert summary_data["route_analytics"]["total_distance_m"] == "15000.00"
-    assert summary_data["costs"]["totals_by_currency"][0]["calculated_trip_count"] == 1
-    assert summary_data["costs"]["totals_by_currency"][0]["insufficient_data_trip_count"] == 1
+    assert "costs" not in summary_data
+    assert "costs" not in summary_data
     assert summary_data["fraud_flags"]["open"] == 1
 
     assert daily.status_code == http_status.HTTP_200_OK
@@ -675,7 +675,7 @@ def test_campaign_trip_report_is_aggregate_only_and_rbac_protected(
     assert data["trips"] == {"total": 1, "ended": 1, "active": 0}
     assert data["route_analytics"]["total_distance_m"] == "10000.00"
     assert data["impressions"]["estimated_impressions"] == "500.00"
-    assert data["costs"]["totals_by_currency"][0]["final_payout_total"] == "1200.00"
+    assert "costs" not in data
     assert data["fraud_flags"] == {
         "open": 1,
         "confirmed": 0,

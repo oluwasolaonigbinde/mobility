@@ -20,8 +20,7 @@ const commercialErrors = {
   QUOTATION_REVISION_SUPERSEDED: "A newer quotation is available. Review it before accepting.",
   COMMERCIAL_TERMS_ALREADY_ACCEPTED: "This quotation was already accepted.",
   QUOTATION_CURRENCY_MISMATCH: "The quotation currency no longer matches this campaign.",
-  EXPEDITED_WAIVER_COPY_MISMATCH:
-    "This wording has changed. Refresh and read it again. Refresh and review it again.",
+  EXPEDITED_WAIVER_COPY_MISMATCH: "This wording has changed. Refresh and read it again.",
 } as const;
 
 const campaignCommandSchema = z.object({ campaignId: z.string().uuid() });
@@ -100,7 +99,7 @@ export async function acceptExpeditedWaiverAction(
   });
   if (!parsed.success)
     return {
-      error: "Your earlier-start request didn't go through. Try again. Refresh and try again.",
+      error: "Your earlier-start request didn't go through. Refresh and try again.",
     };
   try {
     const api = createApiClient(await getSessionToken());
@@ -115,10 +114,7 @@ export async function acceptExpeditedWaiverAction(
   } catch (error) {
     unstable_rethrow(error);
     return {
-      error: safeCommercialError(
-        error,
-        "Your earlier-start request didn't go through. Try again. Try again.",
-      ),
+      error: safeCommercialError(error, "Your earlier-start request didn't go through. Try again."),
     };
   }
   return { done: "Earlier production start agreed." };

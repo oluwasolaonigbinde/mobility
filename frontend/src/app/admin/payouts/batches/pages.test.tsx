@@ -270,6 +270,7 @@ describe("bounded payout pages", () => {
     });
     render(await BatchDetailPage(detailProps("bad")));
     expect(screen.getByText("Grace Checker")).toBeVisible();
+    expect(screen.getByText("Confirmed by: Audit Reviewer")).toBeVisible();
     expect(screen.getByText("Sent — awaiting confirmation")).toBeVisible();
     expect(screen.getByRole("button", { name: "Verify line" })).toBeVisible();
   });
@@ -330,8 +331,8 @@ describe("bounded payout pages", () => {
       }),
     );
     expect(mocks.api).toHaveBeenCalledWith("/lines/line/history?limit=25&offset=25");
-    expect(screen.getByText(/Paid · Added/)).toBeVisible();
-    expect(screen.getByText(/Failed · Noted/)).toBeVisible();
+    expect(screen.getByText(/Paid · Applied to this payment/)).toBeVisible();
+    expect(screen.getByText(/Failed · Recorded without changing this payment/)).toBeVisible();
     expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute(
       "href",
       expect.stringContaining("history_page=2"),

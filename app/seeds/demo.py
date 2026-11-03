@@ -98,10 +98,10 @@ DEMO_DRIVER_PHONE_NUMBERS = {
         f"driver{index:02d}@demo.mobility.local": f"+2340000000{100 + index}"
         for index in range(1, 10)
     },
-    "abdulrahman.yusuf@mail.ng": "+2340000000110",
-    "nneka.umeh@mail.ng": "+2340000000111",
-    "ayodele.bakare@mail.ng": "+2340000000112",
-    "suleiman.idris@mail.ng": "+2340000000113",
+    "abdulrahman.yusuf@demo.mobility.local": "+2340000000110",
+    "nneka.umeh@demo.mobility.local": "+2340000000111",
+    "ayodele.bakare@demo.mobility.local": "+2340000000112",
+    "suleiman.idris@demo.mobility.local": "+2340000000113",
 }
 PRODUCTION_ENVIRONMENTS = {"prod", "production"}
 

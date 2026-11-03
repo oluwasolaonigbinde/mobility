@@ -415,26 +415,41 @@ async def process_email_notification(  # noqa: C901
                             DriverApplicationAccessToken,
                             UUID(str(notice.payload["driver_application_access_id"])),
                         )
-                        if access is None:
-                            raise ValueError("driver_review_access_inactive")
-                        review_token = driver_application_access_token_for_delivery(
-                            access, settings
+                        application = (
+                            await session.get(DriverApplication, access.application_id)
+                            if access is not None
+                            else None
                         )
-                        from app.core.errors import AppError
+                        if application is not None and application.user_id != user.id:
+                            raise ValueError("driver_review_access_inactive")
+                        if (
+                            access is not None
+                            and application is not None
+                            and access.invalidated_at is None
+                            and _utc(access.expires_at) > _utc(now)
+                        ):
+                            try:
+                                review_token = driver_application_access_token_for_delivery(
+                                    access, settings
+                                )
+                            except RuntimeError:
+                                raise ValueError(
+                                    "driver_onboarding_access_evidence_mismatch"
+                                ) from None
+                            from app.core.errors import AppError
 
-                        try:
-                            application = await application_from_access_token(
-                                session, token=review_token, settings=settings, lock=False
-                            )
-                        except AppError:
-                            raise ValueError("driver_review_access_inactive") from None
-                        if application.user_id != user.id:
-                            raise ValueError("driver_review_access_inactive")
-                        step = await current_application_step(session, application)
-                        runtime_payload["action_url"] = public_action_url(
-                            settings,
-                            f"/apply?step={step}#application_access_token={quote(review_token)}",
-                        )
+                            try:
+                                application = await application_from_access_token(
+                                    session, token=review_token, settings=settings, lock=False
+                                )
+                            except AppError:
+                                application = None
+                            if application is not None:
+                                step = await current_application_step(session, application)
+                                runtime_payload["action_url"] = public_action_url(
+                                    settings,
+                                    f"/apply?step={step}#application_access_token={quote(review_token)}",
+                                )
                 else:
                     context = (
                         await notification_campaign_context(session, notice=notice, user=user)

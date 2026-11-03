@@ -172,8 +172,8 @@ test("payout selection explains ineligible credits and closeout keeps paid facts
   const primaryDriver = closeout
     .getByRole("heading", { name: "Emeka Nwankwo · NGN" })
     .locator("..");
-  await expect(primaryDriver.getByText("Cash paid: ₦38,496.63")).toBeVisible();
-  await expect(primaryDriver.getByText("Transfers paid: ₦38,496.63")).toBeVisible();
+  await expect(primaryDriver.getByText("Total paid: ₦38,496.63")).toBeVisible();
+  await expect(primaryDriver.getByText("Of that, by transfer: ₦38,496.63")).toBeVisible();
   await expect(closeout.getByRole("button", { name: /complete|close campaign/i })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
 });

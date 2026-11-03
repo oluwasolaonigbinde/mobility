@@ -403,6 +403,7 @@ export default async function AdminCampaignBillingPage({
                     <p className="micro text-muted">Balance due</p>
                     <p className="mt-1 font-mono text-sm">
                       {(() => {
+                        if (invoice.status !== "issued") return "—";
                         const total = moneyMinor(invoice.effective_obligation_amount);
                         const funded = moneyMinor(invoice.funded_amount);
                         if (total === null || funded === null) return "—";
@@ -509,7 +510,15 @@ export default async function AdminCampaignBillingPage({
                     {formatMoney(receiptEntry.receipt.amount, receiptEntry.receipt.currency)}
                   </p>
                 </div>
-                <StatusChip tone={receiptEntry.current_status === "reversed" ? "coral" : "green"}>
+                <StatusChip
+                  tone={
+                    receiptEntry.current_status === "reversed"
+                      ? "coral"
+                      : receiptEntry.current_status === "confirmed"
+                        ? "green"
+                        : "amber"
+                  }
+                >
                   {adminStatus(receiptEntry.current_status ?? "recorded", "receipt")}
                 </StatusChip>
               </div>
@@ -574,7 +583,9 @@ export default async function AdminCampaignBillingPage({
                     {settlement.reason} · {formatDate(settlement.recorded_at)}
                   </p>
                   <p className="micro text-muted mt-1">
-                    {settlement.settlement_provider === "bank_transfer" ? "Bank transfer" : "Other"}{" "}
+                    {settlement.settlement_provider
+                      .replaceAll("_", " ")
+                      .replace(/^./, (letter) => letter.toUpperCase())}{" "}
                     · {settlement.external_reference}
                   </p>
                 </div>

@@ -744,14 +744,6 @@ async def advertiser_dashboard_summary(
             end_at=end_at,
             settings=settings,
         ),
-        costs=await dashboard_cost_summary(
-            session,
-            organization.id,
-            start_at=start_at,
-            end_at=end_at,
-            default_currency=organization.currency,
-            settings=settings,
-        ),
         quality=await quality_summary_for_org(
             session,
             organization.id,
@@ -826,20 +818,6 @@ async def advertiser_campaign_summary(
                 campaign.id,
                 start_at=start_at,
                 end_at=end_at,
-                settings=settings,
-            )
-        ),
-        costs=(
-            await campaign_cost_summary_from_cohort(
-                session, cohort, default_currency=campaign.currency
-            )
-            if cohort is not None
-            else await campaign_cost_summary(
-                session,
-                campaign.id,
-                start_at=start_at,
-                end_at=end_at,
-                default_currency=campaign.currency,
                 settings=settings,
             )
         ),
@@ -1073,14 +1051,6 @@ async def advertiser_campaign_trips(
             campaign.id,
             start_at=None,
             end_at=None,
-            settings=settings,
-        ),
-        costs=await campaign_cost_summary(
-            session,
-            campaign.id,
-            start_at=None,
-            end_at=None,
-            default_currency=campaign.currency,
             settings=settings,
         ),
         fraud_flags=await fraud_counts_for_campaign(

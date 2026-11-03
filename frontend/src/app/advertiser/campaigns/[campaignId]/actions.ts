@@ -59,8 +59,8 @@ export interface CampaignReviewActionState {
   commandId?: string;
   error?: string;
   done?: string;
-  confirmedRequest?: components["schemas"]["CampaignChangeRead"];
-  preview?: components["schemas"]["CampaignChangePreviewRead"];
+  confirmedRequest?: components["schemas"]["AdvertiserCampaignChangeRead"];
+  preview?: components["schemas"]["AdvertiserCampaignChangePreviewRead"];
   proposal?: {
     budgetAmount?: string;
     dailyBudgetAmount?: string;

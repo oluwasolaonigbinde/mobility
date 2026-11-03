@@ -12,7 +12,7 @@ vi.mock("./commercial-actions", () => ({
 import { CommercialPanel } from "./commercial-panel";
 import { requestQuoteAction } from "./commercial-actions";
 
-type Commercial = components["schemas"]["CampaignCommercialRead"];
+type Commercial = components["schemas"]["AdvertiserCampaignCommercialRead"];
 
 const CAMPAIGN_ID = "00000000-0000-4000-8000-000000000001";
 
@@ -228,6 +228,10 @@ describe("CommercialPanel copy", () => {
   it("keeps the accepted revision visible as an immutable receipt", () => {
     const accepted = {
       ...revision(),
+      production_scope: {
+        campaign_start_date: "2026-11-03",
+        campaign_end_date: "2026-11-17",
+      },
       quotation_revision_id: "00000000-0000-4000-8000-000000000002",
       quotation_revision_number: 2,
       standard_production_wait_hours: 24,
@@ -240,6 +244,8 @@ describe("CommercialPanel copy", () => {
         commercial={commercial({ revisions: [revision({ revision_number: 3 })], terms: accepted })}
       />,
     );
+    expect(screen.getByText("3 Nov 2026")).toBeInTheDocument();
+    expect(screen.getByText("17 Nov 2026")).toBeInTheDocument();
 
     expect(screen.getByText("Accepted quotation")).toBeInTheDocument();
     expect(screen.getByText("Quote Q-100")).toBeInTheDocument();

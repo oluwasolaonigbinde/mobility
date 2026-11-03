@@ -503,3 +503,11 @@ def test_partial_multi_day_cash_has_no_invented_allocation():
 def test_released_unsent_day_is_payment_pending():
     assert show(row(status="available"))[0]["status"] == "payment_pending"
     assert show(row(status="pending"))[0]["status"] == "being_checked"
+
+
+def test_fully_deducted_unpaid_trip_does_not_promise_payment():
+    [day] = show(
+        row(), row(amount="-10.01", entry_type="adjustment", work_days=[("2026-10-09", "-10.01")])
+    )
+    assert day["amount"] == 0
+    assert day["status"] == "being_checked"

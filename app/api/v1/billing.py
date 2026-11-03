@@ -36,6 +36,7 @@ from app.models.billing import (
 from app.models.campaign import Campaign
 from app.schemas.billing import (
     AdminCampaignCommercialRead,
+    AdvertiserCampaignCommercialRead,
     BillingHistoryEntry,
     BudgetCheckRead,
     BudgetResumeCreate,
@@ -411,7 +412,7 @@ async def admin_record_external_quote_acceptance(
 
 @router.get(
     "/advertiser/campaigns/{campaign_id}/commercial",
-    response_model=CampaignCommercialRead,
+    response_model=AdvertiserCampaignCommercialRead,
 )
 async def advertiser_campaign_commercial(
     campaign_id: UUID,

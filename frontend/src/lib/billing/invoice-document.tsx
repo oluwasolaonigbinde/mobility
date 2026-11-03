@@ -134,7 +134,7 @@ export function InvoiceDocument({
     .join(", ");
 
   return (
-    <article className="border-edge bg-raised mx-auto max-w-4xl space-y-8 rounded-lg border p-8">
+    <article className="invoice-document border-edge bg-raised mx-auto max-w-4xl space-y-8 rounded-lg border p-8">
       <header className="flex flex-wrap items-start justify-between gap-6">
         <div>
           <h1 className="font-display text-3xl font-semibold">{heading}</h1>
@@ -233,7 +233,7 @@ export function InvoiceDocument({
       </section>
 
       {invoice.corrections?.length || invoice.status !== "draft" ? (
-        <section>
+        <section className="print:break-inside-avoid">
           <h2 className="micro text-muted mb-3">Corrections and payments</h2>
           {invoice.corrections?.length ? (
             <ul className="mb-3 space-y-1 text-sm">
@@ -263,7 +263,7 @@ export function InvoiceDocument({
         </section>
       ) : null}
 
-      <section>
+      <section className="print:break-inside-avoid">
         <h2 className="micro text-muted mb-3">Payment details</h2>
         <dl className="grid gap-2 sm:grid-cols-3">
           <Fact label="Bank" value={text(issuer?.bank_name)} />

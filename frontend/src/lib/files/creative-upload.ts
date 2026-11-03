@@ -80,7 +80,7 @@ function scanFailure(status: StoredFile["scan_status"]): Error {
   if (status === "infected")
     return new Error("This file failed our safety check. Try another file.");
   if (status === "rejected") return new Error("Use a PNG, JPEG, WebP or PDF file.");
-  return new Error("We couldn't check this file. Try again. Retry the upload.");
+  return new Error("We couldn't check this file. Retry the upload.");
 }
 
 export async function uploadCreativeFile(
@@ -124,7 +124,7 @@ export async function uploadCreativeFile(
     for (const [name, value] of Object.entries(intent.upload.fields)) form.append(name, value);
     form.append("file", file);
     const uploaded = await fetch(intent.upload.url, { method: "POST", body: form });
-    if (!uploaded.ok) throw new Error("The upload failed. Try again. Retry the upload.");
+    if (!uploaded.ok) throw new Error("The upload failed. Retry the upload.");
     uploadId = intent.upload_id;
     rememberConfirmableUpload(clientRequestId, { fingerprint, uploadId });
   }

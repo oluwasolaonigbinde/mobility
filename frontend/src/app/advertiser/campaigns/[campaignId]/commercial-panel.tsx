@@ -15,7 +15,7 @@ import {
   type CommercialActionState,
 } from "./commercial-actions";
 
-type Commercial = components["schemas"]["CampaignCommercialRead"];
+type Commercial = components["schemas"]["AdvertiserCampaignCommercialRead"];
 type Quotation = Commercial["revisions"][number] | NonNullable<Commercial["terms"]>;
 
 const initialState: CommercialActionState = {};
@@ -66,7 +66,12 @@ function TermsValue({ value }: { value: unknown }) {
           <div key={key}>
             <dt className="text-faint text-xs">{termLabel(key)}</dt>
             <dd className="text-sm">
-              <TermsValue value={item} />
+              {typeof item === "string" &&
+              ["campaign_start_date", "campaign_end_date"].includes(key) ? (
+                formatDate(item)
+              ) : (
+                <TermsValue value={item} />
+              )}
             </dd>
           </div>
         ))}

@@ -26,8 +26,7 @@ import { DataUnavailable } from "@/components/ui/data-unavailable";
 export const metadata: Metadata = { title: "Billing" };
 
 const receiptStatusLabel: Record<string, string> = {
-  observed: "Recorded – being checked",
-  reconciled: "Amount matched – awaiting confirmation",
+  recorded: "Recorded – being checked",
   confirmed: "Confirmed",
   reversed: "Reversed",
 };
@@ -46,7 +45,7 @@ function SectionHeading({ id, title, hint }: { id: string; title: string; hint: 
 export default async function AdvertiserBillingPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ payment?: string; message?: string }>;
+  searchParams?: Promise<{ payment?: string; code?: string }>;
 }) {
   const paymentResult = (await searchParams) ?? {};
   await requireRole("advertiser");
@@ -68,7 +67,7 @@ export default async function AdvertiserBillingPage({
   const campaigns = campaignResult.data;
   const commercialHistory: Array<{
     campaign: (typeof campaigns)[number];
-    commercial: import("@/lib/api/schema").components["schemas"]["CampaignCommercialRead"];
+    commercial: import("@/lib/api/schema").components["schemas"]["AdvertiserCampaignCommercialRead"];
   }> = [];
   for (let offset = 0; offset < campaigns.length; offset += 4) {
     const group = await Promise.all(
@@ -143,7 +142,11 @@ export default async function AdvertiserBillingPage({
                   : "Online payment could not be opened"}
           </p>
           <p className="text-muted mt-1 text-sm">
-            {paymentResult.message ??
+            {(paymentResult.code === "invalid_invoice"
+              ? "Choose a valid invoice."
+              : paymentResult.code === "checkout_unavailable"
+                ? "Online payment could not be opened. Check your payment status before trying again."
+                : undefined) ??
               (paymentResult.payment === "confirmed"
                 ? "We're adding your payment to the invoice."
                 : "Your payment hasn't been confirmed yet.")}
@@ -245,7 +248,7 @@ export default async function AdvertiserBillingPage({
                                 : "amber"
                           }
                         >
-                          {receiptStatusLabel[entry.current_status ?? "observed"] ?? "Other"}
+                          {receiptStatusLabel[entry.current_status ?? "recorded"] ?? "Other"}
                         </StatusChip>
                       </div>
                     </div>

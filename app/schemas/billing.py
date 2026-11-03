@@ -300,6 +300,21 @@ class FinancialAuthorityCreate(BaseModel):
     credit_terms: dict[str, Any] | None = None
 
 
+class AdvertiserFinancialAuthorityRead(ORMRead):
+    id: UUID
+    campaign_id: UUID
+    commercial_terms_id: UUID
+    revision_number: int
+    authority_type: str
+    currency: str
+    authorized_amount: Decimal
+    funded_cash_amount: Decimal
+    credit_limit: Decimal | None
+    credit_due_at: datetime | None
+    effective_from: datetime
+    reason: str
+
+
 class FinancialAuthorityRead(ORMRead):
     id: UUID
     campaign_id: UUID
@@ -461,3 +476,7 @@ class PaystackWebhookReceipt(BaseModel):
     event: str
     accepted: bool
     duplicate: bool
+
+
+class AdvertiserCampaignCommercialRead(CampaignCommercialRead):
+    financial_authority: AdvertiserFinancialAuthorityRead | None

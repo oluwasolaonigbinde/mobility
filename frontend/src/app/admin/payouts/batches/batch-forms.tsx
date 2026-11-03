@@ -26,6 +26,8 @@ const initialState: BatchActionState = {};
 
 /** Plain words for the server's reasons an earnings record cannot join a payment run. */
 const REASONS: Record<string, string> = {
+  "Already paid": "Already paid",
+  "Nothing left to pay": "Nothing left to pay",
   "A trip source is required": "Not linked to a trip, so it can't be paid in a run",
   "Current successful assessment required": "The trip hasn't passed its latest check yet",
   "Active review hold": "On hold while a trip review is open",

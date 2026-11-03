@@ -1075,3 +1075,8 @@ only one-hour aggregate minute counters. The runbook defines the thresholds.
   `44ded5ea`. Specialist reviews and full verification `38539599622` pass.
   Earlier jobs exposed logs/errors and partition alarms without a consolidated
   health sweep.
+
+### Preview specialist corrections � 3 November 2026 (REQ-295 / D152)
+Advertiser APIs omit driver-pay figures, including report totals and the commercial cap. Staff reads retain them. Review emails retain a plain continuation link if application access expires or is replaced. Funding, ownership and payment authority remain unchanged. Earlier preview wording kept API fields pending privacy review; REQ-295 replaces that rule after the review confirmed disclosure.
+
+- **2026-11-03 — REQ-296:** Controller walkthrough corrections use readable quotation/report dates, print the invoice alone with payment details together, and use map in the drawing empty state. Newly rendered reports use v3; historical issued artifacts are unchanged.

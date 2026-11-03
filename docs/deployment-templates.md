@@ -177,6 +177,9 @@ W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117, 
 
 ## Client preview host checklist (REQ-287 / D150)
 
+- Change every seeded password straight after seeding and before sharing the preview link, and update the owner's login list. Re-running the seed restores known passwords, so repeat this step after every seed run.
+- Turn off email-provider link tracking so application links are not rewritten.
+
 Before separately authorized deployment, verify ENVIRONMENT=staging with explicit
 ALLOW_DEMO_SEED=true, INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE=cardvert-synthetic-issuer,
 and TRIP_EVIDENCE_SIGNING_KEYRING_B64 from the existing templates. Hardened JWT,

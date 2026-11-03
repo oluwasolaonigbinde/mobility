@@ -105,7 +105,7 @@ def test_demo_seed_frontend_smoke_paths(
     assert float(palmpay_summary["route_analytics"]["average_quality_score"]) > 0
     assert float(palmpay_summary["impressions"]["estimated_impressions"]) > 0
     assert float(palmpay_summary["impressions"]["average_confidence_score"]) > 0
-    assert float(palmpay_summary["costs"]["totals_by_currency"][0]["final_payout_total"]) > 0
+    assert "costs" not in palmpay_summary
 
     palmpay_heatmap_response = postgis_db_client.get(
         f"/api/v1/advertiser/campaigns/{palmpay_id}/heatmap"
@@ -133,7 +133,7 @@ def test_demo_seed_frontend_smoke_paths(
     assert float(market_routes_summary["route_analytics"]["average_quality_score"]) > 0
     assert float(market_routes_summary["impressions"]["estimated_impressions"]) > 0
     assert float(market_routes_summary["impressions"]["average_confidence_score"]) > 0
-    assert float(market_routes_summary["costs"]["totals_by_currency"][0]["final_payout_total"]) > 0
+    assert "costs" not in market_routes_summary
 
     market_routes_creatives_response = postgis_db_client.get(
         f"/api/v1/advertiser/campaigns/{market_routes_id}/creatives",
@@ -201,8 +201,7 @@ def test_demo_seed_frontend_smoke_paths(
         f"/api/v1/advertiser/campaigns/{campaign_id}/cost-summary",
         headers=advertiser_headers,
     )
-    assert cost_response.status_code == 200
-    assert float(cost_response.json()["totals_by_currency"][0]["final_payout_total"]) > 0
+    assert cost_response.status_code == 404
 
     heatmap_response = postgis_db_client.get(
         f"/api/v1/advertiser/campaigns/{campaign_id}/heatmap"

@@ -31,8 +31,6 @@ describe("CampaignChangePanel", () => {
         outcome: "apply_now",
         preview_sha256: "b".repeat(64),
         source_sha256: "a".repeat(64),
-        requested_liability_amount: "0.00",
-        available_liability_amount: "0.00",
       },
     });
     render(
@@ -57,13 +55,11 @@ describe("CampaignChangePanel", () => {
       commandId: String(form.get("client_request_id")),
       preview: {
         after: { budget_amount: String(form.get("budget_amount")) },
-        available_liability_amount: "5000.00",
         before: { budget_amount: "1000.00" },
         classifications: ["budget_increase"],
         currency: "NGN",
         outcome: "apply_now",
         preview_sha256: "b".repeat(64),
-        requested_liability_amount: "100.00",
         source_sha256: "a".repeat(64),
       },
       proposal: {
@@ -80,7 +76,6 @@ describe("CampaignChangePanel", () => {
           client_request_id: commandId,
           created_at: "2026-09-14T12:00:00Z",
           id: commandId,
-          requested_liability_amount: "100.00",
           status: "applied",
         },
         done: "Campaign change confirmed.",
@@ -135,7 +130,6 @@ describe("CampaignChangePanel", () => {
             client_request_id: FIRST_REQUEST_ID,
             created_at: "2026-09-14T12:00:00Z",
             id: FIRST_REQUEST_ID,
-            requested_liability_amount: "100.00",
             status: "applied",
           } as never,
         ]}

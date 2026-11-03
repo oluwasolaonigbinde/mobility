@@ -210,6 +210,9 @@ async def review_notice_context(
         and application is not None
         and application.status == DriverApplicationStatus.APPROVED
     )
+    rejected_application = bool(
+        application and application.status == DriverApplicationStatus.REJECTED
+    )
     title = (
         ("Your car is approved" if approved else "Your car needs changes")
         if vehicle
@@ -228,14 +231,14 @@ async def review_notice_context(
     )
     path = (
         None
-        if awaiting_setup
+        if awaiting_setup or rejected_application
         else (
             "/driver/profile"
             if user.status == UserStatus.ACTIVE
             else ("/apply?step=car" if vehicle or approved else "/apply?step=details")
         )
     )
-    if user.status == UserStatus.INVITED and not awaiting_setup:
+    if user.status == UserStatus.INVITED and not awaiting_setup and not rejected_application:
         body += " Open your application to continue."
     return {"title": title, "body": body, "action_path": path}
 

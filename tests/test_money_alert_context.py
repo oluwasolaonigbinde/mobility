@@ -162,7 +162,6 @@ def test_finance_demo_alert_references_its_actual_reserved_payment(
         return None
 
     monkeypatch.setattr(rich, "_prepare_portal_earnings", prepared)
-    monkeypatch.setattr(rich, "_prepare_automatic_batch", unrelated)
     monkeypatch.setattr(rich, "_ensure_payout_review_history", unrelated)
 
     async def exercise():

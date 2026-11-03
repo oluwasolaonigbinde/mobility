@@ -141,10 +141,11 @@ def seed_private_storage(monkeypatch):
     return storage
 
 
+@pytest.mark.parametrize("environment", ["staging", "rehearsal"])
 @pytest.mark.parametrize("allowed", [False, True])
-def test_staging_demo_seed_requires_explicit_opt_in(allowed):
+def test_staging_demo_seed_requires_explicit_opt_in(allowed, environment):
     settings = Settings.model_construct(
-        environment="staging",
+        environment=environment,
         allow_demo_seed=allowed,
         database_url="postgresql+asyncpg://mobility:mobility@localhost/cardvert_test",
     )

@@ -1090,10 +1090,10 @@ async def ensure_portal_people(session, *, graph, settings):
     staff = await ensure_staff(session, settings=settings)
     await _ensure_advertiser_directory(session, settings=settings)
     for name, email, stage in (
-        ("Abdulrahman Yusuf", "abdulrahman.yusuf@mail.ng", "not_submitted"),
-        ("Nneka Umeh", "nneka.umeh@mail.ng", "pending_review"),
-        ("Ayodele Bakare", "ayodele.bakare@mail.ng", "approved"),
-        ("Suleiman Idris", "suleiman.idris@mail.ng", "rejected"),
+        ("Abdulrahman Yusuf", "abdulrahman.yusuf@demo.mobility.local", "not_submitted"),
+        ("Nneka Umeh", "nneka.umeh@demo.mobility.local", "pending_review"),
+        ("Ayodele Bakare", "ayodele.bakare@demo.mobility.local", "approved"),
+        ("Suleiman Idris", "suleiman.idris@demo.mobility.local", "rejected"),
     ):
         existing_person = await session.scalar(select(User).where(User.email == email))
         person = await upsert_user(
@@ -1340,10 +1340,10 @@ async def ensure_golden_contributors(session, *, graph, settings):
     )
 
     people = (
-        ("Yewande Afolabi", "yewande.afolabi@mail.ng", "KRD-347-JM"),
-        ("Obinna Onyekachi", "obinna.onyekachi@mail.ng", "LSR-528-HP"),
-        ("Fatima Adamu", "fatima.adamu@mail.ng", "KJA-916-NB"),
-        ("Chukwudi Agu", "chukwudi.agu@mail.ng", "FKJ-204-NP"),
+        ("Yewande Afolabi", "yewande.afolabi@demo.mobility.local", "KRD-347-JM"),
+        ("Obinna Onyekachi", "obinna.onyekachi@demo.mobility.local", "LSR-528-HP"),
+        ("Fatima Adamu", "fatima.adamu@demo.mobility.local", "KJA-916-NB"),
+        ("Chukwudi Agu", "chukwudi.agu@demo.mobility.local", "FKJ-204-NP"),
     )
     for person_index, (name, email, plate) in enumerate(people, start=1):
         driver = await upsert_user(
@@ -1789,8 +1789,8 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
         ("driver@demo.mobility.local", False),
         ("driver01@demo.mobility.local", False),
         ("driver02@demo.mobility.local", False),
-        ("yewande.afolabi@mail.ng", True),
-        ("obinna.onyekachi@mail.ng", True),
+        ("yewande.afolabi@demo.mobility.local", True),
+        ("obinna.onyekachi@demo.mobility.local", True),
     ):
         person = await session.scalar(select(User).where(User.email == email))
         profile = await session.scalar(

@@ -281,14 +281,14 @@ async def _build_change_preview(
         "after": after,
         "source_sha256": source_sha256,
         "classifications": classifications,
-        "requested_liability_amount": str(requested_liability),
-        "available_liability_amount": str(available_liability),
         "currency": campaign.currency,
         "outcome": outcome,
         "request_reason": reason,
     }
     return CampaignChangePreviewRead(
         **preview_facts,
+        requested_liability_amount=requested_liability,
+        available_liability_amount=available_liability,
         preview_sha256=_digest(preview_facts),
     )
 

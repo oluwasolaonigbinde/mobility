@@ -449,7 +449,7 @@ export function ZonesEditor({
             {zones.length === 0 ? (
               <p className="text-muted px-5 py-8 text-center text-sm">
                 {editable
-                  ? "No areas yet. Draw your first main area on the preview."
+                  ? "No areas yet. Draw your first main area on the map."
                   : "No areas recorded."}
               </p>
             ) : (

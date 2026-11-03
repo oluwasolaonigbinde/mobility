@@ -61,7 +61,8 @@ export default async function PaymentHistory({
       {history.items.map((event) => (
         <Panel key={event.id} className="space-y-2 p-4">
           <p>
-            {outcomeLabel(event.outcome)} · {event.applied ? "Added" : "Noted"}
+            {outcomeLabel(event.outcome)} ·{" "}
+            {event.applied ? "Applied to this payment" : "Recorded without changing this payment"}
           </p>
           <p>
             {event.source === "webhook"

@@ -8,6 +8,9 @@ from app.api.v1.dependencies import (
     SessionDependency,
 )
 from app.schemas.campaign_changes import (
+    AdvertiserCampaignChangeList,
+    AdvertiserCampaignChangePreviewRead,
+    AdvertiserCampaignChangeRead,
     CampaignChangeCreate,
     CampaignChangeDecision,
     CampaignChangeList,
@@ -27,7 +30,7 @@ router = APIRouter()
 
 @router.post(
     "/advertiser/campaigns/{campaign_id}/change-preview",
-    response_model=CampaignChangePreviewRead,
+    response_model=AdvertiserCampaignChangePreviewRead,
 )
 async def advertiser_preview_campaign_change(
     campaign_id: UUID,
@@ -42,7 +45,7 @@ async def advertiser_preview_campaign_change(
 
 @router.post(
     "/advertiser/campaigns/{campaign_id}/change-requests",
-    response_model=CampaignChangeRead,
+    response_model=AdvertiserCampaignChangeRead,
     status_code=201,
 )
 async def advertiser_request_campaign_change(
@@ -60,7 +63,7 @@ async def advertiser_request_campaign_change(
 
 @router.get(
     "/advertiser/campaigns/{campaign_id}/change-requests",
-    response_model=CampaignChangeList,
+    response_model=AdvertiserCampaignChangeList,
 )
 async def advertiser_list_campaign_change_requests(
     campaign_id: UUID,

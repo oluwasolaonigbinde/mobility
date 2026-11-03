@@ -3,7 +3,7 @@
 import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
-import { publicActionError } from "@/lib/api/public-action-error";
+
 import { getSessionToken } from "@/lib/auth/session";
 
 const checkoutSchema = z.object({ invoiceId: z.string().uuid() });
@@ -11,10 +11,10 @@ const checkoutSchema = z.object({ invoiceId: z.string().uuid() });
 export async function startInvoicePayment(formData: FormData): Promise<never> {
   const parsed = checkoutSchema.safeParse({ invoiceId: formData.get("invoiceId") });
   if (!parsed.success) {
-    redirect("/advertiser/billing?payment=error&message=Choose+a+valid+invoice.");
+    redirect("/advertiser/billing?payment=error&code=invalid_invoice");
   }
   let destination: string | null = null;
-  let error: string | null = null;
+
   try {
     const api = createApiClient(await getSessionToken());
     const { data } = await api.POST("/api/v1/advertiser/invoices/{invoice_id}/checkout", {
@@ -24,19 +24,9 @@ export async function startInvoicePayment(formData: FormData): Promise<never> {
       data?.status === "confirmed" || data?.status === "failed"
         ? `/advertiser/billing?payment=${data.status}`
         : (data?.checkout_url ?? null);
-    if (!destination) {
-      error = "Paystack is still preparing this checkout. Please try again.";
-    }
   } catch (caught) {
     unstable_rethrow(caught);
-    error = publicActionError(
-      caught,
-      {},
-      "Cardvert could not open Paystack. Check your payment status before trying again.",
-    );
   }
   if (destination) redirect(destination);
-  redirect(
-    `/advertiser/billing?payment=error&message=${encodeURIComponent(error ?? "Checkout unavailable")}`,
-  );
+  redirect("/advertiser/billing?payment=error&code=checkout_unavailable");
 }

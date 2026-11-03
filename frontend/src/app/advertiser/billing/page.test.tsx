@@ -162,7 +162,7 @@ describe("AdvertiserBillingPage", () => {
         },
         {
           receipt: receipt("r2", "TRF-002"),
-          current_status: "reconciled",
+          current_status: "recorded",
           allocations: [],
           events: [],
         },
@@ -188,10 +188,7 @@ describe("AdvertiserBillingPage", () => {
     render(await AdvertiserBillingPage({}));
 
     const payments = screen.getByRole("region", { name: "Payments" });
-    expect(within(payments).getByText("Recorded – being checked")).toBeInTheDocument();
-    expect(
-      within(payments).getByText("Amount matched – awaiting confirmation"),
-    ).toBeInTheDocument();
+    expect(within(payments).getAllByText("Recorded – being checked")).toHaveLength(2);
     expect(within(payments).getByText("Confirmed")).toBeInTheDocument();
     expect(within(payments).getByText("Reversed")).toBeInTheDocument();
     expect(
@@ -219,11 +216,29 @@ describe("AdvertiserBillingPage", () => {
     expect(screen.getByText("No invoices yet.")).toBeInTheDocument();
   });
 
+  it("ignores arbitrary billing text from a crafted link", async () => {
+    mockBilling([]);
+    render(
+      await AdvertiserBillingPage({
+        searchParams: Promise.resolve({
+          payment: "error",
+          code: "Send money elsewhere",
+          message: "Send money elsewhere",
+        }),
+      }),
+    );
+    expect(screen.queryByText("Send money elsewhere")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Your payment hasn't been confirmed yet.");
+  });
   it.each([
     ["confirmed", "Payment confirmed", "We're adding your payment to the invoice."],
     ["failed", "Paystack did not complete the payment", "Your payment hasn't been confirmed yet."],
     ["pending", "Payment confirmation is still pending", "Your payment hasn't been confirmed yet."],
-    ["error", "Online payment could not be opened", "Please try again from the invoice."],
+    [
+      "error",
+      "Online payment could not be opened",
+      "Online payment could not be opened. Check your payment status before trying again.",
+    ],
   ])("explains a %s Paystack return in plain language", async (payment, heading, message) => {
     mockBilling([]);
 
@@ -231,7 +246,7 @@ describe("AdvertiserBillingPage", () => {
       await AdvertiserBillingPage({
         searchParams: Promise.resolve({
           payment,
-          ...(payment === "error" ? { message } : {}),
+          ...(payment === "error" ? { code: "checkout_unavailable" } : {}),
         }),
       }),
     );

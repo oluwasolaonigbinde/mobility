@@ -65,8 +65,8 @@ export default async function MoneyCloseoutPage({
                 ["Saved, not sent yet", item.reserved],
                 ["Waiting for a payment result", item.in_flight],
                 ["Failed payments", item.terminal_failed],
-                ["Cash paid", item.cash_paid],
-                ["Transfers paid", item.provider_verified_paid],
+                ["Total paid", item.cash_paid],
+                ["Of that, by transfer", item.provider_verified_paid],
               ] as const
             ).map(([label, amount]) => (
               <p key={label} className="text-sm">

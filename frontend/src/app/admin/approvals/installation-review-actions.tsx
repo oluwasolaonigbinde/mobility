@@ -10,7 +10,7 @@ const initialState: CampaignReviewActionState = {};
 
 // The backend only accepts sniffed JPEG, PNG and WebP installation evidence.
 const VIEWABLE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const RETRIEVAL_FAILED = "This photo can't be opened. Try again. Try again.";
+const RETRIEVAL_FAILED = "This photo can't be opened. Try again.";
 
 type PhotoResult = { blob: Blob } | { error: string };
 
@@ -25,12 +25,12 @@ async function loadEvidencePhoto(fileId: string): Promise<PhotoResult> {
     // Bodyless by contract: the BFF mutation boundary rejects any body or content type.
     issued = await fetch(`/api/admin/files/${fileId}/installation-review`, { method: "POST" });
   } catch {
-    return { error: "This photo can't be opened. Try again. Try again." };
+    return { error: "This photo can't be opened. Try again." };
   }
   const body = (await issued.json().catch(() => undefined)) as
     { url?: string; error?: { message?: string } } | undefined;
   if (!issued.ok || !body?.url) {
-    return { error: body?.error?.message ?? "This photo can't be opened. Try again. Try again." };
+    return { error: RETRIEVAL_FAILED };
   }
   let file: Response;
   try {

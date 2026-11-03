@@ -64,8 +64,8 @@ describe("recorded campaign money position", () => {
     });
     render(await MoneyCloseoutPage({ ...props, searchParams: Promise.resolve({ page: "1" }) }));
     expect(api).toHaveBeenCalledWith("/campaigns/campaign/position?limit=25&offset=25");
-    expect(screen.getByText("Cash paid: ₦10.01")).toBeVisible();
-    expect(screen.getByText("Transfers paid: ₦20.02")).toBeVisible();
+    expect(screen.getByText("Total paid: ₦10.01")).toBeVisible();
+    expect(screen.getByText("Of that, by transfer: ₦20.02")).toBeVisible();
     expect(screen.getByText("Waiting for a payment result: ₦40.03")).toBeVisible();
     expect(screen.getByText("Saved, not sent yet: ₦30.02")).toBeVisible();
     expect(screen.queryByText(/Waiting for approval/)).not.toBeInTheDocument();

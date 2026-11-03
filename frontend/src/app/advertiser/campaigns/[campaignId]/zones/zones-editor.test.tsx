@@ -220,7 +220,7 @@ describe("ZonesEditor MapLibre compatibility", () => {
     render(<ZonesEditor editable campaignId={zone.campaign_id} zones={[zone]} />);
     fireEvent.click(screen.getByRole("button", { name: "Delete Central Abuja" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm deletion" }));
-    await screen.findByText("No areas yet. Draw your first main area on the preview.");
+    await screen.findByText("No areas yet. Draw your first main area on the map.");
     expect(screen.queryByRole("button", { name: "Delete Central Abuja" })).toBeNull();
   });
   it("blocks repeated non-idempotent area creation after an unknown result until inspection", async () => {
@@ -245,7 +245,7 @@ describe("ZonesEditor MapLibre compatibility", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Save area" })).toBeDisabled());
     expect(createZoneAction).toHaveBeenCalledTimes(1);
     expect(
-      screen.getByText("No areas yet. Draw your first main area on the preview."),
+      screen.getByText("No areas yet. Draw your first main area on the map."),
     ).toBeInTheDocument();
   });
   it("does not apply a late created area to a different campaign after remount", async () => {

@@ -2795,6 +2795,310 @@
         "title": "AdminVehicleStageRead",
         "type": "object"
       },
+      "AdvertiserCampaignChangeList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdvertiserCampaignChangeRead"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AdvertiserCampaignChangeList",
+        "type": "object"
+      },
+      "AdvertiserCampaignChangePreviewRead": {
+        "properties": {
+          "after": {
+            "additionalProperties": true,
+            "title": "After",
+            "type": "object"
+          },
+          "before": {
+            "additionalProperties": true,
+            "title": "Before",
+            "type": "object"
+          },
+          "classifications": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Classifications",
+            "type": "array"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          },
+          "preview_sha256": {
+            "title": "Preview Sha256",
+            "type": "string"
+          },
+          "source_sha256": {
+            "title": "Source Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "before",
+          "after",
+          "source_sha256",
+          "preview_sha256",
+          "classifications",
+          "currency",
+          "outcome"
+        ],
+        "title": "AdvertiserCampaignChangePreviewRead",
+        "type": "object"
+      },
+      "AdvertiserCampaignChangeRead": {
+        "properties": {
+          "applied_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied At"
+          },
+          "authorization_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authorization Id"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "campaign_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Name"
+          },
+          "classifications": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Classifications",
+            "type": "array"
+          },
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "proposed_changes": {
+            "additionalProperties": true,
+            "title": "Proposed Changes",
+            "type": "object"
+          },
+          "requested_by_user_id": {
+            "format": "uuid",
+            "title": "Requested By User Id",
+            "type": "string"
+          },
+          "review_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Reason"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By User Id"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "campaign_id",
+          "organization_id",
+          "requested_by_user_id",
+          "client_request_id",
+          "proposed_changes",
+          "classifications",
+          "status",
+          "authorization_id",
+          "reviewed_by_user_id",
+          "reviewed_at",
+          "review_reason",
+          "applied_at",
+          "created_at"
+        ],
+        "title": "AdvertiserCampaignChangeRead",
+        "type": "object"
+      },
+      "AdvertiserCampaignCommercialRead": {
+        "properties": {
+          "budget_check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BudgetCheckRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expedited_waiver_copy": {
+            "$ref": "#/components/schemas/WaiverCopyRead"
+          },
+          "financial_authority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvertiserFinancialAuthorityRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "invoices": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceRead"
+            },
+            "title": "Invoices",
+            "type": "array"
+          },
+          "production_start": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProductionStartRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quote_request": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuoteRequestRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revisions": {
+            "items": {
+              "$ref": "#/components/schemas/QuoteRevisionRead"
+            },
+            "title": "Revisions",
+            "type": "array"
+          },
+          "settlements": {
+            "items": {
+              "$ref": "#/components/schemas/SettlementRead"
+            },
+            "title": "Settlements",
+            "type": "array"
+          },
+          "terms": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommercialTermsRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "waiver": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WaiverRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "quote_request",
+          "revisions",
+          "terms",
+          "invoices",
+          "financial_authority",
+          "expedited_waiver_copy",
+          "waiver",
+          "production_start",
+          "settlements",
+          "budget_check"
+        ],
+        "title": "AdvertiserCampaignCommercialRead",
+        "type": "object"
+      },
       "AdvertiserCampaignRead": {
         "properties": {
           "budget_amount": {
@@ -2945,9 +3249,6 @@
           "campaigns": {
             "$ref": "#/components/schemas/CampaignStatusCounts"
           },
-          "costs": {
-            "$ref": "#/components/schemas/DashboardCostSummary"
-          },
           "currency": {
             "title": "Currency",
             "type": "string"
@@ -3000,10 +3301,99 @@
           "assignments",
           "trips",
           "impressions",
-          "costs",
           "quality"
         ],
         "title": "AdvertiserDashboardSummary",
+        "type": "object"
+      },
+      "AdvertiserFinancialAuthorityRead": {
+        "properties": {
+          "authority_type": {
+            "title": "Authority Type",
+            "type": "string"
+          },
+          "authorized_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Authorized Amount",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "commercial_terms_id": {
+            "format": "uuid",
+            "title": "Commercial Terms Id",
+            "type": "string"
+          },
+          "credit_due_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit Due At"
+          },
+          "credit_limit": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit Limit"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "effective_from": {
+            "format": "date-time",
+            "title": "Effective From",
+            "type": "string"
+          },
+          "funded_cash_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Funded Cash Amount",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "revision_number": {
+            "title": "Revision Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "campaign_id",
+          "commercial_terms_id",
+          "revision_number",
+          "authority_type",
+          "currency",
+          "authorized_amount",
+          "funded_cash_amount",
+          "credit_limit",
+          "credit_due_at",
+          "effective_from",
+          "reason"
+        ],
+        "title": "AdvertiserFinancialAuthorityRead",
         "type": "object"
       },
       "AdvertiserLoginInviteCreate": {
@@ -6121,66 +6511,6 @@
         "title": "CampaignChangePreviewCreate",
         "type": "object"
       },
-      "CampaignChangePreviewRead": {
-        "properties": {
-          "after": {
-            "additionalProperties": true,
-            "title": "After",
-            "type": "object"
-          },
-          "available_liability_amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Available Liability Amount",
-            "type": "string"
-          },
-          "before": {
-            "additionalProperties": true,
-            "title": "Before",
-            "type": "object"
-          },
-          "classifications": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Classifications",
-            "type": "array"
-          },
-          "currency": {
-            "title": "Currency",
-            "type": "string"
-          },
-          "outcome": {
-            "title": "Outcome",
-            "type": "string"
-          },
-          "preview_sha256": {
-            "title": "Preview Sha256",
-            "type": "string"
-          },
-          "requested_liability_amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Requested Liability Amount",
-            "type": "string"
-          },
-          "source_sha256": {
-            "title": "Source Sha256",
-            "type": "string"
-          }
-        },
-        "required": [
-          "before",
-          "after",
-          "source_sha256",
-          "preview_sha256",
-          "classifications",
-          "requested_liability_amount",
-          "available_liability_amount",
-          "currency",
-          "outcome"
-        ],
-        "title": "CampaignChangePreviewRead",
-        "type": "object"
-      },
       "CampaignChangeRead": {
         "properties": {
           "applied_at": {
@@ -6330,120 +6660,18 @@
           "client_request_id",
           "proposed_changes",
           "classifications",
-          "impact_preview",
           "status",
-          "requested_liability_amount",
-          "reserved_liability_amount",
           "authorization_id",
           "reviewed_by_user_id",
           "reviewed_at",
           "review_reason",
           "applied_at",
-          "created_at"
+          "created_at",
+          "impact_preview",
+          "requested_liability_amount",
+          "reserved_liability_amount"
         ],
         "title": "CampaignChangeRead",
-        "type": "object"
-      },
-      "CampaignCommercialRead": {
-        "properties": {
-          "budget_check": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BudgetCheckRead"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "expedited_waiver_copy": {
-            "$ref": "#/components/schemas/WaiverCopyRead"
-          },
-          "financial_authority": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/FinancialAuthorityRead"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "invoices": {
-            "items": {
-              "$ref": "#/components/schemas/InvoiceRead"
-            },
-            "title": "Invoices",
-            "type": "array"
-          },
-          "production_start": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProductionStartRead"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "quote_request": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/QuoteRequestRead"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "revisions": {
-            "items": {
-              "$ref": "#/components/schemas/QuoteRevisionRead"
-            },
-            "title": "Revisions",
-            "type": "array"
-          },
-          "settlements": {
-            "items": {
-              "$ref": "#/components/schemas/SettlementRead"
-            },
-            "title": "Settlements",
-            "type": "array"
-          },
-          "terms": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CommercialTermsRead"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "waiver": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/WaiverRead"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "quote_request",
-          "revisions",
-          "terms",
-          "invoices",
-          "financial_authority",
-          "expedited_waiver_copy",
-          "waiver",
-          "production_start",
-          "settlements",
-          "budget_check"
-        ],
-        "title": "CampaignCommercialRead",
         "type": "object"
       },
       "CampaignCreate": {
@@ -8056,9 +8284,6 @@
           "campaign": {
             "$ref": "#/components/schemas/CampaignReadSummary"
           },
-          "costs": {
-            "$ref": "#/components/schemas/app__schemas__reports__CampaignCostSummary"
-          },
           "creatives": {
             "$ref": "#/components/schemas/CreativeStatusCounts"
           },
@@ -8112,7 +8337,6 @@
           "trips",
           "route_analytics",
           "impressions",
-          "costs",
           "fraud_flags"
         ],
         "title": "CampaignSummary",
@@ -8124,9 +8348,6 @@
             "format": "uuid",
             "title": "Campaign Id",
             "type": "string"
-          },
-          "costs": {
-            "$ref": "#/components/schemas/app__schemas__reports__CampaignCostSummary"
           },
           "fraud_flags": {
             "$ref": "#/components/schemas/FraudFlagCounts"
@@ -8146,7 +8367,6 @@
           "trips",
           "route_analytics",
           "impressions",
-          "costs",
           "fraud_flags"
         ],
         "title": "CampaignTripsResponse",
@@ -10191,64 +10411,6 @@
           "offset"
         ],
         "title": "DailyMetricsResponse",
-        "type": "object"
-      },
-      "DashboardCostCurrencySummary": {
-        "properties": {
-          "currency": {
-            "title": "Currency",
-            "type": "string"
-          },
-          "final_payout_total": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Final Payout Total"
-          },
-          "gross_payout_total": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Gross Payout Total"
-          },
-          "ledger_entry_count": {
-            "title": "Ledger Entry Count",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "currency",
-          "final_payout_total",
-          "gross_payout_total",
-          "ledger_entry_count"
-        ],
-        "title": "DashboardCostCurrencySummary",
-        "type": "object"
-      },
-      "DashboardCostSummary": {
-        "properties": {
-          "totals_by_currency": {
-            "items": {
-              "$ref": "#/components/schemas/DashboardCostCurrencySummary"
-            },
-            "title": "Totals By Currency",
-            "type": "array"
-          }
-        },
-        "required": [
-          "totals_by_currency"
-        ],
-        "title": "DashboardCostSummary",
         "type": "object"
       },
       "DocumentReviewRead": {
@@ -22109,209 +22271,6 @@
         },
         "title": "ZoneTypeCounts",
         "type": "object"
-      },
-      "app__schemas__payouts__CampaignCostCurrencySummary": {
-        "properties": {
-          "blocked_trip_count": {
-            "title": "Blocked Trip Count",
-            "type": "integer"
-          },
-          "calculated_trip_count": {
-            "title": "Calculated Trip Count",
-            "type": "integer"
-          },
-          "currency": {
-            "title": "Currency",
-            "type": "string"
-          },
-          "final_payout_total": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Final Payout Total"
-          },
-          "gross_payout_total": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Gross Payout Total"
-          },
-          "insufficient_data_trip_count": {
-            "title": "Insufficient Data Trip Count",
-            "type": "integer"
-          },
-          "ledger_entry_count": {
-            "title": "Ledger Entry Count",
-            "type": "integer"
-          },
-          "ledger_net_total": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ledger Net Total"
-          }
-        },
-        "required": [
-          "currency",
-          "final_payout_total",
-          "gross_payout_total",
-          "ledger_net_total",
-          "calculated_trip_count",
-          "blocked_trip_count",
-          "insufficient_data_trip_count",
-          "ledger_entry_count"
-        ],
-        "title": "CampaignCostCurrencySummary",
-        "type": "object"
-      },
-      "app__schemas__payouts__CampaignCostSummary": {
-        "properties": {
-          "campaign_id": {
-            "format": "uuid",
-            "title": "Campaign Id",
-            "type": "string"
-          },
-          "end_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End At"
-          },
-          "formula_version": {
-            "title": "Formula Version",
-            "type": "string"
-          },
-          "formula_versions": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Formula Versions",
-            "type": "array"
-          },
-          "start_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start At"
-          },
-          "totals_by_currency": {
-            "items": {
-              "$ref": "#/components/schemas/app__schemas__payouts__CampaignCostCurrencySummary"
-            },
-            "title": "Totals By Currency",
-            "type": "array"
-          }
-        },
-        "required": [
-          "campaign_id",
-          "formula_version",
-          "formula_versions",
-          "totals_by_currency",
-          "start_at",
-          "end_at"
-        ],
-        "title": "CampaignCostSummary",
-        "type": "object"
-      },
-      "app__schemas__reports__CampaignCostCurrencySummary": {
-        "properties": {
-          "blocked_trip_count": {
-            "title": "Blocked Trip Count",
-            "type": "integer"
-          },
-          "calculated_trip_count": {
-            "title": "Calculated Trip Count",
-            "type": "integer"
-          },
-          "currency": {
-            "title": "Currency",
-            "type": "string"
-          },
-          "final_payout_total": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Final Payout Total"
-          },
-          "gross_payout_total": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Gross Payout Total"
-          },
-          "insufficient_data_trip_count": {
-            "title": "Insufficient Data Trip Count",
-            "type": "integer"
-          },
-          "ledger_entry_count": {
-            "title": "Ledger Entry Count",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "currency",
-          "final_payout_total",
-          "gross_payout_total",
-          "ledger_entry_count",
-          "calculated_trip_count",
-          "blocked_trip_count",
-          "insufficient_data_trip_count"
-        ],
-        "title": "CampaignCostCurrencySummary",
-        "type": "object"
-      },
-      "app__schemas__reports__CampaignCostSummary": {
-        "properties": {
-          "totals_by_currency": {
-            "items": {
-              "$ref": "#/components/schemas/app__schemas__reports__CampaignCostCurrencySummary"
-            },
-            "title": "Totals By Currency",
-            "type": "array"
-          }
-        },
-        "required": [
-          "totals_by_currency"
-        ],
-        "title": "CampaignCostSummary",
-        "type": "object"
       }
     },
     "securitySchemes": {
@@ -32495,7 +32454,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignChangePreviewRead"
+                  "$ref": "#/components/schemas/AdvertiserCampaignChangePreviewRead"
                 }
               }
             },
@@ -32540,7 +32499,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignChangeList"
+                  "$ref": "#/components/schemas/AdvertiserCampaignChangeList"
                 }
               }
             },
@@ -32593,7 +32552,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignChangeRead"
+                  "$ref": "#/components/schemas/AdvertiserCampaignChangeRead"
                 }
               }
             },
@@ -32638,7 +32597,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignCommercialRead"
+                  "$ref": "#/components/schemas/AdvertiserCampaignCommercialRead"
                 }
               }
             },
@@ -32663,104 +32622,6 @@
         "summary": "Advertiser Campaign Commercial",
         "tags": [
           "Commercial billing"
-        ]
-      }
-    },
-    "/api/v1/advertiser/campaigns/{campaign_id}/cost-summary": {
-      "get": {
-        "operationId": "advertiser_get_campaign_cost_summary_api_v1_advertiser_campaigns__campaign_id__cost_summary_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "campaign_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Campaign Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "start_at",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Start At"
-            }
-          },
-          {
-            "in": "query",
-            "name": "end_at",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "End At"
-            }
-          },
-          {
-            "in": "query",
-            "name": "currency",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Currency"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/app__schemas__payouts__CampaignCostSummary"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Read advertiser campaign cost summary",
-        "tags": [
-          "Payouts"
         ]
       }
     },

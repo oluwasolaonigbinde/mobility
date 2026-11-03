@@ -38,6 +38,7 @@ from app.services.email_delivery import process_email_notification
         ("car", True, True),
     ],
 )
+@pytest.mark.parametrize("replaced", [False, True])
 def test_review_outcomes_queue_deduplicated_actionable_email(
     db_client,
     db_sessionmaker,
@@ -45,6 +46,7 @@ def test_review_outcomes_queue_deduplicated_actionable_email(
     stage,
     approved,
     expired,
+    replaced,
     monkeypatch,
 ):
     suffix = f"notice-{stage}-{str(approved).lower()}"
@@ -123,6 +125,12 @@ def test_review_outcomes_queue_deduplicated_actionable_email(
     response = db_client.post(path, headers=headers, json=decision)
     assert response.status_code == 200, response.text
     assert db_client.post(path, headers=headers, json=decision).status_code == 200
+    if replaced and not (stage == "car" and approved):
+        requested = db_client.post(
+            "/api/v1/auth/driver-onboarding-access/request",
+            json={"email": application.email},
+        )
+        assert requested.status_code == 202, requested.text
     type_key = f"driver_{stage}_{'approved' if approved else 'rejected'}"
     adapter = RecordingEmailAdapter()
 
@@ -197,7 +205,9 @@ def test_review_outcomes_queue_deduplicated_actionable_email(
         else:
             assert '<a href="http://localhost:3000/apply?step=' in message.html_body
         assert "review_decision_id" not in message.text_body
-        if not (stage == "car" and approved):
+        if replaced and not (stage == "car" and approved):
+            assert "#application_access_token=" not in message.text_body
+        if not replaced and not (stage == "car" and approved):
             assert "#application_access_token=" in message.text_body
             import re
 
@@ -282,9 +292,27 @@ def test_review_outcomes_queue_deduplicated_actionable_email(
         if stage == "id":
             import re
 
-            token = re.search(
-                r"application_access_token=([^\s\"<]+)", adapter.messages[0].text_body
-            ).group(1)
+            if replaced:
+                from app.models.driver_application import DriverApplicationAccessToken
+                from app.services.driver_applications import (
+                    driver_application_access_token_for_delivery,
+                )
+
+                async def replacement_token():
+                    async with db_sessionmaker() as session:
+                        access = await session.scalar(
+                            select(DriverApplicationAccessToken).where(
+                                DriverApplicationAccessToken.application_id == application.id,
+                                DriverApplicationAccessToken.invalidated_at.is_(None),
+                            )
+                        )
+                        return driver_application_access_token_for_delivery(access, settings)
+
+                token = asyncio.run(replacement_token())
+            else:
+                token = re.search(
+                    r"application_access_token=([^\s\"<]+)", adapter.messages[0].text_body
+                ).group(1)
             replacement = db_client.post(
                 "/api/v1/auth/driver-onboarding/person-payee",
                 json=_person_payee_payload(token, files, db_client),

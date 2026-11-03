@@ -276,8 +276,6 @@ describe("campaign change preview and confirmation", () => {
         source_sha256: "a".repeat(64),
         preview_sha256: "b".repeat(64),
         classifications: ["expansion"],
-        requested_liability_amount: "0.00",
-        available_liability_amount: "0.00",
         currency: "NGN",
         outcome: "apply_now",
       },

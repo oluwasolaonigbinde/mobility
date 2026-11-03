@@ -3536,7 +3536,7 @@ progress, with quotation/history behind Details and changes behind Manage.
 Retargeting moves to each campaign, with campaign-local reads/link mutations;
 Audience controls are removed by D115. Invoices gets a campaign landing.
 
-D152 / REQ-288/289 removes driver-pay amounts and narration from advertiser change previews and history. API fields and server preview/hash/funding checks are retained in this wording-only delivery; controller privacy review remains required.
+D152 / REQ-288/289 removes driver-pay amounts and narration from advertiser change previews and history. REQ-295 removes liability fields and impact_preview from advertiser responses and liability amounts from preview hashes; advertiser reports omit costs, cost-summary is deleted, and commercial reads omit the driver-pay cap. Staff/internal reads and apply-time funding rechecks remain unchanged.
 D95 displays only complete recorded total-basis billing evaluations matching
 current campaign budget/currency, with as-at time. Home aggregates running
 campaigns only, without currency mixing or payout-derived spending. Missing,
@@ -4298,3 +4298,7 @@ Demo seed source/fixtures use Abuja geography and synthetic +234 driver phones. 
 ### v1.131 - staff expiry preserves evidence (D76/REQ-152)
 
 **[BUILT — `7f374c39`; integrated verification and reviews PASS]** The existing approved-to-expired locked transition records an expiry event and retains prior document outcomes, actual dates and valid_until from server history. It does not create a new acceptance or ask another actor to manufacture previous read evidence. Fresh document acceptance still requires exact current actor/file reads. Frontend field-free expiry omits fabricated outcomes; supplied client outcomes cannot overwrite prior approval facts. Actually expired person/car files require a distinct owned clean upload before renewed current approval and work eligibility. Successful exact retries remain historical receipts after a retained file expires later; changed-body reuse conflicts. Aggregate approval expiry never invents an individual expiry date. History remains append-only, and no migration or contract shape change is required.
+
+REQ-295 � 3 November 2026: bounded specialist corrections preserve internal money and funding authority, narrow advertiser response schemas and hashes, retain decision mail with plain links after access replacement/expiry, and document seed password reset and email tracking precautions. No launch-gate status changes.
+
+REQ-296 — 3 November 2026: quotation scope dates use the shared date formatter; invoice print styles isolate the document and keep payment blocks together. Report renderer campaign-report-d118-v3 formats period dates and preserves the existing readable WAT campaign dates and reserves space for the chart note. Only new renderings use v3; existing issued artifact bytes remain unchanged.

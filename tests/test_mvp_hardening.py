@@ -128,7 +128,7 @@ def test_no_public_delete_routes_for_payout_ledger_critical_parents(settings) ->
     assert delete_paths == {"/api/v1/advertiser/campaigns/{campaign_id}/zones/{zone_id}"}
 
 
-def test_cost_summary_invalid_date_range_uses_standard_error_envelope(
+def test_advertiser_cost_summary_route_is_removed(
     db_client,
     db_sessionmaker,
 ) -> None:
@@ -158,15 +158,7 @@ def test_cost_summary_invalid_date_range_uses_standard_error_envelope(
         headers=headers,
     )
 
-    assert response.status_code == 400
-    assert response.json() == {
-        "error": {
-            "code": "INVALID_DATE_RANGE",
-            "message": "start_at must be before or equal to end_at",
-            "details": {},
-            "request_id": "slice13-cost-range",
-        }
-    }
+    assert response.status_code == 404
 
 
 def test_advertiser_campaign_list_invalid_date_range_uses_standard_error_envelope(
