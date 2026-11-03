@@ -38,6 +38,23 @@ wants, topic by topic, is in [client-decisions.md](client-decisions.md).
 
 ## Register
 
+| REQ-272 | 2026-11-03 | Owner / preview readiness plan revision 1 | B1: Offer online invoice payment only when the gateway and return URL are ready | TODO | | Client preview readiness | Local master only; controller holds review/CI gates. No push or deployment. |
+| REQ-273 | 2026-11-03 | Owner / preview readiness plan revision 1 | B2: Hide unavailable payout submission and show the saved, unsent state | TODO | | Client preview readiness | Local master only; controller holds review/CI gates. No push or deployment. |
+| REQ-274 | 2026-11-03 | Owner / preview readiness plan revision 1 | B3: Show released unsent driver earnings as Payment pending | TODO | | Client preview readiness | Local master only; controller holds review/CI gates. No push or deployment. |
+| REQ-275 | 2026-11-03 | Owner / preview readiness plan revision 1 | B4: Label reserved settlement money Saved, not sent yet | TODO | | Client preview readiness | Local master only; controller holds review/CI gates. No push or deployment. |
+| REQ-276 | 2026-11-03 | Owner / preview readiness plan revision 1 | B5: Show invoice total and true balance due | TODO | | Client preview readiness | Local master only; controller holds review/CI gates. No push or deployment. |
+| REQ-277 | 2026-11-03 | Owner / preview readiness plan revision 1 | B6: Send review emails directly to the next application step with secure current access | TODO | | Client preview readiness | Local master only; controller holds review/CI gates. No push or deployment. |
+| REQ-278 | 2026-11-03 | Owner / preview readiness plan revision 1 | B7: Format campaign dates and distinguish a new draft on review | TODO | | Client preview readiness | Local master only; controller holds review/CI gates. No push or deployment. |
+| REQ-279 | 2026-11-03 | Owner / preview readiness plan revision 1 | B8: Enter quote VAT as a validated percentage while retaining decimal storage | TODO | | Client preview readiness | Local master only; controller holds review/CI gates. No push or deployment. |
+| REQ-280 | 2026-11-03 | Owner / preview readiness plan revision 1 | B9: Give report downloads safe campaign/date filenames | TODO | | Client preview readiness | Local master only; controller holds review/CI gates. No push or deployment. |
+| REQ-281 | 2026-11-03 | Owner / preview readiness plan revision 1 | B10: Handle duplicate quote references as conflicts and retain input | TODO | | Client preview readiness | Local master only; controller holds review/CI gates. No push or deployment. |
+| REQ-282 | 2026-11-03 | Owner / preview readiness plan revision 1 | B11: Use configured zone maps with a working schematic fallback | TODO | | Client preview readiness | Local master only; controller holds review/CI gates. No push or deployment. |
+| REQ-283 | 2026-11-03 | Owner / preview readiness plan revision 1 | B12: Verify trusted client IP settings on the preview host | TODO | | Client preview readiness | Local master only; controller holds review/CI gates. No push or deployment. |
+| REQ-284 | 2026-11-03 | Owner / preview readiness plan revision 1 | B13: Keep seeded jobs usable for at least 30 days without changing live evidence rules | TODO | | Client preview readiness | Local master only; controller holds review/CI gates. No push or deployment. |
+| REQ-285 | 2026-11-03 | Owner / preview readiness plan revision 1 | B14: Limit fresh-seed payout alerts to a handful | TODO | | Client preview readiness | Local master only; controller holds review/CI gates. No push or deployment. |
+| REQ-286 | 2026-11-03 | Owner / preview readiness plan revision 1 | B15: Report other client-blocking process findings unless unambiguous within approved scope | TODO | | Client preview readiness | Local master only; controller holds review/CI gates. No push or deployment. |
+| REQ-287 | 2026-11-03 | Owner / preview readiness plan revision 1 | R7: Allow explicitly opted-in staging demo seed while retaining hardened settings | TODO | | Client preview readiness | Local master only; controller holds review/CI gates. No push or deployment. |
+
 **3 November delivery closure:** REQ-249–271 are on remote `master`, preserving
 all implementing commits listed below. Full CI on `1a6d563f`
 [41547600461](https://github.com/oluwasolaonigbinde/mobility/actions/runs/41547600461)

@@ -4056,6 +4056,17 @@ The timestamp remains operational alert evidence; Redis counts still expire
 within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
+## Client preview process amendments (3 November 2026) [TARGET]
+
+D148 / REQ-274 extends the daily driver earnings read with Payment pending for
+released unsent money; held/unchecked and paid states and money authority stay.
+D149 / REQ-277 issues newest application access in the review transaction and
+uses it only in the email fragment. Stored notifications and in-app paths carry
+no token; current application/ownership, revocation and expiry remain mandatory.
+D150 / REQ-287 permits demo seeding in staging only with explicit ALLOW_DEMO_SEED;
+production/rehearsal and hardened environment requirements remain unchanged.
+These amendments are approved implementation scope, pending source verification.
+
 ## 34. Doc changelog
 
 - **v1.161 — 2 November 2026 (REQ-266/267):** Fix staff Money presentation before push: separate original earnings credit from current payable amount and enrich sparse blocked-payment alerts through existing linked payout records. The synthetic provider-alert fixture also links its actual reserved payment. Existing eligibility, selection totals, frozen payment amounts, alert deduplication and staff-only access remain. All three §9 baselines move for `ledger_amount`; focused PostgreSQL, rendered Money, preserved R14-B and API-to-React simulation checks pass. Evidence: `issues/testing/req266-267-money-presentation-2026-11-02.md`. Full CI/merge remain pending. No migration, provider call or launch-gate change.
