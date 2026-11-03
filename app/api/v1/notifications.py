@@ -59,12 +59,12 @@ def notification_feed_response(
     """Render from the small approved type allowlist, never from JSON payload."""
     rendered = {
         NotificationType.ASSIGNMENT_OFFERED.value: (
-            "Assignment offered",
-            "A campaign assignment is ready for your review.",
+            "New job offer",
+            "You have a new job offer. Open Jobs to accept or decline.",
         ),
         NotificationType.ASSIGNMENT_ACCEPTED.value: (
-            "Assignment accepted",
-            "Your campaign assignment acceptance was recorded.",
+            "Job accepted",
+            "You accepted this job.",
         ),
         NotificationType.CAMPAIGN_APPROVED.value: (
             "Campaign approved",
@@ -108,7 +108,7 @@ def notification_feed_response(
         ),
         NotificationType.CAMPAIGN_CANCELLED.value: (
             "Campaign cancelled",
-            "A campaign cancellation has been recorded.",
+            "Your campaign has been cancelled.",
         ),
         NotificationType.PAYOUT_RELEASED.value: (
             "Pay ready",
@@ -146,16 +146,16 @@ def notification_feed_response(
             "Terrax Media resumed automatic driver payouts.",
         ),
         NotificationType.COMPLAINT_RECEIVED.value: (
-            "Complaint waiting",
-            "A driver or advertiser raised or followed up a complaint for Customer Service.",
+            "Message waiting",
+            "A driver or advertiser sent a message.",
         ),
         NotificationType.COMPLAINT_REPLIED.value: (
-            "Reply to your complaint",
-            "Terrax Media replied to your complaint. Open Help to read it.",
+            "Reply to your message",
+            "Terrax Media replied to your message. Open Help to read it.",
         ),
         NotificationType.COMPLAINT_RESOLVED.value: (
-            "Complaint resolved",
-            "Terrax Media marked your complaint as resolved. Open Help to read it or reply.",
+            "Request resolved",
+            "Terrax Media marked your request as resolved. Open Help to read it or reply.",
         ),
     }
     title, body = rendered.get(

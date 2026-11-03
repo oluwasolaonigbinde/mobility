@@ -195,7 +195,7 @@ async def settle_demo_driver_history(session, *, graph, staff, settings):
                             evidence_fingerprint=hashlib.sha256(line.id.bytes).hexdigest(),
                         ),
                         source="poll",
-                        reason="Verify synthetic driver payout history",
+                        reason="Checked driver's bank details",
                         actor_user_id=staff[1].id,
                     )
                 finally:

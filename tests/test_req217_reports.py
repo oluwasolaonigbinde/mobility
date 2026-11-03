@@ -215,13 +215,29 @@ def test_renderer_is_deterministic_allowlisted_and_csv_is_safe():
     assert first.startswith(b"%PDF-") and first == render_campaign_pdf(frozen)
     content = render_campaign_csv(frozen).decode("utf-8-sig")
     rows = list(csv.reader(io.StringIO(content)))
-    assert rows[1][1].startswith("'  =")
+    assert rows[0] == [
+        "Campaign",
+        "Status",
+        "Period start",
+        "Period end",
+        "Time zone",
+        "Section",
+        "Measure",
+        "Value",
+        "Unit",
+        "Date",
+        "Area",
+        "Artwork",
+    ]
+    assert "campaign_id" not in content and "Nigeria time (WAT)" in content
+    assert "Preview app path" not in content
+    assert rows[1][0].startswith("'  =")
     assert (
         "Estimated views" in content
         and "Measured results" in content
         and "Daily chart data" in content
     )
-    assert "application/pdf" in content and "Creative previews" in content
+    assert "PDF" in content and "Artwork" in content
     assert not any(value in content for value in ("999999", "PRIVATE DRIVER", "UTC", "ROI", "CTR"))
     assert frozen == before
 

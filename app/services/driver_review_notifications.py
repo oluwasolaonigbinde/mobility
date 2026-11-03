@@ -48,7 +48,7 @@ REASONS: dict[str | None, str] = {
     "owner_mismatch": "The car ownership details do not match. Please check them.",
     "vehicle_identity_mismatch": "The car details do not match. Please check them.",
     "not_roadworthy": "The car did not pass the roadworthiness check.",
-    "not_pilot_eligible": "This car does not meet the pilot requirements.",
+    "not_pilot_eligible": "This car doesn't meet our requirements.",
 }
 
 

@@ -126,7 +126,7 @@ _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = 
     ),
     NotificationType.CAMPAIGN_REJECTED: _static(
         "Campaign needs changes",
-        "Your campaign was not approved. Sign in to read the reason, update it and resubmit.",
+        "Your campaign needs changes. Sign in to read the reason, update it and resubmit.",
     ),
     NotificationType.CREATIVE_APPROVED: _static(
         "Campaign artwork approved", "Campaign artwork has been approved."
@@ -156,7 +156,7 @@ _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = 
         "Campaign resumed", "Terrax Media resumed a campaign that was paused for budget."
     ),
     NotificationType.CAMPAIGN_CANCELLED: _static(
-        "Campaign cancelled", "A campaign cancellation has been recorded."
+        "Campaign cancelled", "Your campaign has been cancelled."
     ),
     NotificationType.FRAUD_HOLD_RAISED: _static(
         "Trip payment on hold", "A trip payment is on hold while it is reviewed."
@@ -170,12 +170,12 @@ _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = 
         "Terrax Media has replied about your trip. Open Earnings to read it.",
     ),
     NotificationType.COMPLAINT_REPLIED: _static(
-        "Terrax Media replied to your complaint",
-        "Terrax Media Customer Service replied to your complaint. Sign in to read the reply.",
+        "Terrax Media replied to your message",
+        "Terrax Media replied to your message. Sign in to read it.",
     ),
     NotificationType.COMPLAINT_RESOLVED: _static(
-        "Your complaint is resolved",
-        "Terrax Media Customer Service marked your complaint as resolved. Sign in to read it "
+        "Your request is resolved",
+        "Terrax Media marked your request as resolved. Sign in to read it "
         "or reply if you still need help.",
     ),
 }

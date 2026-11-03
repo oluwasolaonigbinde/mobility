@@ -438,8 +438,9 @@ def test_pdf_artwork_reference_is_file_specific_owned_and_scan_gated(
             assert reference["preview_base64"] is None
             assert reference["preview_path"] == expected
             csv_text = render_campaign_csv(report.snapshot).decode("utf-8-sig")
-            assert ("Preview link" if origin else "Preview app path") in csv_text
-            assert expected in csv_text
+            assert "Artwork" in csv_text
+            assert "Preview app path" not in csv_text
+            assert expected not in csv_text
 
     asyncio.run(frozen_reference())
     path = f"/api/v1/advertiser/files/{file.id}/download"

@@ -25,7 +25,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-RENDERER_VERSION = "campaign-report-d118-v1"
+RENDERER_VERSION = "campaign-report-d118-v2"
 MAX_ARTIFACT_BYTES = 8 * 1024 * 1024
 MEASURED = (
     ("cars_deployed", "Cars deployed", "cars"),
@@ -35,10 +35,20 @@ MEASURED = (
     ("trip_count", "Verified trips", "trips"),
     ("driving_seconds", "Driving time", "seconds"),
 )
-UNCERTAINTY = (
-    "Views are estimates of potential contacts, not measured people or guaranteed views. "
-    "The fixed model has no independent traffic survey or field calibration."
-)
+UNCERTAINTY = "Views are estimates, not a count of people."
+
+
+def _status_label(value):
+    return {
+        "draft": "Draft",
+        "pending_review": "For review",
+        "approved": "Approved",
+        "active": "Running",
+        "paused": "Paused",
+        "finished": "Finished",
+        "cancelled": "Cancelled",
+        "rejected": "Changes requested",
+    }.get(value, "Other")
 
 
 def _cell(value):
@@ -52,29 +62,27 @@ def render_campaign_csv(snapshot: dict) -> bytes:
     writer = csv.writer(stream, lineterminator="\n")
     writer.writerow(
         [
-            "campaign_id",
-            "campaign",
-            "status",
-            "period_start",
-            "period_end",
-            "timezone",
-            "section",
-            "metric",
-            "value",
-            "unit",
-            "date",
-            "area",
-            "artwork",
+            "Campaign",
+            "Status",
+            "Period start",
+            "Period end",
+            "Time zone",
+            "Section",
+            "Measure",
+            "Value",
+            "Unit",
+            "Date",
+            "Area",
+            "Artwork",
         ]
     )
     for campaign in snapshot["campaigns"]:
         prefix = [
-            campaign["id"],
             campaign["name"],
-            campaign["status"],
+            _status_label(campaign["status"]),
             snapshot["start_date"],
             snapshot["end_date"],
-            "WAT (Africa/Lagos)",
+            "Nigeria time (WAT)",
         ]
 
         def row(
@@ -116,15 +124,13 @@ def render_campaign_csv(snapshot: dict) -> bytes:
                 area=area["name"],
             )
         for creative in campaign["creatives"]:
-            row("Creative previews", "Artwork", creative["content_type"], artwork=creative["label"])
             row(
-                "Creative previews",
-                "Preview link"
-                if creative["preview_path"].startswith(("https://", "http://"))
-                else "Preview app path",
-                creative["preview_path"],
+                "Artwork",
+                "Artwork",
+                ("PDF" if creative["content_type"] == "application/pdf" else "Image"),
                 artwork=creative["label"],
             )
+
     content = stream.getvalue().encode("utf-8-sig")
     if len(content) > MAX_ARTIFACT_BYTES:
         raise ValueError("REPORT_TOO_LARGE")
@@ -133,7 +139,7 @@ def render_campaign_csv(snapshot: dict) -> bytes:
 
 def _number(value, unit=""):
     if value is None:
-        return "Not enough verified data"
+        return "Not enough data"
     number = Decimal(str(value))
     if unit == "metres":
         return f"{number / 1000:,.2f} km"
@@ -221,7 +227,7 @@ def render_campaign_pdf(snapshot: dict) -> bytes:
         story.extend(
             [
                 paragraph(campaign["name"], "Heading1"),
-                paragraph(f"Status: {campaign['status'].replace('_', ' ').title()}", "ReportNote"),
+                paragraph(f"Status: {_status_label(campaign['status'])}", "ReportNote"),
                 paragraph(
                     f"Campaign dates: {campaign['start_at']} to {campaign['end_at']}", "ReportNote"
                 ),
@@ -286,7 +292,7 @@ def render_campaign_pdf(snapshot: dict) -> bytes:
             detail = (
                 f"{area['vehicle_count']} cars; {area['trip_count']} verified trips"
                 if area["vehicle_count"] is not None
-                else "Verified area results unavailable"
+                else "Area results unavailable"
             )
             story.append(paragraph(f"{area['name']}: {detail}", "ReportNote"))
             story.append(
@@ -309,7 +315,7 @@ def render_campaign_pdf(snapshot: dict) -> bytes:
         topMargin=42,
         bottomMargin=42,
         title="Cardvert campaign report",
-        author="Terrax",
+        author="Terrax Media",
         invariant=1,
     )
 
@@ -328,7 +334,7 @@ def render_campaign_pdf(snapshot: dict) -> bytes:
 
 def _creative_previews(campaign, paragraph):
     story = []
-    heading = paragraph("Creative previews", "Heading2")
+    heading = paragraph("Artwork", "Heading2")
     for index, creative in enumerate(campaign["creatives"]):
         preview = creative.get("preview_base64")
         if preview:
@@ -353,13 +359,14 @@ def _creative_previews(campaign, paragraph):
             )
         except ValueError:
             clickable = False
-        content.append(
-            paragraph(
-                "Open artwork" if clickable else f"Artwork app path: {link}",
-                "ReportNote",
-                href=link if clickable else None,
+        if clickable:
+            content.append(
+                paragraph(
+                    "Open artwork",
+                    "ReportNote",
+                    href=link if clickable else None,
+                )
             )
-        )
         if index == 0:
             content.insert(0, heading)
         story.append(KeepTogether(content))

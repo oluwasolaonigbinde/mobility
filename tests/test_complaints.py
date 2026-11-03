@@ -869,7 +869,7 @@ def test_feed_renders_complaint_notices_in_plain_words(world) -> None:
     )
     feed = client.get("/api/v1/notifications", headers=headers(g.driver, settings)).json()
     assert [(i["title"], i["body"]) for i in feed["items"]] == [
-        ("Reply to your complaint", "Terrax Media replied to your complaint. Open Help to read it.")
+        ("Reply to your message", "Terrax Media replied to your message. Open Help to read it.")
     ]
     staff_feed = client.get("/api/v1/notifications", headers=headers(g.admin, settings)).json()
-    assert staff_feed["items"][0]["title"] == "Complaint waiting"
+    assert staff_feed["items"][0]["title"] == "Message waiting"

@@ -88,8 +88,8 @@ def test_advertiser_copy_uses_safe_measurement_terms() -> None:
     # S9/D118 moves issued-report uncertainty into the CSV/PDF renderer.
     from app.services.campaign_report_rendering import UNCERTAINTY
 
-    assert "not measured people or guaranteed views" in UNCERTAINTY
-    assert "no independent traffic survey or field calibration" in UNCERTAINTY
+    assert "Views are estimates" in UNCERTAINTY
+    assert "not a count of people" in UNCERTAINTY
     for path, text in copy_files.items():
         if DIAGNOSTIC_PATTERN.search(text):
             assert (
