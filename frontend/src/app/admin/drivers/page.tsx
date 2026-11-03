@@ -56,7 +56,9 @@ export default async function DriversPage({
       }));
       total = data?.total;
     } else if (cars) {
-      const { data } = await api.GET("/api/v1/admin/vehicles", { params: { query } });
+      const { data } = await api.GET("/api/v1/admin/vehicles", {
+        params: { query: { ...query, status: "pending" } },
+      });
       rows = data?.items.map((v) => ({
         key: v.id,
         name: v.driver_profile.full_name,

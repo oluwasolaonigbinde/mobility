@@ -287,26 +287,6 @@ class DriverEarningsSummary(BaseModel):
     totals_by_currency: list[DriverEarningsCurrencySummary]
 
 
-class CampaignCostCurrencySummary(DecimalStringMixin):
-    currency: str
-    final_payout_total: Decimal
-    gross_payout_total: Decimal
-    ledger_net_total: Decimal
-    calculated_trip_count: int
-    blocked_trip_count: int
-    insufficient_data_trip_count: int
-    ledger_entry_count: int
-
-
-class CampaignCostSummary(BaseModel):
-    campaign_id: UUID
-    formula_version: str
-    formula_versions: list[str]
-    totals_by_currency: list[CampaignCostCurrencySummary]
-    start_at: datetime | None
-    end_at: datetime | None
-
-
 class RecomputePayoutDayRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

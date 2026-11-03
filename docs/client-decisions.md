@@ -1076,7 +1076,7 @@ only one-hour aggregate minute counters. The runbook defines the thresholds.
   Earlier jobs exposed logs/errors and partition alarms without a consolidated
   health sweep.
 
-### Preview specialist corrections � 3 November 2026 (REQ-295 / D152)
+### Preview specialist corrections - 3 November 2026 (REQ-295 / D152)
 Advertiser APIs omit driver-pay figures, including report totals and the commercial cap. Staff reads retain them. Review emails retain a plain continuation link if application access expires or is replaced. Funding, ownership and payment authority remain unchanged. Earlier preview wording kept API fields pending privacy review; REQ-295 replaces that rule after the review confirmed disclosure.
 
 - **2026-11-03 — REQ-296:** Controller walkthrough corrections use readable quotation/report dates, print the invoice alone with payment details together, and use map in the drawing empty state. Newly rendered reports use v3; historical issued artifacts are unchanged.
@@ -1088,3 +1088,4 @@ Sign-in resumes a plain path in the signed-in role's own area after any required
 The server refuses new driver applications, renewed application links, password resets and staff sign-in invitations while its email adapter is disabled. Replies use fixed text; password reset does not disclose whether an account exists and creates no token or mail. Staff can still create a company and see that its invite was not sent; reviews and saved public enquiries keep working. Connecting email restores the existing behavior without a setting change. Source: controller judgement under the owner's 3 Nov 2026 mandate, reported to the owner, reverts itself once email is connected. This supersedes the earlier decision to leave runtime email entry points unchanged pending the owner.
 
 Empty location counters alone become an outage only for a trip started at least five minutes before the checked window ends. Missing Redis or incomplete counters still alert. Earlier D155 treated a newly started tracked trip as sufficient evidence. F18/F19 are left as they are by controller judgement, seed data is truthful; this closes those two REQ-297 items.
+REQ-299 / D157 — 3 November 2026: pending car reviews exclude current terminal evidence revisions. Expired/rejected car evidence requires a fresh submission; the staff form and car details show that state. Immutable decisions and work eligibility remain authoritative. Source: controller recheck additions. Earlier pending work status was also used as review readiness, causing an impossible repeat approval.

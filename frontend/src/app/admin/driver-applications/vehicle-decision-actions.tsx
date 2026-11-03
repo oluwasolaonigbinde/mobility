@@ -70,6 +70,9 @@ export function VehicleDecisionActions({
 }) {
   const [state, action, pending] = useActionState(reviewVehicleAction, initialDecisionState);
   const [decisionRequestId] = useState(() => crypto.randomUUID());
+  if (status !== "approved" && status !== "pending_review") {
+    return <p>This car needs a fresh document submission before it can be reviewed again.</p>;
+  }
   if (status === "approved") {
     return (
       <form action={action} className="flex min-w-0 flex-col gap-2">

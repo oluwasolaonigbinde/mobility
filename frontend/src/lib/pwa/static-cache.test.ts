@@ -120,8 +120,8 @@ describe("bounded driver static cache", () => {
     expect(offline?.status).toBe(503);
     expect(offline?.headers.get("cache-control")).toBe("no-store");
     const html = await offline?.text();
-    expect(html).toContain("This offline page is not tracking your location");
-    expect(html).toContain("Fresh earnings and review details are unavailable");
+    expect(html).toContain("You're offline");
+    expect(html).toContain("Reconnect to open Cardvert");
     expect(sw.stores.size).toBe(0);
   });
 });

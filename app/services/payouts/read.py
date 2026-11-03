@@ -10,30 +10,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings
 from app.models.campaign import Campaign
 from app.models.payout import (
-    CampaignPayoutRule,
-    CampaignPayoutRuleStatus,
     EarningsLedgerEntry,
     EarningsLedgerEntryStatus,
     PayoutCalculation,
-    PayoutCalculationStatus,
 )
 from app.models.trip import TripSession
-from app.services.campaigns import get_advertiser_campaign
 from app.services.drivers import get_required_driver_profile_with_user_by_user_id
 from app.services.impressions import (
     quantize_2,
 )
 from app.services.payout_balances import driver_money_balance
 from app.services.payouts.common import (
-    PAYOUT_V4,
-    CampaignCost,
-    CampaignCurrencyCost,
     DriverCurrencyEarnings,
     DriverEarnings,
     signed_ledger_amount_expression,
     validate_currency_code,
 )
-from app.services.payouts.ledger import latest_payout_calculation_ids
 
 
 async def list_payout_calculations(
@@ -228,174 +220,3 @@ async def list_driver_ledger_entries(
         .offset(offset)
     )
     return list(result.scalars().all()), int(total or 0)
-
-
-async def advertiser_campaign_cost_summary(
-    session: AsyncSession,
-    *,
-    user_id: UUID,
-    campaign_id: UUID,
-    start_at: datetime | None,
-    end_at: datetime | None,
-    currency: str | None,
-    settings: Settings,
-) -> CampaignCost:
-    campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
-    # Sum the stored calculation amounts for this campaign.
-    # rows side by side; reports render whichever version a row carries (16.1),
-    # and each trip counts once (its latest calculation).
-    filters = [
-        PayoutCalculation.campaign_id == campaign.id,
-        PayoutCalculation.id.in_(latest_payout_calculation_ids(campaign_id=campaign.id)),
-    ]
-    if start_at is not None:
-        filters.append(PayoutCalculation.calculated_at >= start_at)
-    if end_at is not None:
-        filters.append(PayoutCalculation.calculated_at <= end_at)
-    normalized_currency = validate_currency_code(currency)
-    if normalized_currency is not None:
-        filters.append(PayoutCalculation.currency == normalized_currency)
-
-    result = await session.execute(
-        select(
-            PayoutCalculation.currency,
-            func.coalesce(func.sum(PayoutCalculation.final_payout), 0),
-            func.coalesce(func.sum(PayoutCalculation.gross_payout), 0),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (
-                            PayoutCalculation.status == PayoutCalculationStatus.CALCULATED.value,
-                            1,
-                        ),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (
-                            PayoutCalculation.status == PayoutCalculationStatus.BLOCKED.value,
-                            1,
-                        ),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (
-                            PayoutCalculation.status
-                            == PayoutCalculationStatus.INSUFFICIENT_DATA.value,
-                            1,
-                        ),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
-            func.count(EarningsLedgerEntry.id),
-        )
-        .select_from(PayoutCalculation)
-        .outerjoin(
-            EarningsLedgerEntry,
-            EarningsLedgerEntry.payout_calculation_id == PayoutCalculation.id,
-        )
-        .where(*filters)
-        .group_by(PayoutCalculation.currency)
-    )
-    # Reversal netting lives in a separate ledger aggregate: adjustment and
-    # reversal entries carry no payout_calculation_id, so the calc join above
-    # can never see them. Note the ranges differ deliberately: calc aggregates
-    # window on calculated_at (when cost was computed), the ledger net on
-    # occurred_at (when money was posted).
-    ledger_filters = [EarningsLedgerEntry.campaign_id == campaign.id]
-    if start_at is not None:
-        ledger_filters.append(EarningsLedgerEntry.occurred_at >= start_at)
-    if end_at is not None:
-        ledger_filters.append(EarningsLedgerEntry.occurred_at <= end_at)
-    if normalized_currency is not None:
-        ledger_filters.append(EarningsLedgerEntry.currency == normalized_currency)
-    ledger_result = await session.execute(
-        select(
-            EarningsLedgerEntry.currency,
-            func.coalesce(func.sum(signed_ledger_amount_expression()), 0),
-        )
-        .where(
-            *ledger_filters,
-            EarningsLedgerEntry.status != EarningsLedgerEntryStatus.VOIDED.value,
-        )
-        .group_by(EarningsLedgerEntry.currency)
-    )
-    ledger_net_by_currency = {
-        row[0]: quantize_2(Decimal(str(row[1] or 0))) for row in ledger_result.all()
-    }
-
-    formula_rows = await session.execute(
-        select(PayoutCalculation.formula_version)
-        .where(PayoutCalculation.campaign_id == campaign.id)
-        .distinct()
-        .order_by(PayoutCalculation.formula_version)
-    )
-    formula_versions = [row[0] for row in formula_rows.all()]
-    governing_rule = await session.scalar(
-        select(CampaignPayoutRule.formula_version)
-        .where(
-            CampaignPayoutRule.campaign_id == campaign.id,
-            CampaignPayoutRule.status == CampaignPayoutRuleStatus.ACTIVE.value,
-        )
-        .order_by(CampaignPayoutRule.created_at.desc(), CampaignPayoutRule.id)
-        .limit(1)
-    )
-
-    totals = [
-        CampaignCurrencyCost(
-            currency=row[0],
-            final_payout_total=quantize_2(Decimal(str(row[1] or 0))),
-            gross_payout_total=quantize_2(Decimal(str(row[2] or 0))),
-            ledger_net_total=ledger_net_by_currency.pop(row[0], Decimal("0.00")),
-            calculated_trip_count=int(row[3] or 0),
-            blocked_trip_count=int(row[4] or 0),
-            insufficient_data_trip_count=int(row[5] or 0),
-            ledger_entry_count=int(row[6] or 0),
-        )
-        for row in result.all()
-    ]
-    for leftover_currency, net_total in sorted(ledger_net_by_currency.items()):
-        totals.append(
-            CampaignCurrencyCost(
-                currency=leftover_currency,
-                final_payout_total=Decimal("0.00"),
-                gross_payout_total=Decimal("0.00"),
-                ledger_net_total=net_total,
-                calculated_trip_count=0,
-                blocked_trip_count=0,
-                insufficient_data_trip_count=0,
-                ledger_entry_count=0,
-            )
-        )
-    if not totals:
-        totals.append(
-            CampaignCurrencyCost(
-                currency=validate_currency_code(currency, fallback=settings.default_currency),
-                final_payout_total=Decimal("0.00"),
-                gross_payout_total=Decimal("0.00"),
-                ledger_net_total=Decimal("0.00"),
-                calculated_trip_count=0,
-                blocked_trip_count=0,
-                insufficient_data_trip_count=0,
-                ledger_entry_count=0,
-            )
-        )
-    return CampaignCost(
-        campaign_id=campaign.id,
-        formula_version=governing_rule or PAYOUT_V4,
-        formula_versions=formula_versions,
-        totals_by_currency=totals,
-        start_at=start_at,
-        end_at=end_at,
-    )

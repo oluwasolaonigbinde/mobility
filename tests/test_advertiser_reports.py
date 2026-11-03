@@ -591,29 +591,6 @@ def test_campaign_report_uses_half_open_trip_cohort_and_latest_payout_once(
     assert response.status_code == http_status.HTTP_200_OK, response.text
     assert all(value is None for value in response.json()["totals"].values())
 
-    # S9 removes money only from the report export. Existing summary/ledger cost
-    # authority still selects exactly one latest calculation, even after late work.
-    async def terminal_cost():
-        from app.services.report_cohorts import select_report_cohort
-        from app.services.reports import campaign_cost_summary_from_cohort
-
-        async with db_sessionmaker() as session:
-            cohort = await select_report_cohort(
-                session,
-                campaign_id=campaign.id,
-                start_at=DAY_1,
-                end_at=DAY_2,
-                settings=settings,
-                terminal_period=True,
-            )
-            return await campaign_cost_summary_from_cohort(session, cohort, default_currency="NGN")
-
-    # Ordinary summary filters calculation timestamps. The retired report's
-    # terminal-trip financial selection is still verified directly (S9/D118).
-    cost = asyncio.run(terminal_cost()).totals_by_currency[0]
-    assert cost.final_payout_total == Decimal("700.00")
-    assert cost.calculated_trip_count == 1
-
 
 def test_campaign_trip_report_is_aggregate_only_and_rbac_protected(
     db_client,

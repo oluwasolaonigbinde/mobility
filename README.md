@@ -232,7 +232,6 @@ Slice 9 payout calculation and earnings endpoints:
 - `GET /api/v1/admin/payout-calculations`
 - `GET /api/v1/driver/earnings/summary`
 - `GET /api/v1/driver/earnings/ledger`
-- `GET /api/v1/advertiser/campaigns/{campaign_id}/cost-summary`
 
 Slice 10 advertiser reporting endpoints:
 
@@ -289,7 +288,6 @@ Suggested frontend smoke workflow after seeding:
 8. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/trips`.
 9. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/report`.
 10. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/impressions/summary`.
-11. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/cost-summary`.
 12. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/heatmap?bbox=3.35,6.43,3.47,6.56&resolution_m=500&metric=estimated_impressions`.
 13. Log in as `driver@demo.mobility.local`.
 14. Call `GET /api/v1/driver/earnings/summary`.

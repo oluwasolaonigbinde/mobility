@@ -267,7 +267,6 @@ const server = createServer(async (request, response) => {
         });
       if (tail === "/summary")
         return send(response, 200, {
-          costs: { totals_by_currency: [] },
           zones: {},
           impressions: {},
           route_analytics: {},

@@ -133,7 +133,12 @@ export default async function AdminAuditPage({
                   <td className="px-5 py-3 whitespace-nowrap">
                     {formatDateTime(event.created_at)}
                   </td>
-                  <td className="px-5 py-3">{event.actor_email ?? "System"}</td>
+                  <td className="px-5 py-3">
+                    {event.actor_email === "report-automation@cardvert.invalid" ||
+                    event.actor_email === "automatic-payouts@cardvert.invalid"
+                      ? "System"
+                      : (event.actor_email ?? "System")}
+                  </td>
                   <td className="px-5 py-3">{adminActivity(event.action)}</td>
                 </tr>
               ))}

@@ -185,7 +185,6 @@ function validateDashboardAggregate(
       "assignments",
       "trips",
       "impressions",
-      "costs",
       "quality",
     ],
     "summary fields",
@@ -253,21 +252,6 @@ function validateDashboardAggregate(
     "summary fraud flags",
   );
   requireAggregate(Object.values(flags).every(aggregateCount), "summary fraud counts");
-  const costs = aggregateFields(summary.costs, ["totals_by_currency"], "summary costs");
-  requireAggregate(Array.isArray(costs.totals_by_currency), "summary cost array");
-  for (const value of costs.totals_by_currency as unknown[]) {
-    const cost = aggregateFields(
-      value,
-      ["currency", "final_payout_total", "gross_payout_total", "ledger_entry_count"],
-      "summary cost fields",
-    );
-    requireAggregate(aggregateCurrency(cost.currency), "summary cost currency");
-    requireAggregate(
-      aggregateDecimal(cost.final_payout_total) && aggregateDecimal(cost.gross_payout_total),
-      "summary payout totals",
-    );
-    requireAggregate(aggregateCount(cost.ledger_entry_count), "summary ledger count");
-  }
   return value as components["schemas"]["AdvertiserDashboardSummary"];
 }
 

@@ -140,7 +140,6 @@ def test_driver_earnings_ledger_paginates_beyond_first_fifty(db_client, db_sessi
 def test_current_money_reads_filter_rows_totals_and_time_windows(db_sessionmaker, settings):
 
     from app.services.payouts.read import (
-        advertiser_campaign_cost_summary,
         driver_earnings_summary,
         list_driver_ledger_entries,
         list_payout_calculations,
@@ -232,26 +231,6 @@ def test_current_money_reads_filter_rows_totals_and_time_windows(db_sessionmaker
             )
             assert len(summary.totals_by_currency) == 1
             assert summary.totals_by_currency[0].ledger_entry_count == 0
-            cost_args = dict(
-                user_id=first.campaign.created_by_user_id,
-                campaign_id=first.campaign.id,
-                currency="NGN",
-                settings=settings,
-            )
-            start = min(expected.calculated_at, original.occurred_at) - timedelta(seconds=1)
-            end = max(expected.calculated_at, original.occurred_at) + timedelta(seconds=1)
-            cost = await advertiser_campaign_cost_summary(
-                session, start_at=start, end_at=end, **cost_args
-            )
-            assert cost.totals_by_currency[0].final_payout_total == Decimal("600.00")
-            assert cost.totals_by_currency[0].ledger_net_total == Decimal("600.00")
-            for bounds in ((end, None), (None, start)):
-                cost = await advertiser_campaign_cost_summary(
-                    session, start_at=bounds[0], end_at=bounds[1], **cost_args
-                )
-                assert cost.totals_by_currency[0].final_payout_total == 0
-                assert cost.totals_by_currency[0].ledger_net_total == 0
-                assert cost.totals_by_currency[0].calculated_trip_count == 0
             for rule_status, count in (("active", 1), ("inactive", 0)):
                 rules, total = await list_campaign_payout_rules(
                     session,

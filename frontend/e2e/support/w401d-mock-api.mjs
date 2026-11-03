@@ -218,7 +218,6 @@ const server = createServer(async (request, response) => {
       campaigns: { active: 0, total: 0 },
       assignments: { active: 0 },
       trips: { total: 0 },
-      costs: { totals_by_currency: [] },
       quality: { fraud_flags: { open: 0 } },
     });
   }

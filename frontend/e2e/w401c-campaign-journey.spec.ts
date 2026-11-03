@@ -150,7 +150,9 @@ test.describe("W4-01C governed campaign journey", () => {
       await page.goto("/apply");
       await expect(page.getByRole("navigation", { name: "Application steps" })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Start an application" })).toBeVisible();
-      await expect(page.getByRole("link", { name: /already invited.*sign in/i })).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: "Already have a driver account? Sign in" }),
+      ).toBeVisible();
     });
   });
 });

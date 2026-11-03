@@ -114,7 +114,7 @@ describe("admin named discovery pages", () => {
     });
     render(await AdminDriversPage(props({ tab: "active", source: "cars" })));
     expect(mocks.get).toHaveBeenCalledExactlyOnceWith("/api/v1/admin/vehicles", {
-      params: { query: { limit: 25, offset: 0, q: undefined } },
+      params: { query: { limit: 25, offset: 0, q: undefined, status: "pending" } },
     });
     expect(screen.getByText("Couldn't load this section — try again")).toBeTruthy();
     expect(screen.queryByText("No cars recorded")).toBeNull();
@@ -138,7 +138,7 @@ describe("admin named discovery pages", () => {
       await AdminDriversPage(props({ tab: "active", source: "cars", q: "ABC", offset: "25" })),
     );
     expect(mocks.get).toHaveBeenCalledExactlyOnceWith("/api/v1/admin/vehicles", {
-      params: { query: { limit: 25, offset: 25, q: "ABC" } },
+      params: { query: { limit: 25, offset: 25, q: "ABC", status: "pending" } },
     });
     expect(screen.getByRole("link", { name: /Ada.*ABC-123-XY/ })).toHaveAttribute(
       "href",

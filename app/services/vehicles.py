@@ -8,6 +8,7 @@ from starlette import status
 from app.core.errors import AppError
 from app.models.driver import DriverProfile
 from app.models.driver_application import DriverApplication
+from app.models.kyc import VehicleEvidenceSubmission
 from app.models.user import User, UserRole
 from app.models.vehicle import Vehicle
 from app.schemas.vehicles import VehicleCreate, VehicleUpdate, normalize_plate_country_code
@@ -131,6 +132,21 @@ async def create_vehicle_for_driver_user(
     return vehicle, driver_profile, user
 
 
+def pending_vehicle_review_clause():
+    # Work eligibility becomes pending after rejection/expiry as well. A terminal
+    # evidence revision needs new documents, not another decision on the same row.
+    latest_status = (
+        select(VehicleEvidenceSubmission.status)
+        .where(VehicleEvidenceSubmission.vehicle_id == Vehicle.id)
+        .order_by(VehicleEvidenceSubmission.version.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    return (Vehicle.status == "pending") & (
+        latest_status.is_(None) | (latest_status == "pending_review")
+    )
+
+
 async def list_admin_vehicles(
     session: AsyncSession,
     *,
@@ -150,6 +166,8 @@ async def list_admin_vehicles(
         filters.append(operator_search(q, Vehicle.plate_number, Vehicle.make, Vehicle.model))
     if vehicle_status is not None:
         filters.append(Vehicle.status == vehicle_status)
+        if vehicle_status == "pending":
+            filters.append(pending_vehicle_review_clause())
     if vehicle_type is not None:
         filters.append(Vehicle.vehicle_type == vehicle_type)
     if plate_country_code is not None:

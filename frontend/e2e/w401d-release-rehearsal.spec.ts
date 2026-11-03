@@ -109,9 +109,7 @@ test("W4-01D history, hold, dispute, outcome and fail-safe PWA rehearsal", async
 
     await context.setOffline(true);
     await page.goto("/driver/earnings");
-    await expect(
-      page.getByText("Fresh earnings and review details are unavailable."),
-    ).toBeVisible();
+    await expect(page.getByText("Reconnect to open Cardvert.")).toBeVisible();
     await expect(page.getByText(/₦1,250/)).toHaveCount(0);
     await expect(page.getByLabel("Dispute message")).toHaveCount(0);
     const offlineMutation = await page.evaluate(async () => {

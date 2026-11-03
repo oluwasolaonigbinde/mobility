@@ -414,7 +414,15 @@ export default async function DriverHub({
                       <div>
                         <h3 className="font-medium">{car.plate_number}</h3>
                         <p className="text-muted text-sm">
-                          {[car.make, car.model, car.color, adminStatus(car.status)]
+                          {[
+                            car.make,
+                            car.model,
+                            car.color,
+                            adminStatus(
+                              documents.data?.vehicles?.find((row) => row.vehicle_id === car.id)
+                                ?.status ?? car.status,
+                            ),
+                          ]
                             .filter(Boolean)
                             .join(" · ")}
                         </p>

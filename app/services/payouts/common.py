@@ -200,28 +200,6 @@ class DriverEarnings:
     totals_by_currency: list[DriverCurrencyEarnings]
 
 
-@dataclass(frozen=True)
-class CampaignCurrencyCost:
-    currency: str
-    final_payout_total: Decimal
-    gross_payout_total: Decimal
-    ledger_net_total: Decimal
-    calculated_trip_count: int
-    blocked_trip_count: int
-    insufficient_data_trip_count: int
-    ledger_entry_count: int
-
-
-@dataclass(frozen=True)
-class CampaignCost:
-    campaign_id: UUID
-    formula_version: str
-    formula_versions: list[str]
-    totals_by_currency: list[CampaignCurrencyCost]
-    start_at: datetime | None
-    end_at: datetime | None
-
-
 def signed_ledger_amount_expression():
     """Reversals subtract from the original trip; all other entries add."""
     return case(

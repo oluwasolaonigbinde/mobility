@@ -4,7 +4,7 @@ from decimal import Decimal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import case, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
@@ -13,7 +13,6 @@ from app.models.campaign import Campaign, CampaignCreative
 from app.models.campaign_assignment import CampaignAssignment
 from app.models.campaign_zone import CampaignZone
 from app.models.impression import ImpressionEstimate, ImpressionEstimateStatus
-from app.models.payout import EarningsLedgerEntry, PayoutCalculation, PayoutCalculationStatus
 from app.models.trip import TripSession, TripSessionStatus
 from app.models.trip_analytics import FraudFlag, TripAnalytics
 from app.schemas.reports import (
@@ -26,8 +25,6 @@ from app.schemas.reports import (
     ZONE_TYPES,
     AdvertiserDashboardSummary,
     AssignmentStatusCounts,
-    CampaignCostCurrencySummary,
-    CampaignCostSummary,
     CampaignReadSummary,
     CampaignStatusCounts,
     CampaignSummary,
@@ -35,8 +32,6 @@ from app.schemas.reports import (
     CreativeStatusCounts,
     DailyMetricItem,
     DailyMetricsResponse,
-    DashboardCostCurrencySummary,
-    DashboardCostSummary,
     FraudFlagCounts,
     ImpressionSummary,
     QualitySummary,
@@ -52,7 +47,6 @@ from app.services.disclosure import (
     require_governed_advertiser_output,
 )
 from app.services.impressions import current_authoritative_estimates
-from app.services.payouts.ledger import latest_payout_calculation_ids
 from app.services.report_cohorts import ReportCohort, select_report_cohort
 
 ZERO_2 = Decimal("0.00")
@@ -289,221 +283,6 @@ async def impression_summary_query(
             confidence_total / len(estimates) if estimates else Decimal("0")
         ),
     )
-
-
-async def dashboard_cost_summary(
-    session: AsyncSession,
-    organization_id: UUID,
-    *,
-    start_at: datetime | None,
-    end_at: datetime | None,
-    default_currency: str,
-    settings: Settings,
-) -> DashboardCostSummary:
-    filters = [
-        Campaign.organization_id == organization_id,
-        PayoutCalculation.id.in_(latest_payout_calculation_ids(organization_id=organization_id)),
-    ]
-    apply_range(filters, PayoutCalculation.calculated_at, start_at, end_at)
-    result = await session.execute(
-        select(
-            PayoutCalculation.currency,
-            func.coalesce(func.sum(PayoutCalculation.final_payout), 0),
-            func.coalesce(func.sum(PayoutCalculation.gross_payout), 0),
-            func.count(EarningsLedgerEntry.id),
-        )
-        .select_from(PayoutCalculation)
-        .join(Campaign, Campaign.id == PayoutCalculation.campaign_id)
-        .outerjoin(
-            EarningsLedgerEntry,
-            EarningsLedgerEntry.payout_calculation_id == PayoutCalculation.id,
-        )
-        .where(*filters)
-        .group_by(PayoutCalculation.currency)
-    )
-    totals = [
-        DashboardCostCurrencySummary(
-            currency=row[0],
-            final_payout_total=decimal_2(row[1]),
-            gross_payout_total=decimal_2(row[2]),
-            ledger_entry_count=int(row[3] or 0),
-        )
-        for row in result.all()
-    ]
-    if not totals:
-        totals.append(
-            DashboardCostCurrencySummary(
-                currency=default_currency,
-                final_payout_total=ZERO_2,
-                gross_payout_total=ZERO_2,
-                ledger_entry_count=0,
-            )
-        )
-    return DashboardCostSummary(totals_by_currency=totals)
-
-
-async def campaign_cost_summary(
-    session: AsyncSession,
-    campaign_id: UUID,
-    *,
-    start_at: datetime | None,
-    end_at: datetime | None,
-    default_currency: str,
-    settings: Settings,
-) -> CampaignCostSummary:
-    filters = [
-        PayoutCalculation.campaign_id == campaign_id,
-        PayoutCalculation.id.in_(latest_payout_calculation_ids(campaign_id=campaign_id)),
-    ]
-    apply_range(filters, PayoutCalculation.calculated_at, start_at, end_at)
-    result = await session.execute(
-        select(
-            PayoutCalculation.currency,
-            func.coalesce(func.sum(PayoutCalculation.final_payout), 0),
-            func.coalesce(func.sum(PayoutCalculation.gross_payout), 0),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (
-                            PayoutCalculation.status == PayoutCalculationStatus.CALCULATED.value,
-                            1,
-                        ),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (PayoutCalculation.status == PayoutCalculationStatus.BLOCKED.value, 1),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (
-                            PayoutCalculation.status
-                            == PayoutCalculationStatus.INSUFFICIENT_DATA.value,
-                            1,
-                        ),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
-            func.count(EarningsLedgerEntry.id),
-        )
-        .select_from(PayoutCalculation)
-        .outerjoin(
-            EarningsLedgerEntry,
-            EarningsLedgerEntry.payout_calculation_id == PayoutCalculation.id,
-        )
-        .where(*filters)
-        .group_by(PayoutCalculation.currency)
-    )
-    totals = [
-        CampaignCostCurrencySummary(
-            currency=row[0],
-            final_payout_total=decimal_2(row[1]),
-            gross_payout_total=decimal_2(row[2]),
-            calculated_trip_count=int(row[3] or 0),
-            blocked_trip_count=int(row[4] or 0),
-            insufficient_data_trip_count=int(row[5] or 0),
-            ledger_entry_count=int(row[6] or 0),
-        )
-        for row in result.all()
-    ]
-    if not totals:
-        totals.append(
-            CampaignCostCurrencySummary(
-                currency=default_currency,
-                final_payout_total=ZERO_2,
-                gross_payout_total=ZERO_2,
-                calculated_trip_count=0,
-                blocked_trip_count=0,
-                insufficient_data_trip_count=0,
-                ledger_entry_count=0,
-            )
-        )
-    return CampaignCostSummary(totals_by_currency=totals)
-
-
-async def campaign_cost_summary_from_cohort(
-    session: AsyncSession,
-    cohort: ReportCohort,
-    *,
-    default_currency: str,
-) -> CampaignCostSummary:
-    ledger_counts: dict[UUID, int] = {}
-    payout_ids = [row.id for row in cohort.payouts]
-    if payout_ids:
-        ledger_counts = {
-            payout_id: int(count or 0)
-            for payout_id, count in (
-                await session.execute(
-                    select(
-                        EarningsLedgerEntry.payout_calculation_id,
-                        func.count(EarningsLedgerEntry.id),
-                    )
-                    .where(EarningsLedgerEntry.payout_calculation_id.in_(payout_ids))
-                    .group_by(EarningsLedgerEntry.payout_calculation_id)
-                )
-            ).all()
-        }
-    totals: dict[str, dict[str, object]] = defaultdict(
-        lambda: {
-            "final": ZERO_2,
-            "gross": ZERO_2,
-            "calculated": 0,
-            "blocked": 0,
-            "insufficient": 0,
-            "ledger": 0,
-        }
-    )
-    for payout in cohort.payouts:
-        values = totals[payout.currency]
-        values["final"] = decimal_2(values["final"]) + decimal_2(cohort.final_cost(payout))
-        values["gross"] = decimal_2(values["gross"]) + decimal_2(payout.gross_payout)
-        if payout.status == PayoutCalculationStatus.CALCULATED.value:
-            values["calculated"] = int(values["calculated"]) + 1
-        elif payout.status == PayoutCalculationStatus.BLOCKED.value:
-            values["blocked"] = int(values["blocked"]) + 1
-        elif payout.status == PayoutCalculationStatus.INSUFFICIENT_DATA.value:
-            values["insufficient"] = int(values["insufficient"]) + 1
-        values["ledger"] = int(values["ledger"]) + (
-            sum(r.trip_session_id == payout.trip_session_id for r in cohort.ledger)
-            if cohort.ledger is not None
-            else ledger_counts.get(payout.id, 0)
-        )
-    rows = [
-        CampaignCostCurrencySummary(
-            currency=currency,
-            final_payout_total=decimal_2(values["final"]),
-            gross_payout_total=decimal_2(values["gross"]),
-            calculated_trip_count=int(values["calculated"]),
-            blocked_trip_count=int(values["blocked"]),
-            insufficient_data_trip_count=int(values["insufficient"]),
-            ledger_entry_count=int(values["ledger"]),
-        )
-        for currency, values in sorted(totals.items())
-    ]
-    if not rows:
-        rows.append(
-            CampaignCostCurrencySummary(
-                currency=default_currency,
-                final_payout_total=ZERO_2,
-                gross_payout_total=ZERO_2,
-                calculated_trip_count=0,
-                blocked_trip_count=0,
-                insufficient_data_trip_count=0,
-                ledger_entry_count=0,
-            )
-        )
-    return CampaignCostSummary(totals_by_currency=rows)
 
 
 async def fraud_counts_for_org(

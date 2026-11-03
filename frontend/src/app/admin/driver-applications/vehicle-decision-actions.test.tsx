@@ -227,3 +227,12 @@ it("keeps the staff-entered approval date after a failed approval instead of the
     "2027-06-01T08:00",
   );
 });
+
+it.each(["expired", "rejected"])("requires new evidence for a terminal %s revision", (status) => {
+  render(<VehicleDecisionActions {...props} status={status} />);
+  expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
+  expect(
+    screen.getByText("This car needs a fresh document submission before it can be reviewed again."),
+  ).toBeVisible();
+});

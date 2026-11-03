@@ -51,7 +51,7 @@ it("preserves unknown URL filters in a human-labelled selected option", async ()
   );
   expect(screen.getByRole("combobox", { name: "Activity" })).toHaveValue("stored_file.read");
   expect(screen.getByRole("combobox", { name: "About" })).toHaveValue("new_type");
-  expect(screen.getByRole("option", { name: "Stored file read" })).toBeInTheDocument();
+  expect(screen.getByRole("option", { name: "Private document viewed" })).toBeInTheDocument();
   expect(screen.getByRole("option", { name: "Selected records" })).toBeInTheDocument();
   expect(screen.getByText("No activity matches these filters.")).toBeInTheDocument();
 });
@@ -65,3 +65,13 @@ it("keeps genuine empty history separate from unavailable history", async () => 
   expect(screen.getAllByRole("alert")).toHaveLength(1);
   expect(screen.queryByText("No matching events.")).toBeNull();
 });
+
+it.each(["report-automation@cardvert.invalid", "automatic-payouts@cardvert.invalid"])(
+  "shows automation actor %s as System",
+  async (email) => {
+    get.mockResolvedValue({ data: { items: [{ ...event, actor_email: email }], total: 1 } });
+    render(await AdminAuditPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByRole("cell", { name: "System" })).toBeVisible();
+    expect(screen.queryByText(email)).not.toBeInTheDocument();
+  },
+);

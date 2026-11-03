@@ -391,7 +391,9 @@ async def process_email_notification(  # noqa: C901
             async with sessionmaker() as session:
                 user = await session.get(User, notice.recipient_user_id)
                 if notice.type_key in REVIEW_TYPES:
-                    context = await review_notice_context(session, notice, user) if user else None
+                    if user is None:
+                        raise ValueError("driver_review_inactive")
+                    context = await review_notice_context(session, notice, user)
                     if context is None:
                         raise ValueError("driver_review_inactive")
                     runtime_payload.update(context)

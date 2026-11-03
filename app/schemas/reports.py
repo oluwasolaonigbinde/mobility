@@ -74,27 +74,6 @@ class ImpressionSummary(DecimalStringMixin):
     average_confidence_score: Decimal
 
 
-class DashboardCostCurrencySummary(DecimalStringMixin):
-    currency: str
-    final_payout_total: Decimal
-    gross_payout_total: Decimal
-    ledger_entry_count: int
-
-
-class CampaignCostCurrencySummary(DashboardCostCurrencySummary):
-    calculated_trip_count: int
-    blocked_trip_count: int
-    insufficient_data_trip_count: int
-
-
-class DashboardCostSummary(BaseModel):
-    totals_by_currency: list[DashboardCostCurrencySummary]
-
-
-class CampaignCostSummary(BaseModel):
-    totals_by_currency: list[CampaignCostCurrencySummary]
-
-
 class FraudFlagCounts(BaseModel):
     open: int = 0
     confirmed: int = 0

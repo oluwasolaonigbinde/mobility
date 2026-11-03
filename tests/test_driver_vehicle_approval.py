@@ -865,6 +865,21 @@ def test_vehicle_eligibility_opens_and_expiry_closes_assignment_and_trip(
     submitted = db_client.post(
         "/api/v1/auth/driver-onboarding/vehicle", json=_vehicle_payload(token, files)
     ).json()
+    headers = auth_headers(db_client, admin.email, PASSWORD)
+
+    def pending_cars():
+        return db_client.get(
+            "/api/v1/admin/vehicles", headers=headers, params={"status": "pending"}
+        ).json()
+
+    assert pending_cars()["total"] == 1
+    assert (
+        db_client.get("/api/v1/admin/badge-summary", headers=headers).json()["source_counts"][
+            "cars"
+        ]
+        == 1
+    )
+    settings.email_provider = ""
     approved = _approve_vehicle(
         db_client,
         db_sessionmaker,
@@ -916,6 +931,14 @@ def test_vehicle_eligibility_opens_and_expiry_closes_assignment_and_trip(
     )
     assert expired.status_code == 200
     assert expired.json()["status"] == "expired"
+    assert pending_cars()["total"] == 0
+    assert pending_cars()["items"] == []
+    assert (
+        db_client.get("/api/v1/admin/badge-summary", headers=headers).json()["source_counts"][
+            "cars"
+        ]
+        == 0
+    )
 
     async def start() -> None:
         async with db_sessionmaker() as session:

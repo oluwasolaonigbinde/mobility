@@ -16,6 +16,7 @@ from app.models.trip_analytics import FraudFlag
 from app.models.vehicle import Vehicle
 from app.services.campaign_enquiries import staff_enquiries
 from app.services.contacts import list_manual_driver_contact_tasks
+from app.services.vehicles import pending_vehicle_review_clause
 
 # Same source IDs and area membership as the staff work queue. Counts are tasks,
 # not unique people/campaigns: one record can legitimately need several actions.
@@ -54,7 +55,7 @@ async def admin_badge_summary(session: AsyncSession, *, actor_user_id: UUID) -> 
     )
     queries = {
         "applications": count(DriverApplication, DriverApplication.status == "pending"),
-        "cars": count(Vehicle, Vehicle.status == "pending"),
+        "cars": count(Vehicle, pending_vehicle_review_clause()),
         "jobs": count(CampaignAssignment, CampaignAssignment.status == "accepted"),
         "trips": select(func.count(func.distinct(FraudFlag.trip_session_id)))
         .where(FraudFlag.status == "open")

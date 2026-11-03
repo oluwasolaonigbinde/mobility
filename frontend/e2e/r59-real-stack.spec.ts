@@ -332,9 +332,8 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
   });
   const captureCounts = () =>
     page.evaluate(() => {
-      const { watches, fixes } = (
-        window as typeof window & { r59Capture: SyntheticCaptureState }
-      ).r59Capture;
+      const { watches, fixes } = (window as typeof window & { r59Capture: SyntheticCaptureState })
+        .r59Capture;
       return { watches, fixes };
     });
   page.on("dialog", (dialog) => void dialog.accept());
@@ -539,7 +538,7 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
     const offlineNavigation = await page.goto("/driver/earnings");
     expect(offlineNavigation?.status()).toBe(503);
     expect(offlineNavigation?.headers()["cache-control"]).toBe("no-store");
-    await expect(page.getByText(/This offline page is not tracking your location/)).toBeVisible();
+    await expect(page.getByText(/You're offline/)).toBeVisible();
     const preserved = await queuedEvidence(page, tripId);
     expect(preserved.queuedSamples).toBeGreaterThanOrEqual(4);
     expect(preserved.encryptedRecords).toBeGreaterThan(0);
