@@ -54,7 +54,7 @@ const holdStatus: Record<
 const noticeCopy: Partial<Record<NotificationType, string>> = {
   assignment_offered: "You got a job offer.",
   assignment_accepted: "You accepted the job.",
-  payout_released: "Pay for this trip was released.",
+  payout_released: "Pay for this trip is ready.",
   fraud_hold_raised: "This trip was put on hold for a check.",
   fraud_review_resolved: "Terrax Media finished checking this trip.",
   fraud_dispute_replied: "Terrax Media replied to you.",
@@ -102,7 +102,7 @@ export default async function DriverTripEarningsPage({
         </div>
         <DriverDataUnavailable
           title="Trip earnings are unavailable"
-          detail="Cardvert could not verify the current payout breakdown. No saved amount is shown as current."
+          detail="We couldn't load this trip's pay. Try again shortly."
           retryHref={`/driver/earnings/trips/${tripId}`}
         />
       </div>
@@ -125,7 +125,7 @@ export default async function DriverTripEarningsPage({
         </div>
         <DriverDataUnavailable
           title="Trip review status is unavailable"
-          detail="Cardvert calculated this trip but couldn't check whether this trip is under review, so the amount isn't shown. Try again shortly."
+          detail="We couldn't load this trip's pay. Try again shortly."
           retryHref={`/driver/earnings/trips/${tripId}`}
         />
       </div>
@@ -146,7 +146,7 @@ export default async function DriverTripEarningsPage({
     <FreshDriverAuthority
       refreshKey={crypto.randomUUID()}
       title="Current trip earnings hidden while offline"
-      detail="Reconnect to see the latest pay, review and dispute status. Earlier review details and dispute actions are hidden while offline."
+      detail="Reconnect to see this trip's pay."
       retryHref={`/driver/earnings/trips/${tripId}`}
     >
       <div className="animate-rise flex flex-col gap-4">
@@ -261,7 +261,7 @@ export default async function DriverTripEarningsPage({
                     <span className="text-muted">
                       {reason === "stationary"
                         ? "Stops longer than 5 minutes"
-                        : (EXCLUSION_LABELS[reason] ?? reason.replace(/_/g, " "))}
+                        : (EXCLUSION_LABELS[reason] ?? "Other")}
                     </span>
                     <span className="font-mono">{formatDuration(seconds)}</span>
                   </li>
@@ -274,7 +274,7 @@ export default async function DriverTripEarningsPage({
         {data.entries.length > 0 ? (
           <Panel className="overflow-hidden">
             <div className="border-edge border-b px-5 py-3.5">
-              <h2 className="micro text-muted">Entries for this trip</h2>
+              <h2 className="micro text-muted">Pay for this trip</h2>
             </div>
             <ul className="divide-edge/60 divide-y">
               {data.entries.map((e) => (
@@ -283,7 +283,9 @@ export default async function DriverTripEarningsPage({
                     <p className="truncate text-sm">
                       {e.entry_type === "reversal"
                         ? "Deduction"
-                        : (e.description ?? e.entry_type.replace(/_/g, " "))}
+                        : e.entry_type === "trip_payout"
+                          ? "Trip pay"
+                          : "Pay correction"}
                     </p>
                     <p className="micro text-faint mt-0.5">
                       {formatDate(e.work_days?.[0]?.day ?? e.occurred_at)}

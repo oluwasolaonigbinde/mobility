@@ -24,7 +24,7 @@ export function ProfileForm({
         autoComplete="off"
       />
       <Field
-        label="Service city"
+        label="City you drive in"
         name="service_city"
         required
         maxLength={128}

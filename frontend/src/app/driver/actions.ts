@@ -37,7 +37,7 @@ export async function assignmentAction(
   input: z.input<typeof assignmentSchema>,
 ): Promise<DriverActionState> {
   const parsed = assignmentSchema.safeParse(input);
-  if (!parsed.success) return { error: "Invalid assignment action" };
+  if (!parsed.success) return { error: "Something went wrong. Refresh and try again." };
   const { assignmentId, action } = parsed.data;
   try {
     const api = createApiClient(await getSessionToken());
@@ -71,7 +71,7 @@ const START_PHOTO_REFUSALS: Record<string, string> = {
 
 export async function startTripAction(assignmentId: string): Promise<StartTripResult> {
   if (!z.string().uuid().safeParse(assignmentId).success) {
-    return { error: "Invalid assignment", outcome: "failed" };
+    return { error: "Something went wrong. Refresh and try again.", outcome: "failed" };
   }
   try {
     const api = createApiClient(await getSessionToken());
@@ -216,7 +216,8 @@ export async function endTripAction(
   if (!z.string().uuid().safeParse(tripId).success)
     return { error: "Invalid trip", outcome: "failed" };
   const parsedManifest = evidenceManifestSchema.safeParse(evidenceManifest);
-  if (!parsedManifest.success) return { error: "Invalid trip end state", outcome: "failed" };
+  if (!parsedManifest.success)
+    return { error: "Something went wrong. Refresh and try again.", outcome: "failed" };
   try {
     const api = createApiClient(await getSessionToken());
     const { data } = await api.POST("/api/v1/driver/trips/{trip_id}/end", {
@@ -420,7 +421,11 @@ export async function sendPingBatchAction(
 ): Promise<PingBatchResult> {
   const parsed = pingBatchSchema.safeParse(input);
   if (!parsed.success)
-    return { error: "Invalid ping batch", retryable: false, acknowledged: false };
+    return {
+      error: "Something went wrong. Refresh and try again.",
+      retryable: false,
+      acknowledged: false,
+    };
   try {
     const api = createApiClient(await getSessionToken());
     const { data } = await api.POST("/api/v1/driver/trips/{trip_id}/pings", {
@@ -445,7 +450,7 @@ export async function sendPingBatchAction(
           acknowledgement.data.sample_results.length === parsed.data.pings.length));
     if (!positiveAck) {
       return {
-        error: "Cardvert could not confirm the GPS batch acknowledgement.",
+        error: "Cardvert couldn't confirm your location updates.",
         retryable: true,
         acknowledged: false,
       };
@@ -509,7 +514,7 @@ export async function reconcileTripEvidenceAction(tripId: string): Promise<EndTr
         adjudication: "incomplete_grace_expired",
       };
     }
-    return { error: "Trip evidence is not sealed.", outcome: "unknown" };
+    return { error: "Something went wrong. Refresh and try again.", outcome: "unknown" };
   } catch (error) {
     unstable_rethrow(error);
     if (
@@ -544,7 +549,7 @@ const profileSchema = z.object({
     .trim()
     .toUpperCase()
     .transform((v) => (v === "" ? null : v))
-    .pipe(z.string().length(2, "Use a 2-letter code (e.g. NG)").nullable()),
+    .pipe(z.string().length(2, "Enter a two-letter country code, e.g. NG for Nigeria.").nullable()),
 });
 
 export async function updateProfileAction(
@@ -557,7 +562,9 @@ export async function updateProfileAction(
     country_code: formData.get("country_code") ?? "",
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid profile data" };
+    return {
+      error: parsed.error.issues[0]?.message ?? "Something went wrong. Refresh and try again.",
+    };
   }
   try {
     const api = createApiClient(await getSessionToken());

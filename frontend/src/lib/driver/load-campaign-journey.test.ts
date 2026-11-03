@@ -206,7 +206,7 @@ describe("loadDriverCampaignJourney", () => {
     expect(result.journey.standing).toBe("PENDING");
     expect(result.journey.steps.find((step) => step.id === "application")?.state).toBe("complete");
     expect(result.journey.steps.find((step) => step.id === "activation")?.title).toMatch(
-      /waiting for cardvert to start the campaign/i,
+      /waiting for your job to start/i,
     );
   });
 

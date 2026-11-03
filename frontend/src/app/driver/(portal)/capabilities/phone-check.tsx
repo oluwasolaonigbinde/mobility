@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { readinessRows } from "@/lib/pwa/readiness-rows";
 import { useCapabilityProbes } from "./use-capability-probes";
 
-/** D38(b): the driver's plain Phone check; codes and the raw report stay on the support view. */
+/** Plain phone readiness results for the driver and support. */
 export function PhoneCheck() {
-  const { snapshot, passiveReady, busy, report, checkAll } = useCapabilityProbes();
+  const { snapshot, passiveReady, busy, checkAll } = useCapabilityProbes();
   const [checked, setChecked] = useState(false);
   const [copyNotice, setCopyNotice] = useState("");
 
@@ -19,7 +19,11 @@ export function PhoneCheck() {
   async function copyForSupport() {
     try {
       if (!navigator.clipboard) throw new Error("clipboard unavailable");
-      await navigator.clipboard.writeText(report);
+      const summary = readinessRows(snapshot).map((row) => {
+        const known = checked || (row.passive && passiveReady);
+        return `${row.label}: ${known ? (row.ok ? "Yes" : "No") : "Not checked yet"}`;
+      });
+      await navigator.clipboard.writeText(["Cardvert phone check", ...summary].join("\n"));
       setCopyNotice("Copied. Paste it into your message to support.");
     } catch {
       setCopyNotice("Couldn't copy on this phone. Ask support how to send the check result.");

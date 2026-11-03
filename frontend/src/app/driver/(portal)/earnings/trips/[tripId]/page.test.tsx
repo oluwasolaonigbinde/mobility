@@ -93,10 +93,10 @@ describe("DriverTripEarningsPage", () => {
     const deduction = screen.getAllByText("Deduction")[0]?.closest("li");
     if (!deduction) throw new Error("expected the correction entry");
     expect(within(deduction).getAllByText("Deduction")).toHaveLength(2);
-    expect(within(deduction).queryByText("Released")).not.toBeInTheDocument();
+    expect(within(deduction).queryByText("Ready")).not.toBeInTheDocument();
     expect(screen.queryByText("Correct overpayment")).not.toBeInTheDocument();
     expect(screen.queryByText("Withdrawn correction")).not.toBeInTheDocument();
-    const withdrawn = screen.getByText("Voided").closest("li");
+    const withdrawn = screen.getByText("Cancelled").closest("li");
     if (!withdrawn) throw new Error("expected the voided entry");
     expect(within(withdrawn).getAllByText("Deduction")).toHaveLength(1);
   });
@@ -146,9 +146,7 @@ describe("DriverTripEarningsPage", () => {
     });
     render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-v4" }) }));
     expect(screen.getByText(/₦91.08 already deducted/)).toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "Entries for this trip" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Pay for this trip" })).not.toBeInTheDocument();
   });
   it("shows no deduction note once nothing is left to deduct", async () => {
     get.mockResolvedValue({ data: breakdown({ amount: "9900.00", to_deduct: "0.00" }) });
@@ -247,9 +245,7 @@ describe("DriverTripEarningsPage", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent(/trip review status is unavailable/i);
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      /couldn't check whether this trip is under review/i,
-    );
+    expect(screen.getByRole("alert")).toHaveTextContent(/couldn't load this trip's pay/i);
     expect(screen.queryByText("₦750.00")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Dispute message")).not.toBeInTheDocument();
   });

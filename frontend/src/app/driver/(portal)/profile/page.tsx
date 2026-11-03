@@ -59,7 +59,7 @@ export default async function DriverProfilePage() {
         <h1 className="font-display text-2xl font-semibold tracking-tight">Profile</h1>
         <DriverDataUnavailable
           title="Current profile is unavailable"
-          detail="Cardvert couldn't verify your current profile and vehicle ownership, so profile changes are unavailable. Try again shortly."
+          detail="We couldn't load your profile. Try again shortly. Try again shortly."
           retryHref="/driver/profile"
         />
         <DriverLogoutButton />
@@ -78,7 +78,7 @@ export default async function DriverProfilePage() {
       <FreshDriverAuthority
         refreshKey={crypto.randomUUID()}
         title="Current profile hidden while offline"
-        detail="Reconnect to verify your profile, vehicle ownership and work status. Profile changes are hidden until a fresh read succeeds."
+        detail="Reconnect to see your profile."
         retryHref="/driver/profile"
       >
         <div className="animate-rise flex flex-col gap-4">
@@ -87,7 +87,7 @@ export default async function DriverProfilePage() {
           {campaignCount === null || tripPayoutCount === null ? (
             <DriverDataUnavailable
               title="Profile history unavailable"
-              detail="Cardvert couldn't load optional campaign or trip counts. Your current profile and vehicle status remain available."
+              detail="We couldn't load your job and trip counts."
               retryHref="/driver/profile"
             />
           ) : null}

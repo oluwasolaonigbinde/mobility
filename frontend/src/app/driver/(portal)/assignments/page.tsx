@@ -204,7 +204,7 @@ export default async function DriverAssignmentsPage({
       <div className="animate-rise flex flex-col gap-4">
         <h1 className="font-display text-2xl font-semibold tracking-tight">Jobs</h1>
         <DriverDataUnavailable
-          title="Campaign history is unavailable"
+          title="Your jobs can't be shown"
           detail="Cardvert couldn't load your current or finished jobs. Try again shortly."
           retryHref="/driver/assignments"
         />
@@ -222,7 +222,7 @@ export default async function DriverAssignmentsPage({
       <div className="animate-rise flex flex-col gap-4">
         <h1 className="font-display text-2xl font-semibold tracking-tight">Jobs</h1>
         <DriverDataUnavailable
-          title="Campaign history is unavailable"
+          title="Your jobs can't be shown"
           detail="Cardvert couldn't load your installation photos, so job actions are unavailable. Try again shortly."
           retryHref="/driver/assignments"
         />
@@ -245,7 +245,7 @@ export default async function DriverAssignmentsPage({
       <div className="animate-rise flex flex-col gap-4">
         <h1 className="font-display text-2xl font-semibold tracking-tight">Jobs</h1>
         <DriverDataUnavailable
-          title="Campaign history is unavailable"
+          title="Your jobs can't be shown"
           detail="Cardvert couldn't load your installation photo history, so job actions are unavailable. Try again shortly."
           retryHref="/driver/assignments"
         />
@@ -303,7 +303,7 @@ export default async function DriverAssignmentsPage({
   return (
     <FreshDriverAuthority
       refreshKey={crypto.randomUUID()}
-      title="Current campaign history hidden while offline"
+      title="Reconnect to see your jobs"
       detail="Reconnect to check your current and finished jobs."
       retryHref="/driver/assignments"
     >
@@ -314,7 +314,7 @@ export default async function DriverAssignmentsPage({
           <Panel className="p-6 text-center">
             <p className="text-sm font-medium">No jobs yet</p>
             <p className="text-muted mt-1 text-sm">
-              Campaign offers appear here once our team assigns your vehicle.
+              Job offers appear here once Terrax Media assigns your car.
             </p>
           </Panel>
         ) : null}

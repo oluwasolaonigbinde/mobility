@@ -31,7 +31,7 @@ describe("DriverAssignmentsPage history availability", () => {
 
     render(await DriverAssignmentsPage({}));
 
-    expect(screen.getByRole("alert")).toHaveTextContent(/campaign history is unavailable/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/your jobs can't be shown/i);
     expect(screen.getByRole("alert")).toHaveTextContent(
       /couldn't load your current or finished jobs\. Try again shortly\./i,
     );
@@ -81,7 +81,7 @@ describe("DriverAssignmentsPage history availability", () => {
     render(await DriverAssignmentsPage({}));
 
     expect(
-      screen.getByText("Campaign offers appear here once our team assigns your vehicle."),
+      screen.getByText("Job offers appear here once Terrax Media assigns your car."),
     ).toBeInTheDocument();
   });
 
@@ -156,7 +156,7 @@ describe("DriverAssignmentsPage history availability", () => {
         searchParams: Promise.resolve({ assignment_id: "other-drivers-job" }),
       }),
     );
-    expect(screen.getByRole("alert")).toHaveTextContent("Campaign history is unavailable");
+    expect(screen.getByRole("alert")).toHaveTextContent("Your jobs can't be shown");
     expect(screen.queryByText("No jobs yet")).not.toBeInTheDocument();
   });
 

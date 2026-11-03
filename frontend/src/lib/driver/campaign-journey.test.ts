@@ -123,7 +123,9 @@ describe("driver campaign journey authority projection", () => {
 
     expect(journey.standing).toBe("DEGRADED");
     expect(journey.canStart).toBe(false);
-    expect(journey.steps.find((step) => step.id === "activation")?.title).toMatch(/conflict/i);
+    expect(journey.steps.find((step) => step.id === "activation")?.title).toMatch(
+      /needs attention/i,
+    );
   });
 
   it("keeps a current trip manageable through degraded activation reads", () => {

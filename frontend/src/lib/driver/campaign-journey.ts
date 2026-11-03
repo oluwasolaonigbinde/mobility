@@ -82,8 +82,8 @@ function profileStep(source: DriverJourneyFacts["profile"]): DriverJourneyStep {
     return {
       ...base,
       state: "pending",
-      title: "Invitation still pending",
-      detail: "Your application was received. That isn't an approval yet.",
+      title: "Application received",
+      detail: "We'll email you when it has been checked.",
     };
   if (source.value === "active")
     return {
@@ -97,7 +97,7 @@ function profileStep(source: DriverJourneyFacts["profile"]): DriverJourneyStep {
       ...base,
       state: "current",
       title: "Application under review",
-      detail: "Cardvert hasn't approved your driver profile yet.",
+      detail: "Terrax Media hasn't approved your driver profile yet.",
     };
   return {
     ...base,
@@ -125,7 +125,7 @@ function personPayeeStep(source: DriverJourneyFacts["personPayee"]): DriverJourn
       ...base,
       state: "pending",
       title: "Details not sent yet",
-      detail: "Use the access code in your application email to send them.",
+      detail: "Use the link in your application email to send them.",
     };
   if (source.value === "approved")
     return {
@@ -158,7 +158,7 @@ function vehicleStep(source: DriverJourneyFacts["vehicle"]): DriverJourneyStep {
     return {
       ...base,
       state: "degraded",
-      title: "Vehicle status unavailable",
+      title: "Car status unavailable",
       detail: "Cardvert couldn't check your car's approval right now.",
     };
   if (source.state === "absent")
@@ -223,7 +223,7 @@ function vehicleStep(source: DriverJourneyFacts["vehicle"]): DriverJourneyStep {
     ...base,
     state: "current",
     title: "Car review in progress",
-    detail: "Cardvert hasn't approved a car yet.",
+    detail: "Terrax Media hasn't approved a car yet.",
   };
 }
 
@@ -257,8 +257,8 @@ function offerStep(source: DriverJourneyFacts["offers"]): DriverJourneyStep {
     return {
       ...base,
       state: "degraded",
-      title: "Job details conflict",
-      detail: "More than one campaign shows as running, so starting a trip is paused.",
+      title: "Job needs attention",
+      detail: "There's a problem with your job. Please contact support.",
     };
   if (source.value.active === 1)
     return {
@@ -314,29 +314,27 @@ function activationStep(
       return {
         ...base,
         state: "degraded",
-        title: "Job details conflict",
-        detail:
-          "Your job shows as running but its campaign start is missing, so starting a trip is paused.",
+        title: "Job needs attention",
+        detail: "There's a problem with your job. Please contact support.",
       };
     return {
       ...base,
       state: accepted > 0 ? "current" : "pending",
-      title: accepted > 0 ? "Waiting for Cardvert to start the campaign" : "Not started",
-      detail:
-        "Accepting an offer doesn't start campaign work. Cardvert starts it once installation is checked.",
+      title: accepted > 0 ? "Waiting for your job to start" : "Not started",
+      detail: "Your job starts once your installation photos are approved.",
     };
   }
   if (offers.state !== "available" || offers.value.active !== 1)
     return {
       ...base,
       state: "degraded",
-      title: "Job details conflict",
-      detail: "Your job details don't match, so starting a trip is paused.",
+      title: "Job needs attention",
+      detail: "There's a problem with your job. Please contact support.",
     };
   return {
     ...base,
     state: "complete",
-    title: "Campaign activated",
+    title: "Job started",
     detail: `${activation.value.campaignName} is running on ${activation.value.plateNumber}.`,
   };
 }
@@ -402,8 +400,7 @@ export function projectDriverCampaignJourney(facts: DriverJourneyFacts): DriverC
   if (allSteps.some((step) => step.state === "degraded"))
     return {
       standing: "DEGRADED",
-      summary:
-        "Some details could not be verified, so starting a trip is paused. Refresh to try again.",
+      summary: "We couldn't check your details, so trips are paused. Refresh to try again.",
       canStart: false,
       hasCurrentTrip: false,
       steps: allSteps,

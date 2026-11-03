@@ -16,9 +16,9 @@ type Documents = components["schemas"]["DriverDocumentsRead"];
 const labels: Record<string, string> = {
   driver_license: "Driving licence",
   driver_photo: "Your photo",
-  registration: "Vehicle registration",
+  registration: "Car registration",
   insurance: "Insurance",
-  vehicle_photo: "Vehicle photo",
+  vehicle_photo: "Car photo",
 };
 const reasons: Record<string, string> = {
   missing_evidence: "missing, upload this document",
@@ -28,9 +28,9 @@ const reasons: Record<string, string> = {
   unreadable_evidence: "hard to read, upload a clearer photo",
   identity_mismatch: "identity details do not match, upload a replacement",
   owner_mismatch: "owner details do not match, upload a replacement",
-  vehicle_identity_mismatch: "vehicle details do not match, upload a replacement",
-  not_roadworthy: "contact Terrax about roadworthiness",
-  not_pilot_eligible: "contact Terrax about pilot eligibility",
+  vehicle_identity_mismatch: "car details do not match, upload a replacement",
+  not_roadworthy: "contact Terrax Media about roadworthiness",
+  not_pilot_eligible: "contact Terrax Media about this car",
 };
 
 function RenewalForm({
@@ -158,7 +158,9 @@ function RenewalForm({
             autoComplete="off"
           />
           <BankPicker disabled={busy} />
-          <p className="text-muted text-sm">If your bank is missing, contact Terrax to add it.</p>
+          <p className="text-muted text-sm">
+            If your bank is missing, contact Terrax Media to add it.
+          </p>
         </>
       ) : null}
       {kinds.map((kind) => (
@@ -172,7 +174,7 @@ function RenewalForm({
         </p>
       ) : null}
       <p className="text-muted text-sm">
-        Terrax will review your changes. Your other documents and saved details stay on file.
+        Terrax Media will review your changes. Your other documents and saved details stay on file.
       </p>
       <Button type="submit" disabled={busy}>
         {busy ? uploadStatus || "Sending…" : "Send for review"}
@@ -325,12 +327,12 @@ function OwnedDocumentRenewals({ driverId }: { driverId: string }) {
         {person.purged_at ? (
           <p className="text-muted mt-3 text-sm">
             Your previous documents and saved details have been removed. Send a new set for Terrax
-            to review.
+            Media to review.
           </p>
         ) : null}
         {person.status === "pending_review" ? (
           <p role="status" className="text-muted mt-3 text-sm">
-            Terrax is reviewing your changes.
+            Terrax Media is reviewing your changes.
           </p>
         ) : null}
         {person.replace_bank && !person.purged_at ? (
@@ -345,8 +347,8 @@ function OwnedDocumentRenewals({ driverId }: { driverId: string }) {
         ) : null}
         {person.status !== "approved" ? (
           <p className="text-muted mt-3 text-sm">
-            Starting new campaign trips is paused until Terrax approves your identity and bank
-            review. You can still sign in and finish a trip already in progress.
+            New trips are paused until Terrax Media approves your details. You can finish a trip in
+            progress.
           </p>
         ) : null}
         {person.submission_id &&
@@ -371,23 +373,23 @@ function OwnedDocumentRenewals({ driverId }: { driverId: string }) {
       </section>
       {(documents.vehicles ?? []).map((vehicle) => (
         <section className="border-edge mt-6 border-t pt-4" key={vehicle.vehicle_id}>
-          <h3 className="font-medium">Vehicle documents · {vehicle.plate_number}</h3>
+          <h3 className="font-medium">Car documents · {vehicle.plate_number}</h3>
           <DocumentStatus documents={vehicle.documents ?? {}} />
           {vehicle.valid_until ? (
             <p className="text-muted mt-3 text-sm">
-              Vehicle approval {vehicle.status === "expired" ? "expired on" : "ends on"}{" "}
+              Car approval {vehicle.status === "expired" ? "expired on" : "ends on"}{" "}
               {formatDate(vehicle.valid_until)}.
             </p>
           ) : null}
           {vehicle.status === "pending_review" ? (
             <p role="status" className="text-muted mt-3 text-sm">
-              Terrax is reviewing this car’s documents.
+              Terrax Media is reviewing this car’s documents.
             </p>
           ) : null}
           {vehicle.status !== "approved" ? (
             <p className="text-muted mt-3 text-sm">
-              Starting new campaign trips in this car is paused until Terrax approves its review.
-              You can finish a trip already in progress.
+              Starting new campaign trips in this car is paused until Terrax Media approves its
+              review. You can finish a trip already in progress.
               {person.status === "approved"
                 ? " If you have another approved car, you can continue with it."
                 : ""}

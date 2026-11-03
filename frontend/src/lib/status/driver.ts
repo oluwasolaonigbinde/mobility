@@ -1,7 +1,7 @@
 export const driverEarningsStatus = {
-  available: { label: "Released", tone: "green" },
+  available: { label: "Ready", tone: "green" },
   paid: { label: "Paid", tone: "green" },
-  pending: { label: "Pending", tone: "amber" },
-  voided: { label: "Voided", tone: "coral" },
-  reversed: { label: "Reversed", tone: "default" },
+  pending: { label: "Being checked", tone: "amber" },
+  voided: { label: "Cancelled", tone: "coral" },
+  reversed: { label: "Deduction", tone: "default" },
 } as const;

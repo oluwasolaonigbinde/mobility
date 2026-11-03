@@ -10,7 +10,7 @@ export function GET() {
     {
       name: "Cardvert Driver",
       short_name: "Cardvert",
-      description: "Track campaigns and review hourly earnings backed by aggregate measurement.",
+      description: "Your Cardvert driving jobs, trips and daily earnings.",
       id: "/driver",
       start_url: "/driver",
       scope: "/driver",

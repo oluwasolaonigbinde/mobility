@@ -108,7 +108,7 @@ it("shows each recorded outcome, only failed uploads, no filenames or saved iden
   expect(screen.queryByLabelText("Bank account number")).toBeNull();
   expect(screen.queryByLabelText("Replace Your photo")).toBeNull();
   expect(screen.queryByText(/\.png|No file chosen|Choose File/)).toBeNull();
-  expect(screen.getByText(/Starting new campaign trips is paused/)).toBeTruthy();
+  expect(screen.getByText(/New trips are paused/)).toBeTruthy();
   expect(screen.getByText(/Starting new campaign trips in this car is paused/)).toBeTruthy();
 });
 it("offers a named bank list only for rejected bank details", async () => {
@@ -158,9 +158,9 @@ it("requests all fresh vehicle files after payload purge", async () => {
     }),
   );
   render(<DocumentRenewals driverId="driver" />);
-  await screen.findByLabelText("Replace Vehicle registration");
+  await screen.findByLabelText("Replace Car registration");
   expect(screen.getByLabelText("Replace Insurance")).toBeTruthy();
-  expect(screen.getByLabelText("Replace Vehicle photo")).toBeTruthy();
+  expect(screen.getByLabelText("Replace Car photo")).toBeTruthy();
 });
 it.each(["driver_photo", "insurance"])(
   "offers the missing retained document (%s)",
@@ -187,7 +187,7 @@ it("hides renewal controls while waiting and for approved documents", async () =
     }),
   );
   render(<DocumentRenewals driverId="driver" />);
-  await screen.findByText("Terrax is reviewing your changes.");
+  await screen.findByText("Terrax Media is reviewing your changes.");
   expect(screen.queryByRole("button", { name: "Send for review" })).toBeNull();
 });
 it("offers zero-file renewal for an expired whole-car approval without relabelling accepted insurance", async () => {
@@ -206,7 +206,7 @@ it("offers zero-file renewal for an expired whole-car approval without relabelli
     }),
   );
   render(<DocumentRenewals driverId="driver" />);
-  await screen.findByText(/Vehicle approval expired/);
+  await screen.findByText(/Car approval expired/);
   expect(screen.getByText("accepted")).toBeTruthy();
   expect(screen.queryByLabelText(/Replace/)).toBeNull();
   fireEvent.submit(screen.getByRole("button", { name: "Send for review" }).closest("form")!);
@@ -256,7 +256,7 @@ it.each([0, 1])(
       Response.json({ person_payee: { status: "pending_review" }, vehicles: [] }),
     );
     fireEvent.submit(form);
-    await screen.findByText("Terrax is reviewing your changes.");
+    await screen.findByText("Terrax Media is reviewing your changes.");
     const posts = fetchMock.mock.calls.filter((call) => call[1]?.method === "POST");
     expect(posts[1]![1].body).toBe(firstBody);
     expect(mocks.upload).toHaveBeenCalledTimes(1);
@@ -412,7 +412,7 @@ it("resumes renewal scanning through the real helper and sends only the clean ID
   await screen.findByText("Scan offline");
   expect(sent).toBe(false);
   fireEvent.submit(form);
-  await screen.findByText("Terrax is reviewing your changes.");
+  await screen.findByText("Terrax Media is reviewing your changes.");
   const urls = fetchMock.mock.calls.map(([url]) => url);
   expect(urls.filter((url) => url === "/api/driver/files/uploads")).toHaveLength(1);
   expect(urls.filter((url) => url === "https://storage/renewal")).toHaveLength(1);

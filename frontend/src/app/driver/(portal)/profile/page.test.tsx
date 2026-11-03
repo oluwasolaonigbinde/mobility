@@ -35,7 +35,7 @@ describe("DriverProfilePage campaign authority", () => {
             id: "vehicle",
             label: "Vehicle review",
             state: "degraded",
-            title: "Vehicle status unavailable",
+            title: "Car status unavailable",
             detail: "Cardvert cannot verify current vehicle evidence.",
             href: "/driver/profile",
           },
@@ -120,7 +120,7 @@ describe("DriverProfilePage campaign authority", () => {
     render(await DriverProfilePage());
 
     expect(screen.queryByText("Getting ready to drive")).not.toBeInTheDocument();
-    expect(screen.queryByText("Vehicle status unavailable")).not.toBeInTheDocument();
+    expect(screen.queryByText("Car status unavailable")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText("Approved")).toBeInTheDocument();

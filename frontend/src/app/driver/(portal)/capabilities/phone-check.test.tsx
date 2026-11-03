@@ -77,7 +77,7 @@ describe("driver Phone check (D38b)", () => {
     expect(screen.getByRole("button", { name: "Check again" })).toBeInTheDocument();
   });
 
-  it("copies the redacted report for support and says when copying fails", async () => {
+  it("copies plain readiness results for support and says when copying fails", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     render(<PhoneCheck />);
@@ -85,7 +85,13 @@ describe("driver Phone check (D38b)", () => {
     await act(async () =>
       fireEvent.click(screen.getByRole("button", { name: "Copy for support" })),
     );
-    expect(writeText).toHaveBeenCalledWith('{"contractVersion":"r14-a-v2"}');
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining("Cardvert is on your home screen: No"),
+    );
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining("Location is allowed: Not checked yet"),
+    );
+    expect(writeText.mock.calls[0]?.[0]).not.toMatch(/contractVersion|r14-a|latitude|longitude/);
     expect(screen.getByRole("status")).toHaveTextContent("Copied");
 
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
@@ -95,15 +101,9 @@ describe("driver Phone check (D38b)", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Couldn't copy on this phone");
   });
 
-  it("keeps the R14-A probe on the unlinked support view only", async () => {
-    const { unmount } = render(await DriverCapabilityPage({ searchParams: Promise.resolve({}) }));
+  it("always shows the plain Phone check", () => {
+    render(DriverCapabilityPage());
     expect(screen.getByRole("heading", { name: "Phone check" })).toBeInTheDocument();
-    unmount();
-
-    render(await DriverCapabilityPage({ searchParams: Promise.resolve({ view: "support" }) }));
-    expect(
-      screen.getByRole("heading", { name: "Production PWA capability probe" }),
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("capability-location")).toHaveTextContent("LOCATION_UNPROBED");
+    expect(screen.queryByTestId("capability-location")).not.toBeInTheDocument();
   });
 });

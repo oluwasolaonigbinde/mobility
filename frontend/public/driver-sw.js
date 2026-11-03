@@ -54,7 +54,7 @@ const OFFLINE_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"
 h1{font-size:20px;margin:0 0 8px}p{color:#8a90a0;font-size:14px;max-width:280px;line-height:1.6}
 b{color:#ffa62b}</style></head><body><div>
 <h1><b>C</b> You're offline</h1>
-<p>Reconnect to reopen Cardvert Driver. Fresh earnings and review details are unavailable. This offline page is not tracking your location and cannot submit account changes.</p>
+<p>Reconnect to open Cardvert.</p>
 </div></body></html>`;
 
 self.addEventListener("fetch", (event) => {

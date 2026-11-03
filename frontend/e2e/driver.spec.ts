@@ -128,6 +128,6 @@ test("ledger rows open the trip earnings breakdown", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Trip earnings" })).toBeVisible();
   await expect(page.getByText("This trip earned")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Miles counted", exact: true })).toBeVisible();
-  await expect(page.getByText("Entries for this trip")).toBeVisible();
-  await expect(page.getByText("Trip payout").first()).toBeVisible();
+  await expect(page.getByText("Pay for this trip")).toBeVisible();
+  await expect(page.getByText("Trip pay").first()).toBeVisible();
 });

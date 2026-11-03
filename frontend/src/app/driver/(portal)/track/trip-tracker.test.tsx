@@ -253,7 +253,7 @@ describe("assignment activation authority", () => {
       />,
     );
     expect(screen.getByText("F7 Lagos Commuter Reach can't start yet")).toBeInTheDocument();
-    expect(screen.queryByText(/No active campaign/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No job yet/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Start trip/ })).not.toBeInTheDocument();
   });
 });
@@ -695,11 +695,7 @@ describe("single-writer lock fail-closed (finding 6)", () => {
     pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
     render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
 
-    await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        /can't safely track a trip in one tab at a time/,
-      ),
-    );
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/can't track trips/));
     expect(screen.getByTestId("tracking-health")).toHaveTextContent("Needs attention");
     expect(screen.getByTestId("tracking-health")).toHaveAttribute("data-runtime-health", "stopped");
     expect(screen.getByRole("button", { name: /End trip/ })).toBeDisabled();
@@ -716,9 +712,7 @@ describe("single-writer lock fail-closed (finding 6)", () => {
     });
     render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
 
-    await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(/another Cardvert tab/),
-    );
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/another tab/));
     expect(screen.getByRole("button", { name: /End trip/ })).toBeDisabled();
   });
 });
@@ -1313,7 +1307,7 @@ describe("end watermark honesty (finding 5)", () => {
       .mockResolvedValueOnce({ outcome: "failed" });
     actions.endTripAction.mockResolvedValue({ outcome: "ended", status: "ended" });
     actions.reconcileTripEvidenceAction.mockResolvedValue({
-      error: "Trip evidence is not sealed.",
+      error: "Something went wrong. Refresh and try again.",
       outcome: "unknown",
     });
     render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
@@ -1580,7 +1574,7 @@ describe("end watermark honesty (finding 5)", () => {
 
     await waitFor(() => expect(actions.getCurrentTripAction).toHaveBeenCalledTimes(2));
     expect(runtime.watchPosition).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/No active campaign/i)).toBeInTheDocument();
+    expect(screen.getByText(/No job yet/i)).toBeInTheDocument();
   });
 
   it("keeps the frozen End boundary while an unknown End still appears active", async () => {
@@ -1681,7 +1675,7 @@ describe("end watermark honesty (finding 5)", () => {
     expect(runtime.watchPosition).toHaveBeenCalledTimes(1);
 
     await userEvent.click(screen.getByRole("button", { name: /Check trip status/ }));
-    await screen.findByText(/No active campaign/i);
+    await screen.findByText(/No job yet/i);
     expect(actions.endTripAction.mock.calls[2]![1]).toEqual(savedManifest);
     expect(queue.freezeEnd).toHaveBeenCalledTimes(1);
     expect(queue.forgetTrip).toHaveBeenCalledWith(TRIP_ID);
@@ -2082,7 +2076,7 @@ describe("correction End generation and current-trip recovery", () => {
     await userEvent.click(screen.getByRole("button", { name: /End trip/ }));
     await waitFor(() => expect(order).toContain("reconcile"));
     expect(order).toEqual(["settled", "reconcile"]);
-    expect(screen.getByText(/No active campaign/i)).toBeInTheDocument();
+    expect(screen.getByText(/No job yet/i)).toBeInTheDocument();
   });
 
   it("fences a visibility preparation and an old GPS callback across End", async () => {

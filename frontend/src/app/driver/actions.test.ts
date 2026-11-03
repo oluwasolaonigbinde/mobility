@@ -285,7 +285,7 @@ describe("driver trip BFF actions", () => {
     );
     await expect(reconcileTripEvidenceAction(TRIP_ID)).resolves.toEqual({
       outcome: "unknown",
-      error: "The request could not be completed. Check the details and try again.",
+      error: "That didn't work. Please try again.",
     });
   });
 

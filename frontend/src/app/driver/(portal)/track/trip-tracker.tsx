@@ -360,7 +360,7 @@ export function TripTracker({
         response.status === 403 ||
         response.type === "opaqueredirect"
       ) {
-        invalidateIdentity("Your driver session ended. Sign in again to resume safely.");
+        invalidateIdentity("You've been signed out. Sign in again to carry on.");
         return "invalid" as const;
       }
       patchRuntime({ online: true, session: "unavailable" });
@@ -405,7 +405,7 @@ export function TripTracker({
     if (writerAcquireRef.current) return writerAcquireRef.current;
     if (!("locks" in navigator)) {
       patchRuntime({ webLocks: "unavailable" });
-      setError("This browser can't safely track a trip in one tab at a time. Try another browser.");
+      setError("This browser can't track trips. Try Chrome or Safari. Try another browser.");
       return false;
     }
     let resolveAcquisition!: (held: boolean) => void;
@@ -419,7 +419,7 @@ export function TripTracker({
         writerAcquireRef.current = null;
         if (!lock) {
           patchRuntime({ webLocks: "contended" });
-          setError("This trip is controlled by another Cardvert tab or window.");
+          setError("This trip is open in another tab. Close it to carry on here.");
           resolved = true;
           resolveAcquisition(false);
           return;
@@ -1080,9 +1080,7 @@ export function TripTracker({
               setTrip(null);
               releaseWriter();
             } else {
-              setError(
-                "Cardvert couldn't check your current trip. This tab is still holding it open.",
-              );
+              setError("Cardvert couldn't check your current trip. Close this tab to carry on.");
             }
             return;
           }
@@ -1517,8 +1515,8 @@ export function TripTracker({
           (receipt) => receipt.rejectedCount === 0 && receipt.outcome !== "quarantined",
         );
       const message = complete
-        ? "End this trip? Tracking stops and the trip is sent for analysis."
-        : "Some trip updates have not reached Cardvert or need checking. End this trip with an incomplete record?";
+        ? "End this trip? Tracking stops and your miles are sent to Cardvert."
+        : "Some trip updates have not reached Cardvert or need checking. End this trip? Some miles may not count.";
       if (!window.confirm(message)) {
         await reconcileAfterEnd(null);
         return;
@@ -1576,7 +1574,7 @@ export function TripTracker({
         {autoEndedNoticeEl}
         <Panel className="p-6 text-center">
           <p className="text-sm font-medium">
-            {pausedCampaignName ? `${pausedCampaignName} can't start yet` : "No active campaign"}
+            {pausedCampaignName ? `${pausedCampaignName} can't start yet` : "No job yet"}
           </p>
           <p className="text-muted mt-1 text-xs">
             {startUnavailableMessage ??
@@ -1604,7 +1602,7 @@ export function TripTracker({
               </p>
             </div>
             <div>
-              <p className="text-muted text-xs">Miles this visit</p>
+              <p className="text-muted text-xs">Miles recorded</p>
               <p className="font-mono">{recordedMiles === null ? "—" : recordedMiles.toFixed(1)}</p>
             </div>
             <div>

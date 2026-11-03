@@ -16,7 +16,8 @@ export async function assignmentAction({
   assignmentId: string;
   action: "accept" | "decline" | "deactivate";
 }): Promise<{ error?: string }> {
-  if (!z.string().uuid().safeParse(assignmentId).success) return { error: "Invalid assignment" };
+  if (!z.string().uuid().safeParse(assignmentId).success)
+    return { error: "Something went wrong. Refresh and try again." };
   try {
     const api = createApiClient(await getSessionToken());
     if (action === "accept") {

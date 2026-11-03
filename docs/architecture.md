@@ -2988,8 +2988,8 @@ authority. Observability redacts full continuation URLs and raw capabilities.
   contract:** ADR 014 (`docs/adr/014-production-pwa-capability-contract.md`)
   freezes the `r14-a-v1` capability contract, candidate device matrix,
   fail-closed Start/capture/End gates and `active|degraded|stopped`
-  vocabulary, with the executable authenticated `/driver/capabilities?view=support`
-  probe (drivers see a plain Phone check at `/driver/capabilities`, D38(b));
+  vocabulary. D151 / REQ-290 removes the raw support view; `/driver/capabilities`
+  always shows Phone check and copies only plain labelled readiness results;
   probe evidence is capability-only (`activeTrip`/held-lock state gate any
   runtime claim). D23 separates this executable build contract from still-unrun
   real-world validation: R14-A closes only when its automated capability,
@@ -4068,7 +4068,8 @@ production/rehearsal and hardened environment requirements remain unchanged.
 These amendments are approved implementation scope, pending source verification.
 
 ## 34. Doc changelog
-- **v1.162 — 3 November 2026 (REQ-272–287, D148–150):** Record the bounded preview process fixes: payment availability, truthful unsent earnings/settlement and invoice balances, secure direct review-email continuation, quote-reference conflicts, safe report download names, map fallback and durable synthetic seeds. Staging seeding requires explicit opt-in without relaxing hardened configuration. Owner-approved B8 takes 0–100% to four decimal places using exact decimal strings, including saved display, and confirms positive values below 1% once per save; the six-place stored rate, server checks and calculations stay unchanged. Implementation is local; final seed/rehearsal verification, controller reviews, CI and hosted/device evidence remain incomplete.
+- **v1.163 — 3 November 2026 (REQ-288–294, D151):** Plain current product wording; raw driver support presentation removed, Phone check and copied readiness retained. Controller review/CI and physical-phone checks remain pending.
+- **v1.162 — 3 November 2026 (REQ-272–287, D148–150):** Record the bounded preview process fixes: payment availability, truthful unsent earnings/settlement and invoice balances, secure direct review-email continuation, quote-reference conflicts, safe report download names, map fallback and durable synthetic seeds. Staging seeding requires explicit opt-in without relaxing hardened configuration. B8, controller judgement under the owner's 3 Nov 2026 mandate, reported to the owner, takes 0–100% to four decimal places using exact decimal strings, including saved display, and confirms positive values below 1% once per save; the six-place stored rate, server checks and calculations stay unchanged. Implementation is local; final seed/rehearsal verification, controller reviews, CI and hosted/device evidence remain incomplete.
 
 - **v1.161 — 2 November 2026 (REQ-266/267):** Fix staff Money presentation before push: separate original earnings credit from current payable amount and enrich sparse blocked-payment alerts through existing linked payout records. The synthetic provider-alert fixture also links its actual reserved payment. Existing eligibility, selection totals, frozen payment amounts, alert deduplication and staff-only access remain. All three §9 baselines move for `ledger_amount`; focused PostgreSQL, rendered Money, preserved R14-B and API-to-React simulation checks pass. Evidence: `issues/testing/req266-267-money-presentation-2026-11-02.md`. Full CI/merge remain pending. No migration, provider call or launch-gate change.
 

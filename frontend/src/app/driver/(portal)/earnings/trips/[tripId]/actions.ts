@@ -30,7 +30,9 @@ export async function submitFraudDisputeAction(
     message: String(formData.get("message") ?? ""),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid dispute request" };
+    return {
+      error: parsed.error.issues[0]?.message ?? "Something went wrong. Refresh and try again.",
+    };
   }
 
   const { flag_id, trip_id, message } = parsed.data;
@@ -44,7 +46,7 @@ export async function submitFraudDisputeAction(
     unstable_rethrow(error);
     if (error instanceof ApiError) {
       if (error.status === 401 || error.status === 403) {
-        return { error: "Your session is no longer valid. Sign in again before retrying." };
+        return { error: "You've been signed out. Sign in again." };
       }
       if (error.status === 409) {
         return { error: "A dispute already exists for this trip. Refresh to see it." };

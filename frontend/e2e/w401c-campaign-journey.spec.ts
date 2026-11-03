@@ -142,10 +142,10 @@ test.describe("W4-01C governed campaign journey", () => {
       await installSession(context, "w401c-degraded");
 
       await page.goto("/driver");
-      await expect(page.getByText("Vehicle status unavailable")).toBeVisible();
+      await expect(page.getByText("Car status unavailable")).toBeVisible();
       await page.goto("/driver/track");
       await expect(page.getByRole("button", { name: /Start trip/ })).toHaveCount(0);
-      await expect(page.getByText("Vehicle status unavailable")).toBeVisible();
+      await expect(page.getByText("Car status unavailable")).toBeVisible();
 
       await page.goto("/apply");
       await expect(page.getByRole("navigation", { name: "Application steps" })).toBeVisible();

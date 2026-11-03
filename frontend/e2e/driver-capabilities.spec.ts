@@ -78,7 +78,7 @@ test("R14-A harness probes capabilities without requesting location on load", as
   });
 
   await loginAsDriver(page);
-  // D38(b): the driver sees a plain Phone check; the R14-A probe is the support view.
+  // The Phone check remains plain even with the former support query parameter.
   await page.goto("/driver/capabilities");
   await expect(page.getByRole("heading", { name: "Phone check" })).toBeVisible();
   await expect(page.getByText("LOCATION_UNPROBED")).toHaveCount(0);
@@ -96,51 +96,20 @@ test("R14-A harness probes capabilities without requesting location on load", as
       () => (window as typeof window & { __r14LocationCalls?: number }).__r14LocationCalls ?? 0,
     ),
   ).toBe(1);
+  await expect(page.getByRole("button", { name: "Copy for support" })).toBeVisible();
   await page.goto("/driver/capabilities?view=support");
+  await expect(page.getByRole("heading", { name: "Phone check" })).toBeVisible();
+  await expect(page.getByText("Production PWA capability probe")).toHaveCount(0);
+  await expect(page.getByTestId("capability-report")).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      () => (window as typeof window & { __r14LocationCalls?: number }).__r14LocationCalls ?? 0,
+    ),
+  ).toBe(0);
+  await page.getByRole("button", { name: "Check this phone" }).click();
+  await expect(page.getByRole("button", { name: "Check again" })).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Production PWA capability probe" }),
+    page.getByText("Allow location for Cardvert in your phone settings, then check again."),
   ).toBeVisible();
-  await expect(
-    page.getByText(/Physical Android\/iPhone journeys.*still required post-build/),
-  ).toBeVisible();
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const probeWindow = window as typeof window & { __r14LocationCalls?: number };
-        return probeWindow.__r14LocationCalls ?? 0;
-      }),
-    )
-    .toBe(0);
-  await expect(page.getByTestId("capability-location")).toHaveAttribute("data-status", "degraded");
-  await expect(page.getByTestId("capability-location")).toContainText("LOCATION_UNPROBED");
-
-  await page.getByRole("button", { name: "Test storage + queue" }).click();
-  await expect(page.getByRole("status")).toContainText("Durable queue probe passed");
-
-  await page.getByRole("button", { name: "Test Web Locks" }).click();
-  await expect(page.getByRole("status")).toContainText("Web Locks probe passed");
-
-  await page.getByRole("button", { name: "Test screen wake lock" }).click();
-  await expect(page.getByRole("status")).toContainText("Screen Wake Lock probe passed");
-
-  await page.getByRole("button", { name: "Test BFF session" }).click();
-  await expect(page.getByRole("status")).toContainText("BFF session probe passed");
-
-  await page.getByRole("button", { name: "Test foreground location" }).click();
-  await expect(page.getByRole("status")).toContainText("location probe returned denied");
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const probeWindow = window as typeof window & { __r14LocationCalls?: number };
-        return probeWindow.__r14LocationCalls ?? 0;
-      }),
-    )
-    .toBe(1);
-  await expect(page.getByTestId("capability-location")).toHaveAttribute("data-status", "rejected");
-
-  const report = page.getByTestId("capability-report");
-  await expect(report).toContainText("BACKGROUND_CAPTURE_OUT_OF_SCOPE");
-  await expect(report).not.toContainText("latitude");
-  await expect(report).not.toContainText("longitude");
-  await expect(report).not.toContainText("r14-a-synthetic-probe");
+  await expect(page.getByTestId("capability-report")).toHaveCount(0);
 });

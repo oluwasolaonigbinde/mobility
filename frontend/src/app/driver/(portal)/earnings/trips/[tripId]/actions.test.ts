@@ -66,7 +66,7 @@ describe("submitFraudDisputeAction", () => {
     );
 
     await expect(submitFraudDisputeAction({}, disputeForm("Please review."))).resolves.toEqual({
-      error: "Your session is no longer valid. Sign in again before retrying.",
+      error: "You've been signed out. Sign in again.",
     });
     expect(mocks.post).toHaveBeenCalledOnce();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
