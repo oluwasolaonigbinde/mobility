@@ -22,7 +22,7 @@ function toState(error: unknown): AdminActionState {
 // --- driver profiles ---------------------------------------------------------
 
 const createDriverSchema = z.object({
-  user_id: z.string().uuid("Pick the driver user"),
+  user_id: z.string().uuid("Pick the driver"),
   license_number: z
     .string()
     .trim()
@@ -34,7 +34,7 @@ const createDriverSchema = z.object({
     .trim()
     .toUpperCase()
     .transform((v) => (v === "" ? null : v))
-    .pipe(z.string().length(2, "Use a 2-letter code (e.g. NG)").nullable()),
+    .pipe(z.string().length(2, "Enter a two-letter country code, e.g. NG for Nigeria.").nullable()),
 });
 
 export async function createDriverProfileAction(
@@ -134,13 +134,13 @@ export async function updateDriverDetailsAction(
 }
 
 const createVehicleSchema = z.object({
-  user_id: z.string().uuid("Pick the driver user"),
+  user_id: z.string().uuid("Pick the driver"),
   plate_number: z.string().trim().min(2, "Plate number is required").max(32),
   plate_country_code: z
     .string()
     .trim()
     .toUpperCase()
-    .pipe(z.string().length(2, "Use a 2-letter code (e.g. NG)")),
+    .pipe(z.string().length(2, "Enter a two-letter country code, e.g. NG for Nigeria.")),
   vehicle_type: z.enum(["car"]),
   make: z
     .string()

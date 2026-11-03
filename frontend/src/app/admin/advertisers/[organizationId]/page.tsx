@@ -242,8 +242,7 @@ export default async function CompanyHub({
                       <p className="mt-2 text-sm">
                         Amount:{" "}
                         {exactCompanyMoney(invoice.effective_obligation_amount, invoice.currency)}
-                        {" · "}Recorded funding:{" "}
-                        {exactCompanyMoney(invoice.funded_amount, invoice.currency)}
+                        {" · "}Paid: {exactCompanyMoney(invoice.funded_amount, invoice.currency)}
                       </p>
                     </li>
                   ))}

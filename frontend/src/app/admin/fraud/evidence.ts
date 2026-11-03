@@ -1,7 +1,7 @@
 /**
  * Turn a trip review's detection evidence into short sentences staff can read.
- * Keys come from the detectors in app/services/trip_analytics.py; anything
- * unrecognised still shows as "label: value". Seed bookkeeping keys are hidden.
+ * Keys come from the detectors in app/services/trip_analytics.py; unrecognised
+ * checks use a plain fallback. Seed bookkeeping keys are hidden.
  */
 
 type Evidence = Record<string, unknown>;
@@ -15,7 +15,7 @@ const reasons: Record<string, string> = {
   physical_spot_check_failed: "An in-person check found a problem",
 };
 export function tripReviewReason(flagType: string, evidence?: Evidence | null) {
-  const title = reasons[flagType] ?? flagType.replaceAll("_", " ");
+  const title = reasons[flagType] ?? "Other check";
   const numbers = readableEvidence(evidence);
   return [title, ...numbers].join(" · ");
 }
@@ -197,15 +197,12 @@ const RULES: Rule[] = [
 
 function fallbackValue(value: unknown): string {
   let rendered: string;
-  if (typeof value === "string") rendered = value;
+  if (typeof value === "string")
+    rendered = /\b[a-z]+_[a-z_]+\b|\b[0-9a-f]{8}-[0-9a-f-]{27,}\b/i.test(value)
+      ? "Unavailable"
+      : value;
   else if (typeof value === "number" || typeof value === "boolean") rendered = String(value);
-  else {
-    try {
-      rendered = JSON.stringify(value) ?? "Unavailable";
-    } catch {
-      rendered = "Unavailable";
-    }
-  }
+  else rendered = "Unavailable";
   return rendered.length > 120 ? `${rendered.slice(0, 117)}…` : rendered;
 }
 
@@ -223,8 +220,19 @@ export function readableEvidence(evidence: Evidence | null | undefined): string[
     for (const key of rule.keys) delete remaining[key];
   }
   for (const [key, value] of Object.entries(remaining)) {
-    const label = key.replaceAll("_", " ");
-    lines.push(`${label.charAt(0).toUpperCase()}${label.slice(1)}: ${fallbackValue(value)}`);
+    const label =
+      (
+        {
+          staff_context: "Staff note",
+          offending_segment_count: "Stretches over the speed limit",
+          start_end_distance_m: "Distance from start (m)",
+          stationary_seconds: "Time stopped (seconds)",
+          future_skew_seconds: "Clock difference (seconds)",
+          gap_count: "Location gaps",
+          exclusion_zone_seconds: "Time in an excluded area (seconds)",
+        } as Record<string, string>
+      )[key] ?? "Other";
+    lines.push(`${label}: ${fallbackValue(value)}`);
   }
   return lines;
 }

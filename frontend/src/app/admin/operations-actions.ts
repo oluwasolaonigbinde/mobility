@@ -34,7 +34,7 @@ export async function resolveOperation(_state: { error?: string; done?: string }
       body: { note, outcome },
     });
     revalidatePath("/admin/support");
-    return { done: "Contact outcome recorded. This does not confirm provider delivery." };
+    return { done: "Contact recorded." };
   } catch (error) {
     unstable_rethrow(error);
     return {

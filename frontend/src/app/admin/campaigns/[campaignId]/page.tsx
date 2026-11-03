@@ -1,5 +1,6 @@
 import { adminValueFailure } from "@/lib/api/admin-read";
 import Link from "next/link";
+import { jobStartMessage } from "@/lib/assignments/start-message";
 import { campaignDay } from "@/lib/campaigns/day-progress";
 import { readCampaign, readCampaignCommercial } from "../../entity-reads";
 import { readPayTerms } from "../pay-terms-read";
@@ -356,7 +357,7 @@ export default async function CampaignHub({
             {
               label: "Payment or approved credit",
               state: commercial.data?.financial_authority
-                ? "Funding authorization recorded"
+                ? "Paid or credit approved"
                 : "Review funding",
               done: Boolean(commercial.data?.financial_authority),
               section: "money",
@@ -369,7 +370,7 @@ export default async function CampaignHub({
             },
             {
               label: "Drivers on board",
-              state: `${jobs.data.total} jobs recorded`,
+              state: `${jobs.data.total} job${jobs.data.total === 1 ? "" : "s"} recorded`,
               done: Boolean(
                 jobs.data &&
                 jobs.data.total > 0 &&
@@ -500,15 +501,15 @@ export default async function CampaignHub({
                         ) : null}
                       </div>
                     </div>
-                    {job.activity_flags?.map((flag) => (
-                      <p key={flag.id} className="text-muted mb-2 text-sm">
-                        {flag.flag_type === "inactivity"
-                          ? "No recent verified activity"
-                          : "Verified driving hours below the target"}{" "}
-                        · {flag.status === "closed" ? "Closed" : "Needs attention"} ·{" "}
-                        {formatDateRange(flag.window_start, flag.window_end)}
-                      </p>
-                    ))}
+                    {job.activity_flags
+                      ?.filter((flag) => flag.flag_type === "inactivity")
+                      .map((flag) => (
+                        <p key={flag.id} className="text-muted mb-2 text-sm">
+                          No recent driving ·{" "}
+                          {flag.status === "closed" ? "Closed" : "Needs attention"} ·{" "}
+                          {formatDateRange(flag.window_start, flag.window_end)}
+                        </p>
+                      ))}
                     <Link
                       className="text-cyan text-sm underline"
                       href={`${root}?job=${job.id}#drivers`}
@@ -642,7 +643,7 @@ export default async function CampaignHub({
               <>
                 {selectedReadiness.data ? (
                   <div className="mb-4">
-                    <p>Job start: {selectedReadiness.data.message}</p>
+                    <p>Job start: {jobStartMessage(selectedReadiness.data)}</p>
                     {selectedReadiness.data.ready ? (
                       <ActivateAssignmentButton assignmentId={selectedJob.job.id} />
                     ) : null}

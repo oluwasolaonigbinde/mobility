@@ -175,7 +175,7 @@ it("does not read empty collections and preserves the approved-car decision bran
     "Owner matches",
     "Car details match",
     "Roadworthy",
-    "Pilot car eligible",
+    "Meets our car requirements",
     "Documents readable",
   ])
     expect(screen.getByLabelText(name)).toBeInTheDocument();

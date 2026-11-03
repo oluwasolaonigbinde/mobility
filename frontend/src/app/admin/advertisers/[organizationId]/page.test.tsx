@@ -162,9 +162,7 @@ it("shows exact invoice funding and recorded refunds without inventing payment e
     return original(path, options);
   });
   render(await run());
-  expect(
-    screen.getByText(/Amount: ₦9,007,199,254,740,993.01.*Recorded funding: ₦100.00/),
-  ).toBeVisible();
+  expect(screen.getByText(/Amount: ₦9,007,199,254,740,993.01.*Paid: ₦100.00/)).toBeVisible();
   expect(screen.getByText(/Refund recorded.*₦25.00/)).toBeVisible();
   expect(screen.queryByText(/Payment recorded/)).toBeNull();
 });

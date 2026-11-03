@@ -18,7 +18,7 @@ export function DriverDetailsForm({
     <form action={action} className="mt-4 grid gap-4 sm:grid-cols-2">
       <input type="hidden" name="driver_profile_id" value={driver.id} />
       <Field
-        label="Service city"
+        label="City"
         name="service_city"
         required
         defaultValue={driver.service_city ?? ""}

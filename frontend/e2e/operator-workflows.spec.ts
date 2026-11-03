@@ -166,16 +166,14 @@ test("payout selection explains ineligible credits and closeout keeps paid facts
   await expectNoHorizontalOverflow(page);
   await page.goto("/admin/campaigns?tab=live&q=Lunch");
   await page.getByRole("link", { name: "Marula Kitchens — Abuja Lunch Routes" }).click();
-  await page.getByRole("link", { name: "Review settlement and payout position" }).click();
+  await page.getByRole("link", { name: "See money summary" }).click();
   const closeout = page.getByRole("dialog");
-  await expect(
-    closeout.getByRole("heading", { name: "Settlement and payout position" }),
-  ).toBeVisible();
+  await expect(closeout.getByRole("heading", { name: "Money summary" })).toBeVisible();
   const primaryDriver = closeout
     .getByRole("heading", { name: "Emeka Nwankwo · NGN" })
     .locator("..");
-  await expect(primaryDriver.getByText("Verified cash paid: ₦38,496.63")).toBeVisible();
-  await expect(primaryDriver.getByText("Confirmed provider transfers: ₦38,496.63")).toBeVisible();
+  await expect(primaryDriver.getByText("Cash paid: ₦38,496.63")).toBeVisible();
+  await expect(primaryDriver.getByText("Transfers paid: ₦38,496.63")).toBeVisible();
   await expect(closeout.getByRole("button", { name: /complete|close campaign/i })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
 });

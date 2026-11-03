@@ -342,7 +342,7 @@ async function CampaignList(
                             Budget used: {formatMoneyExact(spent, campaign.currency)}
                           </p>
                           <progress
-                            aria-label={`Budget used for ${campaign.name}`}
+                            aria-label={`Booked for ${campaign.name}`}
                             max={100}
                             value={percentage}
                             className="my-2 h-2 w-full"

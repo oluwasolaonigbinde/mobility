@@ -42,7 +42,7 @@ export function RerunReportForm({ campaignId, staffId }: { campaignId: string; s
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ client_request_id: identity }),
       });
-      const body = (await response.json()) as { error?: { message?: string } };
+      await response.json();
       if (!response.ok) {
         if (response.status >= 400 && response.status < 500) {
           setRequestId(null);
@@ -52,7 +52,7 @@ export function RerunReportForm({ campaignId, staffId }: { campaignId: string; s
             /* optional */
           }
         }
-        throw new Error(body.error?.message || "Report request could not be confirmed");
+        throw new Error("We couldn't confirm this request. Check the list before trying again.");
       }
       setRequestId(null);
       try {
@@ -66,7 +66,7 @@ export function RerunReportForm({ campaignId, staffId }: { campaignId: string; s
       setMessage(
         error instanceof Error
           ? error.message
-          : "The result is uncertain. Check the request again.",
+          : "We couldn't confirm this. Check the list before trying again.",
       );
     } finally {
       setBusy(false);

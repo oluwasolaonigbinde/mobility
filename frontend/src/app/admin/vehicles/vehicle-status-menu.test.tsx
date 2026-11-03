@@ -19,7 +19,7 @@ it("names the vehicle in an on-page suspension confirmation", async () => {
 
   expect(update).not.toHaveBeenCalled();
   expect(screen.getByRole("alertdialog")).toHaveTextContent("ABC 123 XY");
-  await user.click(screen.getByRole("button", { name: "Keep vehicle active" }));
+  await user.click(screen.getByRole("button", { name: "Keep car active" }));
   expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
 });
 

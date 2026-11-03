@@ -17,7 +17,7 @@ export function CreativeReviewActions({ creativeId }: { creativeId: string }) {
         <textarea
           name="reason"
           maxLength={2000}
-          aria-label="Creative rejection reason"
+          aria-label="Why this artwork was rejected"
           placeholder="Explain what must change before resubmission"
           className="border-edge bg-raised text-ink focus:border-amber min-h-20 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none"
         />

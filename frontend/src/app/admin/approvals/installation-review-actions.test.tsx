@@ -141,12 +141,12 @@ describe("InstallationReviewActions evidence viewer", () => {
     {
       name: "the server returns a non-JSON failure",
       responses: () => [Promise.resolve(new Response("<html>Bad gateway</html>", { status: 502 }))],
-      message: "The evidence photo could not be opened. Try again.",
+      message: "This photo can't be opened. Try again. Try again.",
     },
     {
       name: "the evidence service is unreachable",
       responses: () => [Promise.reject(new TypeError("Failed to fetch"))],
-      message: "Could not reach the evidence service. Try again.",
+      message: "This photo can't be opened. Try again. Try again.",
     },
     {
       name: "storage blocks or drops the signed retrieval",
@@ -154,7 +154,7 @@ describe("InstallationReviewActions evidence viewer", () => {
         Promise.resolve(issued()),
         Promise.reject(new TypeError("Failed to fetch")),
       ],
-      message: "The signed evidence photo could not be retrieved. Try again.",
+      message: "This photo can't be opened. Try again. Try again.",
     },
     {
       name: "the signed URL has expired",
@@ -162,12 +162,12 @@ describe("InstallationReviewActions evidence viewer", () => {
         Promise.resolve(issued()),
         Promise.resolve(new Response("AccessDenied", { status: 403 })),
       ],
-      message: "The signed evidence photo could not be retrieved. Try again.",
+      message: "This photo can't be opened. Try again. Try again.",
     },
     {
       name: "the object is not an allowed image type",
       responses: () => [Promise.resolve(issued()), Promise.resolve(image("image/svg+xml"))],
-      message: "The evidence file is not a viewable image.",
+      message: "This photo can't be opened. Try again.",
     },
   ])("reports a visible failure when $name", async ({ responses, message }) => {
     for (const response of responses()) fetchMock.mockImplementationOnce(() => response);

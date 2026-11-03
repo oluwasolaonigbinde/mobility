@@ -207,9 +207,9 @@ export function PersonPayeeDecisionActions({
             >
               <option value="">Choose a reason…</option>
               <option value="unreadable_evidence">Unreadable documents</option>
-              <option value="identity_mismatch">Identity mismatch</option>
+              <option value="identity_mismatch">Details don&apos;t match</option>
               <option value="bank_account_mismatch">Account mismatch</option>
-              <option value="unsafe_evidence">Unsafe documents</option>
+              <option value="unsafe_evidence">File failed safety check</option>
               <option value="missing_evidence">Missing documents</option>
               <option value="rejected_evidence">Documents not approved</option>
             </select>

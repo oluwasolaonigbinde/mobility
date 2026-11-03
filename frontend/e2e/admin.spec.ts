@@ -83,7 +83,7 @@ test("driver and vehicle hubs show the seeded fleet with safe suspension", async
   await expect(page.getByText("ABJ-482-KD", { exact: true }).first()).toBeVisible();
   await page.locator("#cars").getByRole("button", { name: "Suspend", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toContainText("Suspend ABJ-482-KD?");
-  await page.getByRole("alertdialog").getByRole("button", { name: "Keep vehicle active" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Keep car active" }).click();
 });
 
 test("assignments section lists the seeded pairing", async ({ page }) => {
@@ -96,7 +96,7 @@ test("assignments section lists the seeded pairing", async ({ page }) => {
   await trigger.click();
   const confirmation = page.getByRole("alertdialog");
   await expect(confirmation).toContainText("Cancel Emeka Nwankwo?");
-  await expect(confirmation.getByRole("button", { name: "Keep assignment" })).toBeFocused();
+  await expect(confirmation.getByRole("button", { name: "Keep job" })).toBeFocused();
   for (let index = 0; index < 4; index += 1) {
     await page.keyboard.press("Tab");
     await expect
@@ -175,7 +175,7 @@ test("daily-rate terms show the frozen version and publishing controls", async (
   await loginAsAdmin(page);
   await openCampaign(page, "Marula Kitchens — Abuja Lunch Routes");
   await page.locator("#pay-terms summary").click();
-  await expect(page.locator("#pay-terms").getByText("Version history")).toBeVisible();
+  await expect(page.locator("#pay-terms").getByText("Pay history")).toBeVisible();
   await expect(page.locator("#pay-terms").getByText("Version 1", { exact: true })).toBeVisible();
   await expect(
     page

@@ -243,14 +243,14 @@ describe("searchOperatorOptions", () => {
           label: "Scanning art",
           detail: "Approved",
           fileId: undefined,
-          unavailable: "Approved, scan-clean artwork is required",
+          unavailable: "Artwork must be approved first",
         },
         {
           id: "99999999-0000-4000-8000-000000000003",
           label: "Rejected art",
           detail: "Not approved",
           fileId: undefined,
-          unavailable: "Approved, scan-clean artwork is required",
+          unavailable: "Artwork must be approved first",
         },
       ],
     });
@@ -303,8 +303,7 @@ describe("previewOperatorArtwork", () => {
   it("explains that eligibility is rechecked when the preview fails", async () => {
     mocks.POST.mockRejectedValue(new Error("scanner offline"));
     expect(await previewOperatorArtwork(FILE)).toEqual({
-      error:
-        "Artwork preview is unavailable. Approval and file safety are rechecked when offering.",
+      error: "Artwork preview is unavailable.",
     });
   });
 });

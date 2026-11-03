@@ -27,7 +27,7 @@ export default async function NewDriverProfilePage() {
       </nav>
       <PageHeader
         title="Add driver profile"
-        eyebrow="Attach driving credentials to a driver-role user"
+        eyebrow="Add driving details to an existing driver login"
       />
       <section aria-labelledby="create-driver-login" className="mb-6">
         <h2 id="create-driver-login" className="mb-3 text-lg font-medium">

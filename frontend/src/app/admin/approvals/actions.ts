@@ -1,5 +1,6 @@
 "use server";
 
+import { jobStartMessage } from "@/lib/assignments/start-message";
 import { unstable_rethrow } from "next/navigation";
 
 import { publicActionError } from "@/lib/api/public-action-error";
@@ -75,7 +76,9 @@ export async function reviewCampaignAction(
     reason: String(formData.get("reason") ?? ""),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid campaign review request." };
+    return {
+      error: parsed.error.issues[0]?.message ?? "Something went wrong. Refresh and try again.",
+    };
   }
 
   const api = createApiClient(await getSessionToken());
@@ -94,7 +97,8 @@ export async function reviewCampaignAction(
     if (error instanceof ApiError)
       return {
         error: publicActionError(error, {
-          CAMPAIGN_REVIEW_STATE_CONFLICT: "Campaign review state changed. Refresh and try again.",
+          CAMPAIGN_REVIEW_STATE_CONFLICT:
+            "This campaign has changed. Refresh the page. Refresh and try again.",
         }),
       };
     return { error: "Could not reach the server." };
@@ -124,7 +128,9 @@ export async function reviewCreativeAction(
     reason: String(formData.get("reason") ?? ""),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid creative review request." };
+    return {
+      error: parsed.error.issues[0]?.message ?? "Something went wrong. Refresh and try again.",
+    };
   }
 
   const api = createApiClient(await getSessionToken());
@@ -168,7 +174,9 @@ export async function reviewInstallationEvidenceAction(
     reason: String(formData.get("reason") ?? ""),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid evidence review request." };
+    return {
+      error: parsed.error.issues[0]?.message ?? "Something went wrong. Refresh and try again.",
+    };
   }
   const api = createApiClient(await getSessionToken());
   const path = { params: { path: { submission_id: parsed.data.submission_id } } };
@@ -186,7 +194,7 @@ export async function reviewInstallationEvidenceAction(
         return { error: "Approval could not be confirmed. Reload to check the photos and job." };
       done = data.activation?.ready
         ? "Installation approved and job started."
-        : `Installation approved. Job has not started: ${data.activation?.message ?? "Check the job's prerequisites."}`;
+        : `Installation approved. Job has not started: ${jobStartMessage(data.activation)}`;
     } else {
       await api.POST("/api/v1/admin/installation-evidence/{submission_id}/reject", {
         ...path,

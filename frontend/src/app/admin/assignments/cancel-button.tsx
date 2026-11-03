@@ -46,8 +46,8 @@ export function CancelAssignmentButton({
         open={confirming}
         onOpenChange={setConfirming}
         title={`Cancel ${assignmentLabel}?`}
-        description="The driver will stop earning from this assignment. The reason is recorded permanently."
-        cancelLabel="Keep assignment"
+        description="The driver will stop earning from this job."
+        cancelLabel="Keep job"
         confirmLabel="Confirm cancellation"
         onConfirm={() => {
           if (reason.trim()) run(reason);

@@ -10,7 +10,7 @@ const initialState: CampaignReviewActionState = {};
 
 // The backend only accepts sniffed JPEG, PNG and WebP installation evidence.
 const VIEWABLE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const RETRIEVAL_FAILED = "The signed evidence photo could not be retrieved. Try again.";
+const RETRIEVAL_FAILED = "This photo can't be opened. Try again. Try again.";
 
 type PhotoResult = { blob: Blob } | { error: string };
 
@@ -25,12 +25,12 @@ async function loadEvidencePhoto(fileId: string): Promise<PhotoResult> {
     // Bodyless by contract: the BFF mutation boundary rejects any body or content type.
     issued = await fetch(`/api/admin/files/${fileId}/installation-review`, { method: "POST" });
   } catch {
-    return { error: "Could not reach the evidence service. Try again." };
+    return { error: "This photo can't be opened. Try again. Try again." };
   }
   const body = (await issued.json().catch(() => undefined)) as
     { url?: string; error?: { message?: string } } | undefined;
   if (!issued.ok || !body?.url) {
-    return { error: body?.error?.message ?? "The evidence photo could not be opened. Try again." };
+    return { error: body?.error?.message ?? "This photo can't be opened. Try again. Try again." };
   }
   let file: Response;
   try {
@@ -46,8 +46,7 @@ async function loadEvidencePhoto(fileId: string): Promise<PhotoResult> {
   if (!file.ok) return { error: RETRIEVAL_FAILED };
   const blob = await file.blob().catch(() => undefined);
   if (!blob) return { error: RETRIEVAL_FAILED };
-  if (!VIEWABLE_TYPES.has(blob.type))
-    return { error: "The evidence file is not a viewable image." };
+  if (!VIEWABLE_TYPES.has(blob.type)) return { error: "This photo can't be opened. Try again." };
   return { blob };
 }
 
@@ -146,7 +145,7 @@ export function InstallationReviewActions({
             <textarea
               name="reason"
               maxLength={2000}
-              aria-label="Installation evidence rejection reason"
+              aria-label="Why this photo was rejected"
               placeholder="Explain which installation view must change"
               className="border-edge bg-raised text-ink focus:border-amber min-h-20 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none"
             />

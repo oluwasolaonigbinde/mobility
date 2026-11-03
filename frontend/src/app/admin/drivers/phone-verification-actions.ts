@@ -44,5 +44,5 @@ export async function recordPhoneVerificationAction(
           : "Couldn't record verification. Check the phone status before trying again.",
     };
   }
-  return { done: "Phone verified. Contact tasks still need the driver's current consent." };
+  return { done: "Phone verified." };
 }

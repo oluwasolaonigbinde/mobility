@@ -73,7 +73,7 @@ describe("reviewCampaignAction", () => {
     );
 
     await expect(reviewCampaignAction({}, reviewForm("approve"))).resolves.toEqual({
-      error: "Campaign review state changed. Refresh and try again.",
+      error: "This campaign has changed. Refresh the page. Refresh and try again.",
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
@@ -207,10 +207,16 @@ describe("reviewInstallationEvidenceAction", () => {
 
   it("keeps the approval and shows the unmet activation check", async () => {
     mocks.post.mockResolvedValue({
-      data: { activation: { ready: false, message: "Production start is required." } },
+      data: {
+        activation: {
+          ready: false,
+          blocker_code: "PRODUCTION_FINANCIAL_AUTHORITY_REQUIRED",
+          message: "Production start is required.",
+        },
+      },
     });
     await expect(reviewInstallationEvidenceAction({}, evidenceForm("approve"))).resolves.toEqual({
-      done: "Installation approved. Job has not started: Production start is required.",
+      done: "Installation approved. Job has not started: Accept the quotation and approve production first.",
     });
   });
 });

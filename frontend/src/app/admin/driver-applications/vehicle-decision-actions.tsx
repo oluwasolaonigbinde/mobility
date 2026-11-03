@@ -136,7 +136,7 @@ export function VehicleDecisionActions({
           <input type="checkbox" name="roadworthy_confirmed" /> Roadworthy
         </label>
         <label className="text-muted flex items-center gap-2 text-xs">
-          <input type="checkbox" name="pilot_car_confirmed" /> Pilot car eligible
+          <input type="checkbox" name="pilot_car_confirmed" /> Meets our car requirements
         </label>
         <label className="text-muted flex items-center gap-2 text-xs">
           <input type="checkbox" name="documents_readable_confirmed" /> Documents readable
@@ -159,11 +159,11 @@ export function VehicleDecisionActions({
             className="border-edge bg-raised text-ink rounded-lg border px-2 py-2 text-xs"
           >
             <option value="unreadable_evidence">Unreadable documents</option>
-            <option value="vehicle_identity_mismatch">Vehicle identity mismatch</option>
+            <option value="vehicle_identity_mismatch">Car details don&apos;t match</option>
             <option value="owner_mismatch">Owner mismatch</option>
             <option value="not_roadworthy">Not roadworthy</option>
-            <option value="not_pilot_eligible">Not pilot eligible</option>
-            <option value="unsafe_evidence">Unsafe documents</option>
+            <option value="not_pilot_eligible">Doesn&apos;t meet our car requirements</option>
+            <option value="unsafe_evidence">File failed safety check</option>
             <option value="missing_evidence">Missing documents</option>
           </select>
         </label>
@@ -178,9 +178,9 @@ export function VehicleDecisionActions({
                 defaultValue="on_file"
                 className="border-edge bg-raised rounded border p-2"
               >
-                <option value="on_file">On file, review incomplete</option>
-                <option value="replace">Needs replacement</option>
-                <option value="accepted">Accepted (view first)</option>
+                <option value="on_file">Not checked yet</option>
+                <option value="replace">Needs a new copy</option>
+                <option value="accepted">Looks good (view first)</option>
               </select>
             </label>
             <label className="mt-2 flex flex-col gap-1">
@@ -201,9 +201,9 @@ export function VehicleDecisionActions({
                 defaultValue="on_file"
                 className="border-edge bg-raised rounded border p-2"
               >
-                <option value="on_file">On file, review incomplete</option>
-                <option value="replace">Needs replacement</option>
-                <option value="accepted">Accepted (view first)</option>
+                <option value="on_file">Not checked yet</option>
+                <option value="replace">Needs a new copy</option>
+                <option value="accepted">Looks good (view first)</option>
               </select>
             </label>
             <label className="mt-2 flex flex-col gap-1">
@@ -216,7 +216,7 @@ export function VehicleDecisionActions({
             </label>
           </div>
           <div className="my-3">
-            <p className="font-medium">Vehicle photo</p>
+            <p className="font-medium">Car photo</p>
             <label className="flex flex-col gap-1">
               Outcome
               <select
@@ -224,13 +224,13 @@ export function VehicleDecisionActions({
                 defaultValue="on_file"
                 className="border-edge bg-raised rounded border p-2"
               >
-                <option value="on_file">On file, review incomplete</option>
-                <option value="replace">Needs replacement</option>
-                <option value="accepted">Accepted (view first)</option>
+                <option value="on_file">Not checked yet</option>
+                <option value="replace">Needs a new copy</option>
+                <option value="accepted">Looks good (view first)</option>
               </select>
             </label>
             <label className="mt-2 flex flex-col gap-1">
-              Vehicle photo expiry (if recorded)
+              Car photo expiry (if recorded)
               <input
                 type="date"
                 name="expires_vehicle_photo"

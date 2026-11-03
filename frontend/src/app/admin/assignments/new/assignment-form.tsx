@@ -78,10 +78,10 @@ export function AssignmentForm({
         label="Approved artwork"
         parentId={campaign || undefined}
       />
-      <section className="border-edge rounded-lg border p-3" aria-label="Ranked car candidates">
-        <h2>Ranked car candidates</h2>
+      <section className="border-edge rounded-lg border p-3" aria-label="Drivers and cars">
+        <h2>Drivers and cars</h2>
         <label className="text-muted flex flex-col gap-1 text-sm">
-          Service city
+          City
           <input
             value={city}
             onChange={(e) => setCity(e.target.value)}
@@ -116,7 +116,7 @@ export function AssignmentForm({
               {c.driver_name} · {c.vehicle_plate_number}
             </p>
             <p className="text-muted text-xs">
-              Vehicle load {c.components.vehicle_load} · driver load {c.components.driver_load}
+              Car jobs: {c.components.vehicle_load} · Driver jobs: {c.components.driver_load}
             </p>
             <Button
               type="button"
@@ -126,7 +126,7 @@ export function AssignmentForm({
                 setSelected(c);
               }}
             >
-              Choose candidate
+              Choose
             </Button>
           </div>
         ))}
@@ -147,8 +147,7 @@ export function AssignmentForm({
       </section>
       <Field label="Offer expires" name="expires_at" type="datetime-local" required />
       <p className="text-muted text-sm">
-        Expiry must be in the future and no later than campaign end. Sending an offer does not
-        activate work.
+        Expiry must be in the future and before the campaign ends.
       </p>
       <Field label="Notes" name="notes" />
       {state.error ? (

@@ -81,8 +81,8 @@ export function VehicleStatusMenu({
           if (!open) setConfirming(undefined);
         }}
         title={`Suspend ${vehicleLabel}?`}
-        description="Campaign activity for this vehicle will stop immediately."
-        cancelLabel="Keep vehicle active"
+        description="Campaign work for this car will stop immediately."
+        cancelLabel="Keep car active"
         confirmLabel="Confirm suspension"
         onConfirm={() => {
           if (confirming) run(confirming, true, true);

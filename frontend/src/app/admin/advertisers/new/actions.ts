@@ -17,7 +17,7 @@ const company = z.object({
     .string()
     .trim()
     .toUpperCase()
-    .regex(/^[A-Z]{3}$/, "Use a 3-letter currency code")
+    .regex(/^[A-Z]{3}$/, "Choose a currency")
     .optional(),
 });
 export async function createCompanyAction(

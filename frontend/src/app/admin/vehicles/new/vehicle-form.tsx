@@ -32,7 +32,7 @@ export function VehicleForm({
           </label>
           <select id="v-user" name="user_id" required defaultValue="" className={selectClass}>
             <option value="" disabled>
-              Select the owning driver…
+              Select the driver…
             </option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
@@ -77,7 +77,7 @@ export function VehicleForm({
         <Field label="Make" name="make" placeholder="Toyota" />
         <Field label="Model" name="model" placeholder="Corolla" />
         <Field label="Year" name="year" inputMode="numeric" placeholder="2019" />
-        <Field label="Color" name="color" placeholder="Silver" />
+        <Field label="Colour" name="color" placeholder="Silver" />
       </div>
 
       {state.error ? (
@@ -90,7 +90,7 @@ export function VehicleForm({
       ) : null}
 
       <Button type="submit" disabled={pending} className="w-full">
-        {pending ? "Registering…" : "Register vehicle (active)"}
+        {pending ? "Registering…" : "Add car"}
       </Button>
     </form>
   );

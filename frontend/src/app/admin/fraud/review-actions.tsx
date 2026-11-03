@@ -11,7 +11,7 @@ const initialState: FraudReviewActionState = {};
 
 const effects = {
   confirm: "Keeps this trip's held pay held. Record any money correction separately with a reason.",
-  clear: "Removes this hold. Held pay is released only when a fresh check finds it is still owed.",
+  clear: "Removes this hold. Pay is released if it is still owed.",
 };
 
 export function ReviewActions({ flagId, status }: { flagId: string; status: FraudFlagStatus }) {
@@ -22,7 +22,7 @@ export function ReviewActions({ flagId, status }: { flagId: string; status: Frau
       <p className="text-muted text-sm">
         {status === "confirmed"
           ? "Problem confirmed — held pay stays held; review is final."
-          : "Cleared — review is final; hold removed. Held pay is released only when a fresh check finds it is still owed."}
+          : "Cleared — review is final; hold removed. Pay is released if it is still owed."}
       </p>
     );
   }
@@ -39,7 +39,7 @@ export function ReviewActions({ flagId, status }: { flagId: string; status: Frau
             required
             maxLength={2000}
             aria-label="Review note"
-            placeholder="Explain the evidence behind this decision"
+            placeholder="Explain your decision"
             className="border-edge bg-raised text-ink focus:border-amber min-h-20 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none"
           />
         </label>

@@ -1,5 +1,6 @@
 "use server";
 
+import { bankDisplayName } from "@/lib/driver/bank-name";
 import { unstable_rethrow } from "next/navigation";
 
 import { publicActionError } from "@/lib/api/public-action-error";
@@ -61,7 +62,7 @@ export async function reviewPersonPayeeEvidenceAction(
     bank_account_version_id: String(formData.get("bank_account_version_id") ?? ""),
     file_id: String(formData.get("file_id") ?? ""),
   });
-  if (!parsed.success) return { error: "The exact review evidence is unavailable." };
+  if (!parsed.success) return { error: "These details can't be shown. Refresh and try again." };
   const api = createApiClient(await getSessionToken());
   try {
     if (parsed.data.kind === "nin") {
@@ -82,7 +83,7 @@ export async function reviewPersonPayeeEvidenceAction(
       return {
         done: "Bank details ready to view.",
         sensitiveValue: data
-          ? `${data.account_name} · ${data.bank_code} · ${data.account_number}`
+          ? `${data.account_name} · ${bankDisplayName(data.bank_code)} · ${data.account_number}`
           : undefined,
       };
     }
@@ -97,7 +98,7 @@ export async function reviewPersonPayeeEvidenceAction(
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof ApiError) return { error: publicActionError(error) };
-    return { error: "Could not reach the protected evidence service." };
+    return { error: "Could not reach the server. Try again." };
   }
 }
 
@@ -135,7 +136,7 @@ export async function verifyPersonPayeeAccountAction(
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof ApiError) return { error: publicActionError(error) };
-    return { error: "Could not reach the payout-authority service." };
+    return { error: "Could not reach the server. Try again." };
   }
   revalidatePath("/admin/drivers");
   revalidatePath("/admin/drivers/[driverId]", "page");
@@ -203,7 +204,7 @@ export async function reviewPersonPayeeAction(
     documents_readable_confirmed: formData.get("documents_readable_confirmed") === "on",
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid person/payee decision." };
+    return { error: parsed.error.issues[0]?.message ?? "Complete every check and try again." };
   }
   if (
     parsed.data.intent === "approve" &&
@@ -272,7 +273,7 @@ export async function reviewPersonPayeeAction(
     unstable_rethrow(error);
     if (error instanceof ApiError)
       return { error: publicActionError(error, personPayeeDecisionErrors) };
-    return { error: "Could not reach the onboarding service." };
+    return { error: "Could not reach the server. Try again." };
   }
   revalidatePath("/admin/drivers");
   revalidatePath("/admin/drivers/[driverId]", "page");
@@ -295,7 +296,7 @@ export async function reviewVehicleEvidenceAction(
     file_id: String(formData.get("file_id") ?? ""),
     submission_id: String(formData.get("submission_id") ?? ""),
   });
-  if (!parsed.success) return { error: "The exact vehicle evidence is unavailable." };
+  if (!parsed.success) return { error: "Complete every check and try again." };
   try {
     const { data } = await createApiClient(await getSessionToken()).POST(
       "/api/v1/admin/files/{file_id}/download",
@@ -311,7 +312,7 @@ export async function reviewVehicleEvidenceAction(
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof ApiError) return { error: publicActionError(error) };
-    return { error: "Could not reach the protected evidence service." };
+    return { error: "Could not reach the server. Try again." };
   }
 }
 
@@ -377,7 +378,7 @@ async function decideVehicle(
     documents_readable_confirmed: formData.get("documents_readable_confirmed") === "on",
     valid_until: String(formData.get("valid_until") ?? "").trim() || undefined,
   });
-  if (!parsed.success) return { error: "The vehicle decision is incomplete or invalid." };
+  if (!parsed.success) return { error: "Complete every check and try again." };
   const confirmations = [
     parsed.data.owner_match_confirmed,
     parsed.data.vehicle_identity_confirmed,
@@ -473,7 +474,7 @@ async function decideVehicle(
     unstable_rethrow(error);
     if (error instanceof ApiError)
       return { error: publicActionError(error, vehicleDecisionErrors) };
-    return { error: "Could not reach the vehicle approval service." };
+    return { error: "Could not reach the server. Try again." };
   }
   revalidatePath("/admin/drivers");
   revalidatePath("/admin/drivers/[driverId]", "page");
@@ -506,7 +507,7 @@ export async function initiateDriverAccountSetupAction(
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof ApiError) return { error: publicActionError(error) };
-    return { error: "Could not reach the driver account setup service." };
+    return { error: "Could not reach the server. Try again." };
   }
   revalidatePath(`/admin/drivers/applicant/${parsed.data.application_id}`);
   revalidatePath("/admin/drivers/[driverId]", "page");

@@ -65,9 +65,6 @@ export default async function AdminWorkQueuePage({
   return (
     <div className="animate-rise mx-auto max-w-6xl">
       <h1 className="font-display text-3xl font-semibold tracking-tight">Work queue</h1>
-      <p className="text-muted mt-1 mb-6 text-sm">
-        Work for each Terrax Media department. Open an item to deal with it.
-      </p>
       <ViewTabs
         label="Departments"
         items={[

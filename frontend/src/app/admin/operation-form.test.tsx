@@ -18,7 +18,7 @@ describe("OperationForm", () => {
 
   it("records a contact outcome once and then locks the task", async () => {
     resolve.mockResolvedValue({
-      done: "Contact outcome recorded. This does not confirm provider delivery.",
+      done: "Contact recorded.",
     });
     const user = userEvent.setup();
     render(<OperationForm id={TASK} />);
@@ -28,9 +28,7 @@ describe("OperationForm", () => {
     await user.click(screen.getByRole("checkbox", { name: /exact contact purpose/ }));
     await user.click(screen.getByRole("button", { name: "Record outcome" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "does not confirm provider delivery",
-    );
+    expect(await screen.findByRole("status")).toHaveTextContent("Contact recorded.");
     expect(submitted()).toEqual({
       id: TASK,
       kind: "contact",

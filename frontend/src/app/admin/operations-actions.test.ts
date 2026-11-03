@@ -58,7 +58,7 @@ describe("resolveOperation", () => {
     );
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/support");
     expect(result).toEqual({
-      done: "Contact outcome recorded. This does not confirm provider delivery.",
+      done: "Contact recorded.",
     });
   });
 
@@ -97,7 +97,7 @@ describe("resolveOperation", () => {
         {},
         form({ kind: "contact", id: TASK, note: "Called", confirmed: "on" }),
       ),
-    ).toEqual({ error: "The request could not be completed. Check the details and try again." });
+    ).toEqual({ error: "That didn't work. Please try again." });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 

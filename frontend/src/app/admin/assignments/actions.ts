@@ -42,7 +42,7 @@ const createSchema = z.object({
   campaign_id: z.string().uuid("Pick a campaign"),
   driver_profile_id: z.string().uuid("Pick a driver"),
   vehicle_id: z.string().uuid("Pick a vehicle"),
-  creative_id: z.string().uuid("Select a ready creative"),
+  creative_id: z.string().uuid("Select approved artwork"),
   expires_at: z.string().datetime({ offset: true }),
   notes: z
     .string()
@@ -80,7 +80,7 @@ export async function listAssignmentRecommendationsAction(
     const { data, error } = await api.GET("/api/v1/admin/campaign-assignments/recommendations", {
       params: { query: { ...parsed.data, limit: 50, offset: 0 } },
     });
-    if (error || !data) return { error: "Could not load ranked candidates." };
+    if (error || !data) return { error: "Could not load drivers and cars." };
     return { candidates: data.items };
   } catch (error) {
     unstable_rethrow(error);
@@ -153,7 +153,8 @@ export async function cancelAssignmentAction(
 }
 
 export async function activateAssignmentAction(assignmentId: string): Promise<AdminActionState> {
-  if (!z.string().uuid().safeParse(assignmentId).success) return { error: "Invalid assignment" };
+  if (!z.string().uuid().safeParse(assignmentId).success)
+    return { error: "Something went wrong. Refresh and try again." };
   try {
     const api = createApiClient(await getSessionToken());
     await api.POST("/api/v1/admin/campaign-assignments/{assignment_id}/activate", {

@@ -1,6 +1,6 @@
 import { adminValueFailure } from "@/lib/api/admin-read";
 import Link from "next/link";
-export const metadata = { title: "Support tools" };
+export const metadata = { title: "Recalculate a trip" };
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { PageHeader } from "@/components/ui/page-header";
@@ -40,7 +40,7 @@ export default async function SupportTools({
     worklistHref("/admin/settings/support-tools", p, changes);
   return (
     <div className="mx-auto max-w-5xl">
-      <PageHeader title="Support tools" eyebrow="Recalculate a driver's trip" />
+      <PageHeader title="Recalculate a trip" />
       <form className="mb-6 grid gap-3">
         <SearchSelect kind="driver_any" name="driver_profile_id" label="Find driver" />
         <button className="bg-amber text-bg rounded-lg p-3">Show trips</button>

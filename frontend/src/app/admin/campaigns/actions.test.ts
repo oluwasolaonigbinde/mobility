@@ -57,7 +57,7 @@ it.each([
   expect(await resumeCampaign({}, form())).toEqual({
     error:
       error instanceof ApiError
-        ? "The request could not be completed. Check the details and try again."
+        ? "That didn't work. Please try again."
         : "Could not reach the server.",
   });
   expect(mocks.revalidatePath).not.toHaveBeenCalled();

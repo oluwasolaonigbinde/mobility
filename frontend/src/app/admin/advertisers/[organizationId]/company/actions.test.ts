@@ -63,9 +63,7 @@ it("keeps campaign context while replacing arbitrary validation text with safe c
       details: { billing_email: "private@example.com" },
     }),
   );
-  const safeError = encodeURIComponent(
-    "The request could not be completed. Check the details and try again.",
-  );
+  const safeError = encodeURIComponent("That didn't work. Please try again.");
   await expect(updateCompanyAction(ORG_ID, undefined, form())).rejects.toThrow(
     `REDIRECT ${PATH}?error=${safeError}`,
   );

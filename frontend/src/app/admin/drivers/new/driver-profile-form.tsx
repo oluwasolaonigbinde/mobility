@@ -24,7 +24,7 @@ export function DriverProfileForm({ users }: { users: Array<{ id: string; label:
           className="border-edge bg-raised text-ink focus:border-amber h-11 rounded-lg border px-3.5 text-sm focus:outline-none"
         >
           <option value="" disabled>
-            Select a driver-role user…
+            Select a driver login…
           </option>
           {users.map((u) => (
             <option key={u.id} value={u.id}>
@@ -36,15 +36,9 @@ export function DriverProfileForm({ users }: { users: Array<{ id: string; label:
 
       <Field label="Licence number" name="license_number" placeholder="e.g. ABJ-DL-042931" />
       <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="City" name="service_city" placeholder="e.g. Abuja" required maxLength={128} />
         <Field
-          label="Service city"
-          name="service_city"
-          placeholder="e.g. Abuja"
-          required
-          maxLength={128}
-        />
-        <Field
-          label="Country code"
+          label="Country (NG for Nigeria)"
           name="country_code"
           placeholder="NG"
           maxLength={2}
@@ -62,7 +56,7 @@ export function DriverProfileForm({ users }: { users: Array<{ id: string; label:
       ) : null}
 
       <Button type="submit" disabled={pending} className="w-full">
-        {pending ? "Creating…" : "Create profile (approved)"}
+        {pending ? "Creating…" : "Add driver"}
       </Button>
     </form>
   );

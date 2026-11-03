@@ -57,7 +57,7 @@ describe("readableEvidence", () => {
         gps_claim: "none",
         staff_context: "Car parked outside",
       }),
-    ).toEqual(["no wrap", "Staff context: Car parked outside"]);
+    ).toEqual(["no wrap", "Staff note: Car parked outside"]);
     expect(evidenceVerificationId({ verification_id: "check-1" })).toBe("check-1");
     expect(readableEvidence(null)).toEqual([]);
     expect(readableEvidence({ demo: true })).toEqual([]);
@@ -78,7 +78,7 @@ describe("readableEvidence", () => {
 
   it("keeps a partial reading when a limit is missing and falls back when a value is", () => {
     expect(readableEvidence({ max_observed_speed_mps: 40 })).toEqual(["Top speed 144 km/h"]);
-    expect(readableEvidence({ threshold_mps: 55 })).toEqual(["Threshold mps: 55"]);
+    expect(readableEvidence({ threshold_mps: 55 })).toEqual(["Other: 55"]);
     expect(readableEvidence({ valid_ping_count: 4 })).toEqual(["4 usable location points"]);
     expect(readableEvidence({ poor_accuracy_ratio: 0.5 })).toEqual([
       "50% of location points had poor GPS accuracy",
@@ -140,16 +140,14 @@ describe("readableEvidence", () => {
         exclusion_zone_seconds: null,
       }),
     ).toEqual([
-      "Offending segment count: many",
-      "Start end distance m: 12",
-      "Stationary seconds: long",
-      "Future skew seconds: 300",
-      "Gap count: 3",
-      "Exclusion zone seconds: null",
+      "Stretches over the speed limit: many",
+      "Distance from start (m): 12",
+      "Time stopped (seconds): long",
+      "Clock difference (seconds): 300",
+      "Location gaps: 3",
+      "Time in an excluded area (seconds): Unavailable",
     ]);
-    expect(readableEvidence({ nested: { deep: "x".repeat(200) } })[0]).toHaveLength(
-      "Nested: ".length + 118,
-    );
+    expect(readableEvidence({ nested: { deep: "x".repeat(200) } })).toEqual(["Other: Unavailable"]);
   });
 });
 

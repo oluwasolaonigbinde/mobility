@@ -103,7 +103,7 @@ export async function searchOperatorOptions(input: {
         unavailable:
           c.status === "approved" && c.scan_status === "clean"
             ? undefined
-            : "Approved, scan-clean artwork is required",
+            : "Artwork must be approved first",
       })),
     };
   } catch (caught) {
@@ -128,8 +128,7 @@ export async function previewOperatorArtwork(
   } catch (caught) {
     unstable_rethrow(caught);
     return {
-      error:
-        "Artwork preview is unavailable. Approval and file safety are rechecked when offering.",
+      error: "Artwork preview is unavailable.",
     };
   }
 }

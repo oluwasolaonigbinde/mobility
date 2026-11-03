@@ -325,7 +325,7 @@ it("preserves job activity problems alongside readiness", async () => {
     return original(path);
   });
   render(await page());
-  expect(screen.getByText(/No recent verified activity/)).toHaveTextContent("Needs attention");
+  expect(screen.getByText(/No recent driving/)).toHaveTextContent("Needs attention");
 });
 it("shows unavailable sections without inventing empty records or completed prerequisites", async () => {
   mocks.get.mockImplementation(async (path) => {

@@ -70,7 +70,7 @@ describe("reviewPersonPayeeAction", () => {
     });
     await expect(reviewPersonPayeeEvidenceAction({}, account)).resolves.toMatchObject({
       done: "Bank details ready to view.",
-      sensitiveValue: "Test Driver · 058 · 0123456789",
+      sensitiveValue: "Test Driver · GTBank · 0123456789",
     });
     await expect(reviewPersonPayeeEvidenceAction({}, document)).resolves.toMatchObject({
       done: "Document ready to view.",

@@ -11,7 +11,7 @@ export function SettingsNav() {
       items={[
         ["staff", "Staff logins"],
         ["activity", "Activity log"],
-        ["support-tools", "Support tools"],
+        ["support-tools", "Recalculate a trip"],
       ].map(([path, label]) => ({
         href: `/admin/settings/${path}`,
         label,
