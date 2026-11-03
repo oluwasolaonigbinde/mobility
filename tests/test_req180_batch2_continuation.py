@@ -6,7 +6,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from sqlalchemy import select
-from test_driver_person_payee_onboarding import _register
+from test_driver_person_payee_onboarding import _current_access_token, _register
 from test_driver_vehicle_approval import _approved_applicant
 from test_email_delivery import RecordingEmailAdapter
 
@@ -30,9 +30,15 @@ def test_continuation_email_resolves_current_step_and_body_capability(
 
     monkeypatch.setattr(driver_applications, "datetime", IssuanceClock)
     if approved:
-        token, _, _ = _approved_applicant(
+        token, application, _ = _approved_applicant(
             db_client, db_sessionmaker, settings, suffix="continue-approved"
         )
+        # Approval replaces the original link; test the explicit recovery email.
+        response = db_client.post(
+            "/api/v1/auth/driver-onboarding-access/request", json={"email": application.email}
+        )
+        assert response.status_code == 202
+        token = _current_access_token(db_sessionmaker, settings, application)
     else:
         token, response = _register(db_client, db_sessionmaker, settings, suffix="continue-new")
         assert token not in response.text

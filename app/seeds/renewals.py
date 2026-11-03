@@ -124,6 +124,7 @@ async def ensure_demo_renewals(session, *, settings, reviewer):
             )
         await review_application_person_payee(
             session,
+            settings=settings,
             driver_profile_id=profile.id,
             actor_user_id=reviewer.id,
             payload=PersonPayeeReviewDecisionCreate(
@@ -164,6 +165,7 @@ async def ensure_demo_renewals(session, *, settings, reviewer):
             )
         await review_application_vehicle(
             session,
+            settings=settings,
             driver_profile_id=profile.id,
             vehicle_id=vehicle.id,
             submission_id=view.submission.id,

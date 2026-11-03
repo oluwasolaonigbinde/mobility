@@ -699,6 +699,7 @@ async def review_application_person_payee(
     driver_profile_id: UUID | None = None,
     actor_user_id: UUID,
     payload: PersonPayeeReviewDecisionCreate,
+    settings: Settings,
 ) -> PersonPayeeView:
     _validate_decision_facts(payload)
     authority_id = application_id or driver_profile_id
@@ -852,6 +853,7 @@ async def review_application_person_payee(
         decision_id=decision.id,
         vehicle=False,
         decision=payload.decision,
+        settings=settings,
     )
     await create_audit_event(
         session,

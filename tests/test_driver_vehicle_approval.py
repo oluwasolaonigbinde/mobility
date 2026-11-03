@@ -17,6 +17,7 @@ from test_driver_person_payee_onboarding import (
     PASSWORD,
     _application,
     _complete_admin_review,
+    _current_access_token,
     _current_submission_id,
     _person_payee_payload,
     _register,
@@ -108,7 +109,8 @@ def _approved_applicant(db_client, db_sessionmaker, settings, *, suffix: str):
         },
     )
     assert decision.status_code == 200, decision.text
-    return token, application, admin
+
+    return _current_access_token(db_sessionmaker, settings, application), application, admin
 
 
 def _seed_vehicle_files(db_sessionmaker, *, application, suffix: str) -> dict[str, UUID]:
@@ -257,7 +259,7 @@ def test_expired_onboarding_code_can_be_reissued_after_details_approval(
         async with db_sessionmaker() as session:
             access = await session.scalar(
                 select(DriverApplicationAccessToken).where(
-                    DriverApplicationAccessToken.application_id == application.id
+                    DriverApplicationAccessToken.id == UUID(token.split(".", 1)[0])
                 )
             )
             assert access is not None
@@ -731,6 +733,7 @@ def test_rejected_vehicle_can_resubmit_as_a_new_immutable_revision(
     )
     assert rejected.status_code == 200
     assert rejected.json()["status"] == "rejected"
+    token = _current_access_token(db_sessionmaker, settings, application)
     resubmitted = db_client.post(
         "/api/v1/auth/driver-onboarding/vehicle",
         json=_vehicle_payload(
@@ -1149,6 +1152,7 @@ def test_postgres_concurrent_identical_vehicle_decisions_converge_after_lock(
                 await barrier.wait()
                 view = await review_application_vehicle(
                     session,
+                    settings=settings,
                     application_id=application.id,
                     vehicle_id=UUID(submitted["vehicle_id"]),
                     submission_id=UUID(submitted["submission_id"]),
@@ -1189,6 +1193,7 @@ def test_postgres_concurrent_identical_vehicle_decisions_converge_after_lock(
                 with pytest.raises(AppError) as raised:
                     await review_application_vehicle(
                         session,
+                        settings=settings,
                         application_id=application.id,
                         vehicle_id=UUID(submitted["vehicle_id"]),
                         submission_id=UUID(submitted["submission_id"]),
@@ -1518,6 +1523,7 @@ def test_postgres_terminal_application_fences_revision_while_expiry_serializes(
             try:
                 await review_application_vehicle(
                     session,
+                    settings=settings,
                     application_id=application.id,
                     vehicle_id=UUID(submitted["vehicle_id"]),
                     submission_id=UUID(submitted["submission_id"]),

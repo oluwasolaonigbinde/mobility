@@ -37,7 +37,7 @@ export function ApplicationJourney({ requestedStep }: { requestedStep?: string }
         const invalid = Boolean(link.current?.invalid);
         setChecking(false);
         setFailed(invalid);
-        // Review emails open a step without a link on purpose (D131): ask for one.
+        // A missing link can be replaced through the same mailbox recovery flow.
         setLinkNeeded(!invalid && (requestedStep === "details" || requestedStep === "car"));
         return;
       }

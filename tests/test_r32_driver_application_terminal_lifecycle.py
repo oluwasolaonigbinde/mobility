@@ -128,6 +128,7 @@ async def _assert_terminal_evidence(
     *,
     application_id,
     terminal_status,
+    expected_access_count=1,
 ) -> None:
     async with sessionmaker() as session:
         application = await session.get(DriverApplication, application_id)
@@ -139,7 +140,7 @@ async def _assert_terminal_evidence(
                     DriverApplicationAccessToken.application_id == application_id
                 )
             )
-            == 1
+            == expected_access_count
         )
         assert (
             await session.scalar(
@@ -295,6 +296,7 @@ def test_r32_full_approval_entry_point_fences_racing_authority(
             async with postgis_db_sessionmaker() as session:
                 await review_application_vehicle(
                     session,
+                    settings=settings,
                     application_id=application.id,
                     vehicle_id=UUID(submitted.json()["vehicle_id"]),
                     submission_id=UUID(submitted.json()["submission_id"]),
@@ -332,6 +334,7 @@ def test_r32_full_approval_entry_point_fences_racing_authority(
             postgis_db_sessionmaker,
             application_id=application.id,
             terminal_status=DriverApplicationStatus.APPROVED,
+            expected_access_count=2,
         )
 
     asyncio.run(run())

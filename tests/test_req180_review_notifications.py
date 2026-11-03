@@ -149,7 +149,9 @@ def test_review_outcomes_queue_deduplicated_actionable_email(
             )
             assert len(rows) == 2
             assert {row.channel for row in rows} == {"in_app", "transactional_email"}
-            assert all(set(row.payload) == {"review_decision_id"} for row in rows)
+            assert all("token" not in str(row.payload) for row in rows)
+            in_app = next(row for row in rows if row.channel == "in_app")
+            assert set(in_app.payload) == {"review_decision_id"}
             email = next(row for row in rows if row.channel == "transactional_email")
         result = await process_email_notification(
             db_sessionmaker,
@@ -189,8 +191,31 @@ def test_review_outcomes_queue_deduplicated_actionable_email(
         assert len(adapter.messages) == 1
         message = adapter.messages[0]
         assert message.recipient == application.email
-        assert '<a href="http://localhost:3000/apply?step=' in message.html_body
+        if stage == "car" and approved:
+            assert "Continue</a>" not in message.html_body
+            assert "account setup link" in message.text_body
+        else:
+            assert '<a href="http://localhost:3000/apply?step=' in message.html_body
         assert "review_decision_id" not in message.text_body
+        if not (stage == "car" and approved):
+            assert "#application_access_token=" in message.text_body
+            import re
+
+            new_token = re.search(r"application_access_token=([^\s\"<]+)", message.text_body).group(
+                1
+            )
+            continued = db_client.post(
+                "/api/v1/auth/driver-onboarding/continue",
+                json={"application_access_token": new_token},
+            )
+            assert continued.status_code == 200, continued.text
+            assert continued.json()["step"] == ("car" if stage == "car" or approved else "details")
+            # The link held before the review must no longer authorize access.
+            old = db_client.post(
+                "/api/v1/auth/driver-onboarding/vehicles",
+                json={"application_access_token": token},
+            )
+            assert old.status_code == 404
         if not approved:
             assert (
                 "roadworthiness" in message.text_body
@@ -210,8 +235,12 @@ def test_review_outcomes_queue_deduplicated_actionable_email(
             )
             assert second_read.read_at == read_at
             user = await session.get(User, application.user_id)
+            from app.api.v1.notifications import current_feed_item
+
+            invited_copy = await current_feed_item(session, in_app, user)
+            assert "application_access_token" not in (invited_copy.action_url or "")
+            assert "#" not in (invited_copy.action_url or "")
             if approved:
-                from app.api.v1.notifications import current_feed_item
                 from app.models.notification import NotificationChannel, NotificationType
                 from app.services.notifications import create_notification
 
@@ -251,6 +280,11 @@ def test_review_outcomes_queue_deduplicated_actionable_email(
     asyncio.run(inspect_and_deliver())
     if not approved:
         if stage == "id":
+            import re
+
+            token = re.search(
+                r"application_access_token=([^\s\"<]+)", adapter.messages[0].text_body
+            ).group(1)
             replacement = db_client.post(
                 "/api/v1/auth/driver-onboarding/person-payee",
                 json=_person_payee_payload(token, files, db_client),

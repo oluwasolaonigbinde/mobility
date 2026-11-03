@@ -609,6 +609,7 @@ def test_setup_and_exact_review_retry_share_user_first_order(
                 if stage == "person":
                     await review_application_person_payee(
                         session,
+                        settings=settings,
                         application_id=application.id,
                         actor_user_id=actor_id,
                         payload=PersonPayeeReviewDecisionCreate.model_validate(body),
@@ -617,6 +618,7 @@ def test_setup_and_exact_review_retry_share_user_first_order(
                     parts = path.split("/")
                     await review_application_vehicle(
                         session,
+                        settings=settings,
                         application_id=application.id,
                         vehicle_id=UUID(parts[-4]),
                         submission_id=UUID(parts[-2]),

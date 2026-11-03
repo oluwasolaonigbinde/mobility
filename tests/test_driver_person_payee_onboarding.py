@@ -163,6 +163,23 @@ def _application(db_sessionmaker, *, email: str) -> DriverApplication:
     return asyncio.run(fetch())
 
 
+def _current_access_token(db_sessionmaker, settings, application) -> str:
+    async def fetch():
+        async with db_sessionmaker() as session:
+            access = await session.scalar(
+                select(DriverApplicationAccessToken).where(
+                    DriverApplicationAccessToken.application_id == application.id,
+                    DriverApplicationAccessToken.invalidated_at.is_(None),
+                )
+            )
+            assert access is not None
+            return synthetic_driver_application_access_token(
+                access, settings, synthetic_test_authority=True
+            )
+
+    return asyncio.run(fetch())
+
+
 def _seed_clean_kyc_files(db_sessionmaker, *, email: str) -> dict[str, UUID]:
     async def seed() -> dict[str, UUID]:
         async with db_sessionmaker() as session:
@@ -830,6 +847,7 @@ def test_rejected_or_expired_submission_resubmits_as_new_truthful_version(
             "reason_code": reason,
         },
     )
+    reference = _current_access_token(db_sessionmaker, settings, application)
     second = db_client.post(
         "/api/v1/auth/driver-onboarding/person-payee",
         json=_person_payee_payload(reference, files, db_client),
@@ -967,6 +985,7 @@ def test_postgres_concurrent_conflicting_decisions_serialize_once(
             try:
                 view = await review_application_person_payee(
                     session,
+                    settings=settings,
                     application_id=application.id,
                     actor_user_id=actor_id,
                     payload=PersonPayeeReviewDecisionCreate(

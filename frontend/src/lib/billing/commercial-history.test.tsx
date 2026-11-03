@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { components } from "@/lib/api/schema";
-import { CommercialHistory } from "./commercial-history";
+import { CommercialHistory, InvoicePayForm } from "./commercial-history";
 
 type Invoice = components["schemas"]["InvoiceRead"];
 type Settlement = components["schemas"]["SettlementRead"];
@@ -14,6 +14,7 @@ const invoice: Invoice = {
   invoice_number: "INV-2026-0001",
   status: "issued",
   payment_status: "partially_paid",
+  online_payment_available: true,
   currency: "NGN",
   net_amount: "100.00",
   tax_rate: "0.0750",
@@ -64,6 +65,14 @@ const settlement: Settlement = {
 };
 
 describe("CommercialHistory", () => {
+  it("offers bank transfer when online payment is unavailable", () => {
+    render(<InvoicePayForm invoice={{ ...invoice, online_payment_available: false }} />);
+    expect(screen.queryByRole("button", { name: "Pay invoice online" })).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Pay by bank transfer using the details on your invoice."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Paystack/)).not.toBeInTheDocument();
+  });
   it("shows invoices, corrections and refunds as plain lines", () => {
     const { container } = render(
       <CommercialHistory

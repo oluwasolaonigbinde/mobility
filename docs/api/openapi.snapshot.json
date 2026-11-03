@@ -10873,7 +10873,8 @@
               "on_hold",
               "paid",
               "paying_tonight",
-              "being_checked"
+              "being_checked",
+              "payment_pending"
             ],
             "title": "Status",
             "type": "string"
@@ -14650,6 +14651,11 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Net Amount",
             "type": "string"
+          },
+          "online_payment_available": {
+            "default": false,
+            "title": "Online Payment Available",
+            "type": "boolean"
           },
           "organization_id": {
             "format": "uuid",

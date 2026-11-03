@@ -661,6 +661,7 @@ async def _ensure_applicant_review(session, *, application, person, stage, staff
             )
     await review_application_person_payee(
         session,
+        settings=settings,
         application_id=application.id,
         actor_user_id=staff[2].id,
         payload=PersonPayeeReviewDecisionCreate(
@@ -676,6 +677,16 @@ async def _ensure_applicant_review(session, *, application, person, stage, staff
         ),
     )
     if stage == "approved":
+        from app.models.driver_application import DriverApplicationAccessToken
+        from app.services.driver_applications import driver_application_access_token_for_delivery
+
+        access = await session.scalar(
+            select(DriverApplicationAccessToken).where(
+                DriverApplicationAccessToken.application_id == application.id,
+                DriverApplicationAccessToken.invalidated_at.is_(None),
+            )
+        )
+        token = driver_application_access_token_for_delivery(access, settings)
         await _ensure_applicant_vehicle(
             session,
             application=application,
@@ -759,6 +770,7 @@ async def _ensure_applicant_vehicle(session, *, application, person, token, staf
         )
     await review_application_vehicle(
         session,
+        settings=settings,
         application_id=application.id,
         vehicle_id=view.submission.vehicle_id,
         submission_id=view.submission.id,
@@ -873,6 +885,7 @@ async def ensure_primary_demo_documents(session, *, driver, profile, vehicle, re
         await read_files(files, f"person_payee_approval:{view.submission.id}")
         await review_application_person_payee(
             session,
+            settings=settings,
             driver_profile_id=profile.id,
             actor_user_id=reviewer.id,
             payload=PersonPayeeReviewDecisionCreate(
@@ -911,6 +924,7 @@ async def ensure_primary_demo_documents(session, *, driver, profile, vehicle, re
         await read_files(files, f"vehicle_approval:{view.submission.id}")
         await review_application_vehicle(
             session,
+            settings=settings,
             driver_profile_id=profile.id,
             vehicle_id=vehicle.id,
             submission_id=view.submission.id,

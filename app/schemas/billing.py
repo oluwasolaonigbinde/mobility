@@ -279,6 +279,7 @@ class InvoiceRead(ORMRead):
     effective_obligation_amount: Decimal = Decimal("0.00")
     funded_amount: Decimal = Decimal("0.00")
     payment_status: str = "unpaid"
+    online_payment_available: bool = False
     corrections: list[InvoiceCorrectionRead] = Field(default_factory=list)
     created_at: datetime
     issued_at: datetime | None

@@ -89,6 +89,7 @@ async def issue_driver_application_access(
     *,
     application: DriverApplication,
     settings: Settings,
+    notify: bool = True,
 ) -> DriverApplicationAccessToken | None:
     subject_id = await session.scalar(
         select(DriverApplication.user_id).where(DriverApplication.id == application.id)
@@ -136,7 +137,8 @@ async def issue_driver_application_access(
         raise RuntimeError("driver onboarding access recipient disappeared")
     from app.services.notifications import create_driver_onboarding_access_notification
 
-    await create_driver_onboarding_access_notification(session, user=user, access=access)
+    if notify:
+        await create_driver_onboarding_access_notification(session, user=user, access=access)
     return access
 
 

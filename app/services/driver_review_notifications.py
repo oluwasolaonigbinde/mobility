@@ -1,6 +1,7 @@
 """Review messages resolve current recipient-owned facts, never payload copy/URLs."""
 
 from datetime import datetime
+from typing import TypedDict
 from typing import cast as type_cast
 from uuid import UUID
 
@@ -8,6 +9,7 @@ from sqlalchemy import String, and_, cast, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.core.config import Settings
 from app.models.driver import DriverProfile
 from app.models.kyc import (
     DriverKycReviewDecision,
@@ -27,6 +29,13 @@ REVIEW_TYPES = {
 }
 type ReviewDecision = DriverKycReviewDecision | VehicleEvidenceReviewDecision
 type ReviewSubmission = DriverKycSubmission | VehicleEvidenceSubmission
+
+
+class ReviewNoticeContext(TypedDict):
+    title: str
+    body: str
+    action_path: str | None
+
 
 REASONS: dict[str | None, str] = {
     "missing_evidence": "Some documents are missing.",
@@ -54,7 +63,10 @@ async def create_driver_review_notices(
     decision_id: UUID,
     vehicle: bool,
     decision: str,
+    settings: Settings,
 ) -> None:
+    from app.models.driver_application import DriverApplication
+    from app.services.driver_applications import issue_driver_application_access
     from app.services.notifications import create_notification
 
     if decision not in {"approved", "rejected"}:
@@ -67,12 +79,25 @@ async def create_driver_review_notices(
             NotificationType.DRIVER_ID_APPROVED if approved else NotificationType.DRIVER_ID_REJECTED
         )
     )
+    application = await session.scalar(
+        select(DriverApplication).where(DriverApplication.driver_profile_id == profile.id)
+    )
+    access = (
+        await issue_driver_application_access(
+            session, application=application, settings=settings, notify=False
+        )
+        if application is not None and not (vehicle and approved)
+        else None
+    )
     for channel in NotificationChannel:
+        payload = {"review_decision_id": str(decision_id)}
+        if access is not None and channel == NotificationChannel.TRANSACTIONAL_EMAIL:
+            payload["driver_application_access_id"] = str(access.id)
         await create_notification(
             session,
             recipient_user_id=profile.user_id,
             type_key=type_key,
-            payload={"review_decision_id": str(decision_id)},
+            payload=payload,
             channel=channel,
             dedupe_key=f"driver-review:{type_key}:{decision_id}:{channel}",
         )
@@ -84,7 +109,7 @@ async def review_notice_context(
     user: User,
     *,
     now: datetime | None = None,
-) -> dict[str, str] | None:
+) -> ReviewNoticeContext | None:
     if (
         notice.type_key not in REVIEW_TYPES
         or user.id != notice.recipient_user_id
@@ -175,6 +200,16 @@ async def review_notice_context(
                 )
             ):
                 return None
+    from app.models.driver_application import DriverApplication, DriverApplicationStatus
+
+    application = await session.scalar(
+        select(DriverApplication).where(DriverApplication.driver_profile_id == profile.id)
+    )
+    awaiting_setup = bool(
+        user.status == UserStatus.INVITED
+        and application is not None
+        and application.status == DriverApplicationStatus.APPROVED
+    )
     title = (
         ("Your car is approved" if approved else "Your car needs changes")
         if vehicle
@@ -186,18 +221,22 @@ async def review_notice_context(
         else "Your updated ID and bank details have been approved. Open your profile to check them."
         if approved and user.status == UserStatus.ACTIVE
         else "Terrax Media will email you when your account setup link is ready."
-        if vehicle and approved
+        if awaiting_setup
         else "You can now add your car and its documents."
         if approved
         else applicant_reason(decision.reason_code)
     )
     path = (
-        "/driver/profile"
-        if user.status == UserStatus.ACTIVE
-        else ("/apply?step=car" if vehicle or approved else "/apply?step=details")
+        None
+        if awaiting_setup
+        else (
+            "/driver/profile"
+            if user.status == UserStatus.ACTIVE
+            else ("/apply?step=car" if vehicle or approved else "/apply?step=details")
+        )
     )
-    if user.status == UserStatus.INVITED:
-        body += " If you need a new link, request one on the application page."
+    if user.status == UserStatus.INVITED and not awaiting_setup:
+        body += " Open your application to continue."
     return {"title": title, "body": body, "action_path": path}
 
 

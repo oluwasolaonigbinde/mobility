@@ -200,6 +200,7 @@ def test_shared_files_survive_old_rejected_version(
             await session.flush()
             await review_application_person_payee(
                 session,
+                settings=settings,
                 driver_profile_id=profile.id,
                 actor_user_id=admin.id,
                 payload=PersonPayeeReviewDecisionCreate(

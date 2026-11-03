@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime
 from uuid import UUID
 
+import pytest
 from conftest import (
     auth_headers,
     create_test_campaign,
@@ -29,6 +30,41 @@ from app.models.billing import (
 from app.models.user import UserRole
 from app.services.billing.invoices import create_invoice_draft, issue_invoice
 from app.services.billing.settlements import record_invoice_correction
+
+
+@pytest.mark.parametrize(
+    "connected,return_url,available",
+    [
+        (False, "https://example.test/return", False),
+        (True, "", False),
+        (True, "https://example.test/return", True),
+    ],
+)
+def test_invoice_read_reports_gateway_and_return_url_readiness(
+    settings, connected, return_url, available, monkeypatch
+):
+    from decimal import Decimal
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from uuid import uuid4
+
+    from pydantic import SecretStr
+
+    from app.api.v1 import billing
+    from app.schemas.billing import InvoiceRead
+
+    settings.paystack_secret_key = SecretStr("sk_test_synthetic") if connected else None
+    settings.paystack_checkout_return_url = return_url
+    monkeypatch.setattr(
+        billing, "invoice_payment_status", AsyncMock(return_value=("unpaid", Decimal(0)))
+    )
+    monkeypatch.setattr(
+        billing, "adjusted_invoice_obligation", AsyncMock(return_value=Decimal(100))
+    )
+    session = SimpleNamespace(scalars=AsyncMock(return_value=[]))
+    invoice = InvoiceRead.model_construct(id=uuid4())
+    result = asyncio.run(billing._invoice_read(session, invoice, settings))
+    assert result.online_payment_available is available
 
 
 def _fixture(db_sessionmaker, suffix: str):

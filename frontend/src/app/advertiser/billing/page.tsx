@@ -157,10 +157,19 @@ export default async function AdvertiserBillingPage({
           title="To pay"
           hint="Issued invoices that are not fully paid yet"
         />
-        {outstanding.some(({ invoice }) => invoice.currency === "NGN") ? (
+        {outstanding.some(
+          ({ invoice }) => invoice.currency === "NGN" && invoice.online_payment_available,
+        ) ? (
           <p className="text-muted mb-3 text-sm">
             Card or bank transfer through Paystack. The invoice shows as paid once Paystack confirms
             the payment.
+          </p>
+        ) : null}
+        {outstanding.some(
+          ({ invoice }) => invoice.currency === "NGN" && !invoice.online_payment_available,
+        ) ? (
+          <p className="text-muted mb-3 text-sm">
+            Pay by bank transfer using the details on your invoice.
           </p>
         ) : null}
         <Panel className="overflow-hidden">

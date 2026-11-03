@@ -555,6 +555,7 @@ def test_postgres_renewal_races_leave_one_revision_no_orphan_bank(
                 if mode == "review" and index:
                     await review_application_person_payee(
                         session,
+                        settings=settings,
                         driver_profile_id=profile.id,
                         actor_user_id=admin.id,
                         payload=PersonPayeeReviewDecisionCreate(

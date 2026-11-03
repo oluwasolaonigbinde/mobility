@@ -203,7 +203,7 @@ class DriverEarningsDayRead(DriverMoneyMixin):
     day: date
     currency: str
     amount: Decimal
-    status: Literal["on_hold", "paid", "paying_tonight", "being_checked"]
+    status: Literal["on_hold", "paid", "paying_tonight", "being_checked", "payment_pending"]
     paid_at: datetime | None
     trip_ids: list[UUID]
     cash_paid: Decimal = Decimal("0.00")

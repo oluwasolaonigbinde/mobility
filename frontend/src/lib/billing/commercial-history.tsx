@@ -66,6 +66,12 @@ export function InvoicePayForm({
   showNote?: boolean;
 }) {
   if (!isOutstandingInvoice(invoice) || invoice.currency !== "NGN") return null;
+  if (!invoice.online_payment_available)
+    return showNote ? (
+      <p className="text-muted mt-2 text-sm">
+        Pay by bank transfer using the details on your invoice.
+      </p>
+    ) : null;
   return (
     <form action={startInvoicePayment} className="mt-4">
       <input type="hidden" name="invoiceId" value={invoice.id} />

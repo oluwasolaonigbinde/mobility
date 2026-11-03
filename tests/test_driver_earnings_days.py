@@ -92,7 +92,7 @@ def test_nets_exact_decimals_on_persisted_work_days():
     assert (day["day"], day["amount"], day["status"]) == (
         date(2026, 10, 9),
         Decimal("9.99"),
-        "being_checked",
+        "payment_pending",
     )
 
 
@@ -119,14 +119,14 @@ def test_latest_payment_date_only_when_every_contribution_is_paid():
     first = datetime(2026, 10, 9, 20, tzinfo=UTC)
     second = datetime(2026, 10, 10, 20, tzinfo=UTC)
     paid = row(status="paid", paid_at=first)
-    assert show(paid, row(entry_type="adjustment"))[0]["status"] == "being_checked"
+    assert show(paid, row(entry_type="adjustment"))[0]["status"] == "payment_pending"
     [day] = show(paid, row(status="paid", paid_at=second))
     assert (day["status"], day["paid_at"]) == ("paid", second)
 
 
 def test_paying_tonight_needs_every_contribution_scheduled():
     assert show(row(paying_tonight=True))[0]["status"] == "paying_tonight"
-    assert show(row(paying_tonight=True), row())[0]["status"] == "being_checked"
+    assert show(row(paying_tonight=True), row())[0]["status"] == "payment_pending"
 
 
 @pytest.mark.parametrize("status", ["pending", "available", "paid"])
@@ -324,7 +324,7 @@ def test_offset_settled_credit_does_not_hold_new_pay():
             )
         },
     )
-    assert days[0]["status"] == "being_checked"
+    assert days[0]["status"] == "payment_pending"
     assert held == {}
 
 
@@ -385,7 +385,7 @@ def test_day_mixing_an_overpaid_trip_and_an_unpaid_trip():
     )
     assert (day["amount"], day["status"], day["to_deduct"]) == (
         Decimal("10400.00"),
-        "being_checked",
+        "payment_pending",
         Decimal("100.00"),
     )
     assert set(day["trip_ids"]) == {TRIP, other}
@@ -498,3 +498,8 @@ def test_partial_multi_day_cash_has_no_invented_allocation():
     assert [day["amount"] for day in days] == [Decimal("40.00"), Decimal("60.00")]
     assert all(day["status"] == "on_hold" and day["paid_at"] is None for day in days)
     assert held == {"NGN": Decimal("70.00")}
+
+
+def test_released_unsent_day_is_payment_pending():
+    assert show(row(status="available"))[0]["status"] == "payment_pending"
+    assert show(row(status="pending"))[0]["status"] == "being_checked"

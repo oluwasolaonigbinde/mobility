@@ -27,6 +27,7 @@ describe("daily earnings words", () => {
     [day({ status: "paid", paid_at: "2026-10-10T23:30:00Z" }), "Paid 11 Oct"],
     [day({ status: "paying_tonight" }), "Paying tonight"],
     [day(), "Being checked"],
+    [day({ status: "payment_pending" }), "Payment pending"],
   ])("labels %o as %s", (input, label) => {
     expect(presentEarningsDay(input).status).toBe(label);
   });

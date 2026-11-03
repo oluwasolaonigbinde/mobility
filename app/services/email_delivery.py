@@ -395,9 +395,46 @@ async def process_email_notification(  # noqa: C901
                     if context is None:
                         raise ValueError("driver_review_inactive")
                     runtime_payload.update(context)
-                    runtime_payload["action_url"] = public_action_url(
-                        settings, context["action_path"]
+                    runtime_payload["action_url"] = (
+                        public_action_url(settings, context["action_path"])
+                        if context["action_path"]
+                        else None
                     )
+                    if (
+                        "driver_application_access_id" in notice.payload
+                        and user.status == UserStatus.INVITED
+                        and context["action_path"]
+                    ):
+                        from app.services.driver_applications import (
+                            application_from_access_token,
+                            current_application_step,
+                            driver_application_access_token_for_delivery,
+                        )
+
+                        access = await session.get(
+                            DriverApplicationAccessToken,
+                            UUID(str(notice.payload["driver_application_access_id"])),
+                        )
+                        if access is None:
+                            raise ValueError("driver_review_access_inactive")
+                        review_token = driver_application_access_token_for_delivery(
+                            access, settings
+                        )
+                        from app.core.errors import AppError
+
+                        try:
+                            application = await application_from_access_token(
+                                session, token=review_token, settings=settings, lock=False
+                            )
+                        except AppError:
+                            raise ValueError("driver_review_access_inactive") from None
+                        if application.user_id != user.id:
+                            raise ValueError("driver_review_access_inactive")
+                        step = await current_application_step(session, application)
+                        runtime_payload["action_url"] = public_action_url(
+                            settings,
+                            f"/apply?step={step}#application_access_token={quote(review_token)}",
+                        )
                 else:
                     context = (
                         await notification_campaign_context(session, notice=notice, user=user)

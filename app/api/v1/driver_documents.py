@@ -170,9 +170,14 @@ async def admin_person_decision(
     payload: PersonPayeeReviewDecisionCreate,
     user: AdminUserDependency,
     session: SessionDependency,
+    settings: SettingsDependency,
 ) -> AdminPersonPayeeStageRead:
     view = await review_application_person_payee(
-        session, driver_profile_id=driver_profile_id, actor_user_id=user.id, payload=payload
+        session,
+        driver_profile_id=driver_profile_id,
+        actor_user_id=user.id,
+        payload=payload,
+        settings=settings,
     )
     await session.commit()
     return _admin_person_payee_response(view)
@@ -189,6 +194,7 @@ async def admin_vehicle_decision(
     payload: VehicleReviewDecisionCreate,
     user: AdminUserDependency,
     session: SessionDependency,
+    settings: SettingsDependency,
 ) -> AdminVehicleStageRead:
     view = await review_application_vehicle(
         session,
@@ -197,6 +203,7 @@ async def admin_vehicle_decision(
         submission_id=submission_id,
         actor_user_id=user.id,
         payload=payload,
+        settings=settings,
     )
     await session.commit()
     return _admin_vehicle_response(view)

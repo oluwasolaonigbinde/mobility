@@ -8429,7 +8429,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "on_hold" | "paid" | "paying_tonight" | "being_checked";
+            status: "on_hold" | "paid" | "paying_tonight" | "being_checked" | "payment_pending";
             /** To Deduct */
             to_deduct?: string;
             /** Trip Ids */
@@ -9935,6 +9935,11 @@ export interface components {
             }[];
             /** Net Amount */
             net_amount: string;
+            /**
+             * Online Payment Available
+             * @default false
+             */
+            online_payment_available: boolean;
             /**
              * Organization Id
              * Format: uuid

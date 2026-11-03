@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 from starlette import status
 
+from app.core.config import Settings
 from app.core.errors import AppError
 from app.db.integrity import integrity_constraint_name
 from app.models.audit import AuditEvent
@@ -727,6 +728,7 @@ async def review_application_vehicle(  # noqa: C901
     submission_id: UUID,
     actor_user_id: UUID,
     payload: VehicleReviewDecisionCreate,
+    settings: Settings,
 ) -> VehicleStageView:
     from app.services.driver_onboarding import _lock_review_users, _reconcile_review_eligibility
 
@@ -900,6 +902,7 @@ async def review_application_vehicle(  # noqa: C901
         decision_id=decision.id,
         vehicle=True,
         decision=payload.decision,
+        settings=settings,
     )
     await _reconcile_review_eligibility(
         session,

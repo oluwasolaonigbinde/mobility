@@ -41,6 +41,7 @@ const invoice = (overrides: Record<string, unknown>) => ({
   invoice_number: "INV-2026-0007",
   status: "issued",
   payment_status: "partially_paid",
+  online_payment_available: true,
   currency: "NGN",
   net_amount: "232558.14",
   tax_rate: "0.0750",
@@ -76,6 +77,21 @@ function mockBilling(receipts: unknown[], invoices: unknown[] = []) {
 }
 
 describe("AdvertiserBillingPage", () => {
+  it("shows one bank-transfer instruction and no unavailable checkout", async () => {
+    mockBilling(
+      [],
+      [
+        invoice({ id: "one", online_payment_available: false }),
+        invoice({ id: "two", online_payment_available: false }),
+      ],
+    );
+    render(await AdvertiserBillingPage({}));
+    expect(screen.queryByRole("button", { name: "Pay invoice online" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Paystack/)).not.toBeInTheDocument();
+    expect(
+      screen.getAllByText("Pay by bank transfer using the details on your invoice."),
+    ).toHaveLength(1);
+  });
   beforeEach(() => {
     get.mockReset();
     role.mockResolvedValue({

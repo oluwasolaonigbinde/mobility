@@ -38,7 +38,9 @@ export function presentEarningsDay(day: Day): EarningsDay {
         ? `Paid ${new Intl.DateTimeFormat("en-NG", { timeZone: "Africa/Lagos", day: "numeric", month: "short" }).format(new Date(day.paid_at))}`
         : day.status === "paying_tonight"
           ? "Paying tonight"
-          : "Being checked";
+          : day.status === "payment_pending"
+            ? "Payment pending"
+            : "Being checked";
   const toDeduct = day.to_deduct ?? "0.00";
   const base = {
     day: day.day,

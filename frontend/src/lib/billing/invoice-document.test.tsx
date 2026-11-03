@@ -21,6 +21,7 @@ const issued: Invoice = {
   invoice_number: "CV-2026-000001",
   status: "issued",
   payment_status: "partially_paid",
+  online_payment_available: false,
   currency: "NGN",
   net_amount: "370001.00",
   tax_rate: "0.075000",

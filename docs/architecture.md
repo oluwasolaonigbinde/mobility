@@ -4062,7 +4062,7 @@ D148 / REQ-274 extends the daily driver earnings read with Payment pending for
 released unsent money; held/unchecked and paid states and money authority stay.
 D149 / REQ-277 issues newest application access in the review transaction and
 uses it only in the email fragment. Stored notifications and in-app paths carry
-no token; current application/ownership, revocation and expiry remain mandatory.
+no token; current application/ownership, revocation and expiry remain mandatory. A terminal approved application waits for its separate account-setup email and offers no invalid continuation action.
 D150 / REQ-287 permits demo seeding in staging only with explicit ALLOW_DEMO_SEED;
 production/rehearsal and hardened environment requirements remain unchanged.
 These amendments are approved implementation scope, pending source verification.

@@ -212,7 +212,10 @@ def group_earnings_days(
         tonight = bool(members) and all(
             entry.status == "available" and response.paying_tonight for entry, response in members
         )
-        states[scope] = (held, paid, tonight, max(dates) if dates else None)
+        released = bool(members) and all(
+            entry.status in {"available", "paid"} for entry, _ in members
+        )
+        states[scope] = (held, paid, tonight, max(dates) if dates else None, released)
         if held:
             held_amounts[scope[1]] = held_amounts.get(scope[1], Decimal(0)) + outstanding
     days = []
@@ -221,6 +224,7 @@ def group_earnings_days(
         held = any(states[scope][0] for scope in scopes)
         paid = bool(scopes) and all(states[scope][1] for scope in scopes)
         tonight = bool(scopes) and all(states[scope][2] for scope in scopes)
+        released = bool(scopes) and all(states[scope][4] for scope in scopes)
         days.append(
             {
                 "day": day,
@@ -232,6 +236,8 @@ def group_earnings_days(
                 if paid
                 else "paying_tonight"
                 if tonight
+                else "payment_pending"
+                if released
                 else "being_checked",
                 "paid_at": max(states[scope][3] for scope in scopes) if paid and not held else None,
                 "trip_ids": sorted({scope[0] for scope in scopes if scope[0]}, key=str),

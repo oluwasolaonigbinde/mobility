@@ -17,6 +17,7 @@ from app.api.v1.dependencies import (
     SessionDependency,
     SettingsDependency,
 )
+from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.webhook_body import read_webhook_body
 from app.models.billing import (
@@ -131,7 +132,10 @@ def get_payment_gateway_adapter(settings: SettingsDependency) -> PaymentGatewayA
 PaymentGatewayDependency = Annotated[PaymentGatewayAdapter, Depends(get_payment_gateway_adapter)]
 
 
-async def _invoice_read(session: SessionDependency, invoice: Invoice) -> InvoiceRead:
+async def _invoice_read(
+    session: SessionDependency, invoice: Invoice, settings: Settings
+) -> InvoiceRead:
+    adapter = build_payment_gateway_adapter(settings)
     payment_status, funded_amount = await invoice_payment_status(session, invoice)
     corrections = list(
         await session.scalars(
@@ -142,6 +146,10 @@ async def _invoice_read(session: SessionDependency, invoice: Invoice) -> Invoice
     )
     return InvoiceRead.model_validate(invoice).model_copy(
         update={
+            "online_payment_available": bool(
+                adapter.provider_name != "disabled"
+                and settings.paystack_checkout_return_url.strip()
+            ),
             "effective_obligation_amount": await adjusted_invoice_obligation(session, invoice.id),
             "funded_amount": funded_amount,
             "payment_status": payment_status,
@@ -156,6 +164,7 @@ async def _campaign_commercial_state(
     session: SessionDependency,
     *,
     campaign_id: UUID,
+    settings: Settings,
 ) -> CampaignCommercialRead:
     quote_request = await session.scalar(
         select(CommercialQuoteRequest).where(CommercialQuoteRequest.campaign_id == campaign_id)
@@ -208,7 +217,7 @@ async def _campaign_commercial_state(
         quote_request=quote_request,
         revisions=revisions,
         terms=terms,
-        invoices=[await _invoice_read(session, invoice) for invoice in invoices],
+        invoices=[await _invoice_read(session, invoice, settings) for invoice in invoices],
         financial_authority=financial_authority,
         expedited_waiver_copy=WaiverCopyRead(
             wording_version=EXPEDITED_WAIVER_WORDING_VERSION,
@@ -408,12 +417,13 @@ async def advertiser_campaign_commercial(
     campaign_id: UUID,
     user: AdvertiserUserDependency,
     session: SessionDependency,
+    settings: SettingsDependency,
 ) -> CampaignCommercialRead:
     context = await get_advertiser_organization_for_user(session, user.id)
     campaign = await session.get(Campaign, campaign_id)
     if context is None or campaign is None or campaign.organization_id != context[0].id:
         raise AppError("CAMPAIGN_NOT_FOUND", "Campaign was not found", status_code=404)
-    return await _campaign_commercial_state(session, campaign_id=campaign_id)
+    return await _campaign_commercial_state(session, campaign_id=campaign_id, settings=settings)
 
 
 @router.get(
@@ -428,7 +438,7 @@ async def admin_campaign_commercial(
 ) -> AdminCampaignCommercialRead:
     if await session.get(Campaign, campaign_id) is None:
         raise AppError("CAMPAIGN_NOT_FOUND", "Campaign was not found", status_code=404)
-    state = await _campaign_commercial_state(session, campaign_id=campaign_id)
+    state = await _campaign_commercial_state(session, campaign_id=campaign_id, settings=settings)
     return AdminCampaignCommercialRead(
         **state.model_dump(),
         issuing_available=await configured_invoice_issuer(session, settings) is not None,
@@ -585,6 +595,7 @@ async def admin_create_invoice(
     payload: InvoiceDraftCreate,
     user: AdminUserDependency,
     session: SessionDependency,
+    settings: SettingsDependency,
 ) -> InvoiceRead:
     invoice = await create_invoice_draft(
         session,
@@ -592,7 +603,7 @@ async def admin_create_invoice(
         actor_user_id=user.id,
     )
     await session.commit()
-    return await _invoice_read(session, invoice)
+    return await _invoice_read(session, invoice, settings)
 
 
 @router.post("/admin/invoices/{invoice_id}/issue", response_model=InvoiceRead)
@@ -609,7 +620,7 @@ async def admin_issue_invoice(
         settings=settings,
     )
     await session.commit()
-    return await _invoice_read(session, invoice)
+    return await _invoice_read(session, invoice, settings)
 
 
 @router.post(
