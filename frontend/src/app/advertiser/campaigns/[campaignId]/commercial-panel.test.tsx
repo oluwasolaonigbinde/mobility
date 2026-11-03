@@ -186,7 +186,7 @@ describe("CommercialPanel copy", () => {
     expect(screen.getAllByText("₦100,000.00")).toHaveLength(3);
     expect(screen.getByText(/VAT 7.5% · ₦7,500.00/)).toBeInTheDocument();
     expect(screen.getByText("₦107,500.00")).toBeInTheDocument();
-    expect(screen.getByText(/before production/)).toBeInTheDocument();
+    expect(screen.getByText("before production", { exact: true })).toBeInTheDocument();
     expect(screen.getAllByText(/2026-10-01/)).toHaveLength(2);
     expect(
       screen.getByText(/I reviewed the scope, every line item, production cost, tax, exact total/),
@@ -241,7 +241,7 @@ describe("CommercialPanel copy", () => {
       />,
     );
 
-    expect(screen.getByText("Accepted quotation receipt")).toBeInTheDocument();
+    expect(screen.getByText("Accepted quotation")).toBeInTheDocument();
     expect(screen.getByText("Quote Q-100")).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/revision \d/);
     expect(screen.getByText("Accepted and fixed")).toBeInTheDocument();
@@ -273,7 +273,7 @@ describe("CommercialPanel copy", () => {
       />,
     );
 
-    expect(screen.getByText("Payment basis")).toBeInTheDocument();
+    expect(screen.getByText("How you'll pay")).toBeInTheDocument();
     expect(screen.getByText("Approved company credit · ₦50,000.00")).toBeInTheDocument();
     expect(screen.queryByText("Funding authority")).not.toBeInTheDocument();
   });

@@ -20,7 +20,7 @@ const initialState: CampaignReviewActionState = {};
 const outcomeCopy = {
   apply_now: "This change can apply as soon as you confirm it.",
   await_review: "After confirmation, Terrax Media must review this change before it can apply.",
-  await_funding: "After confirmation, this change will wait for enough recorded funding.",
+  await_funding: "After confirmation, this change will wait for payment.",
 } as const;
 
 const fieldLabel: Record<string, string> = {
@@ -102,9 +102,7 @@ export function CampaignChangePanel({
       <div className="mb-5">
         <h2 className="font-display text-xl font-semibold">Campaign changes</h2>
         <p className="text-muted mt-1 text-sm">
-          {editable
-            ? "Ask to change the budget or dates. You'll see the effect before anything changes, and drivers' agreed pay stays the same."
-            : "Changes can only be requested while a campaign is approved, live or paused. Earlier requests are listed below."}
+          {editable ? "Request a budget or date change." : "Earlier requests are listed below."}
         </p>
       </div>
       {editable ? (
@@ -206,9 +204,7 @@ export function CampaignChangePanel({
               .filter(([field, value]) => value !== preview.before[field])
               .map(([field, value]) => (
                 <div key={field}>
-                  <dt className="micro text-muted">
-                    {fieldLabel[field] ?? field.replaceAll("_", " ")}
-                  </dt>
+                  <dt className="micro text-muted">{fieldLabel[field] ?? "Other change"}</dt>
                   <dd className="mt-1 font-mono text-xs break-all">
                     {field.endsWith("budget_amount")
                       ? formatMoney(preview.before[field] as string, currency)
@@ -220,18 +216,6 @@ export function CampaignChangePanel({
                   </dd>
                 </div>
               ))}
-            <div>
-              <dt className="micro text-muted">Extra driver pay this could need</dt>
-              <dd className="mt-1 font-mono text-xs">
-                {formatMoney(preview.requested_liability_amount, preview.currency)}
-              </dd>
-            </div>
-            <div>
-              <dt className="micro text-muted">Driver pay your recorded funding still covers</dt>
-              <dd className="mt-1 font-mono text-xs">
-                {formatMoney(preview.available_liability_amount, preview.currency)}
-              </dd>
-            </div>
           </dl>
           <form
             action={confirmAction}
@@ -285,9 +269,6 @@ export function CampaignChangePanel({
                 </StatusChip>
                 <span className="micro text-faint">{formatDate(request.created_at)}</span>
               </div>
-              <p className="text-muted mt-2 text-sm">
-                Additional driver pay {formatMoney(request.requested_liability_amount, currency)}
-              </p>
               {request.review_reason ? (
                 <p className="mt-1 text-sm">Decision: {request.review_reason}</p>
               ) : null}

@@ -373,7 +373,7 @@ payment that authorises production; standard production waits until it
 closes. An advertiser may ask for earlier production through a recorded
 waiver, which ends refund eligibility once production starts. Cancelling stops
 new work at a fixed cutoff, and drivers are paid their verified earnings up to
-that moment (Q24, D20b). Advertisers ask Terrax Media to cancel instead of
+that moment (Q24, D20b, D153). Earlier-start consent uses version `advertiser-expedited-v2`: "I want production to start early. I understand I can't get a refund once it starts." Advertisers ask Terrax Media to cancel instead of
 performing permanent self-service cancellation (D97/REQ-184). A cancellation
 request requires their own campaign and a reason; sending or resolving it does
 not itself cancel the campaign. Phase 1 removes the old screen control and
@@ -384,6 +384,7 @@ with a required reason and confirmation. The same financial cutoff rules apply;
 a linked request receives a fixed reply atomically and is not auto-resolved.
 
 **History:**
+- **2026-11-03** — Plain-language preview instruction replaces the version-1 earlier-start consent with `advertiser-expedited-v2` and a new exact-wording hash (D153, REQ-288). The previous wording requested expedited production and described refund eligibility ending when it actually starts. The trigger remains actual production start; no migration or existing receipt rewrite.
 - **2026-08-14** — Client confirmed the window and waiver (Q24, D18, D20).
 - **2026-10-19** — Owner specifies D97's staff integration: reason1–1000, explicit effect confirmation, same request identity on retry and optional same-campaign cancellation thread; the backend performs the existing cutoff and atomic reply. The request itself and support resolution remain separate from cancellation. Phase 2 source/integration is in progress; no completion or deployment claim.
 - **2026-10-18** — Owner accepts audit D7: Ask Terrax to cancel, with recognisable cancellation-request labels and confirmation that the campaign continues until Terrax confirms (D97/REQ-184). Earlier advertiser UI directly executed permanent cancellation. Cutoff, earnings and refund authority remain unchanged; backend/category integration is Phase 2.

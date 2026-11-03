@@ -26,7 +26,17 @@ const settlementLabel: Record<string, string> = {
 };
 
 function words(value: string) {
-  return value.replaceAll("_", " ");
+  return (
+    (
+      {
+        issued: "Issued",
+        credit_note: "Credit note",
+        debit_note: "Extra charge",
+        refund_recorded: "Refund",
+        credit_settlement_recorded: "Closed without a refund",
+      } as Record<string, string>
+    )[value] ?? "Other"
+  );
 }
 
 /** An issued invoice that still has money owing on it. */
@@ -81,12 +91,7 @@ export function InvoicePayForm({
       >
         Pay invoice online
       </button>
-      {showNote ? (
-        <p className="text-muted mt-2 text-sm">
-          Card or bank transfer through Paystack. The invoice shows as paid once Paystack confirms
-          the payment.
-        </p>
-      ) : null}
+      {showNote ? <p className="text-muted mt-2 text-sm">Pay by card or bank transfer.</p> : null}
     </form>
   );
 }

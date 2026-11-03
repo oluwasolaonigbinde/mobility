@@ -139,13 +139,11 @@ describe("AdvertiserBillingPage", () => {
     expect(within(toPay).getByText("of ₦250,000.00")).toBeInTheDocument();
     expect(within(toPay).getByText("₦100,000.00 paid so far")).toBeInTheDocument();
     expect(within(toPay).getByRole("button", { name: "Pay invoice online" })).toBeInTheDocument();
-    expect(within(toPay).getAllByText(/Card or bank transfer through Paystack/)).toHaveLength(1);
+    expect(within(toPay).getAllByText(/Pay by card or bank transfer/)).toHaveLength(1);
     const payForm = within(toPay)
       .getByRole("button", { name: "Pay invoice online" })
       .closest("form")!;
-    expect(
-      within(payForm).queryByText(/Card or bank transfer through Paystack/),
-    ).not.toBeInTheDocument();
+    expect(within(payForm).queryByText(/Pay by card or bank transfer/)).not.toBeInTheDocument();
     const invoiceHistory = screen.getByRole("region", { name: "Invoice history" });
     expect(within(invoiceHistory).getByRole("link", { name: "Lunch Routes" })).toBeInTheDocument();
     expect(within(invoiceHistory).queryByRole("button")).not.toBeInTheDocument();
@@ -202,11 +200,7 @@ describe("AdvertiserBillingPage", () => {
     expect(
       within(payments).getByText("Paid towards: a campaign's accepted quotation · ₦100,000.00"),
     ).toBeInTheDocument();
-    expect(
-      within(payments).getAllByText(
-        "Not yet matched to a campaign – production cannot start from this payment.",
-      ),
-    ).toHaveLength(2);
+    expect(within(payments).getAllByText("Not yet added to a campaign.")).toHaveLength(2);
     expect(
       within(payments).getByText("Reversed – this payment no longer counts towards any campaign."),
     ).toBeInTheDocument();
@@ -226,17 +220,9 @@ describe("AdvertiserBillingPage", () => {
   });
 
   it.each([
-    ["confirmed", "Payment confirmed", "The verified payment is being applied to the invoice."],
-    [
-      "failed",
-      "Paystack did not complete the payment",
-      "No payment is treated as complete until Paystack confirms it.",
-    ],
-    [
-      "pending",
-      "Payment confirmation is still pending",
-      "No payment is treated as complete until Paystack confirms it.",
-    ],
+    ["confirmed", "Payment confirmed", "We're adding your payment to the invoice."],
+    ["failed", "Paystack did not complete the payment", "Your payment hasn't been confirmed yet."],
+    ["pending", "Payment confirmation is still pending", "Your payment hasn't been confirmed yet."],
     ["error", "Online payment could not be opened", "Please try again from the invoice."],
   ])("explains a %s Paystack return in plain language", async (payment, heading, message) => {
     mockBilling([]);
@@ -340,7 +326,7 @@ describe("AdvertiserBillingPage money rules", () => {
     const toPay = screen.getByRole("region", { name: "To pay" });
     expect(within(toPay).getByText("Invoice INV-USD")).toBeInTheDocument();
     expect(within(toPay).getAllByRole("button", { name: "Pay invoice online" })).toHaveLength(1);
-    expect(within(toPay).getAllByText(/Card or bank transfer through Paystack/)).toHaveLength(1);
+    expect(within(toPay).getAllByText(/Pay by card or bank transfer/)).toHaveLength(1);
   });
 
   it("shows no Paystack note when only non-NGN invoices are owed", async () => {

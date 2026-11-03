@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     (transactionReference !== "" && transactionReference !== reference)
   ) {
     destination.searchParams.set("payment", "error");
-    destination.searchParams.set("message", "Paystack returned an invalid payment reference.");
+    destination.searchParams.set("message", "We couldn't find this payment. Check your invoices.");
     return NextResponse.redirect(destination);
   }
   try {
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     if (!(caught instanceof ApiError && caught.code === "PAYMENT_NOT_FINAL")) {
       destination.searchParams.set(
         "message",
-        "Cardvert could not verify this payment yet. No unverified payment was applied.",
+        "We couldn't confirm this payment yet. Check back shortly.",
       );
     }
   }

@@ -145,8 +145,8 @@ export default async function AdvertiserBillingPage({
           <p className="text-muted mt-1 text-sm">
             {paymentResult.message ??
               (paymentResult.payment === "confirmed"
-                ? "The verified payment is being applied to the invoice."
-                : "No payment is treated as complete until Paystack confirms it.")}
+                ? "We're adding your payment to the invoice."
+                : "Your payment hasn't been confirmed yet.")}
           </p>
         </Panel>
       ) : null}
@@ -160,10 +160,7 @@ export default async function AdvertiserBillingPage({
         {outstanding.some(
           ({ invoice }) => invoice.currency === "NGN" && invoice.online_payment_available,
         ) ? (
-          <p className="text-muted mb-3 text-sm">
-            Card or bank transfer through Paystack. The invoice shows as paid once Paystack confirms
-            the payment.
-          </p>
+          <p className="text-muted mb-3 text-sm">Pay by card or bank transfer.</p>
         ) : null}
         {outstanding.some(
           ({ invoice }) => invoice.currency === "NGN" && !invoice.online_payment_available,
@@ -228,7 +225,9 @@ export default async function AdvertiserBillingPage({
                   <li key={entry.receipt.id} className="px-6 py-5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <p className="font-mono text-sm">{entry.receipt.external_transaction_id}</p>
+                        <p className="font-mono text-sm">
+                          Reference: {entry.receipt.external_transaction_id}
+                        </p>
                         <p className="text-muted mt-1 text-sm">
                           {entry.receipt.payer_name} · {formatDate(entry.receipt.observed_at)}
                         </p>
@@ -246,8 +245,7 @@ export default async function AdvertiserBillingPage({
                                 : "amber"
                           }
                         >
-                          {receiptStatusLabel[entry.current_status ?? "observed"] ??
-                            entry.current_status}
+                          {receiptStatusLabel[entry.current_status ?? "observed"] ?? "Other"}
                         </StatusChip>
                       </div>
                     </div>
@@ -265,9 +263,7 @@ export default async function AdvertiserBillingPage({
                         ))}
                       </ul>
                     ) : (
-                      <p className="text-muted mt-3 text-sm">
-                        Not yet matched to a campaign – production cannot start from this payment.
-                      </p>
+                      <p className="text-muted mt-3 text-sm">Not yet added to a campaign.</p>
                     )}
                   </li>
                 );

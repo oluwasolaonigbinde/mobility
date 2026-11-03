@@ -30,7 +30,7 @@ describe("Paystack return route", () => {
       expect(destination.pathname).toBe("/advertiser/billing");
       expect(destination.searchParams.get("payment")).toBe("error");
       expect(destination.searchParams.get("message")).toBe(
-        "Paystack returned an invalid payment reference.",
+        "We couldn't find this payment. Check your invoices.",
       );
       expect(mocks.post).not.toHaveBeenCalled();
     },
@@ -74,7 +74,7 @@ describe("Paystack return route", () => {
 
     expect(destination.searchParams.get("payment")).toBe("error");
     expect(destination.searchParams.get("message")).toBe(
-      "Cardvert could not verify this payment yet. No unverified payment was applied.",
+      "We couldn't confirm this payment yet. Check back shortly.",
     );
   });
 });

@@ -77,13 +77,14 @@ const campaignActionErrors = {
   INVALID_CAMPAIGN_WINDOW: "The campaign start must remain before its end.",
   INVALID_CAMPAIGN_BUDGET: "The daily budget cannot exceed the total budget.",
   CAMPAIGN_CHANGE_STALE: "Campaign details changed. Preview the change again.",
-  CAMPAIGN_CHANGE_PREVIEW_STALE: "Funding or review facts changed. Preview the change again.",
+  CAMPAIGN_CHANGE_PREVIEW_STALE: "Something changed. Preview the change again.",
   CAMPAIGN_CHANGE_RETRY_CONFLICT: "This confirmation no longer matches the preview. Preview again.",
   CAMPAIGN_REVIEW_STATE_CONFLICT: "The campaign state changed. Refresh and try again.",
   CAMPAIGN_INCOMPLETE_FOR_REVIEW:
     "Add start and end dates, a total budget and at least one target area before submitting for review.",
-  CREATIVE_REVIEW_STATE_CONFLICT: "The creative state changed. Refresh and try again.",
-  CREATIVE_FILE_NOT_CLEARED: "The creative file is not ready for review.",
+  CREATIVE_REVIEW_STATE_CONFLICT:
+    "This artwork has changed. Refresh the page. Refresh and try again.",
+  CREATIVE_FILE_NOT_CLEARED: "Your artwork file isn't ready yet.",
 } as const;
 
 function safeCampaignError(error: unknown, fallback: string) {
@@ -126,7 +127,7 @@ export async function updateCampaignDetailsAction(
 ): Promise<CampaignEditState> {
   const campaignId = String(formData.get("campaign_id") ?? "");
   if (!z.uuid().safeParse(campaignId).success) {
-    return { error: "This campaign reference is invalid." };
+    return { error: "Something went wrong. Refresh and try again." };
   }
   const submitted = Object.fromEntries(
     EDITABLE_FIELDS.map((field) => [field, String(formData.get(field) ?? "")]),
@@ -184,7 +185,9 @@ export async function previewCampaignChangeAction(
     reason: String(formData.get("reason") ?? ""),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid campaign change request." };
+    return {
+      error: parsed.error.issues[0]?.message ?? "Something went wrong. Refresh and try again.",
+    };
   }
   const body = {
     reason: parsed.data.reason,
@@ -280,7 +283,7 @@ export async function submitCampaignForReviewAction(
     campaignId: String(formData.get("campaign_id") ?? ""),
   });
   if (!parsed.success) {
-    return { error: "Invalid campaign review request." };
+    return { error: "Something went wrong. Refresh and try again." };
   }
 
   try {
@@ -307,7 +310,7 @@ export async function submitCreativeForReviewAction(
     creativeId: String(formData.get("creative_id") ?? ""),
   });
   if (!parsed.success) {
-    return { error: "Invalid creative review request." };
+    return { error: "Something went wrong. Refresh and try again." };
   }
 
   try {
@@ -322,7 +325,7 @@ export async function submitCreativeForReviewAction(
     });
   } catch (error) {
     unstable_rethrow(error);
-    return { error: safeCampaignError(error, "Could not submit the creative. Try again.") };
+    return { error: safeCampaignError(error, "Could not submit the artwork. Try again.") };
   }
 
   revalidatePath(`/advertiser/campaigns/${parsed.data.campaignId}`);
@@ -341,7 +344,7 @@ export async function replaceCreativeAndSubmitAction(
     creativeType: String(formData.get("creative_type") ?? ""),
   });
   if (!parsed.success) {
-    return { error: "Upload and clear replacement artwork before submitting." };
+    return { error: "Upload your new artwork and wait for its check to finish." };
   }
 
   const api = createApiClient(await getSessionToken());
@@ -363,10 +366,7 @@ export async function replaceCreativeAndSubmitAction(
   } catch (error) {
     unstable_rethrow(error);
     return {
-      error: safeCampaignError(
-        error,
-        "The artwork result is not yet confirmed. Retry to safely continue the same replacement.",
-      ),
+      error: safeCampaignError(error, "We couldn't confirm your artwork. Try again."),
     };
   }
 

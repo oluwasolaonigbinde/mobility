@@ -60,10 +60,10 @@ export default async function AdvertiserOverviewPage() {
           </h1>
           <p className="mt-3 mb-5 text-base leading-7 text-[#e4f0df] md:text-lg">
             {empty
-              ? "Set up your first campaign to get your brand on the road."
+              ? "Set up your first campaign."
               : inventory.available
                 ? `${formatCount(campaigns.length)} ${campaigns.length === 1 ? "campaign is" : "campaigns are"} running.`
-                : "Your campaigns, out in the city."}
+                : "Your campaigns."}
           </p>
           <Link href="/advertiser/campaigns/new" className="brand-action">
             {empty ? "Start your first campaign" : "Start a new campaign"}{" "}

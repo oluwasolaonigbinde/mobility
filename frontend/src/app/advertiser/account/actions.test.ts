@@ -46,7 +46,7 @@ it("redirects with safe copy for an unmapped refusal or transport failure", asyn
     }),
   );
   await expect(updateCompanyAction(form())).rejects.toThrow(
-    `REDIRECT /advertiser/account?error=${encodeURIComponent("The request could not be completed. Check the details and try again.")}`,
+    `REDIRECT /advertiser/account?error=${encodeURIComponent("That didn't work. Please try again.")}`,
   );
   mocks.patch.mockRejectedValue(new Error("network"));
   await expect(updateCompanyAction(form())).rejects.toThrow(

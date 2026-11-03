@@ -107,7 +107,7 @@ describe("updateCampaignDetailsAction", () => {
   it("does not send a malformed campaign reference", async () => {
     await expect(
       updateCampaignDetailsAction({}, editForm({ name: "New" }, "not-a-uuid")),
-    ).resolves.toEqual({ error: "This campaign reference is invalid." });
+    ).resolves.toEqual({ error: "Something went wrong. Refresh and try again." });
     expect(mocks.patch).not.toHaveBeenCalled();
   });
 
@@ -143,7 +143,7 @@ describe("submitCampaignForReviewAction", () => {
 
   it("does not submit malformed campaign identifiers", async () => {
     await expect(submitCampaignForReviewAction({}, submitForm("not-a-uuid"))).resolves.toEqual({
-      error: "Invalid campaign review request.",
+      error: "Something went wrong. Refresh and try again.",
     });
     expect(mocks.post).not.toHaveBeenCalled();
   });
@@ -152,7 +152,7 @@ describe("submitCampaignForReviewAction", () => {
     mocks.post.mockRejectedValue(
       new ApiError(409, {
         code: "CAMPAIGN_REVIEW_STATE_CONFLICT",
-        message: "Campaign review state changed. Refresh and try again.",
+        message: "This campaign has changed. Refresh the page. Refresh and try again.",
       }),
     );
 
@@ -203,7 +203,7 @@ describe("submitCreativeForReviewAction", () => {
   it("does not submit malformed creative identifiers", async () => {
     await expect(
       submitCreativeForReviewAction({}, creativeSubmitForm(CAMPAIGN_ID, "not-a-uuid")),
-    ).resolves.toEqual({ error: "Invalid creative review request." });
+    ).resolves.toEqual({ error: "Something went wrong. Refresh and try again." });
     expect(mocks.post).not.toHaveBeenCalled();
   });
 
@@ -216,7 +216,7 @@ describe("submitCreativeForReviewAction", () => {
     );
 
     await expect(submitCreativeForReviewAction({}, creativeSubmitForm())).resolves.toEqual({
-      error: "The creative state changed. Refresh and try again.",
+      error: "This artwork has changed. Refresh the page. Refresh and try again.",
     });
   });
 });
@@ -503,7 +503,7 @@ describe("campaign action failure and partial-input paths", () => {
     for (const [name, value] of Object.entries(fields)) form.set(name, value);
 
     await expect(replaceCreativeAndSubmitAction({}, form)).resolves.toEqual({
-      error: "Upload and clear replacement artwork before submitting.",
+      error: "Upload your new artwork and wait for its check to finish.",
     });
     expect(mocks.patch).not.toHaveBeenCalled();
     expect(mocks.post).not.toHaveBeenCalled();
@@ -518,7 +518,7 @@ describe("campaign action failure and partial-input paths", () => {
     form.set("creative_type", "pdf");
 
     await expect(replaceCreativeAndSubmitAction({}, form)).resolves.toEqual({
-      error: "The creative file is not ready for review.",
+      error: "Your artwork file isn't ready yet.",
     });
     expect(mocks.post).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();

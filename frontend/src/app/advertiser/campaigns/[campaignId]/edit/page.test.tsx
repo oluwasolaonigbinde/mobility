@@ -54,7 +54,9 @@ describe("EditCampaignPage", () => {
     render(await EditCampaignPage(input));
 
     expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
-    expect(screen.getByText(/reviewed change request/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/To change a running campaign, use Request a change/),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back to the campaign" })).toHaveAttribute(
       "href",
       `/advertiser/campaigns/${CAMPAIGN_ID}`,

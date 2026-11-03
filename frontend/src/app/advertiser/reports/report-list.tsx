@@ -101,7 +101,7 @@ export function Reports({
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const body = (await response.json()) as { error?: { message?: string } };
+      await response.json();
       if (!response.ok) {
         if (response.status >= 400 && response.status < 500) {
           setPending(null);
@@ -111,7 +111,7 @@ export function Reports({
             /* optional */
           }
         }
-        throw new Error(body.error?.message || "Report could not be requested");
+        throw new Error("We couldn't confirm this request. Check the list before trying again.");
       }
       setPending(null);
       try {
@@ -126,7 +126,7 @@ export function Reports({
       setMessage(
         error instanceof Error
           ? error.message
-          : "The result is uncertain. Check this request again.",
+          : "We couldn't confirm your request. Check the list before trying again.",
       );
     } finally {
       setBusy(false);
@@ -193,7 +193,7 @@ export function Reports({
           <p role="status" className="text-muted text-sm">
             {message ||
               (restored
-                ? "A previous request needs checking. Check it before creating another report."
+                ? "Check your last request before sending another. Check it before creating another report."
                 : "")}
           </p>
           <p className="text-muted max-w-3xl text-sm leading-relaxed">

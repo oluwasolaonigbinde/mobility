@@ -65,7 +65,7 @@ describe("commercial advertiser feedback", () => {
     expect(result).toEqual({
       error:
         failure === "missing receipt"
-          ? "The accepted terms receipt is unavailable. Try again."
+          ? "Your accepted quotation can't be shown right now. Try again."
           : "Could not accept the quotation. Try again.",
     });
     expect(mocks.refresh).not.toHaveBeenCalled();

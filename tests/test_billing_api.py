@@ -269,12 +269,11 @@ def test_commercial_api_journey_is_tenant_scoped_and_uses_canonical_cash(
     assert snapshot.status_code == 200, snapshot.text
     assert snapshot.json()["terms"]["id"] == terms_id
     canonical_wording = (
-        "I request expedited production and understand refund eligibility ends only when "
-        "expedited production actually starts."
+        "I want production to start early. I understand I can't get a refund once it starts."
     )
     canonical_copy = snapshot.json()["expedited_waiver_copy"]
     assert canonical_copy == {
-        "wording_version": "advertiser-expedited-v1",
+        "wording_version": "advertiser-expedited-v2",
         "accepted_wording": canonical_wording,
         "accepted_wording_hash": hashlib.sha256(canonical_wording.encode()).hexdigest(),
     }

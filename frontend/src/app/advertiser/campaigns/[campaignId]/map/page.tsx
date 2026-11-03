@@ -51,8 +51,11 @@ export default async function CampaignMapPage({
       {result.available ? (
         <>
           <PerformanceAreas areas={result.data.areas} />
-          <p className="text-muted mt-4 text-sm">{result.data.completeness}</p>
-          <p className="text-muted mt-2 text-sm">{result.data.uncertainty}</p>
+          <p className="text-muted mt-4 text-sm">
+            Some recent trips may not be counted yet. Areas with fewer than three cars aren&apos;t
+            shown.
+          </p>
+          <p className="text-muted mt-2 text-sm">Views are estimates.</p>
         </>
       ) : (
         <DataUnavailable

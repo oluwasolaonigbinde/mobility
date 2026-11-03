@@ -101,9 +101,9 @@ describe("CreativeStatusActions", () => {
     await user.click(screen.getByRole("button", { name: "Resubmit current artwork" }));
     expect(await screen.findByRole("button", { name: "Submitting…" })).toBeDisabled();
 
-    finish({ error: "The creative state changed. Refresh and try again." });
+    finish({ error: "This artwork has changed. Refresh the page. Refresh and try again." });
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "The creative state changed. Refresh and try again.",
+      "This artwork has changed. Refresh the page. Refresh and try again.",
     );
     expect(screen.getByRole("button", { name: "Resubmit current artwork" })).toBeEnabled();
     expect(screen.queryByText(/✓/)).not.toBeInTheDocument();
@@ -182,13 +182,13 @@ describe("CreativeStatusActions", () => {
 
   it("reuses the upload identity when the same file is retried after a failure", async () => {
     mocks.upload
-      .mockRejectedValueOnce(new Error("The security scan could not complete. Retry the upload."))
+      .mockRejectedValueOnce(new Error("We couldn't check this file. Try again. Retry the upload."))
       .mockResolvedValueOnce({ storedFileId: STORED_FILE_ID, creativeType: "image" });
     renderActions("rejected");
 
     chooseReplacement(wrap());
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "The security scan could not complete. Retry the upload.",
+      "We couldn't check this file. Try again. Retry the upload.",
     );
     expect(screen.queryByRole("button", { name: "Replace and submit" })).not.toBeInTheDocument();
 

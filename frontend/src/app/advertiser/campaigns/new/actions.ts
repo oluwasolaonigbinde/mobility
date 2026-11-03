@@ -31,16 +31,16 @@ export async function createCampaignAction(
   saveDraftOnly = false,
 ): Promise<CreateCampaignState> {
   if (existingCampaignId !== undefined && !z.uuid().safeParse(existingCampaignId).success) {
-    return { error: "The campaign recovery reference is invalid." };
+    return { error: "Something went wrong saving your campaign. Try again." };
   }
   if (campaignRequestId !== undefined && !z.uuid().safeParse(campaignRequestId).success) {
-    return { error: "The campaign request reference is invalid." };
+    return { error: "Something went wrong saving your campaign. Try again." };
   }
   // Server-side re-validation — the client schema is UX, this is the gate.
   const parsed = campaignWizardSchema.safeParse(input);
   if (!parsed.success) {
     const first = parsed.error.issues[0];
-    return { error: first ? `${first.path.join(".")}: ${first.message}` : "Invalid form data." };
+    return { error: first ? `${first.message}` : "Check the form and try again." };
   }
   const { basics, creatives } = parsed.data;
 
@@ -64,7 +64,7 @@ export async function createCampaignAction(
       });
       if (!data) {
         return {
-          error: "The campaign response was incomplete. Retry to safely check the same request.",
+          error: "Something went wrong saving your campaign. Try again.",
           campaignRequestId: stableRequestId,
         };
       }
@@ -80,9 +80,9 @@ export async function createCampaignAction(
           error,
           {
             CAMPAIGN_CREATE_IDEMPOTENCY_CONFLICT:
-              "This saved campaign request no longer matches the form. Start a fresh campaign.",
+              "This campaign could not be saved. Start a new campaign.",
           },
-          "The campaign result is not yet confirmed. Retry to safely check the same request.",
+          "Something went wrong saving your campaign. Try again.",
         ),
         campaignRequestId: stableRequestId,
       };

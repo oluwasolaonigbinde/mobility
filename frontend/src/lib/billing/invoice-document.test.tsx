@@ -112,7 +112,7 @@ describe("InvoiceDocument", () => {
     expect(screen.getByText("1 Test Road, Abuja, NG")).toBeVisible();
     expect(fact("Campaign")).toBe("October launch");
     expect(fact("Campaign duration")).toBe("1 October 2026 – 31 October 2026 (31 days)");
-    expect(fact("Payment arrangement")).toBe("Paid in full before production");
+    expect(fact("Payment arrangement")).toBe("Pay before production");
 
     const rows = within(screen.getByRole("table")).getAllByRole("row");
     expect(rows[1]).toHaveTextContent("1Mobile billboard campaign3₦100,000.00₦300,000.00");

@@ -97,9 +97,7 @@ describe("CommercialHistory", () => {
       screen.getByText(/^Refund: ₦20\.00 · Reversal settlement · .* · reference REF-100$/),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Pay invoice online" })).toBeInTheDocument();
-    expect(
-      screen.getByText(/The invoice shows as paid once Paystack confirms the payment/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Pay by card or bank transfer/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View invoice" })).toHaveAttribute(
       "href",
       "/advertiser/billing/00000000-0000-0000-0000-000000000002/invoices/00000000-0000-0000-0000-000000000001",

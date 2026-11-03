@@ -74,7 +74,7 @@ describe("uploadCreativeFile", () => {
         new File([new Uint8Array([1])], "wrap.png", { type: "image/png" }),
         () => undefined,
       ),
-    ).rejects.toThrow("The file request failed. Retry the upload.");
+    ).rejects.toThrow("The upload failed. Try again.");
   });
 
   it("resumes confirmation after its committed response is lost", async () => {
@@ -132,7 +132,7 @@ describe("uploadCreativeFile", () => {
         new File([new Uint8Array([1])], "bad.png", { type: "image/png" }),
         () => undefined,
       ),
-    ).rejects.toThrow("Malware was detected");
+    ).rejects.toThrow("This file failed our safety check.");
     await expect(
       uploadCreativeFile(
         new File([new Uint8Array([1])], "bad.mp4", { type: "video/mp4" }),

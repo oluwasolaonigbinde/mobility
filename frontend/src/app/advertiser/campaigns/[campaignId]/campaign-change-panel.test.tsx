@@ -49,6 +49,7 @@ describe("CampaignChangePanel", () => {
     expect(preview).toHaveTextContent("1 Nov 2026");
     expect(preview).toHaveTextContent("3 Nov 2026");
     expect(preview).not.toHaveTextContent("T00:00");
+    expect(preview).not.toHaveTextContent(/driver pay|liability/i);
   });
   beforeEach(() => {
     vi.clearAllMocks();
@@ -143,9 +144,7 @@ describe("CampaignChangePanel", () => {
 
     expect(screen.queryByRole("button", { name: "Preview change" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Reason")).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/only be requested while a campaign is approved, live or paused/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Earlier requests are listed below/)).toBeInTheDocument();
     expect(screen.getByText("Applied")).toBeInTheDocument();
   });
 

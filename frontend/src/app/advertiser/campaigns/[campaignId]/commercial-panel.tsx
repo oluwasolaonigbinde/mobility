@@ -22,8 +22,8 @@ const initialState: CommercialActionState = {};
 
 function paymentLabel(value: string) {
   return value === "standard_prepaid" || value === "prepaid_cash"
-    ? "Pay before the campaign starts"
-    : value === "approved_credit"
+    ? "Pay before production"
+    : value === "approved_credit" || value === "approved_corporate_credit"
       ? "Approved company credit"
       : termLabel(value);
 }
@@ -86,13 +86,13 @@ function QuotationFacts({ quotation, accepted }: { quotation: Quotation; accepte
   return (
     <div
       className="border-edge mt-4 rounded-lg border p-4"
-      aria-label={accepted ? "Accepted quotation receipt" : "Latest quotation for review"}
+      aria-label={accepted ? "Accepted quotation" : "Latest quotation for review"}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-medium">Quote {quotation.quote_reference}</p>
           <p className="micro text-muted mt-1">
-            {accepted ? "Accepted quotation receipt" : "Latest quotation for review"}
+            {accepted ? "Accepted quotation" : "Latest quotation for review"}
           </p>
         </div>
         {accepted ? <StatusChip tone="green">Accepted and fixed</StatusChip> : null}
@@ -152,7 +152,7 @@ function QuotationFacts({ quotation, accepted }: { quotation: Quotation; accepte
           <p className="mt-1 text-sm">{paymentLabel(quotation.payment_class)}</p>
         </div>
         <div>
-          <p className="micro text-muted">Production scope</p>
+          <p className="micro text-muted">What we&apos;ll produce</p>
           <div className="mt-1 break-words">
             <TermsValue value={quotation.production_scope} />
           </div>
@@ -267,7 +267,7 @@ export function CommercialPanel({
         {acceptedTerms ? (
           <div className="border-edge mt-5 grid gap-4 border-t pt-5 md:grid-cols-3">
             <div>
-              <p className="micro text-muted">Payment basis</p>
+              <p className="micro text-muted">How you&apos;ll pay</p>
               <p className="mt-1 text-sm">
                 {commercial.financial_authority
                   ? `${paymentLabel(commercial.financial_authority.authority_type)} · ${formatMoney(commercial.financial_authority.authorized_amount, commercial.financial_authority.currency)}`

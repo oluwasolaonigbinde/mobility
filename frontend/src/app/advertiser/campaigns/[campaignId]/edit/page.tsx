@@ -75,10 +75,7 @@ export default async function EditCampaignPage({
               This campaign is {statusLabel[campaign.status].toLowerCase()}, so its details can no
               longer be edited here.
             </p>
-            <p className="text-muted">
-              Approved and running campaigns change through a reviewed change request on the
-              campaign page.
-            </p>
+            <p className="text-muted">To change a running campaign, use Request a change.</p>
             <Link href={campaignHref} className="text-amber underline">
               Back to the campaign
             </Link>

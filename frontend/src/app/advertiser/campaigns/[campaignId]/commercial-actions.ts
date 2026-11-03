@@ -18,9 +18,10 @@ export interface CommercialActionState {
 const commercialErrors = {
   QUOTE_REQUEST_ALREADY_EXISTS: "A quotation request already exists for this campaign.",
   QUOTATION_REVISION_SUPERSEDED: "A newer quotation is available. Review it before accepting.",
-  COMMERCIAL_TERMS_ALREADY_ACCEPTED: "Commercial terms were already accepted for this campaign.",
+  COMMERCIAL_TERMS_ALREADY_ACCEPTED: "This quotation was already accepted.",
   QUOTATION_CURRENCY_MISMATCH: "The quotation currency no longer matches this campaign.",
-  EXPEDITED_WAIVER_COPY_MISMATCH: "The waiver wording changed. Refresh and review it again.",
+  EXPEDITED_WAIVER_COPY_MISMATCH:
+    "This wording has changed. Refresh and read it again. Refresh and review it again.",
 } as const;
 
 const campaignCommandSchema = z.object({ campaignId: z.string().uuid() });
@@ -78,7 +79,7 @@ export async function acceptQuoteAction(
       params: { path: { revision_id: parsed.data.revisionId } },
       body: { acceptance_method: "in_platform" },
     });
-    if (!data) return { error: "The accepted terms receipt is unavailable. Try again." };
+    if (!data) return { error: "Your accepted quotation can't be shown right now. Try again." };
     refresh();
     return {
       done: "Quotation accepted. Your accepted quotation is shown below.",
@@ -97,7 +98,10 @@ export async function acceptExpeditedWaiverAction(
   const parsed = campaignCommandSchema.safeParse({
     campaignId: String(formData.get("campaign_id") ?? ""),
   });
-  if (!parsed.success) return { error: "This waiver request is invalid. Refresh and try again." };
+  if (!parsed.success)
+    return {
+      error: "Your earlier-start request didn't go through. Try again. Refresh and try again.",
+    };
   try {
     const api = createApiClient(await getSessionToken());
     await api.POST("/api/v1/advertiser/campaigns/{campaign_id}/expedited-waiver", {
@@ -110,7 +114,12 @@ export async function acceptExpeditedWaiverAction(
     });
   } catch (error) {
     unstable_rethrow(error);
-    return { error: safeCommercialError(error, "Could not record the waiver. Try again.") };
+    return {
+      error: safeCommercialError(
+        error,
+        "Your earlier-start request didn't go through. Try again. Try again.",
+      ),
+    };
   }
   return { done: "Earlier production start agreed." };
 }

@@ -15,14 +15,14 @@ const ZONE_TYPES = ["target", "exclusion"] as const;
 
 const baseFields = {
   campaignId: z.string().uuid(),
-  name: z.string().trim().min(1, "Zone name is required").max(255),
+  name: z.string().trim().min(1, "Area name is required").max(255),
   zoneType: z.enum(ZONE_TYPES),
 };
 
 const createZoneSchema = z.object({
   ...baseFields,
   geometry: z.custom<ZoneGeometry>((g) => validateZoneGeometry(g).ok, {
-    message: "Invalid zone geometry",
+    message: "Draw the area again.",
   }),
 });
 
@@ -119,7 +119,7 @@ export async function deleteZoneAction(
   input: z.input<typeof deleteZoneSchema>,
 ): Promise<ZoneActionState> {
   const parsed = deleteZoneSchema.safeParse(input);
-  if (!parsed.success) return { error: "Invalid delete request" };
+  if (!parsed.success) return { error: "Something went wrong. Refresh and try again." };
   try {
     const api = createApiClient(await getSessionToken());
     await api.DELETE("/api/v1/advertiser/campaigns/{campaign_id}/zones/{zone_id}", {

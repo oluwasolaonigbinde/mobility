@@ -1516,7 +1516,7 @@ separate append-only production-authority event chain records either
 `standard_window_elapsed` or `advertiser_expedited_waiver`, the advertiser's
 request and waiver acceptance timestamps, the actor and accepted wording
 version, and the actual `production_started_at`. The waiver evidence is
-immutable and auditable; authorisation and production start are distinct facts.
+immutable and auditable; authorisation and production start are distinct facts. D153 / REQ-288 uses the plain `advertiser-expedited-v2` consent and its exact-wording hash, preserving that trigger and all existing authority checks.
 
 Rules: amounts are `Decimal` (strings on the wire, P6); invoices are immutable
 once issued (corrections = credit-note-style new rows); every state change
@@ -3535,6 +3535,7 @@ progress, with quotation/history behind Details and changes behind Manage.
 Retargeting moves to each campaign, with campaign-local reads/link mutations;
 Audience controls are removed by D115. Invoices gets a campaign landing.
 
+D152 / REQ-288/289 removes driver-pay amounts and narration from advertiser change previews and history. API fields and server preview/hash/funding checks are retained in this wording-only delivery; controller privacy review remains required.
 D95 displays only complete recorded total-basis billing evaluations matching
 current campaign budget/currency, with as-at time. Home aggregates running
 campaigns only, without currency mixing or payout-derived spending. Missing,
@@ -4068,6 +4069,7 @@ production/rehearsal and hardened environment requirements remain unchanged.
 These amendments are approved implementation scope, pending source verification.
 
 ## 34. Doc changelog
+- **v1.164 — 3 November 2026 (REQ-288/289, D152/153):** Advertiser change screens omit driver-pay details. Earlier-start consent uses plain version-2 wording; refund, funding and API authority remain unchanged. Controller review/CI pending.
 - **v1.163 — 3 November 2026 (REQ-288–294, D151):** Plain current product wording; raw driver support presentation removed, Phone check and copied readiness retained. Controller review/CI and physical-phone checks remain pending.
 - **v1.162 — 3 November 2026 (REQ-272–287, D148–150):** Record the bounded preview process fixes: payment availability, truthful unsent earnings/settlement and invoice balances, secure direct review-email continuation, quote-reference conflicts, safe report download names, map fallback and durable synthetic seeds. Staging seeding requires explicit opt-in without relaxing hardened configuration. B8, controller judgement under the owner's 3 Nov 2026 mandate, reported to the owner, takes 0–100% to four decimal places using exact decimal strings, including saved display, and confirms positive values below 1% once per save; the six-place stored rate, server checks and calculations stay unchanged. Implementation is local; final seed/rehearsal verification, controller reviews, CI and hosted/device evidence remain incomplete.
 

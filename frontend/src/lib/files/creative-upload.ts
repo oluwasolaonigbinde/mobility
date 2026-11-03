@@ -67,7 +67,7 @@ function forgetConfirmableUpload(clientRequestId: string): void {
 
 async function responseJson<T>(response: Response): Promise<T> {
   const body = (await response.json()) as T;
-  if (!response.ok) throw new Error("The file request failed. Retry the upload.");
+  if (!response.ok) throw new Error("The upload failed. Try again.");
   return body;
 }
 
@@ -78,10 +78,9 @@ async function sha256(file: File): Promise<string> {
 
 function scanFailure(status: StoredFile["scan_status"]): Error {
   if (status === "infected")
-    return new Error("Malware was detected. Remove this file and try another.");
-  if (status === "rejected")
-    return new Error("The file content does not match an allowed creative format.");
-  return new Error("The security scan could not complete. Retry the upload.");
+    return new Error("This file failed our safety check. Try another file.");
+  if (status === "rejected") return new Error("Use a PNG, JPEG, WebP or PDF file.");
+  return new Error("We couldn't check this file. Try again. Retry the upload.");
 }
 
 export async function uploadCreativeFile(
@@ -91,7 +90,7 @@ export async function uploadCreativeFile(
 ): Promise<{ storedFileId: string; creativeType: "image" | "pdf" }> {
   if (!ACCEPTED_TYPES.has(file.type)) throw new Error("Choose a PNG, JPEG, WebP or PDF file.");
   if (file.size <= 0 || file.size > MAX_CREATIVE_BYTES) {
-    throw new Error("Creative files must be larger than 0 bytes and no more than 25 MB.");
+    throw new Error("Files must be 25 MB or smaller.");
   }
 
   onPhase("hashing");
@@ -125,7 +124,7 @@ export async function uploadCreativeFile(
     for (const [name, value] of Object.entries(intent.upload.fields)) form.append(name, value);
     form.append("file", file);
     const uploaded = await fetch(intent.upload.url, { method: "POST", body: form });
-    if (!uploaded.ok) throw new Error("The private file upload failed. Retry the upload.");
+    if (!uploaded.ok) throw new Error("The upload failed. Try again. Retry the upload.");
     uploadId = intent.upload_id;
     rememberConfirmableUpload(clientRequestId, { fingerprint, uploadId });
   }

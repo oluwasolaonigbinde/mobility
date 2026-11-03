@@ -27,8 +27,8 @@ const paymentStatusLabel: Record<string, string> = {
 };
 
 const paymentClassLabel: Record<string, string> = {
-  standard_prepaid: "Paid in full before production",
-  approved_corporate_credit: "Approved corporate credit",
+  standard_prepaid: "Pay before production",
+  approved_corporate_credit: "Approved company credit",
 };
 
 function text(value: unknown): string | null {

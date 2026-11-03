@@ -20,12 +20,11 @@ from app.models.campaign import Campaign
 MONEY_QUANTUM = Decimal("0.01")
 
 
-EXPEDITED_WAIVER_WORDING_VERSION = "advertiser-expedited-v1"
+EXPEDITED_WAIVER_WORDING_VERSION = "advertiser-expedited-v2"
 
 
 EXPEDITED_WAIVER_WORDING = (
-    "I request expedited production and understand refund eligibility ends only when "
-    "expedited production actually starts."
+    "I want production to start early. I understand I can't get a refund once it starts."
 )
 
 

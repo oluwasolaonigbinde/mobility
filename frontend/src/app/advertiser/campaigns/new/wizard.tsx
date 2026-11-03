@@ -247,7 +247,7 @@ export function CampaignWizard({
               <input
                 id="c-name"
                 className={cx(inputClass, "mt-1.5")}
-                placeholder="e.g. Yello Season Q3"
+                placeholder="e.g. Abuja launch"
                 {...form.register("basics.name")}
               />
               {errors.basics?.name ? (
@@ -334,14 +334,7 @@ export function CampaignWizard({
 
             <div className="border-amber/30 bg-amber/10 rounded-lg border p-3.5 text-sm">
               <p className="font-medium">Saved as a draft</p>
-              <p className="text-muted mt-1">
-                Continue saves your draft, then you can choose its areas and advert design. Nothing
-                is sent for review or payment yet.
-              </p>
-              <p className="text-muted mt-1">
-                To submit for review, the campaign needs start and end dates, a total budget and at
-                least one target area. You can save a draft without them.
-              </p>
+              <p className="text-muted mt-1">Save your draft, then choose areas and artwork.</p>
             </div>
           </fieldset>
         ) : null}
@@ -388,7 +381,7 @@ export function CampaignWizard({
                     <input
                       id={`cr-name-${i}`}
                       className={cx(inputClass, "mt-1.5")}
-                      placeholder="e.g. Full wrap — amber"
+                      placeholder="e.g. Full wrap"
                       {...form.register(`creatives.${i}.name`)}
                     />
                     {errors.creatives?.[i]?.name ? (
