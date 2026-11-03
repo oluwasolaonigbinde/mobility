@@ -188,7 +188,7 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
   await adminCampaign(page, campaignName);
   await page.getByRole("button", { name: "Create invoice draft" }).click();
   await expect(page.getByText("Draft — no number assigned")).toBeVisible();
-  await expect(page.getByText("Current amount due")).toBeVisible();
+  await expect(page.getByText("Invoice total")).toBeVisible();
   await expect(page.getByText("Payment status")).toBeVisible();
 
   await page.context().clearCookies();

@@ -2,6 +2,12 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BatchActions, CreateBatchForm, MaskedDestination } from "./batch-forms";
+
+it("keeps an unsent run saved when payments are not connected", () => {
+  render(<BatchActions batchId="saved" status="reserved" approved providerReady={false} />);
+  expect(screen.queryByRole("button", { name: "Queue submission" })).not.toBeInTheDocument();
+  expect(screen.getByText("Run saved, not sent. Payments are not connected.")).toBeInTheDocument();
+});
 import type { EligiblePayment } from "./operation-types";
 
 const calls = vi.hoisted(() => ({

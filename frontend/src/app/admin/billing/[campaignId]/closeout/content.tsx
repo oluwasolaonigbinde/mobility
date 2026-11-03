@@ -71,7 +71,7 @@ export default async function MoneyCloseoutPage({
               [
                 ["Earned net", item.earned_net],
                 ["Ready for a payment run", item.unbatched_available],
-                ["Waiting for approval", item.reserved],
+                ["Saved, not sent yet", item.reserved],
                 ["Payments awaiting a provider result", item.in_flight],
                 ["Confirmed failed payments", item.terminal_failed],
                 ["Verified cash paid", item.cash_paid],

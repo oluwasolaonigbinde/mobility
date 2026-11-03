@@ -397,12 +397,14 @@ export function BatchActions({
   batchId,
   status,
   approved = false,
+  providerReady,
   query = {},
 }: {
   batchId: string;
   status: "reserved" | "reconciled" | "failed";
   /** An approved run stays reserved until it is sent; only approval needs a reason. */
   approved?: boolean;
+  providerReady?: boolean;
   query?: MoneyQuery;
 }) {
   const [state, action, pending] = useActionState(batchTransitionAction, initialState);
@@ -451,9 +453,15 @@ export function BatchActions({
           >
             Void reservation
           </Button>
-          <Button type="submit" name="intent" value="submit" formNoValidate disabled={pending}>
-            Queue submission
-          </Button>
+          {providerReady === false ? (
+            <p className="text-muted w-full text-sm">
+              Run saved, not sent. Payments are not connected.
+            </p>
+          ) : (
+            <Button type="submit" name="intent" value="submit" formNoValidate disabled={pending}>
+              Queue submission
+            </Button>
+          )}
         </>
       ) : (
         <>

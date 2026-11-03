@@ -1,6 +1,7 @@
 """Publish one deterministic pair; queue retries adopt the same immutable keys."""
 
 import hashlib
+import re
 from datetime import timedelta
 from uuid import uuid4
 
@@ -62,7 +63,10 @@ def _pair(report):
     ):
         checksum = hashlib.sha256(content).hexdigest()
         period = f"{report.snapshot['start_date']}-{report.snapshot['end_date']}"
-        filename = f"cardvert-{period}-{report.id}.{kind}"
+        campaigns = report.snapshot.get("campaigns", [])
+        name = campaigns[0]["name"] if len(campaigns) == 1 else "campaigns"
+        safe_name = re.sub(r"[^A-Za-z0-9_-]+", "-", name).strip("-_")[:60] or "campaign"
+        filename = f"cardvert-{safe_name}-{period}.{kind}"
         key = f"reports/{report.organization_id}/{report.id}/{checksum}.{kind}"
         artifacts.append(
             {

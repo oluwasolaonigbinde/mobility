@@ -67,6 +67,8 @@ describe("recorded campaign money position", () => {
     expect(screen.getByText("Verified cash paid: ₦10.01")).toBeVisible();
     expect(screen.getByText("Confirmed provider transfers: ₦20.02")).toBeVisible();
     expect(screen.getByText("Payments awaiting a provider result: ₦40.03")).toBeVisible();
+    expect(screen.getByText("Saved, not sent yet: ₦30.02")).toBeVisible();
+    expect(screen.queryByText(/Waiting for approval/)).not.toBeInTheDocument();
     expect(screen.getByText(/Recorded pay totals count each credit once/)).toBeVisible();
     expect(screen.queryByText(/Amount the driver owes/)).toBeNull();
     expect(screen.getByText("Physical removal requires evidence")).toBeVisible();

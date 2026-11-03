@@ -409,6 +409,7 @@ async def download_report(
         stored_file=file,
         actor_user_id=actor_user_id,
         access_purpose="report_download",
+        download_filename=file.original_filename,
         reason=reason,
         storage=storage,
         settings=settings,

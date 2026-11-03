@@ -6,6 +6,8 @@ import BatchDetailPage from "./[batchId]/content";
 import LineHistoryPage from "./[batchId]/lines/[lineId]/content";
 
 const mocks = vi.hoisted(() => ({ api: vi.fn(), role: vi.fn(), notFound: vi.fn() }));
+vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: async () => ({}) }) }));
+vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("./batch-api", () => ({ batchApi: mocks.api }));
 vi.mock("@/lib/auth/current-user", () => ({ requireRole: mocks.role }));
 vi.mock("next/navigation", async (importOriginal) => ({

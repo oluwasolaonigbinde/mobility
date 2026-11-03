@@ -9,6 +9,9 @@ const mapHandlers = vi.hoisted(() => new Map<string, () => void>());
 const deleteZoneAction = vi.hoisted(() => vi.fn());
 const drawHandlers = vi.hoisted(() => new Map<string, (id: string) => void>());
 const createZoneAction = vi.hoisted(() => vi.fn());
+const activeStyle = vi.hoisted(() =>
+  vi.fn((): string | object => "https://api.maptiler.com/maps/test/style.json"),
+);
 
 vi.mock("maplibre-gl", () => ({
   Map: mapConstructor,
@@ -22,6 +25,7 @@ vi.mock("terra-draw-maplibre-gl-adapter", () => ({
   TerraDrawMapLibreGLAdapter: adapterConstructor,
 }));
 vi.mock("@/lib/map/config", () => ({
+  activeMapStyle: activeStyle,
   LOCAL_SCHEMATIC_STYLE: { version: 8, sources: {}, layers: [] },
   DEFAULT_CENTER: [7.49, 9.07],
   DEFAULT_ZOOM: 11,
@@ -77,6 +81,7 @@ function fakeMap(source?: { setData: ReturnType<typeof vi.fn> }) {
       mapHandlers.set(event, typeof layerOrHandler === "function" ? layerOrHandler : handler!);
     }),
     remove: vi.fn(),
+    setStyle: vi.fn(),
   };
 }
 
@@ -92,6 +97,15 @@ function fakeDraw() {
 }
 
 describe("ZonesEditor MapLibre compatibility", () => {
+  it("uses the schematic when no map is configured", () => {
+    const style = { version: 8, sources: {}, layers: [] };
+    activeStyle.mockReturnValueOnce(style);
+    mapConstructor.mockImplementation(function () {
+      return fakeMap();
+    });
+    render(<ZonesEditor editable campaignId={zone.campaign_id} zones={[]} />);
+    expect(mapConstructor.mock.calls[0]![0].style).toEqual(style);
+  });
   beforeEach(() => {
     mapHandlers.clear();
     drawHandlers.clear();
@@ -110,7 +124,7 @@ describe("ZonesEditor MapLibre compatibility", () => {
     });
     render(<ZonesEditor campaignId={zone.campaign_id} zones={[zone]} editable={false} />);
     expect(screen.getByText(zone.name)).toBeVisible();
-    expect(screen.getByText("Your saved areas on this preview map.")).toBeVisible();
+    expect(screen.getByText("Your saved campaign areas.")).toBeVisible();
     expect(screen.queryByText("Draw your areas on this simple preview map.")).toBeNull();
     expect(screen.queryByRole("button", { name: "Draw area" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
@@ -131,7 +145,11 @@ describe("ZonesEditor MapLibre compatibility", () => {
     render(<ZonesEditor editable campaignId={zone.campaign_id} zones={[zone]} />);
 
     expect(mapConstructor).toHaveBeenCalledOnce();
-    expect(mapConstructor.mock.calls[0]![0].style).toEqual({ version: 8, sources: {}, layers: [] });
+    expect(mapConstructor.mock.calls[0]![0].style).toBe(
+      "https://api.maptiler.com/maps/test/style.json",
+    );
+    act(() => mapHandlers.get("error")?.());
+    expect(map.setStyle).toHaveBeenCalledWith({ version: 8, sources: {}, layers: [] });
     expect(navigationControl).toHaveBeenCalledWith({ showCompass: false });
     expect(map.addControl).toHaveBeenCalledWith(navigationControl.mock.instances[0], "top-right");
 
@@ -265,7 +283,7 @@ it("keeps an empty read-only map honest without drawing instructions", () => {
     return fakeMap();
   });
   render(<ZonesEditor campaignId={zone.campaign_id} zones={[]} editable={false} />);
-  expect(screen.getByText("Your saved areas on this preview map.")).toBeVisible();
+  expect(screen.getByText("Your saved campaign areas.")).toBeVisible();
   expect(screen.getByText("No areas recorded.")).toBeVisible();
   expect(screen.queryByText(/Draw your/)).not.toBeInTheDocument();
 });

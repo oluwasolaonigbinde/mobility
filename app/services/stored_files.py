@@ -884,6 +884,7 @@ async def _issue_download(
     storage: StorageProvider,
     settings: Settings,
     access_expires_at: datetime | None = None,
+    download_filename: str | None = None,
 ) -> PresignedGet:
     _require_cleared(stored_file)
     try:
@@ -922,6 +923,7 @@ async def _issue_download(
         download = await storage.presign_get(
             object_key=stored_file.storage_key,
             expires_in_seconds=expires_in_seconds,
+            **({"download_filename": download_filename} if download_filename else {}),
         )
     except StorageObjectNotFound:
         raise _error(

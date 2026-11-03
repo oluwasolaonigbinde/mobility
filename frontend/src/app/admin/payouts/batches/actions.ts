@@ -54,8 +54,7 @@ export async function previewSelectionAction(
 }
 
 const moneyErrors: Record<string, string> = {
-  DISBURSEMENT_PROVIDER_UNAVAILABLE:
-    "Automated submission is not configured. No transfer is confirmed.",
+  DISBURSEMENT_PROVIDER_UNAVAILABLE: "Run saved, not sent. Payments are not connected.",
   PAYOUT_BATCH_NOT_APPROVED: "An admin must approve the payment run before submission.",
   PAYOUT_ENTRY_HELD: "A selected credit is now held for review. Refresh available earnings.",
   PAYOUT_ASSESSMENT_NOT_CURRENT:

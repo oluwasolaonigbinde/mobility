@@ -69,6 +69,37 @@ const commercial = {
 };
 
 describe("admin campaign billing page", () => {
+  it.each(["107500.00", "50000.00"])("shows the true balance after %s paid", async (funded) => {
+    get.mockImplementation(async (path: string) =>
+      path.endsWith("/commercial")
+        ? {
+            data: {
+              ...commercial,
+              invoices: [
+                {
+                  ...commercial.invoices[0],
+                  status: "issued",
+                  funded_amount: funded,
+                  payment_status: funded === "107500.00" ? "paid" : "partially_paid",
+                },
+              ],
+            },
+          }
+        : path === "/api/v1/admin/billing"
+          ? { data: [] }
+          : { data: campaign },
+    );
+    render(
+      await AdminCampaignBillingPage({
+        params: Promise.resolve({ campaignId: "campaign-1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    expect(screen.getByText("Invoice total").nextElementSibling).toHaveTextContent("₦107,500.00");
+    expect(screen.getByText("Balance due").nextElementSibling).toHaveTextContent(
+      funded === "107500.00" ? "₦0.00" : "₦57,500.00",
+    );
+  });
   beforeEach(() => {
     get.mockImplementation(async (path: string) => {
       if (path.endsWith("/commercial")) return { data: commercial };

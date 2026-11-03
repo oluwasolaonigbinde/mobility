@@ -268,9 +268,9 @@ async def _upsert_driver(session: AsyncSession, *, index: int, settings: Setting
 def _initial_campaign_window(kind: str, now: datetime) -> tuple[datetime, datetime]:
     midnight = datetime.combine(now.date(), time.min, tzinfo=UTC)
     if kind == "rolling":
-        return midnight - timedelta(days=40), midnight + timedelta(days=30)
+        return midnight - timedelta(days=40), midnight + timedelta(days=45)
     if kind == "paused":
-        return midnight - timedelta(days=45), midnight + timedelta(days=15)
+        return midnight - timedelta(days=45), midnight + timedelta(days=45)
     if kind == "completed":
         return midnight - timedelta(days=56), midnight - timedelta(days=29)
     return midnight + timedelta(days=7), midnight + timedelta(days=67)
@@ -506,7 +506,7 @@ async def _ensure_assignment(
         assigned_by_user_id=admin.id,
         status=status_value.value,
         offered_at=offered_at,
-        expires_at=min(offered_at + timedelta(days=1), cast(datetime, campaign.end_at))
+        expires_at=min(now + timedelta(days=45), cast(datetime, campaign.end_at))
         if is_offered
         else None,
         accepted_at=None if is_offered else offered_at + timedelta(minutes=10),
@@ -1585,7 +1585,7 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
                 description=description,
                 status="approved" if state == "cancelled" else state,
                 start_at=now + timedelta(days=7),
-                end_at=now + timedelta(days=21),
+                end_at=now + timedelta(days=45),
                 budget_amount=Decimal("1000000.00"),
                 daily_budget_amount=Decimal("50000.00"),
                 currency="NGN",
@@ -1828,7 +1828,7 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
                     driver_profile_id=profile.id,
                     vehicle_id=vehicle.id,
                     creative_id=creative.id,
-                    expires_at=offered_at + timedelta(days=1),
+                    expires_at=min(offered_at + timedelta(days=45), campaign.end_at),
                     notes="Collect the catering panels at the Wuse office on Friday.",
                 ),
             )
@@ -2164,7 +2164,6 @@ async def ensure_trip_review_work(session, *, graph, staff, settings):
 async def ensure_portal_payouts(session, *, graph, staff, settings):
     from app.models.disbursement import (
         PayoutAutomaticAlert,
-        PayoutAutomaticRun,
         PayoutBatch,
         PayoutLineReconciliationEvent,
     )
@@ -2257,15 +2256,6 @@ async def ensure_portal_payouts(session, *, graph, staff, settings):
             )
     from app.models.disbursement import PayoutBatchLine
 
-    existing_run = await session.scalar(
-        select(PayoutAutomaticRun.id)
-        .join(PayoutBatch, PayoutBatch.automatic_run_id == PayoutAutomaticRun.id)
-        .join(PayoutBatchLine, PayoutBatchLine.batch_id == PayoutBatch.id)
-        .where(PayoutBatchLine.bank_account_version_id == account.id)
-        .limit(1)
-    )
-    if existing_run is None:
-        await _prepare_automatic_batch(session, settings=settings)
     alert_key = uuid5(NAMESPACE_URL, "cardvert-preview:provider-alert")
     if not await session.get(PayoutAutomaticAlert, alert_key):
         _require_unavailable_payout_provider()
@@ -2373,43 +2363,6 @@ async def _ensure_payout_review_history(session, *, graph, staff, settings):
             reason="Finance has checked the bank advice; transfers can continue.",
             actor_user_id=staff[4].id,
         )
-
-
-async def _prepare_automatic_batch(session, *, settings):
-    from sqlalchemy import event
-
-    from app.adapters.disbursement import FakeDisbursementAdapter
-    from app.models.disbursement import (
-        PayoutAutomaticRun,
-        PayoutBatch,
-        PayoutBatchLine,
-        PayoutSubmissionIntent,
-    )
-    from app.services.automatic_payouts import run_automatic_payouts
-
-    moment = utc_now()
-
-    models = (PayoutAutomaticRun, PayoutBatch, PayoutBatchLine, PayoutSubmissionIntent, AuditEvent)
-
-    def record_creation_time(seed_session, _flush_context, _instances):
-        for target in seed_session.new:
-            if isinstance(target, models):
-                target.created_at = moment
-
-    event.listen(session.sync_session, "before_flush", record_creation_time)
-    adapter = FakeDisbursementAdapter()
-    try:
-        result = await run_automatic_payouts(
-            session,
-            settings=settings,
-            adapter=adapter,
-            now=moment,
-        )
-    finally:
-        event.remove(session.sync_session, "before_flush", record_creation_time)
-    assert not adapter.calls
-    if result["outcome"] != "completed" or not result.get("batch_count"):
-        raise ValueError(f"The lunch-route automatic payout did not prepare: {result['outcome']}")
 
 
 SEED_UNREAD_NOTICE_PREFIX = "cardvert-preview:notice:"

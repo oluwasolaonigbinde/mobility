@@ -9,6 +9,8 @@ import { moneyHref, moneyPage, type MoneyQuery } from "../../../money/navigation
 import { paymentRunStatus } from "@/lib/status/admin";
 import { formatDateTime, formatMoneyExact } from "@/lib/format";
 import { batchApi } from "../batch-api";
+import { createApiClient } from "@/lib/api/client";
+import { getSessionToken } from "@/lib/auth/session";
 import { BatchActions, CreateBatchForm, MaskedDestination, PollLineAction } from "../batch-forms";
 import {
   outcomeLabel,
@@ -39,6 +41,10 @@ export default async function BatchDetailPage({
   const batch = detail.summary;
   if (batch.id !== batchId) return <QueueUnavailable />;
   const automatic = batch.approval_mode === "automatic";
+  const payoutStatus = await createApiClient(await getSessionToken())
+    .GET("/api/v1/admin/payouts/automatic/status")
+    .then((result) => result.data)
+    .catch(adminValueFailure);
   const credits =
     batch.status === "draft" && batch.created_by_user_id === me.user.id
       ? await batchApi<Page<EligiblePayment>>(
@@ -110,6 +116,7 @@ export default async function BatchDetailPage({
             batchId={batchId}
             status={batch.status}
             approved={Boolean(batch.approved_at)}
+            providerReady={payoutStatus?.provider_ready}
             query={query}
           />
         ) : null}

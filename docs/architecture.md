@@ -4068,6 +4068,7 @@ production/rehearsal and hardened environment requirements remain unchanged.
 These amendments are approved implementation scope, pending source verification.
 
 ## 34. Doc changelog
+- **v1.162 — 3 November 2026 (REQ-272–287, D148–150):** Record the bounded preview process fixes: payment availability, truthful unsent earnings/settlement and invoice balances, secure direct review-email continuation, quote-reference conflicts, safe report download names, map fallback and durable synthetic seeds. Staging seeding requires explicit opt-in without relaxing hardened configuration. B8 remains NEEDS ANSWER because the existing six-decimal VAT rule permits 0.075%; no new minimum is invented. Implementation is local; final seed/rehearsal verification, controller reviews, CI and hosted/device evidence remain incomplete.
 
 - **v1.161 — 2 November 2026 (REQ-266/267):** Fix staff Money presentation before push: separate original earnings credit from current payable amount and enrich sparse blocked-payment alerts through existing linked payout records. The synthetic provider-alert fixture also links its actual reserved payment. Existing eligibility, selection totals, frozen payment amounts, alert deduplication and staff-only access remain. All three §9 baselines move for `ledger_amount`; focused PostgreSQL, rendered Money, preserved R14-B and API-to-React simulation checks pass. Evidence: `issues/testing/req266-267-money-presentation-2026-11-02.md`. Full CI/merge remain pending. No migration, provider call or launch-gate change.
 

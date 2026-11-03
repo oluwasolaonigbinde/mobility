@@ -5,6 +5,7 @@ import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { requireRole } from "@/lib/auth/current-user";
 import { receiptsAllocatedToTerms } from "@/lib/billing/history";
+import { moneyMinor, minorDecimal } from "@/lib/advertiser/budget-display";
 import { watCalendarDate } from "@/lib/billing/invoice-document";
 import { formatDate, formatMoney } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,8 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { QueueUnavailable } from "../../queue-search";
 import { readCampaign, readCampaignCommercial } from "../../entity-reads";
 import { recordRevisionAction } from "./actions";
+import { QuotationForm } from "./quotation-form";
+
 import {
   createInvoiceAction,
   issueInvoiceAction,
@@ -144,7 +147,7 @@ export default async function AdminCampaignBillingPage({
             </dl>
           ) : null}
           {!commercial.terms && commercial.quote_request && revisionAction ? (
-            <form action={revisionAction} className="mt-4 grid gap-4">
+            <QuotationForm action={revisionAction}>
               <input
                 type="hidden"
                 name="previous_production_scope"
@@ -273,7 +276,7 @@ export default async function AdminCampaignBillingPage({
                 required
               />
               <Button type="submit">Save quotation version</Button>
-            </form>
+            </QuotationForm>
           ) : !latest && !commercial.terms ? (
             <p className="text-muted text-sm">The advertiser has not requested a quotation.</p>
           ) : null}
@@ -389,9 +392,23 @@ export default async function AdminCampaignBillingPage({
                 </Link>
                 <div className="border-edge mt-4 grid gap-3 rounded-lg border p-4 sm:grid-cols-3">
                   <div>
-                    <p className="micro text-muted">Current amount due</p>
+                    <p className="micro text-muted">Invoice total</p>
                     <p className="mt-1 font-mono text-sm">
                       {formatMoney(invoice.effective_obligation_amount, invoice.currency)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="micro text-muted">Balance due</p>
+                    <p className="mt-1 font-mono text-sm">
+                      {(() => {
+                        const total = moneyMinor(invoice.effective_obligation_amount);
+                        const funded = moneyMinor(invoice.funded_amount);
+                        if (total === null || funded === null) return "—";
+                        return formatMoney(
+                          minorDecimal(total > funded ? total - funded : BigInt(0)),
+                          invoice.currency,
+                        );
+                      })()}
                     </p>
                   </div>
                   <div>

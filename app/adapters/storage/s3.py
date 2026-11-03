@@ -231,12 +231,22 @@ class S3StorageProvider:
         finally:
             body.close()
 
-    async def presign_get(self, *, object_key: str, expires_in_seconds: int) -> PresignedGet:
+    async def presign_get(
+        self, *, object_key: str, expires_in_seconds: int, download_filename: str | None = None
+    ) -> PresignedGet:
+        params = {"Bucket": self._bucket, "Key": object_key}
+        if download_filename is not None:
+            import re
+
+            safe_name = (
+                re.sub(r"[^A-Za-z0-9_.-]+", "-", download_filename)[:180].strip(".") or "report"
+            )
+            params["ResponseContentDisposition"] = f'attachment; filename="{safe_name}"'
         try:
             url = await asyncio.to_thread(
                 self._public_client.generate_presigned_url,
                 "get_object",
-                Params={"Bucket": self._bucket, "Key": object_key},
+                Params=params,
                 ExpiresIn=expires_in_seconds,
             )
         except Exception as exc:

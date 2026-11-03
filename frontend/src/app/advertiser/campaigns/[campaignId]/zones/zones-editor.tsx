@@ -8,6 +8,7 @@ import { TerraDrawMapLibreGLAdapter } from "terra-draw-maplibre-gl-adapter";
 import type { components } from "@/lib/api/schema";
 import {
   LOCAL_SCHEMATIC_STYLE,
+  activeMapStyle,
   DEFAULT_CENTER,
   DEFAULT_ZOOM,
   ZONE_COLOR_VARS,
@@ -83,13 +84,19 @@ export function ZonesEditor({
 
     const map = new MapLibreMap({
       container: containerRef.current,
-      style: LOCAL_SCHEMATIC_STYLE,
+      style: activeMapStyle(),
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
       attributionControl: { compact: true },
     });
     map.addControl(new NavigationControl({ showCompass: false }), "top-right");
     mapRef.current = map;
+    let usingFallback = false;
+    map.on("error", () => {
+      if (usingFallback || drawRef.current) return;
+      usingFallback = true;
+      map.setStyle(LOCAL_SCHEMATIC_STYLE);
+    });
 
     // Terra Draw needs the style fully loaded before it can attach layers.
     map.on("load", () => {
@@ -315,9 +322,7 @@ export function ZonesEditor({
   return (
     <div>
       <p className="text-muted mb-3 text-sm">
-        {editable
-          ? "Draw your areas on this simple preview map."
-          : "Your saved areas on this preview map."}
+        {editable ? "Draw your campaign areas on the map." : "Your saved campaign areas."}
       </p>
       {unknownOutcome ? (
         <p role="alert" className="mb-4 text-sm">

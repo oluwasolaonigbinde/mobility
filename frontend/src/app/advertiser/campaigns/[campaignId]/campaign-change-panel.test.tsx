@@ -19,6 +19,37 @@ const FIRST_REQUEST_ID = "00000000-0000-4000-8000-00000000000b";
 const SECOND_REQUEST_ID = "00000000-0000-4000-8000-00000000000c";
 
 describe("CampaignChangePanel", () => {
+  it("shows proposed and previous dates in plain calendar form", async () => {
+    mocks.preview.mockResolvedValueOnce({
+      commandId: FIRST_REQUEST_ID,
+      proposal: { reason: "Move the start" },
+      preview: {
+        after: { start_at: "2026-11-03T00:00:00Z" },
+        before: { start_at: "2026-11-01T00:00:00Z" },
+        classifications: ["date_change"],
+        currency: "NGN",
+        outcome: "apply_now",
+        preview_sha256: "b".repeat(64),
+        source_sha256: "a".repeat(64),
+        requested_liability_amount: "0.00",
+        available_liability_amount: "0.00",
+      },
+    });
+    render(
+      <CampaignChangePanel
+        campaignId={CAMPAIGN_ID}
+        clientRequestId={FIRST_REQUEST_ID}
+        currency="NGN"
+        requests={[]}
+      />,
+    );
+    await userEvent.type(screen.getByLabelText("Reason"), "Move the start");
+    await userEvent.click(screen.getByRole("button", { name: "Preview change" }));
+    const preview = await screen.findByLabelText("Change preview");
+    expect(preview).toHaveTextContent("1 Nov 2026");
+    expect(preview).toHaveTextContent("3 Nov 2026");
+    expect(preview).not.toHaveTextContent("T00:00");
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.preview.mockImplementation(async (_state: unknown, form: FormData) => ({

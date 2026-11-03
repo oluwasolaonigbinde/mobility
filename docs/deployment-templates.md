@@ -174,3 +174,14 @@ accountant confirmation (D42, REQ-041/042). External payment, deployment,
 legal, device and pilot gates remain unchanged.
 
 W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117, wording REQ-112 → REQ-116, D62 → D68, architecture v1.117 → v1.125. Master identifiers retain their meanings.
+
+## Client preview host checklist (REQ-287 / D150)
+
+Before separately authorized deployment, verify ENVIRONMENT=staging with explicit
+ALLOW_DEMO_SEED=true, INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE=cardvert-synthetic-issuer,
+and TRIP_EVIDENCE_SIGNING_KEYRING_B64 from the existing templates. Hardened JWT,
+SMTP TLS, CORS, PUBLIC_ORIGIN, storage URL/CORS, scanner and worker remain required.
+Verify setup/reset/application links and PAYSTACK_CHECKOUT_RETURN_URL, build-time
+NEXT_PUBLIC_MAP_STYLE_URL, and both login and registration trusted-client-IP
+settings. Seed fresh before sharing; payments remain disconnected unless approved.
+Physical-phone testing and a smoke walkthrough on the hosted link remain required.

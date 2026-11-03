@@ -13,7 +13,7 @@ import { createCampaignAction, type CreateCampaignState } from "./actions";
 import { Panel } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import { cx } from "@/lib/cx";
-import { formatMoney } from "@/lib/format";
+import { formatDate, formatMoney } from "@/lib/format";
 import {
   uploadCreativeFile,
   CREATIVE_UPLOAD_PHASE_LABELS,
@@ -495,7 +495,7 @@ export function CampaignWizard({
                 ["Description", values.basics.description || "—"],
                 [
                   "Window",
-                  `${values.basics.start_at || "not set"} → ${values.basics.end_at || "not set"}`,
+                  `${formatDate(values.basics.start_at?.slice(0, 10))} → ${formatDate(values.basics.end_at?.slice(0, 10))}`,
                 ],
                 [
                   "Budget",
@@ -509,10 +509,7 @@ export function CampaignWizard({
                     ? formatMoney(values.basics.daily_budget_amount, currency)
                     : "not set",
                 ],
-                [
-                  campaignId ? "Campaign" : "Create as",
-                  campaignId ? "Existing campaign — details unchanged" : "Draft",
-                ],
+                [campaignId ? "Campaign" : "Create as", "Draft"],
                 [
                   "Advert design",
                   values.creatives.length ? `${values.creatives.length} ready to add` : "Add later",

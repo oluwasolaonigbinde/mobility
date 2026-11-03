@@ -60,7 +60,6 @@ from app.services.campaign_assignments import (
 )
 from app.services.installation_evidence import (
     INSTALLATION_EVIDENCE_VIEWS,
-    INSTALLATION_PHOTO_VALIDITY_HOURS,
 )
 
 # Realistic synthetic issuer facts for local and test invoices (D42 real facts are
@@ -1102,7 +1101,7 @@ async def ensure_demo_start_authority(
     if (
         evidence is None
         or evidence.approved_until is None
-        or evidence.approved_until.replace(tzinfo=UTC) <= now
+        or evidence.approved_until.replace(tzinfo=UTC) <= now + timedelta(days=30)
     ):
         installation_file = await managed_image("front")
         device_id = uuid4()
@@ -1129,7 +1128,7 @@ async def ensure_demo_start_authority(
             required_views=list(INSTALLATION_EVIDENCE_VIEWS),
             status=InstallationEvidenceStatus.APPROVED.value,
             reviewed_at=reviewed_at,
-            approved_until=now + timedelta(hours=INSTALLATION_PHOTO_VALIDITY_HOURS),
+            approved_until=now + timedelta(days=45),
             evidence_metadata={"demo_synthetic": True},
             submitted_at=submitted_at,
         )

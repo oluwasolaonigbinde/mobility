@@ -24,7 +24,6 @@ import { ApiError } from "@/lib/api/errors";
 
 describe("recordRevisionAction", () => {
   beforeEach(() => vi.clearAllMocks());
-
   it("sends a quantity-priced line and the campaign dates to the quotation API", async () => {
     post.mockResolvedValue({ data: {} });
     const form = new FormData();
@@ -73,6 +72,7 @@ describe("recordRevisionAction", () => {
     "keeps production as its own optional line (%s)",
     async (production) => {
       const form = new FormData();
+      form.set("tax_rate", "0.075");
       form.append("description", "Media");
       form.append("quantity", "2");
       form.append("unit_amount", "50000.00");

@@ -171,8 +171,19 @@ async def record_quotation_revision(
         gross_amount=net_amount + tax_amount,
         created_by_user_id=actor_user_id,
     )
-    session.add(revision)
-    await session.flush()
+    try:
+        async with session.begin_nested():
+            session.add(revision)
+            await session.flush()
+    except IntegrityError as exc:
+        cause = getattr(exc.orig, "__cause__", None)
+        if getattr(cause, "constraint_name", None) != "uq_commercial_quote_reference_revision":
+            raise
+        raise AppError(
+            "QUOTE_REFERENCE_CONFLICT",
+            "This quote reference is already used. Enter a different reference.",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from exc
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,

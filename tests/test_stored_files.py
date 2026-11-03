@@ -205,7 +205,9 @@ class FakeStorageProvider(StorageProvider):
         except KeyError:
             raise StorageObjectNotFound(object_key) from None
 
-    async def presign_get(self, *, object_key: str, expires_in_seconds: int) -> PresignedGet:
+    async def presign_get(
+        self, *, object_key: str, expires_in_seconds: int, download_filename: str | None = None
+    ) -> PresignedGet:
         if self.unavailable:
             raise StorageUnavailable("storage is unavailable")
         self.presigned_gets.append(
@@ -923,3 +925,26 @@ def test_uploaded_content_magic_discriminates_supported_types(prefix, expected):
     from app.services.stored_files import _detected_content_type
 
     assert _detected_content_type(prefix) == expected
+
+
+def test_report_filename_is_bound_into_signed_download_only_when_requested():
+    from unittest.mock import Mock
+
+    from app.adapters.storage.s3 import S3StorageProvider
+
+    storage = object.__new__(S3StorageProvider)
+    storage._bucket = "private"
+    storage._public_client = Mock()
+    storage._public_client.generate_presigned_url.return_value = "https://storage.test/signed"
+    asyncio.run(
+        storage.presign_get(
+            object_key="reports/file.pdf",
+            expires_in_seconds=60,
+            download_filename='report"\r\nInjected.pdf',
+        )
+    )
+    params = storage._public_client.generate_presigned_url.call_args.kwargs["Params"]
+    assert params["ResponseContentDisposition"] == 'attachment; filename="report-Injected.pdf"'
+    asyncio.run(storage.presign_get(object_key="kyc/file.pdf", expires_in_seconds=60))
+    params = storage._public_client.generate_presigned_url.call_args.kwargs["Params"]
+    assert "ResponseContentDisposition" not in params

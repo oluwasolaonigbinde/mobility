@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ create: vi.fn(), areas: vi.fn() }));
@@ -27,6 +27,12 @@ it("saves a draft before areas, then offers design and review without auto-submi
   const user = userEvent.setup();
   const { container } = render(<CampaignWizard currency="NGN" />);
   await user.type(screen.getByLabelText("Campaign name *"), "Wuse lunch rush");
+  fireEvent.change(screen.getByLabelText("Starts, Nigeria time (WAT)"), {
+    target: { value: "2026-11-03T00:00" },
+  });
+  fireEvent.change(screen.getByLabelText("Ends, Nigeria time (WAT)"), {
+    target: { value: "2026-11-10T00:00" },
+  });
   await user.click(screen.getByRole("button", { name: "Continue →" }));
   expect(await screen.findByText(`Choose areas for ${id}`)).toBeInTheDocument();
   expect(mocks.create).toHaveBeenCalledWith(
@@ -44,6 +50,9 @@ it("saves a draft before areas, then offers design and review without auto-submi
   expect(screen.getByRole("button", { name: "+ Add advert design" })).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Continue →" }));
   expect(screen.getByRole("heading", { name: "Review your draft" })).toBeInTheDocument();
+  expect(screen.getByText("Draft")).toBeVisible();
+  expect(screen.getByText("3 Nov 2026 → 10 Nov 2026")).toBeVisible();
+  expect(screen.queryByText(/Existing campaign/)).not.toBeInTheDocument();
   expect(mocks.create).toHaveBeenCalledTimes(1);
   expect(container.querySelector("form form")).toBeNull();
   await user.click(screen.getByRole("button", { name: "Finish draft" }));

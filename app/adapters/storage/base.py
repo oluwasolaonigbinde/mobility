@@ -74,7 +74,9 @@ class StorageProvider(Protocol):
 
     def stream(self, object_key: str) -> AsyncIterator[bytes]: ...
 
-    async def presign_get(self, *, object_key: str, expires_in_seconds: int) -> PresignedGet: ...
+    async def presign_get(
+        self, *, object_key: str, expires_in_seconds: int, download_filename: str | None = None
+    ) -> PresignedGet: ...
 
     async def promote(self, *, source_key: str, destination_key: str) -> ObjectMetadata:
         """Copy or adopt the destination; retain the source until lifecycle cleanup."""

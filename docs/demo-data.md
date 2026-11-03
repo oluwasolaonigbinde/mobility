@@ -1,5 +1,13 @@
 # Cardvert development data and go-live decisions
 
+**3 November preview process amendment (REQ-284/285):** Fresh seeded active
+campaigns, offers and synthetic approved installation evidence now leave at least
+30 days for testing. The live seven-day installation rule is unchanged. Seeding
+no longer runs automatic payouts with a fake adapter across the whole historical
+ledger. The small manual paid/unsent samples and one linked provider-unavailable
+alert remain; the worker must not manufacture dozens of unsendable instructions.
+The main synthetic campaign budget is ₦3.5m (previously ₦2.5m) to cover its five longer daily-rate reservations through the existing authority checks. Earlier automatic-batch receipts below describe the earlier seed revision.
+
 1. Restore legal/privacy protections for GPS, ID collection and advertiser results before real users
 2. Restore overlap/differencing protection for advertiser analytics
 

@@ -152,7 +152,7 @@ describe("payout batch actions", () => {
     form.set("batch_id", "11111111-1111-4111-8111-111111111111");
     form.set("intent", "submit");
     const result = await batchTransitionAction({}, form);
-    expect(result.error).toMatch(/not configured.*No transfer is confirmed/);
+    expect(result.error).toBe("Run saved, not sent. Payments are not connected.");
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 

@@ -13,6 +13,7 @@ function path(campaignId: string) {
 
 const MESSAGES = {
   INVOICE_NOT_ISSUED: "Payments can be recorded once the invoice is issued.",
+  QUOTE_REFERENCE_CONFLICT: "This quote reference is already used. Enter a different reference.",
 } as const;
 
 function fail(campaignId: string, error: unknown): never {
@@ -69,7 +70,12 @@ export async function recordRevisionAction(
     });
   } catch (error) {
     unstable_rethrow(error);
-    fail(campaignId, error);
+    return {
+      error:
+        error instanceof ApiError
+          ? publicActionError(error, MESSAGES)
+          : "The quotation could not be saved. Try again.",
+    };
   }
   revalidatePath(path(campaignId));
   redirect(`${path(campaignId)}?saved=quotation#money`);

@@ -32,6 +32,8 @@ const fieldLabel: Record<string, string> = {
 
 function exactValue(value: unknown): string {
   if (value === null || value === undefined) return "Not set";
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value))
+    return formatDate(value);
   return String(value);
 }
 

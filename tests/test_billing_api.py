@@ -557,3 +557,45 @@ def test_invoice_correction_http_retry_is_stable_and_conflicts_on_changed_payloa
     )
     assert conflict.status_code == 409
     assert conflict.json()["error"]["code"] == "INVOICE_CORRECTION_REFERENCE_CONFLICT"
+
+
+def test_duplicate_quote_reference_returns_conflict_without_losing_saved_revision(
+    db_client, db_sessionmaker
+):
+    admin, owner, organization, first_campaign = _fixture(db_sessionmaker, "duplicate-reference")
+    second_campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=admin.id,
+        budget_amount="1000.00",
+    )
+    admin_headers = auth_headers(db_client, admin.email)
+    owner_headers = auth_headers(db_client, owner.email)
+    body = {
+        "quote_reference": "DUPLICATE-Q",
+        "currency": "NGN",
+        "line_items": [
+            {"code": "MEDIA", "description": "Media campaign", "kind": "media", "amount": "100.00"}
+        ],
+        "production_scope": {"vehicle_count": 1},
+        "payment_class": "standard_prepaid",
+        "payment_terms": {},
+        "tax_rate": "0.075",
+    }
+    paths = []
+    for campaign in (first_campaign, second_campaign):
+        requested = db_client.post(
+            f"/api/v1/advertiser/campaigns/{campaign.id}/quote-request",
+            headers=owner_headers,
+            json={"request_details": {"vehicle_count": 1}},
+        )
+        assert requested.status_code == 201, requested.text
+        paths.append(f"/api/v1/admin/quote-requests/{requested.json()['id']}/revisions")
+    assert db_client.post(paths[0], headers=admin_headers, json=body).status_code == 201
+    duplicate = db_client.post(paths[1], headers=admin_headers, json=body)
+    assert duplicate.status_code == 409, duplicate.text
+    assert duplicate.json()["error"]["code"] == "QUOTE_REFERENCE_CONFLICT"
+    retry = db_client.post(
+        paths[1], headers=admin_headers, json=body | {"quote_reference": "UNIQUE-Q"}
+    )
+    assert retry.status_code == 201, retry.text

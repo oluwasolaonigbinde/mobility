@@ -141,6 +141,20 @@ def seed_private_storage(monkeypatch):
     return storage
 
 
+@pytest.mark.parametrize("allowed", [False, True])
+def test_staging_demo_seed_requires_explicit_opt_in(allowed):
+    settings = Settings.model_construct(
+        environment="staging",
+        allow_demo_seed=allowed,
+        database_url="postgresql+asyncpg://mobility:mobility@localhost/cardvert_test",
+    )
+    if allowed:
+        ensure_seed_allowed(settings)
+    else:
+        with pytest.raises(AppError):
+            ensure_seed_allowed(settings)
+
+
 def test_demo_seed_refuses_production_even_with_override() -> None:
     settings = Settings(
         environment="production",
@@ -2359,7 +2373,64 @@ def test_ordinary_demo_driver_can_start_and_end_using_production_authority(
 
     monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
     graph = seed_demo_graph(postgis_db_sessionmaker, settings)
+
     # Execute the actual CI preflight against ordinary seed authority.
+    async def preview_longevity():
+        from app.jobs.automatic_payouts import sweep_automatic_payouts
+        from app.models.disbursement import (
+            PayoutAutomaticAlert,
+            PayoutBatch,
+            PayoutBatchLine,
+            PayoutSubmissionIntent,
+        )
+        from app.models.installation_evidence import InstallationEvidenceSubmission
+
+        deadline = datetime.now(UTC) + timedelta(days=30)
+        async with postgis_db_sessionmaker() as session:
+            campaign = await session.get(Campaign, graph.campaign.id)
+            assert campaign.end_at > deadline
+            evidence = await session.scalar(
+                select(InstallationEvidenceSubmission)
+                .where(
+                    InstallationEvidenceSubmission.assignment_id == graph.assignment.id,
+                    InstallationEvidenceSubmission.status == "approved",
+                )
+                .order_by(InstallationEvidenceSubmission.revision.desc())
+                .limit(1)
+            )
+            assert evidence.approved_until > deadline
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(PayoutSubmissionIntent)
+                    .join(
+                        PayoutBatchLine,
+                        PayoutBatchLine.id == PayoutSubmissionIntent.payout_batch_line_id,
+                    )
+                    .join(PayoutBatch, PayoutBatch.id == PayoutBatchLine.batch_id)
+                    .where(PayoutBatch.approval_mode == "automatic")
+                )
+                == 0
+            )
+            offers = list(
+                await session.scalars(
+                    select(CampaignAssignment).where(CampaignAssignment.status == "offered")
+                )
+            )
+            assert offers
+            assert all(offer.expires_at > deadline for offer in offers)
+        await sweep_automatic_payouts(
+            {"sessionmaker": postgis_db_sessionmaker, "settings": settings}
+        )
+        async with postgis_db_sessionmaker() as session:
+            alerts = await session.scalar(select(func.count()).select_from(PayoutAutomaticAlert))
+            assert alerts <= 5
+            print(
+                f"PREVIEW_ALERT_COUNT={alerts}; offers={len(offers)}; "
+                f"campaign_end={campaign.end_at}; installation_until={evidence.approved_until}"
+            )
+
+    asyncio.run(preview_longevity())
     import re
 
     wrapper = (Path(__file__).parents[1] / "scripts/run_r59_real_stack.sh").read_text()

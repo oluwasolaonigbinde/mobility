@@ -103,7 +103,7 @@ DEMO_DRIVER_PHONE_NUMBERS = {
     "ayodele.bakare@mail.ng": "+2340000000112",
     "suleiman.idris@mail.ng": "+2340000000113",
 }
-PRODUCTION_ENVIRONMENTS = {"prod", "production", "staging"}
+PRODUCTION_ENVIRONMENTS = {"prod", "production"}
 
 
 @dataclass(frozen=True)
@@ -385,8 +385,8 @@ async def upsert_campaign(
         "description": ("Deliver lunch orders around Garki and the Central Business District."),
         "status": CampaignStatus.ACTIVE.value,
         "start_at": now - timedelta(days=14),
-        "end_at": now + timedelta(days=14),
-        "budget_amount": Decimal("2500000.00"),
+        "end_at": now + timedelta(days=45),
+        "budget_amount": Decimal("3500000.00"),
         "daily_budget_amount": Decimal("150000.00"),
         "currency": "NGN",
         "campaign_metadata": demo_metadata(frontend_contract="slice_12_demo"),

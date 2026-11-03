@@ -29,7 +29,9 @@ class UnconfiguredStorageProvider:
         raise StorageUnavailable("Private object storage is not configured")
         yield b""  # pragma: no cover
 
-    async def presign_get(self, *, object_key: str, expires_in_seconds: int) -> PresignedGet:
+    async def presign_get(
+        self, *, object_key: str, expires_in_seconds: int, download_filename: str | None = None
+    ) -> PresignedGet:
         raise StorageUnavailable("Private object storage is not configured")
 
     async def promote(self, *, source_key: str, destination_key: str) -> ObjectMetadata:

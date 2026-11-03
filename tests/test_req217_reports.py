@@ -669,3 +669,24 @@ def test_automatic_weekly_final_and_staff_rerun_share_one_report_object(
             await session.commit()
 
     asyncio.run(exercise())
+
+
+def test_report_download_filename_is_readable_and_hostile_names_are_safe():
+    from types import SimpleNamespace
+
+    from app.services.campaign_report_delivery import _pair
+    from app.services.disclosure import _canonical_hash
+
+    frozen = snapshot()
+    frozen["campaigns"][0]["name"] = 'Lunch routes/../../x"\r\nHeader: bad'
+    report = SimpleNamespace(
+        id=uuid4(),
+        organization_id=uuid4(),
+        snapshot=frozen,
+        snapshot_sha256=_canonical_hash(frozen),
+    )
+    artifacts = _pair(report)
+    for artifact in artifacts:
+        name = artifact["filename"]
+        assert "Lunch-routes" in name and "2020-01-01-2020-01-02" in name
+        assert "/" not in name and '"' not in name and "\r" not in name and "\n" not in name
