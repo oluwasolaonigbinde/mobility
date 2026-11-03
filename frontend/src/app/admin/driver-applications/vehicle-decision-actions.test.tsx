@@ -45,6 +45,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.read.mockResolvedValue({ downloadUrl: "https://example.invalid/current" });
 });
+
+it("requires staff to choose a rejection reason", () => {
+  render(<VehicleDecisionActions {...props} />);
+  expect(screen.getByLabelText("Rejection reason")).toHaveValue("");
+});
 it.each([
   ["car registration", "registration-1"],
   ["car insurance", "insurance-1"],

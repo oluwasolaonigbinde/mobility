@@ -47,8 +47,12 @@ export function CampaignTimeline({ campaigns }: { campaigns: Campaign[] }) {
               {formatDateRange(campaign.start_at, campaign.end_at)}
             </p>
             <p className="text-green text-xs">
-              {isCampaignStatus(campaign.status) ? statusLabel[campaign.status] : ""} ·{" "}
-              {campaignDay(campaign.start_at, campaign.end_at)}
+              {[
+                isCampaignStatus(campaign.status) ? statusLabel[campaign.status] : "",
+                campaignDay(campaign.start_at, campaign.end_at, campaign.status),
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
           </li>
         ))}

@@ -1,13 +1,15 @@
 """Read-only operational predicates; Finance owns every resulting resolution."""
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.messaging.email import DisabledEmailAdapter, build_email_adapter
 from app.core.config import Settings
-from app.core.gps_health import gps_window
+from app.core.gps_health import gps_window, minute_key
 from app.models.billing import PaymentGatewayEvent, PaymentGatewayProcessingAttempt
 from app.models.disbursement import (
     PayoutAutomaticAlert,
@@ -33,6 +35,7 @@ CHECKS = frozenset(
         "stale_trips",
         "partition_coverage",
         "email_failures",
+        "email_unavailable",
     }
 )
 COUNT_LIMIT = 1000
@@ -168,7 +171,41 @@ async def health_counts(
     session: AsyncSession, *, now: datetime, settings: Settings, redis: Any
 ) -> dict[str, int]:
     covered, _ = await check_partition_coverage(session, now=now)
-    gps = None if await _gps_counter_incomplete(session, now) else await gps_window(redis, now=now)
+    gps = None
+    if redis is not None and not await _gps_counter_incomplete(session, now):
+        end = now.astimezone(UTC).replace(second=0, microsecond=0)
+        try:
+            async with asyncio.timeout(1):
+                async with redis.pipeline(transaction=False) as pipe:
+                    for minute in range(1, 16):
+                        pipe.hmget(
+                            minute_key(end - timedelta(minutes=minute)), "attempts", "rejected"
+                        )
+                    counters = await pipe.execute()
+            complete = len(counters) == 15 and all(
+                (attempts is None) == (rejected is None) for attempts, rejected in counters
+            )
+            if complete and all(
+                int(attempts or 0) == 0 and int(rejected or 0) == 0
+                for attempts, rejected in counters
+            ):
+                tracked = await session.scalar(
+                    select(
+                        exists().where(
+                            TripSession.started_at < end,
+                            or_(
+                                TripSession.ended_at.is_(None),
+                                TripSession.ended_at >= end - timedelta(minutes=15),
+                            ),
+                        )
+                    )
+                )
+                gps = None if tracked else (0, 0)
+            elif complete:
+                gps = await gps_window(redis, now=now)
+        except Exception:
+            gps = None
+    email_connected = not isinstance(build_email_adapter(settings), DisabledEmailAdapter)
     counts = {
         "stuck_payouts": await stuck_payouts(session, now),
         "unprocessed_webhooks": await unprocessed_webhooks(session, now),
@@ -181,10 +218,25 @@ async def health_counts(
         ),
         "stale_trips": await stale_trips(session, now, settings),
         "partition_coverage": int(not covered),
+        "email_unavailable": int(not email_connected),
         "email_failures": await _count(
             session,
             select(Notification.id).where(
                 Notification.channel == "transactional_email",
+                or_(
+                    Notification.last_error_code.is_(None),
+                    Notification.last_error_code.not_in(
+                        (
+                            "email_recipient_inactive",
+                            "email_preference_disabled",
+                            "email_organization_context_missing",
+                            "email_recipient_or_review_inactive",
+                            "email_assignment_missing",
+                            "email_offer_inactive",
+                            "seed_email_suppressed",
+                        )
+                    ),
+                ),
                 or_(
                     and_(
                         Notification.status == "failed",
@@ -197,7 +249,9 @@ async def health_counts(
                     ),
                 ),
             ),
-        ),
+        )
+        if email_connected
+        else 0,
     }
     if gps is None:
         counts["gps_telemetry_unavailable"] = 1

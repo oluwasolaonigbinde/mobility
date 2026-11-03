@@ -83,6 +83,7 @@ export function outcomeText(outcome: string): string {
 export function alertDetail(alert: AutomaticAlert): string | null {
   const detail = alert.detail as Record<string, unknown>;
   if (alert.kind === "business_health") {
+    if (detail.check === "email_unavailable") return "Emails aren't connected yet.";
     const checks: Record<string, string> = {
       stuck_payouts: "Payments have stopped making progress",
       unprocessed_webhooks: "Payment updates are waiting",

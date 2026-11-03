@@ -21,7 +21,7 @@ export function jobStartMessage(
     ASSIGNMENT_FUNDING_REQUIRED: "Not enough funding for this job.",
     NEW_WORK_NOT_FINANCIALLY_AUTHORIZED: "Not enough funding for this job.",
     CREDIT_AUTHORITY_EXPIRED: "The approved company credit has expired.",
-    APPROVED_INSTALLATION_EVIDENCE_REQUIRED: "New installation photos are needed.",
+    APPROVED_INSTALLATION_EVIDENCE_REQUIRED: "Installation photos must be approved first.",
     INSTALLATION_EVIDENCE_EXPIRED: "New installation photos are needed.",
   };
   return (

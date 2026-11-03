@@ -197,11 +197,9 @@ export function Reports({
                 : "")}
           </p>
           <p className="text-muted max-w-3xl text-sm leading-relaxed">
-            The PDF has charts and pictures of your advert. For PDF artwork, it shows the file name.
-            The CSV has the same results for a spreadsheet, including chart data and links to your
-            advert. Distance driven is measured; views are estimates. To protect drivers’ privacy,
-            we only show a result when at least three cars drove in that campaign, day or area. A
-            hidden result means not enough data, not zero.
+            The PDF has charts and pictures of your advert. The CSV has the same results for a
+            spreadsheet. Views are estimates. To protect drivers&apos; privacy, we only show a
+            result when at least three cars drove. A hidden result means not enough data, not zero.
           </p>
         </form>
       </Panel>

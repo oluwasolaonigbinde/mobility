@@ -809,8 +809,12 @@ def seed_demo_graph(
                 )
             )
         for report_id in report_ids:
+            from app.seeds.history import seed_sessionmaker
+
             await publish_campaign_report(
-                sessionmaker, report_id=report_id, storage=build_storage_provider(settings)
+                seed_sessionmaker(sessionmaker),
+                report_id=report_id,
+                storage=build_storage_provider(settings),
             )
         return graph
 
@@ -1777,6 +1781,20 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                 row.created_at for row in campaigns
             ) > timedelta(weeks=4)
             for invoice in await session.scalars(select(Invoice)):
+                if invoice.status != "draft":
+                    import re
+
+                    from app.models.billing import InvoiceNumberSequence
+
+                    assert re.fullmatch(r"TXM-\d{4}-\d{6}", invoice.invoice_number)
+                    prefix, year, number = invoice.invoice_number.split("-")
+                    sequence = await session.scalar(
+                        select(InvoiceNumberSequence).where(
+                            InvoiceNumberSequence.number_prefix == prefix,
+                            InvoiceNumberSequence.calendar_year == int(year),
+                        )
+                    )
+                    assert sequence.next_number > int(number)
                 campaign = await session.get(Campaign, invoice.campaign_id)
                 assert invoice.organization_id == campaign.organization_id
                 assert invoice.customer_snapshot["name"] == companies[campaign.organization_id].name
@@ -2017,6 +2035,17 @@ def test_seed_business_ownership_and_applicant_financial_separation(
             ]
             assert [row.name for row in in_progress] == ["Marula Kitchens — Wuse Lunch Rush"]
             notifications = list(await session.scalars(select(Notification)))
+            assert not [
+                row
+                for row in notifications
+                if row.channel == "transactional_email" and row.status == "pending"
+            ]
+            assert any(row.last_error_code == "seed_email_suppressed" for row in notifications)
+            by_campaign = {row.id: row for row in campaigns}
+            for report in reports:
+                if by_campaign[report.campaign_id].end_at > now:
+                    assert report.kind != "final"
+                    assert report.period_end_at <= now
             assert max(row.created_at for row in notifications) - min(
                 row.created_at for row in notifications
             ) > timedelta(days=1)

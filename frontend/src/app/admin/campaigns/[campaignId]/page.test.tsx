@@ -15,7 +15,7 @@ vi.mock("next/navigation", async (importOriginal) => ({
   redirect: mocks.redirect,
 }));
 vi.mock("@/lib/auth/current-user", () => ({
-  requireRole: async () => ({ user: { id: "staff", role: "admin" } }),
+  requireRole: async () => ({ user: { id: "staff", role: "admin", full_name: "Ada Staff" } }),
 }));
 vi.mock("./cancel-campaign-form", () => ({
   CancelCampaignForm: () => <p>Whole campaign cancellation</p>,
@@ -469,6 +469,56 @@ it("opens readiness only for the selected job drawer", async () => {
   render(await page());
   expect(screen.queryByRole("button", { name: "Start job" })).toBeNull();
   expect(mocks.get.mock.calls.some(([path]) => path.endsWith("/readiness"))).toBe(false);
+});
+
+it("checks installation approval when all loaded jobs are active", async () => {
+  reads({ status: "active" });
+  const normal = mocks.get.getMockImplementation()!;
+  mocks.get.mockImplementation(async (path, options) =>
+    path.endsWith("/campaign-assignments")
+      ? { data: { items: [{ ...job, status: "active" }], total: 1 } }
+      : normal(path, options),
+  );
+  render(
+    await CampaignHub({
+      params: Promise.resolve({ campaignId: id }),
+      searchParams: Promise.resolve({}),
+    }),
+  );
+  expect(screen.getByRole("link", { name: /Installation photos approved/ })).toHaveTextContent("✓");
+});
+
+it("shows a staff name in Activity without exposing the demo sign-in address", async () => {
+  reads();
+  const normal = mocks.get.getMockImplementation()!;
+  mocks.get.mockImplementation(async (path, options) => {
+    if (path.endsWith("/audit-events"))
+      return {
+        data: {
+          items: [
+            {
+              id: "event",
+              actor_user_id: "staff",
+              actor_email: "admin@demo.mobility.local",
+              action: "admin.campaign.approved",
+              created_at: "2026-11-03T12:00:00Z",
+            },
+          ],
+          total: 1,
+        },
+      };
+    if (path.endsWith("/users"))
+      return { data: { items: [{ id: "staff", full_name: "Ada Staff" }] } };
+    return normal(path, options);
+  });
+  render(
+    await CampaignHub({
+      params: Promise.resolve({ campaignId: id }),
+      searchParams: Promise.resolve({}),
+    }),
+  );
+  expect(screen.getByText(/Campaign approved · Ada Staff/)).toBeVisible();
+  expect(screen.queryByText("admin@demo.mobility.local")).toBeNull();
 });
 it("does not open job reads behind a higher-priority invoice drawer", async () => {
   render(await page({ drawer: "invoice", invoice: "invoice", job: jobId }));

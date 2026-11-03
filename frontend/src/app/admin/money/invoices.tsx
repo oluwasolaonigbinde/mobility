@@ -67,7 +67,7 @@ export default async function Invoices({ query }: { query: MoneyQuery }) {
   const filters = [
     ["all", "All"],
     ["unpaid", "Unpaid"],
-    ["part_paid", "Part-paid"],
+    ["part_paid", "Part paid"],
     ["paid", "Paid"],
     ["refunds", "Refunds"],
   ];

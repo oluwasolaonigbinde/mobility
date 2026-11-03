@@ -64,11 +64,13 @@ export default async function AdvertisersPage({
                   >
                     <h2 className="font-medium">{c.name}</h2>
                     <p className="text-muted text-sm">
-                      {c.billing_contact_name ??
-                        c.operational_contact_name ??
-                        "No contact recorded"}{" "}
-                      · {c.billing_email ?? c.operational_contact_email ?? ""} ·{" "}
-                      {adminStatus(c.status)}
+                      {[
+                        c.billing_contact_name || c.operational_contact_name,
+                        c.billing_email || c.operational_contact_email,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "No contact recorded"}{" "}
+                      · {adminStatus(c.status)}
                     </p>
                     <p className="text-muted text-sm">
                       People: {c.member_count} · Live campaigns: {c.live_campaign_count}

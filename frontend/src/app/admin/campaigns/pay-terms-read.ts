@@ -31,7 +31,7 @@ export const readPayTerms = cache(async (campaignId: string) => {
     );
     const ready = Boolean(current?.daily_rate_naira != null && current.daily_target_miles != null);
     const summary = ready
-      ? `${formatMoneyExact(current!.daily_rate_naira, current!.currency)} per day for ${current!.daily_target_miles} miles.`
+      ? `${formatMoneyExact(current!.daily_rate_naira, current!.currency)} per day for ${Number(current!.daily_target_miles)} miles.`
       : "No pay terms are effective yet.";
     return { rule, current, summary, ready };
   } catch (error) {

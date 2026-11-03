@@ -106,3 +106,9 @@ it.each([
   expect(text).toMatch(advice);
   expect(text).not.toMatch(/affected payments/);
 });
+
+it("shows the disconnected email state without implying failed delivery", () => {
+  expect(alertDetail(alert("business_health", { check: "email_unavailable", count: 1 }))).toBe(
+    "Emails aren't connected yet.",
+  );
+});

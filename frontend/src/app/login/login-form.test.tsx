@@ -15,6 +15,15 @@ vi.mock("./actions", () => ({
 }));
 
 describe("LoginForm", () => {
+  it.each([undefined, "admin"] as const)(
+    "preserves the return input for %s sign-in",
+    (demoLoginRole) => {
+      const { container } = render(
+        <LoginForm demoLoginRole={demoLoginRole} from="/admin/campaigns/123" />,
+      );
+      expect(container.querySelector('input[name="from"]')).toHaveValue("/admin/campaigns/123");
+    },
+  );
   beforeEach(() => {
     actionState.state = {};
     actionState.pending = false;

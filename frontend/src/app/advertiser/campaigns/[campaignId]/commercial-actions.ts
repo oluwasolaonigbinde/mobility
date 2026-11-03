@@ -117,5 +117,6 @@ export async function acceptExpeditedWaiverAction(
       error: safeCommercialError(error, "Your earlier-start request didn't go through. Try again."),
     };
   }
+  refresh();
   return { done: "Earlier production start agreed." };
 }

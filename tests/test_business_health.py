@@ -87,6 +87,82 @@ def test_gps_window_counts_only_complete_minutes_without_personal_data():
     asyncio.run(run())
 
 
+@pytest.mark.parametrize(
+    "mode", ["idle", "missing", "broken", "incomplete", "tracked", "zero_tracked"]
+)
+def test_idle_gps_is_quiet_but_missing_tracking_still_alerts(
+    db_sessionmaker, settings, monkeypatch, mode
+):
+    redis = None if mode == "missing" else FakeRedis(broken=mode == "broken")
+    if mode == "incomplete":
+        redis.values[minute_key(NOW - timedelta(minutes=1))] = {"attempts": 1}
+    if mode == "zero_tracked":
+        redis.values[minute_key(NOW - timedelta(minutes=1))] = {"attempts": 0, "rejected": 0}
+    trip = setup_trip(db_sessionmaker)[2] if mode in {"tracked", "zero_tracked"} else None
+
+    async def covered(*args, **kwargs):
+        return True, None
+
+    monkeypatch.setattr(health, "check_partition_coverage", covered)
+
+    async def run():
+        async with db_sessionmaker() as session:
+            if trip:
+                row = await session.get(TripSession, trip.id)
+                row.started_at = NOW - timedelta(minutes=5)
+                await session.flush()
+            counts = await health.health_counts(session, now=NOW, settings=settings, redis=redis)
+            assert counts.get("gps_telemetry_unavailable", 0) == int(mode != "idle")
+            assert counts["email_unavailable"] == 1
+            assert counts["email_failures"] == 0
+
+    asyncio.run(run())
+
+
+def test_email_health_excludes_policy_refusals_but_counts_delivery_failures(
+    db_sessionmaker, settings, monkeypatch
+):
+    admin = create_test_user(db_sessionmaker, email="policy-health@example.test", role="admin")
+    settings.email_provider = "smtp"
+    settings.email_smtp_host = "localhost"
+    settings.email_sender_address = "health@example.test"
+
+    async def covered(*args, **kwargs):
+        return True, None
+
+    monkeypatch.setattr(health, "check_partition_coverage", covered)
+
+    async def run():
+        async with db_sessionmaker() as session:
+            for code in (
+                "email_recipient_inactive",
+                "email_preference_disabled",
+                "seed_email_suppressed",
+                "smtp_unavailable",
+                None,
+            ):
+                session.add(
+                    Notification(
+                        recipient_user_id=admin.id,
+                        type_key="synthetic",
+                        channel="transactional_email",
+                        status="failed",
+                        failed_at=NOW,
+                        last_error_code=code,
+                        payload={},
+                        dedupe_fingerprint=uuid4().hex,
+                    )
+                )
+            await session.flush()
+            counts = await health.health_counts(
+                session, now=NOW, settings=settings, redis=FakeRedis()
+            )
+            assert counts["email_failures"] == 2
+            assert counts["email_unavailable"] == 0
+
+    asyncio.run(run())
+
+
 @pytest.mark.parametrize("outcome", ["ok", "error", "cancel"])
 def test_cron_records_terminal_status_and_preserves_result_or_failure(monkeypatch, outcome):
     checkins = []
@@ -304,6 +380,10 @@ def test_webhook_retry_failure_stays_unprocessed_and_boundary_is_strict(db_sessi
 def test_gps_alert_threshold_and_healthy_durable_predicates(
     db_sessionmaker, settings, monkeypatch, attempts, rejected, expected
 ):
+    settings.email_provider = "smtp"
+    settings.email_smtp_host = "localhost"
+    settings.email_sender_address = "health@example.test"
+
     async def covered(*args, **kwargs):
         return True, NOW + timedelta(days=60)
 
@@ -324,6 +404,9 @@ def test_gps_alert_threshold_and_healthy_durable_predicates(
 
 
 def test_pause_email_partition_and_unavailable_boundaries(db_sessionmaker, settings, monkeypatch):
+    settings.email_provider = "smtp"
+    settings.email_smtp_host = "localhost"
+    settings.email_sender_address = "health@example.test"
     from app.models.disbursement import PayoutAutomaticControl
 
     admin = create_test_user(db_sessionmaker, email="health-boundaries@example.com", role="admin")
@@ -495,6 +578,9 @@ def test_gps_recording_uses_fake_redis_and_never_leaks_exception(settings, monke
 def test_failed_counter_writes_invalidate_readable_window_across_recovery(
     db_sessionmaker, settings, monkeypatch
 ):
+    settings.email_provider = "smtp"
+    settings.email_smtp_host = "localhost"
+    settings.email_sender_address = "health@example.test"
     from app.core import gps_health
     from app.db import session as database
 

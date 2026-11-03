@@ -163,8 +163,7 @@ export function VehicleForm({
     <Panel className="mt-5 p-6">
       <h2 className="font-display text-2xl font-semibold">Your car</h2>
       <p className="text-muted mt-2 mb-6 max-w-3xl text-sm">
-        You can add your car after your ID and bank details are approved. If you change your car or
-        its papers, we check it again before you can drive.
+        If you change your car or its papers, we check it again before you can drive.
       </p>
       <form onSubmit={submit} onChange={changed} className="grid grid-cols-1 gap-4" noValidate>
         <CarChooser cars={cars} />

@@ -181,7 +181,7 @@ export default async function CampaignsPage({
                       <td className="text-muted px-5 py-4 text-[15px]">
                         {formatDateRange(c.start_at, c.end_at)}
                         <p className="text-green mt-1 text-sm font-semibold">
-                          {campaignDay(c.start_at, c.end_at)}
+                          {campaignDay(c.start_at, c.end_at, c.status)}
                         </p>
                       </td>
                       <td className="px-5 py-4 text-right text-[15px] tabular-nums">

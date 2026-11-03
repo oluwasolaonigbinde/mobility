@@ -97,7 +97,7 @@ export function SearchSelect({
           onClick={() => search(0)}
           className="text-cyan p-2 text-sm"
         >
-          {pending ? "Loading…" : `Find ${label.toLowerCase()}`}
+          {pending ? "Loading…" : `Find ${label.toLowerCase().replace(/^find\s+/, "")}`}
         </button>
       </div>
       {result?.error ? (

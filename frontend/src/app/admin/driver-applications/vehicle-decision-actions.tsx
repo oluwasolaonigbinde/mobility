@@ -155,9 +155,10 @@ export function VehicleDecisionActions({
           Rejection reason
           <select
             name="reason_code"
-            defaultValue="unreadable_evidence"
+            defaultValue=""
             className="border-edge bg-raised text-ink rounded-lg border px-2 py-2 text-xs"
           >
+            <option value="">Choose a reason…</option>
             <option value="unreadable_evidence">Unreadable documents</option>
             <option value="vehicle_identity_mismatch">Car details don&apos;t match</option>
             <option value="owner_mismatch">Owner mismatch</option>

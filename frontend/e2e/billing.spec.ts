@@ -175,7 +175,7 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
   await page.getByRole("button", { name: "Accept these exact terms" }).click();
   const acceptedReceipt = page.getByLabel("Accepted quotation");
   await expect(acceptedReceipt).toContainText(quoteReference);
-  await expect(acceptedReceipt.getByText("Accepted and fixed", { exact: true })).toBeVisible();
+  await expect(acceptedReceipt.getByText("Accepted quotation", { exact: true })).toBeVisible();
   const acceptedText = await acceptedReceipt.innerText();
   await page.reload();
   await openCampaignDetails(page);

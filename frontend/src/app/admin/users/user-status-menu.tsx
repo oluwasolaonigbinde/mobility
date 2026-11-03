@@ -34,6 +34,7 @@ export function UserStatusMenu({
   if (role === "driver" && status === "invited") {
     return <p className="micro text-faint">Activated through driver account setup</p>;
   }
+  if (status === "invited") return <p className="micro text-faint">Invite sent</p>;
 
   function run(currentPassword?: string, confirmed = false) {
     if (role === "admin" && target === "active" && !currentPassword) {

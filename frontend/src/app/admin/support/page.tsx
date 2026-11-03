@@ -166,12 +166,19 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
         {task.driver_name} · {task.masked_phone}
       </p>
       <p className="text-muted text-sm">
-        {adminStatus(task.purpose, "contact_purpose")} · {adminStatus(task.status)} ·{" "}
-        {formatWat(task.created_at)}
+        {task.purpose} · {adminStatus(task.status, "contact")} · {formatWat(task.created_at)}
       </p>
       {task.completed_at ? (
         <p>
-          Outcome: {adminStatus(task.completion_outcome)} · {formatWat(task.completed_at)}
+          Outcome:{" "}
+          {(
+            {
+              reached: "Reached",
+              attempted: "Tried, no answer",
+              failed: "Couldn't reach",
+            } as Record<string, string>
+          )[task.completion_outcome ?? ""] ?? "Not recorded"}{" "}
+          · {formatWat(task.completed_at)}
         </p>
       ) : null}
     </>
@@ -258,7 +265,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
             ) : (
               <>
                 {!phoneWork.items.length ? (
-                  <p>No phone verifications are waiting.</p>
+                  <p>No phone check to record.</p>
                 ) : (
                   phoneWork.items.map((item) => (
                     <div className="border-edge mb-3 rounded-lg border p-4" key={item.id}>

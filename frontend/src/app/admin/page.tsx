@@ -14,7 +14,7 @@ function age(at: string) {
     ? "just now"
     : hours < 24
       ? `${hours} h ago`
-      : `${Math.floor(hours / 24)} days ago`;
+      : `${Math.floor(hours / 24)} ${Math.floor(hours / 24) === 1 ? "day" : "days"} ago`;
 }
 export default async function AdminWorkQueuePage({
   searchParams,

@@ -1,6 +1,15 @@
 import { expect, it } from "vitest";
 import { adminStatus, adminTone, paymentRunStatus } from "./admin";
 import { advertiserStatus } from "./advertiser";
+import { adminActivity } from "./admin";
+
+it.each([
+  ["stored_file.read", "Private document viewed"],
+  ["installation_evidence.read", "Installation photo viewed"],
+  ["auth.session.refreshed", "Sign-in session renewed"],
+  ["billing.receipt.observed", "Transfer recorded"],
+  ["campaign_report.ready", "Campaign report ready"],
+])("labels the visible activity %s", (action, label) => expect(adminActivity(action)).toBe(label));
 it("matches advertiser receipt labels without implying an unchecked payment is confirmed", () => {
   expect(adminStatus("recorded", "receipt")).toBe("Recorded – being checked");
   expect(adminStatus("confirmed", "receipt")).toBe("Confirmed");

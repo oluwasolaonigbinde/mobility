@@ -250,7 +250,7 @@ describe("CommercialPanel copy", () => {
     expect(screen.getByText("Accepted quotation")).toBeInTheDocument();
     expect(screen.getByText("Quote Q-100")).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/revision \d/);
-    expect(screen.getByText("Accepted and fixed")).toBeInTheDocument();
+    expect(screen.queryByText("Accepted and fixed")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Accept these exact terms/ }),
     ).not.toBeInTheDocument();
@@ -279,8 +279,7 @@ describe("CommercialPanel copy", () => {
       />,
     );
 
-    expect(screen.getByText("How you'll pay")).toBeInTheDocument();
-    expect(screen.getByText("Approved company credit · ₦50,000.00")).toBeInTheDocument();
+    expect(screen.queryByText("How you'll pay")).not.toBeInTheDocument();
     expect(screen.queryByText("Funding authority")).not.toBeInTheDocument();
   });
 

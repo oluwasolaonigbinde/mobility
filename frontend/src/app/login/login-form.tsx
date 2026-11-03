@@ -9,13 +9,20 @@ import type { DemoLoginRole } from "./demo-role";
 
 const initialState: LoginState = {};
 
-export function LoginForm({ demoLoginRole }: { demoLoginRole?: DemoLoginRole }) {
+export function LoginForm({
+  demoLoginRole,
+  from,
+}: {
+  demoLoginRole?: DemoLoginRole;
+  from?: string;
+}) {
   const action = demoLoginRole ? demoLoginAction.bind(null, demoLoginRole) : loginAction;
   const [state, formAction, pending] = useActionState(action, initialState);
 
   if (demoLoginRole) {
     return (
       <form action={formAction} className="flex flex-col gap-5">
+        <input type="hidden" name="from" value={from ?? ""} />
         {state.error ? (
           <p
             role="alert"
@@ -33,6 +40,7 @@ export function LoginForm({ demoLoginRole }: { demoLoginRole?: DemoLoginRole }) 
 
   return (
     <form action={formAction} className="flex flex-col gap-5" noValidate>
+      <input type="hidden" name="from" value={from ?? ""} />
       <Field
         label="Email"
         name="email"

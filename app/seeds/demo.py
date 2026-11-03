@@ -237,6 +237,8 @@ async def upsert_user(
         user.must_change_password = False
     await session.flush()
     await session.refresh(user)
+    if "demo_seed_user_ids" in session.info:
+        session.info["demo_seed_user_ids"].add(user.id)
     return user
 
 
@@ -1717,6 +1719,27 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
     await settle_seed_driver_notifications(
         session, driver_user_ids=[graph.driver.id, *(asset.user.id for asset in graph.rich.drivers)]
     )
+    # Also settle pending mail left by an earlier seed run for these seed accounts.
+    from sqlalchemy import update
+
+    from app.models.notification import Notification
+
+    await session.execute(
+        update(Notification)
+        .where(
+            Notification.recipient_user_id.in_(session.info.get("demo_seed_user_ids", set())),
+            Notification.channel == "transactional_email",
+            Notification.status == "pending",
+        )
+        .values(
+            status="failed",
+            failed_at=datetime.now(UTC),
+            last_error_code="seed_email_suppressed",
+            next_attempt_at=None,
+            delivery_claim_token=None,
+            delivery_claim_expires_at=None,
+        )
+    )
     return graph
 
 
@@ -1843,8 +1866,12 @@ async def run_seed(settings: Settings | None = None) -> DemoGraph:
             )
         )
         for report_id in report_ids:
+            from app.seeds.history import seed_sessionmaker
+
             await publish_campaign_report(
-                sessionmaker, report_id=report_id, storage=build_storage_provider(settings)
+                seed_sessionmaker(sessionmaker),
+                report_id=report_id,
+                storage=build_storage_provider(settings),
             )
         print_summary(graph, summary_counts)
         return graph

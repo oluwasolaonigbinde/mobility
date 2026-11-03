@@ -227,7 +227,9 @@ describe("bounded payout pages", () => {
     mocks.api.mockResolvedValueOnce({ items: [approved], total: 1 });
     const list = render(await PaymentRunsPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByText(/Approved — not sent yet/)).toBeVisible();
-    expect(screen.queryByText(/Waiting for approval/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Approved — not sent yet/).closest("tr")).not.toHaveTextContent(
+      "Waiting for approval",
+    );
     list.unmount();
 
     mocks.api.mockResolvedValue({ summary: approved, lines: [line], total: 1 });

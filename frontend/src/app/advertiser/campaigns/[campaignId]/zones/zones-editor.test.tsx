@@ -81,6 +81,7 @@ function fakeMap(source?: { setData: ReturnType<typeof vi.fn> }) {
       mapHandlers.set(event, typeof layerOrHandler === "function" ? layerOrHandler : handler!);
     }),
     remove: vi.fn(),
+    resize: vi.fn(),
     setStyle: vi.fn(),
   };
 }
@@ -156,6 +157,7 @@ describe("ZonesEditor MapLibre compatibility", () => {
     act(() => mapHandlers.get("load")?.());
 
     expect(adapterConstructor).toHaveBeenCalledWith({ map });
+    expect(map.resize).toHaveBeenCalled();
     expect(draw.start).toHaveBeenCalledOnce();
     expect(map.addSource).toHaveBeenCalledOnce();
     expect(map.addLayer).toHaveBeenCalledTimes(2);

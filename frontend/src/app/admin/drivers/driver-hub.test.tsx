@@ -571,6 +571,7 @@ it("uses actual active staff-added driver and car states without inventing docum
 
 it.each([
   ["pending_review", true, "pending_review", "Next: review identity documents."],
+  ["rejected", false, "pending_review", "Next: wait for the driver to send new details."],
   ["approved", false, "pending_review", "Next: check bank details."],
   ["approved", true, "pending_review", "Next: check the car and its documents."],
   ["approved", true, "approved", "Next: complete sign-in setup."],

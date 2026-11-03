@@ -19,7 +19,8 @@ export default async function LoginPage({
     redirect(roleHome(me.user.role));
   }
   const config = env();
-  const role = demoLoginRoleFromPath((await searchParams).from);
+  const from = (await searchParams).from;
+  const role = demoLoginRoleFromPath(from);
   const demoLoginRole = config.DEMO_LOGIN_ENABLED ? role : undefined;
 
   return (
@@ -32,7 +33,10 @@ export default async function LoginPage({
         <p className="text-muted mt-3 mb-8 text-sm">Welcome to Cardvert</p>
 
         <Panel className="p-6">
-          <LoginForm demoLoginRole={demoLoginRole} />
+          <LoginForm
+            demoLoginRole={demoLoginRole}
+            from={typeof from === "string" ? from : undefined}
+          />
         </Panel>
 
         <p className="text-muted mt-5 text-center text-sm">

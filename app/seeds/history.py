@@ -1,7 +1,7 @@
 """Initial dates for disposable seed records; existing history is never redated."""
 
 import hashlib
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import event
@@ -18,6 +18,18 @@ from app.models.user import User
 from app.models.vehicle import Vehicle
 
 HISTORY_MODELS = (User, AdvertiserOrganization, DriverProfile, Vehicle, DriverApplication, Campaign)
+
+
+def seed_sessionmaker(maker):
+    """Keep report-publication sessions inside the same no-outbound-mail seed policy."""
+
+    @asynccontextmanager
+    async def seeded_session():
+        async with maker() as session:
+            with seed_history(session):
+                yield session
+
+    return seeded_session
 
 
 def _entity_dates(session, row, now):
@@ -75,6 +87,7 @@ def _dependent_dates(session, row, now):
 def seed_history(session):
     now = datetime.now(UTC)
     initial = {}
+    session.info["demo_seed_user_ids"] = set()
 
     def dates(seed_session, _context, _instances):
         for row in seed_session.new:
@@ -83,6 +96,15 @@ def seed_history(session):
                 initial[row] = row.updated_at
             else:
                 _dependent_dates(seed_session, row, now)
+            if (
+                isinstance(row, Notification)
+                and row.channel == "transactional_email"
+                and row.status in (None, "pending")
+            ):
+                row.status = "failed"
+                row.failed_at = row.created_at or now
+                row.last_error_code = "seed_email_suppressed"
+                row.next_attempt_at = None
         # Only entities first created by this invocation receive initial dates.
         for row in seed_session.dirty:
             if row in initial:
@@ -93,6 +115,7 @@ def seed_history(session):
         yield
     finally:
         event.remove(session.sync_session, "before_flush", dates)
+        session.info.pop("demo_seed_user_ids", None)
 
 
 @contextmanager

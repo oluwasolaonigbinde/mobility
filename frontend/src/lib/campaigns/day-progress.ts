@@ -16,8 +16,10 @@ function day(iso: string) {
 export function campaignDay(
   start: string | null | undefined,
   end: string | null | undefined,
+  status: string,
   now = new Date(),
 ): string | null {
+  if (!["active", "paused", "finished", "completed"].includes(status)) return null;
   if (!start || !end || !Number.isFinite(now.getTime())) return null;
   const startTime = Date.parse(start),
     endTime = Date.parse(end);

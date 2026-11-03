@@ -185,7 +185,8 @@ def _chart(items, *, key, title, estimated=False):
         String(
             25,
             0,
-            "WAT days; gaps mean results are withheld or still processing.",
+            "Days are in Nigeria time. A gap means the result isn't ready yet "
+            "or is hidden to protect drivers' privacy.",
             fontName="ReportSans",
             fontSize=7,
             fillColor=ink,
@@ -228,7 +229,6 @@ def render_campaign_pdf(snapshot: dict) -> bytes:
                 " | Nigeria time (WAT)",
                 "ReportNote",
             ),
-            paragraph("Measured driving and estimated views are shown separately.", "ReportNote"),
             Spacer(1, 14),
         ]
     )
@@ -308,7 +308,7 @@ def render_campaign_pdf(snapshot: dict) -> bytes:
             story.append(
                 paragraph(
                     f"Estimated views in this area: {_number(area.get('estimated_views'))}. "
-                    "Estimates in overlapping areas must not be added as unique views.",
+                    "Areas can overlap, so don't add these figures together.",
                     "ReportNote",
                 )
             )

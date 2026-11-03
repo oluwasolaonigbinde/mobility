@@ -10,9 +10,15 @@ beforeEach(() => {
   update.mockResolvedValue({});
 });
 
+it("keeps an invited staff account waiting for its invitation", () => {
+  render(<UserStatusMenu userId="staff" userLabel="New Staff" role="admin" status="invited" />);
+  expect(screen.getByText("Invite sent")).toBeVisible();
+  expect(screen.queryByRole("button")).toBeNull();
+});
+
 it("requires a masked password to activate an administrator and clears it after submission", async () => {
   const user = userEvent.setup();
-  render(<UserStatusMenu userId="target" userLabel="Ada Admin" role="admin" status="invited" />);
+  render(<UserStatusMenu userId="target" userLabel="Ada Admin" role="admin" status="suspended" />);
   await user.click(screen.getByRole("button", { name: "Restore" }));
   expect(update).not.toHaveBeenCalled();
   const proof = screen.getByLabelText("Your current password");

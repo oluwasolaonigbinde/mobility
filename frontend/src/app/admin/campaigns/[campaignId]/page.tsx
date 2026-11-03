@@ -254,6 +254,15 @@ export default async function CampaignHub({
         )
       : null,
   ]);
+  const staff = activity.data?.items.length
+    ? await api
+        .GET("/api/v1/admin/users", { params: { query: { role: "admin", limit: 100 } } })
+        .catch(sectionFailure)
+    : { data: undefined };
+  const activityNames = new Map(
+    (staff.data?.items ?? []).map((person) => [person.id, person.full_name]),
+  );
+  activityNames.set(me.user.id, me.user.full_name);
   return (
     <div className="mx-auto max-w-6xl">
       <Link href="/admin/campaigns" className="text-cyan text-sm">
@@ -263,7 +272,7 @@ export default async function CampaignHub({
         title={campaign.name}
         eyebrow={[
           formatDateRange(campaign.start_at, campaign.end_at),
-          campaignDay(campaign.start_at, campaign.end_at),
+          campaignDay(campaign.start_at, campaign.end_at, campaign.status),
         ]
           .filter(Boolean)
           .join(" · ")}
@@ -382,7 +391,12 @@ export default async function CampaignHub({
             {
               label: "Installation photos approved",
               state: "Check each driver's current installation",
-              done: false,
+              done: Boolean(
+                jobs.data &&
+                jobs.data.total > 0 &&
+                rows.length === jobs.data.total &&
+                rows.every((row) => row.job.status === "active"),
+              ),
               section: "drivers",
             },
           ]}
@@ -617,7 +631,7 @@ export default async function CampaignHub({
                 activity.data.items.map((event) => (
                   <p className="mb-2 text-sm" key={event.id}>
                     {formatDate(event.created_at)} · {adminActivity(event.action)} ·{" "}
-                    {event.actor_email ?? "System"}
+                    {activityNames.get(event.actor_user_id ?? "") ?? event.actor_email ?? "System"}
                   </p>
                 ))
               )}

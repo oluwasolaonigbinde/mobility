@@ -198,15 +198,9 @@ export default async function AdvertiserOverviewPage() {
                             {areas.data.items.map((area) => area.name).join(", ")}
                           </span>
                         ) : null}
-                        <span className="inline-flex items-center gap-2">
-                          <PortalIcon name="car" className="size-4" />
-                          {positions === null
-                            ? "Cars unavailable"
-                            : `${positions.length} ${positions.length === 1 ? "car" : "cars"}`}
-                        </span>
                       </div>
                       <p className="text-green mt-2 text-sm font-semibold">
-                        {campaignDay(campaign.start_at, campaign.end_at)}
+                        {campaignDay(campaign.start_at, campaign.end_at, campaign.status)}
                       </p>
                     </div>
                     <Link href={base} className="brand-secondary">

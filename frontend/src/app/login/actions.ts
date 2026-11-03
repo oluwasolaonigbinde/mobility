@@ -21,13 +21,19 @@ export interface LoginState {
   fieldErrors?: Partial<Record<"email" | "password", string>>;
 }
 
+function safeReturn(from: FormDataEntryValue | null, base: string, home: string) {
+  if (typeof from !== "string") return home;
+  if (!from.startsWith("/") || from.startsWith("//") || /[%\\\s]/.test(from) || from.includes(".."))
+    return home;
+  return from === base || from.startsWith(`${base}/`) ? from : home;
+}
+
 export async function demoLoginAction(
   role: DemoLoginRole,
   _prev: LoginState,
   _formData: FormData,
 ): Promise<LoginState> {
   void _prev;
-  void _formData;
   const parsedRole = demoLoginRoleSchema.safeParse(role);
   if (!parsedRole.success) return { error: "Sign-in is unavailable." };
 
@@ -54,6 +60,8 @@ export async function demoLoginAction(
   const credentials = new FormData();
   credentials.set("email", selected.email);
   credentials.set("password", selected.password);
+  const from = _formData.get("from");
+  if (typeof from === "string") credentials.set("from", from);
   return loginAction({}, credentials);
 }
 
@@ -86,7 +94,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
     await setSessionCookie(data.access_token, data.expires_in);
     home = data.user.must_change_password
       ? changePasswordPath(data.user.role)
-      : roleHome(data.user.role);
+      : safeReturn(formData.get("from"), `/${data.user.role}`, roleHome(data.user.role));
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof ApiError) {

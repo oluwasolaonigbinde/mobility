@@ -91,6 +91,9 @@ export function ZonesEditor({
     });
     map.addControl(new NavigationControl({ showCompass: false }), "top-right");
     mapRef.current = map;
+    const observer =
+      typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(() => map.resize());
+    observer?.observe(containerRef.current);
     let usingFallback = false;
     map.on("error", () => {
       if (usingFallback || drawRef.current) return;
@@ -100,6 +103,7 @@ export function ZonesEditor({
 
     // Terra Draw needs the style fully loaded before it can attach layers.
     map.on("load", () => {
+      map.resize();
       const draw = new TerraDraw({
         adapter: new TerraDrawMapLibreGLAdapter({ map }),
         modes: [new TerraDrawPolygonMode()],
@@ -122,6 +126,7 @@ export function ZonesEditor({
     });
 
     return () => {
+      observer?.disconnect();
       drawRef.current?.stop();
       drawRef.current = null;
       map.remove();

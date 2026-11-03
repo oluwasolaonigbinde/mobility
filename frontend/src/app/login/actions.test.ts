@@ -75,12 +75,65 @@ describe("demoLoginAction", () => {
     });
     expect(mocks.post).not.toHaveBeenCalled();
   });
+
+  it("forwards the same-role return through demo sign-in", async () => {
+    const form = new FormData();
+    form.set("from", "/admin/campaigns/123");
+    await expect(demoLoginAction("admin", {}, form)).rejects.toThrow(
+      "redirect:/admin/campaigns/123",
+    );
+  });
 });
 
 describe("loginAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.env.mockReturnValue({ LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER: false });
+  });
+
+  it.each([
+    ["admin", "/admin/campaigns/123", "/admin/campaigns/123"],
+    ["advertiser", "/advertiser/billing", "/advertiser/billing"],
+    ["driver", "/driver/jobs", "/driver/jobs"],
+    ["admin", "/driver/jobs", "/admin"],
+    ["advertiser", "/admin", "/advertiser"],
+    ["driver", "/advertiser", "/driver"],
+    ["admin", "https://example.test/admin", "/admin"],
+    ["admin", "//example.test/admin", "/admin"],
+    ["admin", "/adminfoo", "/admin"],
+    ["admin", "/adminfoo/jobs", "/admin"],
+    ["admin", "/admin/%2f%2Fexample.test", "/admin"],
+    ["admin", "/admin/%5cdriver", "/admin"],
+    ["admin", "/admin/%5Cdriver", "/admin"],
+    ["admin", "/admin/%2e%2e/driver", "/admin"],
+    ["admin", "/admin/%2E%2E/driver", "/admin"],
+    ["admin", "/admin/%252fexample.test", "/admin"],
+    ["admin", "/admin/../driver", "/admin"],
+    ["admin", "/admin/\\driver", "/admin"],
+  ])("returns %s safely from %s", async (role, from, destination) => {
+    mocks.post.mockResolvedValue({
+      data: { access_token: "token", expires_in: 3600, user: { role } },
+    });
+    const form = new FormData();
+    form.set("email", "person@example.test");
+    form.set("password", "password");
+    form.set("from", from);
+    await expect(loginAction({}, form)).rejects.toThrow(`redirect:${destination}`);
+  });
+
+  it("requires a password change before following a valid return", async () => {
+    mocks.post.mockResolvedValue({
+      data: {
+        access_token: "token",
+        expires_in: 3600,
+        user: { role: "admin", must_change_password: true },
+      },
+    });
+    const form = new FormData();
+    form.set("email", "person@example.test");
+    form.set("password", "password");
+    form.set("from", "/admin/campaigns/123");
+    await expect(loginAction({}, form)).rejects.toThrow("redirect:/change-password");
   });
 
   it("does not expose an unexpected backend message", async () => {

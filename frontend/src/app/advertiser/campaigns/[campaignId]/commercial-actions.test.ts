@@ -14,7 +14,11 @@ vi.mock("next/cache", () => ({
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ POST: mocks.post }) }));
 
-import { acceptQuoteAction, requestQuoteAction } from "./commercial-actions";
+import {
+  acceptQuoteAction,
+  requestQuoteAction,
+  acceptExpeditedWaiverAction,
+} from "./commercial-actions";
 
 const CAMPAIGN_ID = "00000000-0000-4000-8000-000000000001";
 const REVISION_ID = "00000000-0000-4000-8000-000000000002";
@@ -34,6 +38,13 @@ function campaignForm() {
 }
 
 describe("commercial advertiser feedback", () => {
+  it("refreshes the waiver state after agreement", async () => {
+    mocks.post.mockResolvedValueOnce({ data: {} });
+    expect(await acceptExpeditedWaiverAction({}, campaignForm())).toEqual({
+      done: "Earlier production start agreed.",
+    });
+    expect(mocks.refresh).toHaveBeenCalledOnce();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.post.mockResolvedValue({ data: {} });

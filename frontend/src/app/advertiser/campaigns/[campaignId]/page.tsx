@@ -31,7 +31,6 @@ import { CampaignCancellationPanel } from "./campaign-cancellation-panel";
 export const metadata: Metadata = { title: "Campaign" };
 const sentences: Record<string, string> = {
   draft: "Finish setting up your campaign.",
-  pending_review: "Terrax Media is reviewing your campaign.",
   rejected: "Terrax Media has asked for a few changes.",
   approved: "Your campaign is approved. Terrax Media is arranging the next steps.",
   active: "Your campaign is running.",
@@ -220,13 +219,15 @@ export default async function CampaignDetailPage({
             {formatDateRange(campaign.start_at, campaign.end_at)}
           </p>
           <p className="mt-2 text-sm font-semibold text-[#f2c94c]">
-            {campaignDay(campaign.start_at, campaign.end_at)}
+            {campaignDay(campaign.start_at, campaign.end_at, campaign.status)}
           </p>
-          <p className="mt-4 text-sm text-[#e4f0df]">
-            {campaign.status === "paused"
-              ? pauseSentences[campaign.pause_kind ?? "unknown"]
-              : sentences[campaign.status]}
-          </p>
+          {campaign.status !== "pending_review" ? (
+            <p className="mt-4 text-sm text-[#e4f0df]">
+              {campaign.status === "paused"
+                ? pauseSentences[campaign.pause_kind ?? "unknown"]
+                : sentences[campaign.status]}
+            </p>
+          ) : null}
           <Link href={next.href} className="brand-action mt-5">
             {next.label} <span aria-hidden="true">→</span>
           </Link>
@@ -340,21 +341,23 @@ export default async function CampaignDetailPage({
               )}
             </div>
             {history.available ? (
-              <section className="mt-6">
-                <h2 className="font-semibold">Campaign updates</h2>
-                <ul className="mt-3 grid gap-2 text-sm">
-                  {history.data.items.map((event) => (
-                    <li key={event.id}>
-                      <span>
-                        {statusLabel[event.new_status]} · {formatDate(event.created_at)}
-                      </span>
-                      {event.rejection_reason ? (
-                        <p className="text-coral mt-1">{event.rejection_reason}</p>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </section>
+              history.data.items.length ? (
+                <section className="mt-6">
+                  <h2 className="font-semibold">Campaign updates</h2>
+                  <ul className="mt-3 grid gap-2 text-sm">
+                    {history.data.items.map((event) => (
+                      <li key={event.id}>
+                        <span>
+                          {statusLabel[event.new_status]} · {formatDate(event.created_at)}
+                        </span>
+                        {event.rejection_reason ? (
+                          <p className="text-coral mt-1">{event.rejection_reason}</p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null
             ) : (
               <DataUnavailable
                 title="Campaign updates unavailable"

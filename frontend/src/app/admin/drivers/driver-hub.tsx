@@ -210,17 +210,19 @@ export default async function DriverHub({
   const next =
     status === "suspended"
       ? "Next: review why this driver is suspended."
-      : application && p?.status !== "approved"
-        ? "Next: review identity documents."
-        : application && !p?.bank_account_verified
-          ? "Next: check bank details."
-          : application && v?.status !== "approved"
-            ? "Next: check the car and its documents."
-            : account?.status === "invited"
-              ? "Next: complete sign-in setup."
-              : status === "pending"
-                ? "Next: review this driver's status."
-                : null;
+      : p?.status === "rejected"
+        ? "Next: wait for the driver to send new details."
+        : application && p?.status !== "approved"
+          ? "Next: review identity documents."
+          : application && !p?.bank_account_verified
+            ? "Next: check bank details."
+            : application && v?.status !== "approved"
+              ? "Next: check the car and its documents."
+              : account?.status === "invited"
+                ? "Next: complete sign-in setup."
+                : status === "pending"
+                  ? "Next: review this driver's status."
+                  : null;
   const selectedTrip = query.trip
     ? trips.data?.items.find((t) => t.trip_session_id === query.trip)
     : undefined;
@@ -457,9 +459,7 @@ export default async function DriverHub({
                   challengeId={phoneWork.data.items[0].id}
                 />
               ) : (
-                <p className="text-muted mt-2 text-sm">
-                  No phone verification is waiting to be recorded.
-                </p>
+                <p className="text-muted mt-2 text-sm">No phone check to record.</p>
               )}
               {contacts.data?.items.map((task) => (
                 <Link

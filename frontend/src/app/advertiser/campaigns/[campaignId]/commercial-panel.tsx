@@ -100,7 +100,6 @@ function QuotationFacts({ quotation, accepted }: { quotation: Quotation; accepte
             {accepted ? "Accepted quotation" : "Latest quotation for review"}
           </p>
         </div>
-        {accepted ? <StatusChip tone="green">Accepted and fixed</StatusChip> : null}
       </div>
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[560px] text-left text-sm">
@@ -263,7 +262,7 @@ export function CommercialPanel({
               </Button>
             </form>
           </>
-        ) : commercial.quote_request ? (
+        ) : commercial.quote_request && !requestState.done ? (
           <p className="text-muted text-sm">
             Your request has been received. Our team will prepare a quotation for you to review
             here.
@@ -271,14 +270,6 @@ export function CommercialPanel({
         ) : null}
         {acceptedTerms ? (
           <div className="border-edge mt-5 grid gap-4 border-t pt-5 md:grid-cols-3">
-            <div>
-              <p className="micro text-muted">How you&apos;ll pay</p>
-              <p className="mt-1 text-sm">
-                {commercial.financial_authority
-                  ? `${paymentLabel(commercial.financial_authority.authority_type)} · ${formatMoney(commercial.financial_authority.authorized_amount, commercial.financial_authority.currency)}`
-                  : "Pending"}
-              </p>
-            </div>
             <div>
               <p className="micro text-muted">Production</p>
               <p className="mt-1 text-sm">

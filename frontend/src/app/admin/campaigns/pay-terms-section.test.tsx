@@ -12,7 +12,7 @@ const current = {
   effective_from: "2026-01-01T00:00:00Z",
   formula_version: "payout_v4",
   daily_rate_naira: "10000.00",
-  daily_target_miles: "70",
+  daily_target_miles: "70.000",
   currency: "NGN",
 };
 function mock(version = "payout_v4", revision: Record<string, unknown> | undefined = current) {

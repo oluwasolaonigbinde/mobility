@@ -70,7 +70,7 @@ SYNTHETIC_ISSUER_FACTS = {
     "company_registration_number": "8688553",
     "registered_address": "73 Lome Crescent, Wuse Zone 7, Abuja",
     "country_code": "NG",
-    "invoice_wording": "Vehicle advertising",
+    "invoice_wording": "Please use your invoice number as the payment reference.",
     "numbering_prefix": "TXM",
     "external_input_reference": "cardvert-synthetic-issuer",
     "contact_phone": "07074200080",
@@ -304,6 +304,7 @@ async def seed_campaign_financials(
         FinancialAuthorizationAllocation,
         Invoice,
         InvoiceIssuerProfile,
+        InvoiceNumberSequence,
         PaymentReceipt,
         ReceiptAllocation,
         ReceiptLifecycleEvent,
@@ -464,15 +465,33 @@ async def seed_campaign_financials(
         )
         session.add(issuer)
         await session.flush()
+    invoice_number = None
+    if invoice_status != "draft":
+        from app.services.billing.invoices import _acquire_invoice_number_lock
+
+        year = max(2020, at.year - 1)
+        await _acquire_invoice_number_lock(session, "TXM", year)
+        sequence = await session.scalar(
+            select(InvoiceNumberSequence)
+            .where(
+                InvoiceNumberSequence.number_prefix == "TXM",
+                InvoiceNumberSequence.calendar_year == year,
+            )
+            .with_for_update()
+        )
+        if sequence is None:
+            sequence = InvoiceNumberSequence(number_prefix="TXM", calendar_year=year, next_number=1)
+            session.add(sequence)
+            await session.flush()
+        invoice_number = f"TXM-{year}-{sequence.next_number:06d}"
+        sequence.next_number += 1
     session.add(
         Invoice(
             commercial_terms_id=terms.id,
             campaign_id=campaign.id,
             organization_id=campaign.organization_id,
             issuer_profile_id=issuer.id if invoice_status != "draft" else None,
-            invoice_number=f"TXM-{campaign.id.hex[:8].upper()}"
-            if invoice_status != "draft"
-            else None,
+            invoice_number=invoice_number,
             status=invoice_status,
             customer_snapshot={"name": organization.name},
             issuer_snapshot=None

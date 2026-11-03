@@ -178,7 +178,6 @@ export function InvoiceDocument({
       </section>
 
       <section>
-        <h2 className="micro text-muted mb-3">Campaign</h2>
         <dl className="grid gap-2 sm:grid-cols-3">
           <Fact label="Campaign" value={campaignName} />
           <Fact label="Campaign duration" value={formatCampaignDuration(terms?.production_scope)} />

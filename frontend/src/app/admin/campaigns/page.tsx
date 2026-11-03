@@ -328,7 +328,7 @@ async function CampaignList(
                         {formatDateRange(campaign.start_at, campaign.end_at)}
                       </p>
                       <p className="text-muted mt-1 text-sm">
-                        {campaignDay(campaign.start_at, campaign.end_at)}
+                        {campaignDay(campaign.start_at, campaign.end_at, campaign.status)}
                       </p>
                     </div>
                     <div>

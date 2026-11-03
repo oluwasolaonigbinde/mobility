@@ -9,5 +9,8 @@ it("uses ready and blocker codes without exposing backend text", () => {
   expect(jobStartMessage({ blocker_code: "INSTALLATION_EVIDENCE_EXPIRED" })).toBe(
     "New installation photos are needed.",
   );
+  expect(jobStartMessage({ blocker_code: "APPROVED_INSTALLATION_EVIDENCE_REQUIRED" })).toBe(
+    "Installation photos must be approved first.",
+  );
   expect(jobStartMessage({ blocker_code: "NEW_INTERNAL_CODE" })).not.toContain("NEW_INTERNAL_CODE");
 });

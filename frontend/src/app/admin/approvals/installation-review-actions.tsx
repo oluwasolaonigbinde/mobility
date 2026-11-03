@@ -101,7 +101,7 @@ export function InstallationReviewActions({
             key={photo.stored_file_id}
             type="button"
             variant="ghost"
-            className="h-8 px-2 text-xs capitalize"
+            className="h-8 px-2 text-xs"
             disabled={openingFileId !== undefined}
             onClick={() => openPhoto(photo)}
           >
