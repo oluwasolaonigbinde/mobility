@@ -263,7 +263,7 @@ details: Terrax Media Company Ltd, 73 Lome Crescent, Wuse Zone 7, FCT Abuja,
 lines, campaign duration, quantity (the number of advert campaigns) and bank
 details (client answers item 6). Advertiser and driver amounts use grouping and two decimal places; VAT shows
 its percentage and amount (D71, REQ-142). The invoice leads with the VAT-inclusive
-total; staff still enter prices before VAT. On VAT-entry screens, staff enter 0–100% with up to four decimal places. Conversion and saved percentage display use exact decimal strings; storage and calculation remain a rate from 0 to 1 with six places. Each save of a positive percentage below 1% requires one explicit confirmation showing the value, without a minimum tax rate (owner, 3 November 2026, REQ-279). Real invoice bank details stay
+total; staff still enter prices before VAT. On VAT-entry screens, staff enter 0–100% with up to four decimal places. Conversion and saved percentage display use exact decimal strings; storage and calculation remain a rate from 0 to 1 with six places. Each save of a positive percentage below 1% requires one explicit confirmation showing the value, without a minimum tax rate (controller judgement under the owner's 3 Nov 2026 mandate, reported to the owner, REQ-279). Real invoice bank details stay
 unset until Terrax supplies them, and a real invoice cannot be issued without
 them or without the accountant's sign-off (D42). Owner, 27–29 October 2026
 (D141 / REQ-263), permits local, test and staging issuance from realistic
@@ -277,7 +277,7 @@ facts or real payment instructions. Built in `3abcc85b` on master.
 [REQ-042](requests.md) accountant's confirmation and [REQ-052](requests.md) someone to check the sample invoice.
 
 **History:**
-- **2026-11-03** — Owner replaces decimal-rate VAT entry (for example 0.075) with percentage entry (7.5), retaining the existing stored rate and server validation. Accept 0–100% to four decimal places using exact string arithmetic; confirm positive values below 1% once before each save. No minimum rate is introduced (REQ-279).
+- **2026-11-03** — Controller judgement under the owner's 3 Nov 2026 mandate, reported to the owner, replaces decimal-rate VAT entry (for example 0.075) with percentage entry (7.5), retaining the existing stored rate and server validation. Accept 0–100% to four decimal places using exact string arithmetic; confirm positive values below 1% once before each save. No minimum rate is introduced (REQ-279).
 - **2026-11-03** — Delivery accepted on master. Built in `3abcc85b`; full CI passed on `1a6d563f`. See the [acceptance evidence](../issues/testing/req271-ci-acceptance-2026-11-03.md).
 - **2026-10-07** — Owner W2-D brief requires advertiser/driver money grouped with two decimal places and VAT shown as "VAT 7.5% · ₦…"; stored values and issued invoices remain unchanged (D71, REQ-142). Earlier display precision varied by amount. Built in `78ad5580` and real integration `21239a6d`.
 - **2026-10-27–29** — Owner extends D42/D46 to actual synthetic invoice issuance in local, test and staging (D141 / REQ-263). Previously synthetic issuance was test-only and synthetic invoices used a `TEST-` prefix and label; demo/staging placeholders alone did not enable staging issuance. Rehearsal/production still require verified facts. Built on integrate/req252-264 (`3abcc85b`).
