@@ -137,7 +137,7 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
   await page.getByLabel("Services rendered").fill("Vehicle media placement");
   await expect(page.getByLabel("Quantity (number of advert campaigns)")).toHaveValue("1");
   await page.getByLabel("Unit price before VAT").fill("100000");
-  await expect(page.getByLabel("VAT rate (decimal, 0.075 = 7.5 %)")).toHaveValue("0.075");
+  await expect(page.getByLabel("VAT (%)")).toHaveValue("7.5");
   // The isolated campaign has no dates, so the required campaign dates start blank.
   await page.getByLabel("Campaign start date").fill("2026-10-01");
   await page.getByLabel("Campaign end date").fill("2026-10-31");

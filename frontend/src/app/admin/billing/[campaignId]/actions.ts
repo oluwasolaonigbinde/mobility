@@ -6,6 +6,7 @@ import { redirect, unstable_rethrow } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
+import { vatPercentageToRate, VAT_PERCENTAGE_ERROR } from "@/lib/billing/vat-percentage";
 
 function path(campaignId: string) {
   return `/admin/campaigns/${campaignId}`;
@@ -27,6 +28,8 @@ export async function recordRevisionAction(
   quoteRequestId: string,
   formData: FormData,
 ) {
+  const taxRate = vatPercentageToRate(String(formData.get("tax_percentage") ?? ""));
+  if (taxRate === null) return { error: VAT_PERCENTAGE_ERROR };
   try {
     const api = createApiClient(await getSessionToken());
     const descriptions = formData.getAll("description");
@@ -65,7 +68,7 @@ export async function recordRevisionAction(
           ...JSON.parse(String(formData.get("previous_payment_terms") ?? "{}")),
           notes: String(formData.get("payment_terms") ?? "").trim(),
         },
-        tax_rate: String(formData.get("tax_rate") ?? "").trim(),
+        tax_rate: taxRate,
       },
     });
   } catch (error) {

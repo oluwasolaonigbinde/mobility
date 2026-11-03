@@ -124,7 +124,7 @@ describe("admin campaign billing page", () => {
     );
     expect(screen.getByLabelText("Quantity (number of advert campaigns)")).toHaveValue(1);
     expect(screen.getByLabelText("Unit price before VAT")).toBeRequired();
-    expect(screen.getByLabelText("VAT rate (decimal, 0.075 = 7.5 %)")).toHaveValue("0.075");
+    expect(screen.getByLabelText("VAT (%)")).toHaveValue("7.5");
     expect(screen.getByLabelText("Campaign start date")).toHaveValue("2026-10-01");
     expect(screen.getByLabelText("Campaign end date")).toHaveValue("2026-10-31");
     expect(screen.getByLabelText("Campaign start date")).toBeRequired();
@@ -146,7 +146,7 @@ describe("admin campaign billing page", () => {
                   net_amount: "120000.00",
                   tax_amount: "9000.00",
                   gross_amount: "129000.00",
-                  tax_rate: "0.075",
+                  tax_rate: "0.075000",
                   payment_class: "standard_prepaid",
                   payment_terms: { notes: "Before printing" },
                   production_scope: {
@@ -179,6 +179,8 @@ describe("admin campaign billing page", () => {
         searchParams: Promise.resolve({}),
       }),
     );
+    expect(screen.getByLabelText("VAT (%)")).toHaveValue("7.5");
+    expect(screen.getByText("VAT").nextElementSibling).toHaveTextContent("7.5% · ₦9,000.00");
     expect(screen.getByLabelText("Quote reference")).toHaveValue("Q-OLD");
     expect(screen.getByLabelText("Services rendered")).toHaveValue("City campaign");
     expect(screen.getByLabelText("Quantity (number of advert campaigns)")).toHaveValue(2);

@@ -1,6 +1,11 @@
 "use client";
 
 import { useState, useTransition, type ReactNode } from "react";
+import {
+  smallVatConfirmation,
+  vatPercentageToRate,
+  VAT_PERCENTAGE_ERROR,
+} from "@/lib/billing/vat-percentage";
 
 export function QuotationForm({
   action,
@@ -17,6 +22,13 @@ export function QuotationForm({
       onSubmit={(event) => {
         event.preventDefault();
         const data = new FormData(event.currentTarget);
+        const percentage = String(data.get("tax_percentage") ?? "");
+        if (vatPercentageToRate(percentage) === null) {
+          setError(VAT_PERCENTAGE_ERROR);
+          return;
+        }
+        const confirmation = smallVatConfirmation(percentage);
+        if (confirmation && !window.confirm(confirmation)) return;
         start(async () => {
           setError(undefined);
           const result = await action(data);

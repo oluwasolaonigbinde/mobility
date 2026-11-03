@@ -24,6 +24,29 @@ import { ApiError } from "@/lib/api/errors";
 
 describe("recordRevisionAction", () => {
   beforeEach(() => vi.clearAllMocks());
+  it.each([
+    ["7.5", "0.075"],
+    ["0", "0"],
+    ["100", "1"],
+    ["0.0001", "0.000001"],
+  ])("sends %s percent as the exact rate %s", async (percentage, rate) => {
+    post.mockResolvedValue({ data: {} });
+    const form = new FormData();
+    form.set("tax_percentage", percentage);
+    await expect(recordRevisionAction("campaign-1", "quote-1", form)).rejects.toThrow("redirect:");
+    expect(post.mock.calls[0]![1].body.tax_rate).toBe(rate);
+  });
+  it.each(["101", "-1", "7.50000", "0.00001"])(
+    "refuses invalid percentage %s before calling the API",
+    async (percentage) => {
+      const form = new FormData();
+      form.set("tax_percentage", percentage);
+      await expect(recordRevisionAction("campaign-1", "quote-1", form)).resolves.toEqual({
+        error: "Enter VAT from 0 to 100%, with up to 4 decimal places.",
+      });
+      expect(post).not.toHaveBeenCalled();
+    },
+  );
   it("sends a quantity-priced line and the campaign dates to the quotation API", async () => {
     post.mockResolvedValue({ data: {} });
     const form = new FormData();
@@ -31,7 +54,7 @@ describe("recordRevisionAction", () => {
     form.set("description", "Mobile billboard campaign");
     form.set("quantity", "3");
     form.set("unit_amount", "100000.00");
-    form.set("tax_rate", "0.075");
+    form.set("tax_percentage", "7.5");
     form.set("currency", "ngn");
     form.set("vehicle_count", "10");
     form.set("campaign_start_date", "2026-10-01");
@@ -72,7 +95,7 @@ describe("recordRevisionAction", () => {
     "keeps production as its own optional line (%s)",
     async (production) => {
       const form = new FormData();
-      form.set("tax_rate", "0.075");
+      form.set("tax_percentage", "7.5");
       form.append("description", "Media");
       form.append("quantity", "2");
       form.append("unit_amount", "50000.00");

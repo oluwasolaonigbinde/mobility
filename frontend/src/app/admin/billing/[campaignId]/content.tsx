@@ -5,6 +5,7 @@ import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { requireRole } from "@/lib/auth/current-user";
 import { receiptsAllocatedToTerms } from "@/lib/billing/history";
+import { vatRateToPercentage } from "@/lib/billing/vat-percentage";
 import { moneyMinor, minorDecimal } from "@/lib/advertiser/budget-display";
 import { watCalendarDate } from "@/lib/billing/invoice-document";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -134,7 +135,10 @@ export default async function AdminCampaignBillingPage({
               </div>
               <div>
                 <dt className="micro text-muted">VAT</dt>
-                <dd className="font-mono">{formatMoney(latest.tax_amount, latest.currency)}</dd>
+                <dd className="font-mono">
+                  {vatRateToPercentage(latest.tax_rate)}% ·{" "}
+                  {formatMoney(latest.tax_amount, latest.currency)}
+                </dd>
               </div>
               <div>
                 <dt className="micro text-muted">Gross</dt>
@@ -214,10 +218,10 @@ export default async function AdminCampaignBillingPage({
               ))}
               <div className="grid grid-cols-2 gap-4">
                 <Field
-                  name="tax_rate"
-                  label="VAT rate (decimal, 0.075 = 7.5 %)"
+                  name="tax_percentage"
+                  label="VAT (%)"
                   inputMode="decimal"
-                  defaultValue={latest?.tax_rate ?? "0.075"}
+                  defaultValue={vatRateToPercentage(latest?.tax_rate ?? "0.075") ?? ""}
                   required
                 />
                 <Field
