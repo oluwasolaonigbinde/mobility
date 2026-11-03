@@ -435,7 +435,15 @@ aside.bg-panel nav p.micro {
 
 /* Print only the invoice, without reserving space for the portal shell. */
 @media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
   body:has(.invoice-document) {
+    display: block !important;
+    width: auto;
+    min-width: 0;
+    min-height: 0;
     background: white;
     color: black;
     margin: 0;
@@ -449,15 +457,75 @@ aside.bg-panel nav p.micro {
     height: auto !important;
     min-height: 0 !important;
     width: auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
   }
   .invoice-document {
-    max-width: none;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     border: 0;
     border-radius: 0;
     padding: 0;
     background: white;
+    font-size: 11px;
+    line-height: 1.25;
+  }
+  .invoice-document * {
+    box-sizing: border-box;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .invoice-document > * + * {
+    margin-top: 10px !important;
+  }
+  .invoice-document header {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .invoice-document .text-sm {
+    font-size: 11px;
+    line-height: 1.25;
+  }
+  .invoice-document h1 {
+    font-size: 22px;
+  }
+  .invoice-document table {
+    width: 100%;
+    table-layout: fixed;
+  }
+  .invoice-document th,
+  .invoice-document td {
+    padding: 4px 5px;
+    font-size: 10px;
+    white-space: normal;
+  }
+  .invoice-document th:first-child {
+    width: 5%;
+  }
+  .invoice-document th:nth-child(2) {
+    width: 43%;
+  }
+  .invoice-document th:nth-child(3) {
+    width: 8%;
+  }
+  .invoice-document th:nth-child(4),
+  .invoice-document th:nth-child(5) {
+    width: 22%;
+  }
+  .invoice-document .overflow-x-auto {
+    overflow: visible;
+  }
+  .invoice-document .invoice-signatures {
+    break-inside: avoid;
+    padding-top: 6px;
+    gap: 24px;
+  }
+  .invoice-signatures .space-y-4 > * + * {
+    margin-top: 8px;
   }
 }

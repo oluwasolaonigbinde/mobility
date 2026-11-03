@@ -421,6 +421,9 @@ async def register_driver(
     request: Request,
     limiter: RegistrationRateLimiterDependency,
 ) -> DriverApplicationSubmitResponse:
+    from app.services.email_availability import APPLICATION_UNAVAILABLE, require_email
+
+    require_email(settings, APPLICATION_UNAVAILABLE)
     await reserve_driver_registration(
         session=session,
         limiter=limiter,
@@ -465,6 +468,9 @@ async def request_driver_onboarding_access(
     request: Request,
     limiter: RegistrationRateLimiterDependency,
 ) -> DriverPublicCommandResponse:
+    from app.services.email_availability import APPLICATION_LINK_UNAVAILABLE, require_email
+
+    require_email(settings, APPLICATION_LINK_UNAVAILABLE)
     await reserve_onboarding_access_request(
         session=session,
         limiter=limiter,

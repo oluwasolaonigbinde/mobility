@@ -5076,6 +5076,8 @@ export interface components {
         };
         /** AdminOrganizationCreateResponse */
         AdminOrganizationCreateResponse: {
+            /** Login Invite Sent */
+            login_invite_sent: boolean;
             organization: components["schemas"]["AdvertiserOrganizationRead"];
         };
         /** AdminOrganizationListItemRead */

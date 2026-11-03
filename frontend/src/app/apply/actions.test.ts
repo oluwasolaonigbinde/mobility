@@ -116,3 +116,20 @@ describe("driver application actions", () => {
     expect(JSON.stringify(result)).not.toContain("provider");
   });
 });
+
+it("refuses both application entry points with fixed text when email is off", async () => {
+  mocks.createLoginClient.mockReturnValue({ POST: mocks.post });
+  mocks.post.mockRejectedValue(
+    new ApiError(503, { code: "EMAIL_NOT_CONFIGURED", message: "untrusted" }),
+  );
+  const form = new FormData();
+  form.set("email", "driver@example.test");
+  form.set("full_name", "Driver");
+  form.set("service_city", "Abuja");
+  expect((await submitDriverApplicationAction({}, form)).error).toBe(
+    "Driver applications aren't available right now. Please contact Terrax Media.",
+  );
+  expect((await requestDriverOnboardingAccessAction({}, form)).error).toBe(
+    "Application links aren't available right now. Please contact Terrax Media.",
+  );
+});

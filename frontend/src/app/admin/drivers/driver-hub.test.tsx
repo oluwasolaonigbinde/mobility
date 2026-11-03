@@ -666,3 +666,14 @@ it("keeps suspension ahead of document review and sign-in", async () => {
   render(await DriverHub({ driverId }));
   expect(screen.getByText("Next: review why this driver is suspended.")).toBeInTheDocument();
 });
+
+it.each(["active", "disabled", "suspended", "invited"])(
+  "only advises password reset for an active sign-in account (%s)",
+  async (status) => {
+    reads({ accountStatus: status });
+    render(await DriverHub({ driverId }));
+    expect(
+      screen.queryByText("The driver can reset their password from the sign-in page.") !== null,
+    ).toBe(status === "active");
+  },
+);

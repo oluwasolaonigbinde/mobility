@@ -45,6 +45,8 @@ export async function requestPasswordResetAction(
       error: publicActionError(
         error,
         {
+          EMAIL_NOT_CONFIGURED:
+            "Password reset isn't available right now. Please contact Terrax Media.",
           PASSWORD_RESET_RATE_LIMITED: "Too many requests. Wait before trying again.",
           RATE_LIMIT_UNAVAILABLE: "Password recovery is temporarily unavailable. Try again later.",
         },

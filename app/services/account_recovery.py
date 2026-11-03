@@ -100,6 +100,9 @@ async def request_password_reset(
     client_ip: str,
     settings: Settings,
 ) -> PasswordResetToken | None:
+    from app.services.email_availability import RESET_UNAVAILABLE, require_email
+
+    require_email(settings, RESET_UNAVAILABLE)
     normalized_email = normalize_email(email)
     email_digest = _digest(normalized_email, settings, purpose="reset-email")
     ip_digest = _digest(client_ip, settings, purpose="reset-ip")

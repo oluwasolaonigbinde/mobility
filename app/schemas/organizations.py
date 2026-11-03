@@ -96,6 +96,7 @@ class AdvertiserLoginInviteRead(BaseModel):
 
 class AdminOrganizationCreateResponse(BaseModel):
     organization: AdvertiserOrganizationRead
+    login_invite_sent: bool
 
 
 class AdvertiserOrganizationContextResponse(BaseModel):

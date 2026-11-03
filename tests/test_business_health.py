@@ -88,17 +88,23 @@ def test_gps_window_counts_only_complete_minutes_without_personal_data():
 
 
 @pytest.mark.parametrize(
-    "mode", ["idle", "missing", "broken", "incomplete", "tracked", "zero_tracked"]
+    "mode",
+    ["idle", "missing", "broken", "incomplete", "fresh", "almost_due", "tracked", "zero_tracked"],
 )
 def test_idle_gps_is_quiet_but_missing_tracking_still_alerts(
     db_sessionmaker, settings, monkeypatch, mode
 ):
+    settings.email_provider = ""
     redis = None if mode == "missing" else FakeRedis(broken=mode == "broken")
     if mode == "incomplete":
         redis.values[minute_key(NOW - timedelta(minutes=1))] = {"attempts": 1}
     if mode == "zero_tracked":
         redis.values[minute_key(NOW - timedelta(minutes=1))] = {"attempts": 0, "rejected": 0}
-    trip = setup_trip(db_sessionmaker)[2] if mode in {"tracked", "zero_tracked"} else None
+    trip = (
+        setup_trip(db_sessionmaker)[2]
+        if mode in {"fresh", "almost_due", "tracked", "zero_tracked"}
+        else None
+    )
 
     async def covered(*args, **kwargs):
         return True, None
@@ -109,10 +115,16 @@ def test_idle_gps_is_quiet_but_missing_tracking_still_alerts(
         async with db_sessionmaker() as session:
             if trip:
                 row = await session.get(TripSession, trip.id)
-                row.started_at = NOW - timedelta(minutes=5)
+                age = {
+                    "fresh": timedelta(seconds=2),
+                    "almost_due": timedelta(minutes=5) - timedelta(microseconds=1),
+                }.get(mode, timedelta(minutes=5))
+                row.started_at = NOW - age
                 await session.flush()
             counts = await health.health_counts(session, now=NOW, settings=settings, redis=redis)
-            assert counts.get("gps_telemetry_unavailable", 0) == int(mode != "idle")
+            assert counts.get("gps_telemetry_unavailable", 0) == int(
+                mode not in {"idle", "fresh", "almost_due"}
+            )
             assert counts["email_unavailable"] == 1
             assert counts["email_failures"] == 0
 

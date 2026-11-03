@@ -73,3 +73,9 @@ describe("public action errors", () => {
     }
   });
 });
+
+it("uses fixed invite copy for the disabled-email code", () => {
+  expect(
+    publicActionError(new ApiError(503, { code: "EMAIL_NOT_CONFIGURED", message: "untrusted" })),
+  ).toBe("Emails aren't connected yet, so this invite can't be sent.");
+});

@@ -315,9 +315,17 @@ async def seed_campaign_financials(
     ):
         return
     from app.models.organization import AdvertiserOrganization
-    from app.services.billing.invoices import issuer_snapshot
+    from app.services.billing.invoices import _customer_snapshot, issuer_snapshot
 
     organization = await session.get(AdvertiserOrganization, campaign.organization_id)
+    organization.billing_contact_name = organization.billing_contact_name or advertiser.full_name
+    organization.billing_email = organization.billing_email or advertiser.email
+    organization.billing_contact_phone = (
+        organization.billing_contact_phone or advertiser.phone or "+2340000000200"
+    )
+    organization.address_city = organization.address_city or "Abuja"
+    organization.address_region = organization.address_region or "FCT"
+    organization.address_country_code = organization.address_country_code or "NG"
     at = financial_at or campaign.start_at - timedelta(days=8)
     gross = campaign.budget_amount
     net = (gross / Decimal("1.075")).quantize(Decimal("0.01"))
@@ -346,7 +354,15 @@ async def seed_campaign_financials(
         quote_reference=f"TX-{campaign.id.hex[:8].upper()}",
         currency="NGN",
         line_items=lines,
-        production_scope={"vehicle_count": 5},
+        production_scope={
+            "vehicle_count": 5,
+            "campaign_start_date": campaign.start_at.astimezone(ZoneInfo("Africa/Lagos"))
+            .date()
+            .isoformat(),
+            "campaign_end_date": campaign.end_at.astimezone(ZoneInfo("Africa/Lagos"))
+            .date()
+            .isoformat(),
+        },
         production_cost_amount=Decimal("0"),
         payment_class="standard_prepaid",
         payment_terms={"notes": "Payment before printing and installation."},
@@ -493,7 +509,7 @@ async def seed_campaign_financials(
             issuer_profile_id=issuer.id if invoice_status != "draft" else None,
             invoice_number=invoice_number,
             status=invoice_status,
-            customer_snapshot={"name": organization.name},
+            customer_snapshot=_customer_snapshot(organization),
             issuer_snapshot=None
             if invoice_status == "draft"
             else issuer_snapshot(issuer, synthetic_test_authority=True),
@@ -805,13 +821,16 @@ async def _ensure_applicant_vehicle(session, *, application, person, token, staf
             valid_until=datetime.now(UTC) + timedelta(days=90),
         ),
     )
-    await initiate_driver_account_setup(
-        session,
-        application_id=application.id,
-        actor_user_id=staff[3].id,
-        client_request_id=uuid5(application.id, "account-setup"),
-        settings=settings,
-    )
+    from app.adapters.messaging.email import email_is_available
+
+    if email_is_available(settings):
+        await initiate_driver_account_setup(
+            session,
+            application_id=application.id,
+            actor_user_id=staff[3].id,
+            client_request_id=uuid5(application.id, "account-setup"),
+            settings=settings,
+        )
 
 
 async def ensure_primary_demo_documents(session, *, driver, profile, vehicle, reviewer, settings):

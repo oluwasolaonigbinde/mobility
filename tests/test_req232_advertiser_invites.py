@@ -342,7 +342,8 @@ def test_add_company_creates_invite_atomically_and_refuses_existing_email_withou
     )
     assert created.status_code == 201, created.text
     company_id = created.json()["organization"]["id"]
-    assert set(created.json()) == {"organization"}
+    assert set(created.json()) == {"organization", "login_invite_sent"}
+    assert created.json()["login_invite_sent"] is True
     assert created.json()["organization"]["currency"] == "NGN"
     refused = db_client.post(
         path, headers=headers, json={"name": "Must not exist", "email": "new@example.invalid"}

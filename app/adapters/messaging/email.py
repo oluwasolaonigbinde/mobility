@@ -97,3 +97,7 @@ def build_email_adapter(settings: Settings) -> EmailAdapter:
     ):
         return SmtpEmailAdapter(settings)
     return DisabledEmailAdapter()
+
+
+def email_is_available(settings: Settings) -> bool:
+    return not isinstance(build_email_adapter(settings), DisabledEmailAdapter)

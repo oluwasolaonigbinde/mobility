@@ -347,7 +347,7 @@ export default async function DriverHub({
                   />
                 </div>
               ) : null}
-              {account?.status !== "invited" ? (
+              {account?.status === "active" ? (
                 <p className="text-muted mt-3 text-sm">
                   The driver can reset their password from the sign-in page.
                 </p>

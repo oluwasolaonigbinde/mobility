@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { z } from "zod";
 import { createApiClient, createLoginApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
+import { publicActionError } from "@/lib/api/public-action-error";
 import { loginClientIpHeader } from "@/lib/auth/client-ip";
 import { env } from "@/lib/env";
 
@@ -81,7 +82,14 @@ export async function submitDriverApplicationAction(
     return {
       error:
         error instanceof ApiError
-          ? "We couldn't send your application right now. Please try again later."
+          ? publicActionError(
+              error,
+              {
+                EMAIL_NOT_CONFIGURED:
+                  "Driver applications aren't available right now. Please contact Terrax Media.",
+              },
+              "We couldn't send your application right now. Please try again later.",
+            )
           : "We couldn't connect. Check your internet connection and try again.",
     };
   }
@@ -111,7 +119,14 @@ export async function requestDriverOnboardingAccessAction(
   } catch (caught) {
     unstable_rethrow(caught);
     return {
-      error: "We couldn't send a new link right now. Try again in a few minutes.",
+      error: publicActionError(
+        caught,
+        {
+          EMAIL_NOT_CONFIGURED:
+            "Application links aren't available right now. Please contact Terrax Media.",
+        },
+        "We couldn't send a new link right now. Try again in a few minutes.",
+      ),
       email: parsed.data.email,
     };
   }

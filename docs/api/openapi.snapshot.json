@@ -1686,12 +1686,17 @@
       },
       "AdminOrganizationCreateResponse": {
         "properties": {
+          "login_invite_sent": {
+            "title": "Login Invite Sent",
+            "type": "boolean"
+          },
           "organization": {
             "$ref": "#/components/schemas/AdvertiserOrganizationRead"
           }
         },
         "required": [
-          "organization"
+          "organization",
+          "login_invite_sent"
         ],
         "title": "AdminOrganizationCreateResponse",
         "type": "object"

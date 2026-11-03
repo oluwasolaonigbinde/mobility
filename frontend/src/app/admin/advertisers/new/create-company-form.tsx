@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,16 @@ import { createCompanyAction, type CreateCompanyState } from "./actions";
 
 export function CreateCompanyForm() {
   const [state, action, pending] = useActionState(createCompanyAction, {} as CreateCompanyState);
+  if (state.createdCompanyId)
+    return (
+      <div role="status">
+        <p>Company created.</p>
+        <p>{state.error}</p>
+        <Link className="underline" href={`/admin/advertisers/${state.createdCompanyId}#people`}>
+          Open company
+        </Link>
+      </div>
+    );
   return (
     <form action={action} className="flex flex-col gap-5">
       <Field label="Company name" name="name" required maxLength={255} />
@@ -19,7 +30,7 @@ export function CreateCompanyForm() {
         className="uppercase"
       />
       <p className="text-muted text-sm">
-        We&apos;ll email a one-time link to set a password. It works for 24 hours.
+        Invitations use a one-time email link to set a password. It works for 24 hours.
       </p>
       {state.error ? (
         <p role="alert" className="text-coral text-sm">

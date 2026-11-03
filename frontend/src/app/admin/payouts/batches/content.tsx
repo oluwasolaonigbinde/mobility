@@ -118,6 +118,9 @@ export default async function PaymentRuns({ searchParams }: { searchParams: Prom
                     <tr key={run.id} className="border-edge/60 border-b align-top last:border-0">
                       <td className="py-2">
                         {paymentRunStatus(run)}
+                        {run.status === "reserved" && !run.approved_at ? (
+                          <span className="text-muted block text-xs">Waiting for approval</span>
+                        ) : null}
                         {run.approval_mode === "automatic" ? (
                           <span className="text-muted block text-xs">Automatic</span>
                         ) : null}

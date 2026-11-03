@@ -228,6 +228,9 @@ async def initiate_driver_account_setup(
         session, {actor_user_id, subject_id} if subject_id is not None else {actor_user_id}
     )
     await require_active_admin(session, actor_user_id)
+    from app.services.email_availability import INVITE_UNAVAILABLE, require_email
+
+    require_email(settings, INVITE_UNAVAILABLE)
     application = await session.scalar(
         select(DriverApplication)
         .where(DriverApplication.id == application_id)

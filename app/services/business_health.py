@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters.messaging.email import DisabledEmailAdapter, build_email_adapter
+from app.adapters.messaging.email import email_is_available
 from app.core.config import Settings
 from app.core.gps_health import gps_window, minute_key
 from app.models.billing import PaymentGatewayEvent, PaymentGatewayProcessingAttempt
@@ -192,7 +192,7 @@ async def health_counts(
                 tracked = await session.scalar(
                     select(
                         exists().where(
-                            TripSession.started_at < end,
+                            TripSession.started_at <= end - timedelta(minutes=5),
                             or_(
                                 TripSession.ended_at.is_(None),
                                 TripSession.ended_at >= end - timedelta(minutes=15),
@@ -205,7 +205,7 @@ async def health_counts(
                 gps = await gps_window(redis, now=now)
         except Exception:
             gps = None
-    email_connected = not isinstance(build_email_adapter(settings), DisabledEmailAdapter)
+    email_connected = email_is_available(settings)
     counts = {
         "stuck_payouts": await stuck_payouts(session, now),
         "unprocessed_webhooks": await unprocessed_webhooks(session, now),

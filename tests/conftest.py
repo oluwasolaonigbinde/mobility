@@ -87,6 +87,9 @@ from app.services.vehicles import normalize_plate_number
 @pytest.fixture
 def settings() -> Settings:
     return Settings(
+        email_provider="smtp",
+        email_smtp_host="localhost",
+        email_sender_address="tests@demo.mobility.local",
         app_name="mobility-adtech-api",
         environment="test",
         database_url=None,

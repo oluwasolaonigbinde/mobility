@@ -74,6 +74,7 @@ describe("bounded payout pages", () => {
       "/summaries?limit=25&offset=50&batch_status=reserved",
     );
     const row = screen.getByRole("row", { name: /₦125.10/ });
+    expect(within(row).getByText("Saved, not sent yet")).toBeVisible();
     expect(within(row).getByText("Waiting for approval")).toBeVisible();
     expect(within(row).getByText("Waiting to send: 2")).toBeVisible();
     expect(within(row).getByRole("link", { name: "Review run" })).toHaveAttribute(

@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.messaging.email import email_is_available
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.security import hash_password_async
@@ -23,6 +24,7 @@ from app.services.account_recovery import _reset_token_value, _token_id, _utc
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.driver_applications import _is_user_email_conflict
+from app.services.email_availability import INVITE_UNAVAILABLE, require_email
 from app.services.notifications import create_notification
 from app.services.organizations import create_advertiser_organization
 from app.services.payout_rule_serialization import database_clock
@@ -51,7 +53,7 @@ async def create_company_with_invite(
     await require_active_admin(
         session, actor_user_id, expected_session_version=actor_session_version
     )
-    # One savepoint also protects service callers: a refused invite leaves no company.
+    # Keep company/login creation atomic; a disconnected adapter skips only the email.
     async with session.begin_nested():
         organization, _ = await create_advertiser_organization(
             session,
@@ -65,6 +67,7 @@ async def create_company_with_invite(
             email=payload.email,
             settings=settings,
             actor_session_version=actor_session_version,
+            create_only=not email_is_available(settings),
         )
         await create_audit_event(
             session,
@@ -101,6 +104,13 @@ def login_exists() -> AppError:
         "This email already has a Cardvert login. Use a different email.",
         status_code=409,
     )
+
+
+def _invite_email(email: str) -> str:
+    normalized = normalize_email(email)
+    if not re.fullmatch(r"[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+", normalized):
+        raise AppError("INVALID_EMAIL", "Enter a valid email address.", status_code=400)
+    return normalized
 
 
 async def _replace_pending_invites(
@@ -156,7 +166,8 @@ async def send_login_invite(
     email: str,
     settings: Settings,
     actor_session_version: int | None = None,
-) -> PasswordResetToken:
+    create_only: bool = False,
+) -> PasswordResetToken | None:
     await _lock_company_invites(session, organization_id)
     pending_ids = set(
         await session.scalars(
@@ -172,6 +183,8 @@ async def send_login_invite(
     await require_active_admin(
         session, actor_user_id, expected_session_version=actor_session_version
     )
+    if not create_only:
+        require_email(settings, INVITE_UNAVAILABLE)
     organization = await session.scalar(
         select(AdvertiserOrganization)
         .where(
@@ -188,9 +201,7 @@ async def send_login_invite(
             "This company already has a login, or is unavailable for an invite.",
             status_code=409,
         )
-    normalized = normalize_email(email)
-    if not re.fullmatch(r"[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+", normalized):
-        raise AppError("INVALID_EMAIL", "Enter a valid email address.", status_code=400)
+    normalized = _invite_email(email)
     pending = list(
         await session.scalars(
             select(OrganizationMembership)
@@ -238,6 +249,9 @@ async def send_login_invite(
                 status="invited",
             )
         )
+    if create_only:
+        await session.flush()
+        return None
     reset = PasswordResetToken(
         id=uuid4(),
         purpose="advertiser_invite",

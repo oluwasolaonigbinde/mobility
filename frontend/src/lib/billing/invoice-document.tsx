@@ -274,7 +274,7 @@ export function InvoiceDocument({
         ) : null}
       </section>
 
-      <section className="grid gap-10 pt-4 sm:grid-cols-2">
+      <section className="invoice-signatures grid gap-10 pt-4 sm:grid-cols-2">
         <SignatureLine party="For the client" role={text(customer.name) ?? "Client"} />
         <SignatureLine party={`For ${issuerName}`} role="Chief Executive Officer" />
       </section>

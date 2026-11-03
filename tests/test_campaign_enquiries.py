@@ -44,8 +44,13 @@ def make_client(*, session=None, decision=None, **settings_values):
     return TestClient(app, raise_server_exceptions=False), session, limiter
 
 
-def test_valid_enquiry_has_non_sensitive_reply(caplog):
-    client, session, limiter = make_client()
+@pytest.mark.parametrize("email_provider", ["", "smtp"])
+def test_valid_enquiry_has_non_sensitive_reply(caplog, email_provider):
+    client, session, limiter = make_client(
+        email_provider=email_provider,
+        email_smtp_host="localhost",
+        email_sender_address="tests@demo.mobility.local",
+    )
     response = client.post("/api/v1/campaign-enquiries", json=PAYLOAD)
     assert response.status_code == 200
     assert response.json() == {"status": "submitted"}

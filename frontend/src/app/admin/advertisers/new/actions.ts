@@ -9,7 +9,7 @@ import { ApiError } from "@/lib/api/errors";
 import { requireRole } from "@/lib/auth/current-user";
 import { getSessionToken } from "@/lib/auth/session";
 
-export type CreateCompanyState = { error?: string };
+export type CreateCompanyState = { error?: string; createdCompanyId?: string };
 const company = z.object({
   name: z.string().trim().min(1, "Company name is required").max(255),
   email: z.string().trim().toLowerCase().email("Enter a valid email"),
@@ -33,6 +33,7 @@ export async function createCompanyAction(
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Check the company details." };
   let id: string;
+  let inviteSent: boolean;
   try {
     const { data } = await createApiClient(await getSessionToken()).POST(
       "/api/v1/admin/advertiser-organizations",
@@ -43,6 +44,7 @@ export async function createCompanyAction(
         error: "The company could not be confirmed. Check the company list before trying again.",
       };
     id = data.organization.id;
+    inviteSent = data.login_invite_sent;
   } catch (error) {
     unstable_rethrow(error);
     return {
@@ -53,5 +55,10 @@ export async function createCompanyAction(
     };
   }
   revalidatePath("/admin/advertisers");
+  if (!inviteSent)
+    return {
+      createdCompanyId: id,
+      error: "Emails aren't connected yet, so this invite can't be sent.",
+    };
   redirect(`/admin/advertisers/${id}#people`);
 }

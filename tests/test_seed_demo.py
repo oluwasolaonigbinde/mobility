@@ -1798,10 +1798,16 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                 campaign = await session.get(Campaign, invoice.campaign_id)
                 assert invoice.organization_id == campaign.organization_id
                 assert invoice.customer_snapshot["name"] == companies[campaign.organization_id].name
+                assert invoice.customer_snapshot["billing_contact_name"]
+                assert invoice.customer_snapshot["billing_email"]
+                assert invoice.customer_snapshot["billing_contact_phone"]
+                assert invoice.customer_snapshot["address"]["city"] == "Abuja"
                 if invoice.issuer_snapshot:
                     assert invoice.issuer_snapshot["bank_account_number"] == "0000000000"
             for terms in await session.scalars(select(CommercialTerms)):
                 campaign = await session.get(Campaign, terms.campaign_id)
+                assert terms.production_scope["campaign_start_date"]
+                assert terms.production_scope["campaign_end_date"]
                 assert terms.organization_id == campaign.organization_id
                 assert terms.accepted_by_user_id == campaign.created_by_user_id
                 assert campaign.created_at <= terms.accepted_at

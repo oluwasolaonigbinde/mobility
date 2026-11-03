@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Request, status
 
+from app.adapters.messaging.email import email_is_available
 from app.api.v1.dependencies import (
     AdminUserDependency,
     RateLimiterDependency,
@@ -546,4 +547,5 @@ async def admin_create_advertiser_organization(
     await session.commit()
     return AdminOrganizationCreateResponse(
         organization=organization,
+        login_invite_sent=email_is_available(settings),
     )

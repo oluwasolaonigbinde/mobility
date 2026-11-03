@@ -15,7 +15,9 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 it("creates the company and sends its invite in one request, without a password or owner", async () => {
-  mocks.post.mockResolvedValue({ data: { organization: { id: "new-company" } } });
+  mocks.post.mockResolvedValue({
+    data: { organization: { id: "new-company" }, login_invite_sent: true },
+  });
   const form = new FormData();
   form.set("name", "Test company");
   form.set("email", " INVITED@EXAMPLE.COM ");
@@ -39,5 +41,19 @@ it("does not retry a partial company or redirect after an unconfirmed response",
   form.set("email", "test@example.com");
   expect((await createCompanyAction({}, form)).error).toContain("Check the company list");
   expect(mocks.post).toHaveBeenCalledOnce();
+  expect(mocks.redirect).not.toHaveBeenCalled();
+});
+
+it("keeps the created company visible when email is off, without implying an invite was sent", async () => {
+  mocks.post.mockResolvedValue({
+    data: { organization: { id: "saved-company" }, login_invite_sent: false },
+  });
+  const form = new FormData();
+  form.set("name", "Test company");
+  form.set("email", "company@example.test");
+  expect(await createCompanyAction({}, form)).toEqual({
+    createdCompanyId: "saved-company",
+    error: "Emails aren't connected yet, so this invite can't be sent.",
+  });
   expect(mocks.redirect).not.toHaveBeenCalled();
 });
