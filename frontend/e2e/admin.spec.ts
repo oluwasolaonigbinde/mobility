@@ -176,7 +176,9 @@ test("daily-rate terms show the frozen version and publishing controls", async (
   await openCampaign(page, "Marula Kitchens — Abuja Lunch Routes");
   await page.locator("#pay-terms summary").click();
   await expect(page.locator("#pay-terms").getByText("Pay history")).toBeVisible();
-  await expect(page.locator("#pay-terms").getByText("Version 1", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("#pay-terms").getByRole("columnheader", { name: "Pay from", exact: true }),
+  ).toBeVisible();
   await expect(
     page
       .locator("#pay-terms")

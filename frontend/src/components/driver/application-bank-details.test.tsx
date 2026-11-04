@@ -124,18 +124,19 @@ it("offers typed name only after the server reports unavailable", async () => {
   expect(screen.queryByRole("button", { name: "This is me" })).toBeNull();
 });
 
-it("does not offer typed name after an invalid account or local limit error", async () => {
+it.each([
+  ["BANK_CHECK_INVALID", 422, "Check your bank and account details again"],
+  ["BANK_CHECK_LIMITED", 429, "Try checking your account again in a few minutes"],
+  ["BANK_CHECK_LIMITED", 503, "Try checking your account again in a few minutes"],
+])("does not offer typed name after %s (%s)", async (code, status, message) => {
   vi.mocked(fetch).mockImplementation(async (url) =>
     String(url).endsWith("/banks")
       ? Response.json(banks)
-      : Response.json(
-          { error: { message: "Check your bank and account details again" } },
-          { status: 422 },
-        ),
+      : Response.json({ error: { code, message: "untrusted backend detail" } }, { status }),
   );
   render(<ApplicationBankDetails accessToken="private-code" />);
   await fill();
-  expect(await screen.findByRole("alert")).toHaveTextContent("Check your bank");
+  expect(await screen.findByRole("alert")).toHaveTextContent(message);
   expect(screen.queryByLabelText("Name on bank account")).toBeNull();
 });
 

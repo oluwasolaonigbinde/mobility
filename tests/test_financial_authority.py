@@ -407,7 +407,7 @@ def test_expedited_waiver_rejects_noncanonical_copy(db_sessionmaker) -> None:
             )
             altered_copies = (
                 (
-                    "advertiser-expedited-v2",
+                    f"{EXPEDITED_WAIVER_WORDING_VERSION}-altered",
                     EXPEDITED_WAIVER_WORDING,
                     EXPEDITED_WAIVER_WORDING_HASH,
                 ),

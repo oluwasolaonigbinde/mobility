@@ -8,6 +8,7 @@ from sqlalchemy import delete, select
 from test_driver_person_payee_onboarding import (
     PASSWORD,
     _application,
+    _current_access_token,
     _current_submission_id,
     _person_payee_payload,
     _register,
@@ -81,6 +82,9 @@ def test_details_states_follow_the_latest_submission_and_its_review(
         },
     )
     assert rejected.status_code == 200, rejected.text
+    old_link = db_client.post(CONTINUE, json={"application_access_token": token})
+    assert old_link.status_code == 404
+    token = _current_access_token(db_sessionmaker, settings, application)
     assert _state(db_client, token) == (
         "details",
         "details_changes_needed",
@@ -155,6 +159,9 @@ def test_car_states_and_the_link_closes_after_final_approval(db_client, db_sessi
         },
     )
     assert rejected.status_code == 200, rejected.text
+    old_link = db_client.post(CONTINUE, json={"application_access_token": token})
+    assert old_link.status_code == 404
+    token = _current_access_token(db_sessionmaker, settings, application)
     assert _state(db_client, token) == (
         "car",
         "car_changes_needed",

@@ -9,6 +9,7 @@ from test_driver_person_payee_onboarding import (
     PASSWORD,
     _application,
     _complete_admin_review,
+    _current_access_token,
     _current_submission_id,
     _person_payee_payload,
     _register,
@@ -439,9 +440,16 @@ def test_historical_decision_retry_resolves_original_submission(
         headers=auth_headers(db_client, admin.email, PASSWORD),
         json=decision,
     )
+    # D94 / REQ-277: the decision email replaces the older applicant link.
+    old_access = db_client.post(
+        "/api/v1/auth/driver-onboarding/continue",
+        json={"application_access_token": reference},
+    )
+    assert old_access.status_code == 404
+    access_token = _current_access_token(db_sessionmaker, settings, application)
     second = db_client.post(
         "/api/v1/auth/driver-onboarding/person-payee",
-        json=_person_payee_payload(reference, files, db_client),
+        json=_person_payee_payload(access_token, files, db_client),
     )
     replay = db_client.post(
         path,
@@ -488,6 +496,13 @@ def test_resubmission_invalidates_every_stale_exact_review_read(
             "reason_code": "identity_mismatch",
         },
     )
+    # D94 / REQ-277: the decision email replaces the older applicant link.
+    old_access = db_client.post(
+        "/api/v1/auth/driver-onboarding/continue",
+        json={"application_access_token": access_token},
+    )
+    assert old_access.status_code == 404
+    access_token = _current_access_token(db_sessionmaker, settings, application)
     second = db_client.post(
         "/api/v1/auth/driver-onboarding/person-payee",
         json=_person_payee_payload(access_token, files, db_client),

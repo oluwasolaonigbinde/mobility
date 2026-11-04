@@ -34,6 +34,8 @@ const CHECK_DETAILS = "Some details aren't right. Check what you typed, then sen
  * shares one message, as the server does, so the text never reveals which check failed.
  */
 const APPLICANT_MESSAGES: Record<string, string> = {
+  BANK_CHECK_INVALID: "Check your bank and account details again",
+  BANK_CHECK_LIMITED: "Try checking your account again in a few minutes",
   ONBOARDING_ACCESS_INVALID: CODE_NOT_WORKING,
   PERSON_PAYEE_AUTHORITY_INVALID: CODE_NOT_WORKING,
   VEHICLE_ONBOARDING_AUTHORITY_INVALID: CODE_NOT_WORKING,

@@ -79,7 +79,6 @@ def test_openapi_schema_generates(client) -> None:
         "trips",
         "route_analytics",
         "impressions",
-        "costs",
         "fraud_flags",
     } == set(campaign_trips)
     trip_operation = schema["paths"]["/api/v1/advertiser/campaigns/{campaign_id}/trips"]["get"]

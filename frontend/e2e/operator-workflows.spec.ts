@@ -69,8 +69,8 @@ test("named search narrows driver, vehicle and assignment work lists", async ({ 
   await expectNoHorizontalOverflow(page);
 
   await page.goto("/admin/drivers?source=cars");
-  await search(page, "ABJ-482-KD");
-  await expect(main.getByText("ABJ-482-KD")).toBeVisible();
+  await search(page, "ABJ-603-MR");
+  await expect(main.getByText("ABJ-603-MR")).toBeVisible();
   await expect(main.getByText("MUS-763-RS")).toHaveCount(0);
 
   await page.goto("/admin/drivers?tab=active");
@@ -93,8 +93,8 @@ test("activation readiness never invites a second activation of active work", as
     .getByRole("link", { name: "Aster Vale Foods — Garki Deliveries" })
     .click();
   const drawer = page.getByRole("dialog");
-  await expect(drawer.getByText(/already active/i)).toBeVisible();
-  await expect(drawer.getByRole("button", { name: /activate/i })).toHaveCount(0);
+  await expect(drawer.getByText(/This job has already started\./)).toBeVisible();
+  await expect(drawer.getByRole("button", { name: /retry start|activate/i })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
   await page.goto("/admin/campaigns?tab=getting-ready&q=Airport");
   await page.getByRole("link", { name: "Sable Ridge Travel — Airport Arrivals" }).click();
@@ -103,7 +103,9 @@ test("activation readiness never invites a second activation of active work", as
     .getByRole("link", { name: "Installation photos and job details" })
     .first()
     .click();
-  await expect(page.getByRole("dialog").getByRole("button", { name: /activate/i })).toHaveCount(0);
+  await expect(
+    page.getByRole("dialog").getByRole("button", { name: /retry start|activate/i }),
+  ).toHaveCount(0);
 });
 
 test("evidence and contact queues show recorded work and useful empty searches", async ({

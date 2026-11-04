@@ -9,6 +9,8 @@ REQ-251 removes driver05's duplicate Cedar Bay assignment (five trips), and
 omits seven zero-pay ledger entries. Reconstructing only those historical rows
 must recover the ORIGINAL hashes, protecting all unchanged values independently
 of today's calculation and ledger implementations.
+REQ-295 also replaces four synthetic email domains; only those identity labels
+are restored for this historical comparison, never their money values.
 """
 
 import asyncio
@@ -36,6 +38,13 @@ def _digest(rows: list) -> str:
 
 
 def _stable_trip_identity(name, email, start, end, metadata) -> list[str]:
+    # REQ-295 / 10e006fb moved these synthetic identities off real-looking domains.
+    # Reconstruct only their historical labels; amounts and all other facts stay pinned.
+    historical_emails = {
+        f"{name}@demo.mobility.local": f"{name}@mail.ng"
+        for name in ("yewande.afolabi", "obinna.onyekachi", "fatima.adamu", "chukwudi.agu")
+    }
+    email = historical_emails.get(email, email)
     key = metadata["seed_trip_key"]
     if key.startswith("report-route:"):
         prefix, _random_source_trip_id, driver_index, leg = key.split(":")
