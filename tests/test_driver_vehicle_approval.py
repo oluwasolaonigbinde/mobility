@@ -891,6 +891,15 @@ def test_vehicle_eligibility_opens_and_expiry_closes_assignment_and_trip(
         ).json()
 
     assert pending_cars()["total"] == 1
+    generic = db_client.patch(
+        f"/api/v1/admin/vehicles/{submitted['vehicle_id']}",
+        headers=headers,
+        json={"status": "active"},
+    )
+    assert (
+        generic.status_code == 409
+        and generic.json()["error"]["code"] == "VEHICLE_APPROVAL_REQUIRED"
+    )
     assert (
         db_client.get("/api/v1/admin/badge-summary", headers=headers).json()["source_counts"][
             "cars"
@@ -907,6 +916,15 @@ def test_vehicle_eligibility_opens_and_expiry_closes_assignment_and_trip(
         files=files,
     )
     assert approved["status"] == "approved"
+    generic_approved = db_client.patch(
+        f"/api/v1/admin/vehicles/{submitted['vehicle_id']}",
+        headers=headers,
+        json={"status": "active"},
+    )
+    assert (
+        generic_approved.status_code == 409
+        and generic_approved.json()["error"]["code"] == "VEHICLE_APPROVAL_REQUIRED"
+    )
 
     advertiser = create_test_user(
         db_sessionmaker,

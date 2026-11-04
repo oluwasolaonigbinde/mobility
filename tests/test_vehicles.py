@@ -1,3 +1,7 @@
+import asyncio
+from uuid import uuid4
+
+import pytest
 from conftest import (
     auth_headers,
     create_test_driver_profile,
@@ -375,3 +379,66 @@ def test_legacy_pending_car_is_in_review_list_and_badge(db_client, db_sessionmak
         ]
         == 1
     )
+
+
+@pytest.mark.parametrize("evidence", [None, "approved", "expired", "rejected"])
+@pytest.mark.parametrize(
+    "car_status", [VehicleStatus.PENDING, VehicleStatus.SUSPENDED, VehicleStatus.INACTIVE]
+)
+def test_generic_activation_uses_current_evidence_for_staff_car(
+    db_client, db_sessionmaker, evidence, car_status
+):
+    create_test_user(db_sessionmaker, email="activation-staff@example.test", password=PASSWORD)
+    user, profile = create_driver_with_profile(db_sessionmaker, "activation-driver@example.test")
+    car = create_test_vehicle(
+        db_sessionmaker, driver_profile_id=profile.id, vehicle_status=car_status
+    )
+    if evidence:
+        from app.models.kyc import VehicleEvidenceSubmission
+
+        async def submit_versions():
+            async with db_sessionmaker() as session:
+                for version, state in enumerate(
+                    ["expired" if evidence == "approved" else "approved", evidence], 1
+                ):
+                    session.add(
+                        VehicleEvidenceSubmission(
+                            vehicle_id=car.id,
+                            version=version,
+                            client_request_id=uuid4(),
+                            status=state,
+                            snapshot_trusted=True,
+                            plate_number_snapshot=car.plate_number,
+                            plate_number_normalized_snapshot=car.plate_number_normalized,
+                            plate_country_code_snapshot=car.plate_country_code,
+                            vehicle_type_snapshot=car.vehicle_type,
+                            created_by_user_id=user.id,
+                        )
+                    )
+                await session.commit()
+
+        asyncio.run(submit_versions())
+    response = db_client.patch(
+        f"/api/v1/admin/vehicles/{car.id}",
+        headers=auth_headers(db_client, "activation-staff@example.test", PASSWORD),
+        json={"status": "active"},
+    )
+    if evidence in {"expired", "rejected"}:
+        assert response.status_code == 409, response.text
+        assert response.json()["error"]["code"] == "VEHICLE_APPROVAL_REQUIRED"
+        assert "fresh submission" in response.json()["error"]["message"]
+    else:
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "active"
+        if evidence is None and car_status == VehicleStatus.PENDING:
+            created = db_client.post(
+                f"/api/v1/admin/drivers/{user.id}/vehicles",
+                headers=auth_headers(db_client, "activation-staff@example.test", PASSWORD),
+                json={
+                    "plate_number": "ABJ-NEW-001",
+                    "plate_country_code": "NG",
+                    "vehicle_type": "car",
+                    "status": "active",
+                },
+            )
+            assert created.status_code == 201 and created.json()["status"] == "active"

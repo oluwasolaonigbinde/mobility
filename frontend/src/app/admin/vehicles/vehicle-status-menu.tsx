@@ -22,16 +22,20 @@ export function VehicleStatusMenu({
   vehicleLabel,
   status,
   activationBlocked = false,
+  currentEvidenceStatus,
 }: {
   vehicleId: string;
   vehicleLabel: string;
   status: VStatus;
   activationBlocked?: boolean;
+  currentEvidenceStatus?: string | null;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string>();
   const [confirming, setConfirming] = useState<VStatus>();
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const evidenceBlocked = Boolean(currentEvidenceStatus && currentEvidenceStatus !== "approved");
+  const blocked = activationBlocked || evidenceBlocked;
 
   function run(to: VStatus, danger?: boolean, confirmed = false) {
     if (danger && !confirmed) {
@@ -54,10 +58,12 @@ export function VehicleStatusMenu({
             ref={s.danger ? triggerRef : undefined}
             key={s.to}
             type="button"
-            disabled={pending || (activationBlocked && s.to === "active")}
+            disabled={pending || (blocked && s.to === "active")}
             title={
-              activationBlocked && s.to === "active"
-                ? "Use the current car document review to approve or restore this car."
+              blocked && s.to === "active"
+                ? currentEvidenceStatus === "expired" || currentEvidenceStatus === "rejected"
+                  ? "This car needs a fresh document submission and approval before it can be made active."
+                  : "Use the current car document review to approve or restore this car."
                 : undefined
             }
             onClick={() => run(s.to, s.danger)}

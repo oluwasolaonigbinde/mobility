@@ -38,3 +38,36 @@ it("confirms a suspension once and surfaces a refusal", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("Vehicle status changed elsewhere");
   expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
 });
+
+it.each(["pending", "suspended", "inactive"] as const)(
+  "blocks activation or Restore for %s with terminal evidence",
+  (status) => {
+    render(
+      <VehicleStatusMenu
+        vehicleId="car"
+        vehicleLabel="ABJ-714-KM"
+        status={status}
+        currentEvidenceStatus="expired"
+      />,
+    );
+    const button = screen.getByRole("button", {
+      name: status === "pending" ? "Approve" : "Restore",
+    });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute(
+      "title",
+      "This car needs a fresh document submission and approval before it can be made active.",
+    );
+  },
+);
+it.each([undefined, "approved"])("allows Restore with evidence %s", (currentEvidenceStatus) => {
+  render(
+    <VehicleStatusMenu
+      vehicleId="car"
+      vehicleLabel="ABJ-TEST"
+      status="suspended"
+      currentEvidenceStatus={currentEvidenceStatus}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Restore" })).toBeEnabled();
+});

@@ -434,6 +434,11 @@ export default async function DriverHub({
                         vehicleLabel={car.plate_number}
                         status={car.status}
                         activationBlocked={!applicationAvailable || v?.vehicle_id === car.id}
+                        currentEvidenceStatus={
+                          documents.data?.vehicles?.find(
+                            (row) => row.vehicle_id === car.id && Boolean(row.submission_id),
+                          )?.status
+                        }
                       />
                     </div>
                   </div>

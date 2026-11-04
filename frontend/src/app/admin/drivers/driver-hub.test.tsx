@@ -696,3 +696,35 @@ it.each([
     within(screen.getByRole("heading", { name: "ABJ-TEST" }).parentElement!).getByText(label),
   ).toBeVisible();
 });
+
+it.each(["expired", "not_submitted"])(
+  "passes only a real current submission to staff-added car actions (%s)",
+  async (status) => {
+    reads();
+    const normal = mocks.get.getMockImplementation()!;
+    mocks.get.mockImplementation(async (path, opts) => {
+      if (path.endsWith("/driver-applications")) return { data: { items: [], total: 0 } };
+      if (path.endsWith("/documents"))
+        return {
+          data: {
+            person_payee: application.person_payee,
+            vehicles: [
+              {
+                ...application.vehicle,
+                status,
+                submission_id: status === "expired" ? "car-sub" : null,
+              },
+            ],
+          },
+        };
+      return normal(path, opts);
+    });
+    render(await DriverHub({ driverId }));
+    expect(mocks.carMenu).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vehicleId: "car",
+        currentEvidenceStatus: status === "expired" ? "expired" : undefined,
+      }),
+    );
+  },
+);

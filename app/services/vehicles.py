@@ -261,6 +261,37 @@ async def get_driver_vehicle(
     return vehicle
 
 
+async def _require_vehicle_activation(
+    session: AsyncSession, vehicle: Vehicle, driver_profile: DriverProfile
+) -> None:
+    from app.services.vehicle_onboarding import acquire_work_eligibility_lock
+
+    await acquire_work_eligibility_lock(
+        session, driver_profile_id=driver_profile.id, vehicle_id=vehicle.id
+    )
+    current_evidence_status = await session.scalar(
+        select(VehicleEvidenceSubmission.status)
+        .where(VehicleEvidenceSubmission.vehicle_id == vehicle.id)
+        .order_by(VehicleEvidenceSubmission.version.desc())
+        .limit(1)
+    )
+    if current_evidence_status is not None and current_evidence_status != "approved":
+        raise AppError(
+            "VEHICLE_APPROVAL_REQUIRED",
+            "Use the car document review to approve this car. "
+            "Expired or rejected documents need a fresh submission.",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if await session.scalar(
+        select(DriverApplication.id).where(DriverApplication.driver_profile_id == driver_profile.id)
+    ):
+        raise AppError(
+            "VEHICLE_APPROVAL_REQUIRED",
+            "Public applicant vehicles become active only through current evidence approval",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+
 async def update_vehicle(
     session: AsyncSession,
     vehicle_id: UUID,
@@ -276,14 +307,8 @@ async def update_vehicle(
     vehicle, driver_profile, user = row
     update_values = payload.model_dump(exclude_unset=True)
     changed_fields = list(update_values)
-    if update_values.get("status") == "active" and await session.scalar(
-        select(DriverApplication.id).where(DriverApplication.driver_profile_id == driver_profile.id)
-    ):
-        raise AppError(
-            "VEHICLE_APPROVAL_REQUIRED",
-            "Public applicant vehicles become active only through current evidence approval",
-            status_code=status.HTTP_409_CONFLICT,
-        )
+    if update_values.get("status") == "active":
+        await _require_vehicle_activation(session, vehicle, driver_profile)
 
     for required_field in ["plate_number", "plate_country_code", "vehicle_type", "status"]:
         if required_field in update_values and update_values[required_field] is None:
