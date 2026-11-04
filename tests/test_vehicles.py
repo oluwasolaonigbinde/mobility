@@ -489,3 +489,43 @@ def test_generic_activation_uses_current_evidence_for_staff_car(
                 },
             )
             assert created.status_code == 201 and created.json()["status"] == "active"
+
+
+def test_staff_car_filters_keep_owner_and_country_scopes_independent(db_client, db_sessionmaker):
+    create_test_user(db_sessionmaker, email="filter-staff@example.test", password=PASSWORD)
+    _, first = create_driver_with_profile(db_sessionmaker, "filter-first@example.test")
+    _, second = create_driver_with_profile(db_sessionmaker, "filter-second@example.test")
+    local = create_test_vehicle(
+        db_sessionmaker,
+        driver_profile_id=first.id,
+        plate_number="ABJ-123-KM",
+        vehicle_status=VehicleStatus.ACTIVE,
+    )
+    foreign = create_test_vehicle(
+        db_sessionmaker,
+        driver_profile_id=first.id,
+        plate_number="ACC-124-KM",
+        plate_country_code="GH",
+        vehicle_status=VehicleStatus.ACTIVE,
+    )
+    other = create_test_vehicle(
+        db_sessionmaker,
+        driver_profile_id=second.id,
+        plate_number="ABJ-125-KM",
+        vehicle_status=VehicleStatus.ACTIVE,
+    )
+    headers = auth_headers(db_client, "filter-staff@example.test", PASSWORD)
+    for filters, expected in [
+        ({"driver_profile_id": str(first.id)}, {str(local.id), str(foreign.id)}),
+        ({"plate_country_code": "NG"}, {str(local.id), str(other.id)}),
+        ({"driver_profile_id": str(first.id), "plate_country_code": "NG"}, {str(local.id)}),
+    ]:
+        response = db_client.get(
+            "/api/v1/admin/vehicles",
+            headers=headers,
+            params={"status": "active", "vehicle_type": "car", **filters},
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["total"] == len(expected)
+        assert {row["id"] for row in body["items"]} == expected

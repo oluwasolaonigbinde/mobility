@@ -142,3 +142,38 @@ describe("uploadCreativeFile", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
+
+it.each([
+  ["infected", "This file failed our safety check. Try another file."],
+  ["rejected", "Use a PNG, JPEG, WebP or PDF file."],
+  ["error", "We couldn't check this file. Retry the upload."],
+])("does not accept artwork after the safety check reports %s", async (scan_status, message) => {
+  vi.stubGlobal("crypto", {
+    randomUUID: () => "11111111-1111-4111-8111-111111111111",
+    subtle: { digest: async () => new Uint8Array(32).buffer },
+  });
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      json({ upload_id: "safety-check", upload: { url: "http://storage", fields: {} } }),
+    )
+    .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    .mockResolvedValueOnce(json({ id: "unsafe", scan_status }));
+  vi.stubGlobal("fetch", fetchMock);
+  const phases: string[] = [];
+  try {
+    await expect(
+      uploadCreativeFile(
+        new File(["image"], "art.png", { type: "image/png" }),
+        (phase) => phases.push(phase),
+        {
+          clientRequestId: `f91a75f0-8e8b-4c25-9473-00000000000${["infected", "rejected", "error"].indexOf(scan_status) + 1}`,
+        },
+      ),
+    ).rejects.toThrow(message);
+    expect(phases).not.toContain("clean");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

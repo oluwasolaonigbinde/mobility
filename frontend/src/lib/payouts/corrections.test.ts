@@ -76,3 +76,47 @@ describe("summarizeProjectedDelta", () => {
     expect(summary).toMatchObject({ adjustmentCount: 0, reversalCount: 0, currency: "NGN" });
   });
 });
+
+import { projectedTripRows } from "./corrections";
+it.each([
+  null,
+  1,
+  {},
+  { trips: null },
+  { trips: [null, 1] },
+  ...[
+    "trip_session_id",
+    "driver_profile_id",
+    "previous_posted_amount",
+    "target_amount",
+    "delta_amount",
+    "currency",
+  ].map((field) => ({
+    trips: [
+      {
+        trip_session_id: "11111111-1111-4111-8111-111111111111",
+        driver_profile_id: "22222222-2222-4222-8222-222222222222",
+        previous_posted_amount: "100.00",
+        target_amount: "150.00",
+        delta_amount: "50.00",
+        currency: "NGN",
+        [field]: 123,
+      },
+    ],
+  })),
+  {
+    trips: [
+      { trip_session_id: "invalid", driver_profile_id: "22222222-2222-4222-8222-222222222222" },
+    ],
+  },
+  {
+    trips: [
+      { trip_session_id: "11111111-1111-4111-8111-111111111111", driver_profile_id: "invalid" },
+    ],
+  },
+])(
+  "does not present malformed per-trip amounts or identities as a reviewable correction: %j",
+  (delta) => {
+    expect(projectedTripRows(delta)).toEqual([]);
+  },
+);

@@ -725,3 +725,28 @@ def test_report_download_filename_is_readable_and_hostile_names_are_safe():
         name = artifact["filename"]
         assert "Lunch-routes" in name and "2020-01-01-2020-01-02" in name
         assert "/" not in name and '"' not in name and "\r" not in name and "\n" not in name
+
+
+@pytest.mark.parametrize(
+    "link", ["https://[broken", "https://user:secret@example.test/art", "https://example.test/art"]
+)
+def test_report_artwork_links_never_embed_invalid_or_credential_urls(link):
+    frozen = snapshot()
+    for campaign in frozen["campaigns"]:
+        for creative in campaign["creatives"]:
+            creative["preview_path"] = link
+    pdf = render_campaign_pdf(frozen)
+    if link == "https://example.test/art":
+        assert b"/URI (https://example.test/art)" in pdf
+    else:
+        assert b"/URI" not in pdf
+        assert b"secret" not in pdf
+
+
+@pytest.mark.parametrize(
+    "value,label", [(None, "Not recorded"), ("", "Not recorded"), ("2026-11-03", "3 Nov 2026")]
+)
+def test_report_dates_are_readable_and_missing_dates_are_honest(value, label):
+    from app.services.campaign_report_rendering import _report_date
+
+    assert _report_date(value) == label

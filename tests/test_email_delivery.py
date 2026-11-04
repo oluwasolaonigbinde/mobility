@@ -928,3 +928,221 @@ def test_review_email_missing_user_after_claim_fails_without_sending(settings, m
     assert result == "failed" and adapter.messages == []
     assert notice.last_error_code == "driver_review_inactive"
     session.commit.assert_awaited_once()
+
+
+@pytest.fixture
+def claimed_delivery(settings, monkeypatch):
+    """An already claimed item; exercise delivery rechecks after claim, without mail I/O."""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.services import email_delivery
+
+    def prepare(type_key, payload, rows):
+        token = uuid4()
+        notice = SimpleNamespace(
+            id=uuid4(),
+            recipient_user_id=uuid4(),
+            payload=payload,
+            type_key=type_key,
+            template_version="v1",
+            delivery_claim_token=token,
+            attempt_count=1,
+        )
+        session = AsyncMock()
+        session.get.side_effect = lambda model, key: rows.get(model)
+        session.scalar.return_value = notice
+        context = MagicMock()
+        context.__aenter__ = AsyncMock(return_value=session)
+        context.__aexit__ = AsyncMock(return_value=False)
+        monkeypatch.setattr(
+            email_delivery, "_claim", AsyncMock(return_value=(token, notice, "driver@example.test"))
+        )
+        adapter = RecordingEmailAdapter()
+        return notice, session, adapter, lambda: context
+
+    return prepare
+
+
+@pytest.mark.parametrize(
+    "type_key,payload,code",
+    [
+        ("password_reset_requested", {}, "password_reset_request_missing"),
+        ("driver_onboarding_access_requested", {}, "driver_onboarding_access_request_missing"),
+        ("driver_account_setup_requested", {}, "driver_account_setup_request_missing"),
+        (
+            "driver_onboarding_access_requested",
+            {"driver_application_access_id": str(uuid4())},
+            "driver_onboarding_access_request_inactive",
+        ),
+        (
+            "driver_account_setup_requested",
+            {"driver_account_setup_id": str(uuid4())},
+            "driver_account_setup_request_inactive",
+        ),
+    ],
+)
+def test_claimed_missing_authority_cannot_send_or_succeed(
+    settings, claimed_delivery, type_key, payload, code
+):
+    notice, session, adapter, maker = claimed_delivery(type_key, payload, {})
+    assert (
+        asyncio.run(
+            process_email_notification(
+                maker,
+                notification_id=notice.id,
+                settings=settings,
+                email_adapter=adapter,
+                now=datetime.now(UTC),
+            )
+        )
+        == "failed"
+    )
+    assert notice.last_error_code == code
+    assert notice.status == "failed" and notice.next_attempt_at is None
+    assert notice.delivery_claim_token is None
+    assert adapter.messages == []
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    "case,expected",
+    [
+        ("missing_context", "driver_review_inactive"),
+        ("wrong_owner", "driver_review_access_inactive"),
+        ("token_mismatch", "driver_onboarding_access_evidence_mismatch"),
+        ("revoked_during_delivery", None),
+    ],
+)
+def test_review_link_rechecks_never_send_another_persons_authority(
+    settings, monkeypatch, claimed_delivery, case, expected
+):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, Mock
+
+    from app.core.errors import AppError
+    from app.models.driver_application import DriverApplication, DriverApplicationAccessToken
+    from app.services import driver_applications, driver_review_notifications
+
+    application = SimpleNamespace(user_id=uuid4())
+    user = SimpleNamespace(id=application.user_id, status=UserStatus.INVITED)
+    if case == "wrong_owner":
+        application.user_id = uuid4()
+    access = SimpleNamespace(
+        application_id=uuid4(),
+        invalidated_at=None,
+        expires_at=datetime.now(UTC) + timedelta(days=1),
+    )
+    notice, session, adapter, maker = claimed_delivery(
+        "driver_id_approved",
+        {"driver_application_access_id": str(uuid4())},
+        {User: user, DriverApplicationAccessToken: access, DriverApplication: application},
+    )
+    notice.recipient_user_id = user.id
+    context = {
+        "action_path": "/apply?step=car",
+        "title": "Driver details approved",
+        "body": "Your details are approved. Continue with your car documents.",
+    }
+    monkeypatch.setattr(
+        driver_review_notifications,
+        "review_notice_context",
+        AsyncMock(return_value=None if case == "missing_context" else context),
+    )
+    monkeypatch.setattr(
+        driver_applications,
+        "driver_application_access_token_for_delivery",
+        Mock(
+            side_effect=RuntimeError("private token") if case == "token_mismatch" else None,
+            return_value="secret-link-token",
+        ),
+    )
+    monkeypatch.setattr(
+        driver_applications,
+        "application_from_access_token",
+        AsyncMock(
+            side_effect=AppError("ONBOARDING_ACCESS_INVALID", "unavailable", status_code=404)
+        ),
+    )
+    settings.public_origin = "https://preview.example.test"
+    result = asyncio.run(
+        process_email_notification(
+            maker,
+            notification_id=notice.id,
+            settings=settings,
+            email_adapter=adapter,
+            now=datetime.now(UTC),
+        )
+    )
+    if expected:
+        assert result == "failed" and adapter.messages == []
+        assert notice.last_error_code == expected and notice.status == "failed"
+    else:
+        assert result == "sent" and len(adapter.messages) == 1
+        assert "/apply?step=car" in adapter.messages[0].text_body
+        assert "secret-link-token" not in adapter.messages[0].text_body
+        assert "secret-link-token" not in adapter.messages[0].html_body
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    "case,code",
+    [
+        ("missing_user", "email_recipient_inactive"),
+        ("bad_assignment", "email_assignment_missing"),
+        ("expired_offer", "email_offer_inactive"),
+        ("wrong_role", "email_recipient_or_review_inactive"),
+    ],
+)
+def test_driver_business_email_refuses_ineligible_context(case, code, monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from app.models.campaign_assignment import CampaignAssignment
+    from app.services import email_delivery, notifications
+
+    user = SimpleNamespace(
+        role="advertiser" if case == "wrong_role" else "driver", email="driver@example.test"
+    )
+    notice = SimpleNamespace(
+        recipient_user_id=uuid4(),
+        type_key=NotificationType.ASSIGNMENT_OFFERED,
+        payload={"assignment_id": "bad" if case == "bad_assignment" else str(uuid4())},
+    )
+    assignment = SimpleNamespace(
+        status="offered",
+        expires_at=datetime.now(UTC) - timedelta(seconds=1) if case == "expired_offer" else None,
+    )
+    session = AsyncMock()
+    session.get.side_effect = lambda model, key: (
+        (None if case == "missing_user" else user)
+        if model is User
+        else assignment
+        if model is CampaignAssignment
+        else None
+    )
+    context = AsyncMock(return_value=("Demo campaign", "/driver/jobs"))
+    monkeypatch.setattr(notifications, "notification_campaign_context", context)
+    assert asyncio.run(email_delivery._driver_business_email_allowed(session, notice)) == (
+        False,
+        code,
+    )
+
+
+@pytest.mark.parametrize(
+    "origin,path",
+    [
+        ("https://user:secret@example.test", "/apply"),
+        ("https://example.test/private", "/apply"),
+        ("https://example.test?token=secret", "/apply"),
+        ("https://example.test#secret", "/apply"),
+        ("https://example.test", "//other.example.test/apply"),
+        ("https://example.test", "https://other.example.test/apply"),
+    ],
+)
+def test_email_action_links_refuse_credential_or_cross_origin_urls(settings, origin, path):
+    from app.services.email_delivery import public_action_url
+
+    settings.public_origin = origin
+    with pytest.raises(ValueError, match="^email_public_origin_missing$"):
+        public_action_url(settings, path)

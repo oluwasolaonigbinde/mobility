@@ -701,3 +701,128 @@ def test_trip_start_fails_closed_for_commercial_campaign_without_authority(
     response = start_trip(db_client, assignment.id, email="commercial-guard-driver@example.com")
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "NEW_WORK_NOT_FINANCIALLY_AUTHORIZED"
+
+
+@pytest.mark.parametrize(
+    "case,code,message",
+    [
+        ("missing_terms", "COMMERCIAL_TERMS_REQUIRED", "Accepted commercial terms are required"),
+        ("currency", "FINANCIAL_AUTHORITY_CURRENCY_MISMATCH", "currency must match"),
+        ("lost_terms", "COMMERCIAL_TERMS_REQUIRED", "Accepted commercial terms are required"),
+        ("reason", "FINANCIAL_AUTHORITY_REASON_REQUIRED", "reason is required"),
+        ("zero", "INVALID_FINANCIAL_AUTHORITY_AMOUNT", "must be positive"),
+        ("liability", "DRIVER_LIABILITY_EXCEEDS_AUTHORITY", "cannot exceed"),
+        (
+            "reduction",
+            "FINANCIAL_AUTHORITY_REDUCTION_REQUIRES_GOVERNANCE",
+            "reductions require governed revision",
+        ),
+    ],
+)
+def test_financial_authority_refusals_do_not_write(case, code, message, monkeypatch):
+    from decimal import Decimal
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.models.billing import FinancialAuthorityType
+
+    session = MagicMock()
+    terms = SimpleNamespace(id=uuid4(), currency="USD" if case == "currency" else "NGN")
+    monkeypatch.setattr(billing_authority, "acquire_campaign_terms_lock", AsyncMock())
+    monkeypatch.setattr(billing_authority, "require_active_admin", AsyncMock())
+    monkeypatch.setattr(
+        billing_authority, "_campaign", AsyncMock(return_value=SimpleNamespace(currency="NGN"))
+    )
+    monkeypatch.setattr(
+        billing_authority,
+        "_commercial_terms_for_campaign",
+        AsyncMock(
+            side_effect=[
+                None if case == "missing_terms" else terms,
+                None if case == "lost_terms" else terms,
+            ]
+        ),
+    )
+    latest = SimpleNamespace(authorized_amount=Decimal("200"), max_driver_liability=Decimal("100"))
+    monkeypatch.setattr(
+        billing_authority,
+        "_latest_financial_authorization",
+        AsyncMock(return_value=latest if case == "reduction" else None),
+    )
+    audit = AsyncMock()
+    monkeypatch.setattr(billing_authority, "create_audit_event", audit)
+    with pytest.raises(AppError) as refused:
+        asyncio.run(
+            billing_authority._append_financial_authorization(
+                session,
+                campaign_id=uuid4(),
+                actor_user_id=uuid4(),
+                authority_type=FinancialAuthorityType.APPROVED_CREDIT,
+                authorized_amount=Decimal("0" if case == "zero" else "100"),
+                max_driver_liability=Decimal("101" if case == "liability" else "50"),
+                reason=" " if case == "reason" else "Approved company terms",
+            )
+        )
+    assert refused.value.code == code
+    assert message in refused.value.message
+    session.add.assert_not_called()
+    session.flush.assert_not_called()
+    audit.assert_not_awaited()
+
+
+def test_quote_unrelated_database_failure_is_not_reported_as_duplicate(monkeypatch):
+    from decimal import Decimal
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, MagicMock
+
+    from sqlalchemy.exc import IntegrityError
+
+    from app.services.billing import quotes
+
+    campaign_id, request_id = uuid4(), uuid4()
+    session = MagicMock()
+    session.scalar = AsyncMock(side_effect=[campaign_id, 0])
+    session.get = AsyncMock(return_value=SimpleNamespace(id=request_id, campaign_id=campaign_id))
+    failure = IntegrityError("insert", {}, RuntimeError("different database constraint"))
+    session.flush = AsyncMock(side_effect=failure)
+    monkeypatch.setattr(quotes, "acquire_campaign_terms_lock", AsyncMock())
+    monkeypatch.setattr(quotes, "require_active_admin", AsyncMock())
+    monkeypatch.setattr(
+        quotes,
+        "_campaign",
+        AsyncMock(
+            return_value=SimpleNamespace(id=campaign_id, organization_id=uuid4(), currency="NGN")
+        ),
+    )
+    monkeypatch.setattr(quotes, "_commercial_terms_for_campaign", AsyncMock(return_value=None))
+    audit = AsyncMock()
+    monkeypatch.setattr(quotes, "create_audit_event", audit)
+    with pytest.raises(IntegrityError) as refused:
+        asyncio.run(
+            record_quotation_revision(
+                session,
+                quote_request_id=request_id,
+                actor_user_id=uuid4(),
+                quote_reference="SAFE-Q",
+                currency="NGN",
+                line_items=[
+                    {
+                        "code": "MEDIA",
+                        "description": "Campaign media",
+                        "kind": "media",
+                        "amount": "100.00",
+                    }
+                ],
+                production_scope={
+                    "vehicle_count": 1,
+                    "campaign_start_date": "2026-11-03",
+                    "campaign_end_date": "2026-11-04",
+                },
+                payment_class=PaymentClass.STANDARD_PREPAID,
+                payment_terms={},
+                tax_rate=Decimal("0"),
+            )
+        )
+    assert refused.value is failure
+    audit.assert_not_awaited()
+    session.commit.assert_not_called()

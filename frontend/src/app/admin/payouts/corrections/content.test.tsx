@@ -1,7 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ get: vi.fn(), role: vi.fn(), actions: vi.fn() }));
-vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get }) }));
+const mocks = vi.hoisted(() => ({
+  get: vi.fn(),
+  post: vi.fn(),
+  revalidate: vi.fn(),
+  role: vi.fn(),
+  actions: vi.fn(),
+}));
+vi.mock("@/lib/api/client", () => ({
+  createApiClient: () => ({ GET: mocks.get, POST: mocks.post }),
+}));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 vi.mock("@/lib/auth/current-user", () => ({ requireRole: mocks.role }));
 vi.mock("./new-order-form", () => ({ NewOrderForm: () => <div>Named campaign selector</div> }));
@@ -117,5 +125,46 @@ describe("selected pay corrections", () => {
     expect(rows).toHaveTextContent("Change: ₦2.00");
     expect(rows).not.toHaveTextContent(/trip_session_id|internal-hash/);
     expect(screen.queryByText("Recorded calculation details")).not.toBeInTheDocument();
+  });
+});
+
+vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
+import { newOrderAction } from "./actions";
+import { ApiError } from "@/lib/api/errors";
+describe("correction preview failures never create pay changes", () => {
+  beforeEach(() => vi.resetAllMocks());
+  function form(intent?: string) {
+    const f = new FormData();
+    f.set("campaign_id", "11111111-1111-4111-8111-111111111111");
+    f.set("lagos_day", "2026-10-01");
+    if (intent) f.set("intent", intent);
+    return f;
+  }
+  it("requires a reason before creating an order", async () => {
+    expect(await newOrderAction({}, form("create"))).toEqual({ error: "A reason is required" });
+    expect(mocks.post).not.toHaveBeenCalled();
+    expect(mocks.revalidate).not.toHaveBeenCalled();
+  });
+  it.each([undefined, { projected_delta: null }, { projected_delta: { day_totals: {} } }])(
+    "refuses an incomplete projection",
+    async (data) => {
+      mocks.get.mockResolvedValue({ data });
+      expect(await newOrderAction({}, form())).toEqual({
+        error: "The preview couldn't be loaded.",
+      });
+      expect(mocks.post).not.toHaveBeenCalled();
+      expect(mocks.revalidate).not.toHaveBeenCalled();
+    },
+  );
+  it.each([true, false])("reports preview transport/refusal honestly (API %s)", async (api) => {
+    mocks.get.mockRejectedValue(
+      api
+        ? new ApiError(403, { code: "FORBIDDEN", message: "private amount" })
+        : new Error("network"),
+    );
+    expect(await newOrderAction({}, form())).toEqual({
+      error: api ? "That didn't work. Please try again." : "Could not reach the server.",
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
   });
 });

@@ -112,3 +112,49 @@ describe("commercial advertiser feedback", () => {
     expect(JSON.stringify(unknown)).not.toContain("database detail");
   });
 });
+
+it("does not claim a quotation was accepted when the API returns no accepted terms", async () => {
+  vi.resetAllMocks();
+  mocks.post.mockResolvedValue({});
+  expect(await acceptQuoteAction({}, quotationForm({ confirmed: true }))).toEqual({
+    error: "Your accepted quotation can't be shown right now. Try again.",
+  });
+  expect(mocks.refresh).not.toHaveBeenCalled();
+});
+it("does not claim a quotation was accepted after a connection failure", async () => {
+  vi.resetAllMocks();
+  mocks.post.mockRejectedValue(new Error("private connection detail"));
+  expect(await acceptQuoteAction({}, quotationForm({ confirmed: true }))).toEqual({
+    error: "Could not accept the quotation. Try again.",
+  });
+  expect(mocks.refresh).not.toHaveBeenCalled();
+});
+
+it("refuses an earlier-start request without a campaign before calling the API", async () => {
+  vi.resetAllMocks();
+  expect(await acceptExpeditedWaiverAction({}, new FormData())).toEqual({
+    error: "Your earlier-start request didn't go through. Refresh and try again.",
+  });
+  expect(mocks.post).not.toHaveBeenCalled();
+  expect(mocks.refresh).not.toHaveBeenCalled();
+});
+it.each([true, false])(
+  "does not confirm an earlier start after refusal or lost connection (API %s)",
+  async (api) => {
+    vi.resetAllMocks();
+    mocks.post.mockRejectedValue(
+      api
+        ? new ApiError(409, {
+            code: "EXPEDITED_WAIVER_COPY_MISMATCH",
+            message: "raw consent evidence",
+          })
+        : new Error("network"),
+    );
+    expect(await acceptExpeditedWaiverAction({}, campaignForm())).toEqual({
+      error: api
+        ? "This wording has changed. Refresh and read it again."
+        : "Your earlier-start request didn't go through. Try again.",
+    });
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  },
+);

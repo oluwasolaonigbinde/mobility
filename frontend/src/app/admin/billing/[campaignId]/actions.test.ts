@@ -184,3 +184,41 @@ it("explains that a transfer needs an issued invoice", async () => {
     `redirect:/admin/campaigns/campaign-1?error=${encodeURIComponent("Payments can be recorded once the invoice is issued.")}#money`,
   );
 });
+
+describe("billing failure copy does not claim money was recorded", () => {
+  beforeEach(() => vi.resetAllMocks());
+  it.each([true, false])("keeps failed quotation edits on the form (API %s)", async (api) => {
+    post.mockRejectedValue(
+      api ? new ApiError(422, { code: "BAD_QUOTE", message: "raw SQL" }) : new Error("offline"),
+    );
+    const form = new FormData();
+    form.set("tax_percentage", "0");
+    expect(await recordRevisionAction("campaign-1", "quote-1", form)).toEqual({
+      error: api
+        ? "That didn't work. Please try again."
+        : "The quotation could not be saved. Try again.",
+    });
+    expect(revalidatePath).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+  it.each([true, false])(
+    "redirects failed transfers with fixed refusal copy (API %s)",
+    async (api) => {
+      post.mockRejectedValue(
+        api
+          ? new ApiError(409, { code: "INVOICE_NOT_ISSUED", message: "raw amount" })
+          : new Error("offline"),
+      );
+      await expect(
+        recordManualTransferAction("campaign-1", "org-1", "terms-1", new FormData()),
+      ).rejects.toThrow("redirect:");
+      const message = api
+        ? "Payments can be recorded once the invoice is issued."
+        : "That didn't work. Please try again.";
+      expect(redirect).toHaveBeenCalledWith(
+        `/admin/campaigns/campaign-1?error=${encodeURIComponent(message)}#money`,
+      );
+      expect(revalidatePath).not.toHaveBeenCalled();
+    },
+  );
+});

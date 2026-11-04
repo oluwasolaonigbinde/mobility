@@ -592,3 +592,36 @@ def test_resend_and_staff_user_edit_use_the_same_user_lock_order(
             await asyncio.wait_for(contender, timeout=5)
 
     asyncio.run(exercise())
+
+
+@pytest.mark.parametrize(
+    "address", ["not-an-email", "person@invalid", "name <person@example.test>"]
+)
+def test_invite_rejects_malformed_email_before_any_write(address, settings, db_sessionmaker):
+    from sqlalchemy import func
+
+    admin, company = company_without_login(db_sessionmaker)
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            models = (User, Notification, PasswordResetToken, OrganizationMembership)
+            before = [
+                await session.scalar(select(func.count()).select_from(model)) for model in models
+            ]
+            with pytest.raises(AppError) as refused:
+                await send_login_invite(
+                    session,
+                    organization_id=company.id,
+                    actor_user_id=admin.id,
+                    email=address,
+                    settings=settings,
+                )
+            assert refused.value.code == "INVALID_EMAIL"
+            assert refused.value.message == "Enter a valid email address."
+            after = [
+                await session.scalar(select(func.count()).select_from(model)) for model in models
+            ]
+            assert after == before
+            assert not session.new
+
+    asyncio.run(exercise())
