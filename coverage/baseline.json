@@ -6,12 +6,12 @@
   },
   "critical": {
     "backend": {
-      "branch_covered": 6191,
-      "branch_percent": 83.5718,
-      "branch_total": 7408,
-      "line_covered": 29647,
-      "line_percent": 94.3661,
-      "line_total": 31417,
+      "branch_covered": 6229,
+      "branch_percent": 83.9714,
+      "branch_total": 7418,
+      "line_covered": 29723,
+      "line_percent": 94.4727,
+      "line_total": 31462,
       "paths": [
         "app/__init__.py",
         "app/adapters/banks.py",
@@ -258,6 +258,7 @@
         "app/services/driver_review_notifications.py",
         "app/services/drivers.py",
         "app/services/earnings_release.py",
+        "app/services/email_availability.py",
         "app/services/email_delivery.py",
         "app/services/email_templates.py",
         "app/services/evidence_verification.py",
@@ -315,12 +316,12 @@
       ]
     },
     "frontend": {
-      "branch_covered": 7623,
-      "branch_percent": 80.0483,
-      "branch_total": 9523,
-      "line_covered": 7307,
-      "line_percent": 86.4938,
-      "line_total": 8448,
+      "branch_covered": 7843,
+      "branch_percent": 81.0646,
+      "branch_total": 9675,
+      "line_covered": 7473,
+      "line_percent": 87.4751,
+      "line_total": 8543,
       "paths": [
         "frontend/src/app/admin/advertisers/[organizationId]/company/actions.ts",
         "frontend/src/app/admin/advertisers/[organizationId]/invite-actions.ts",
@@ -346,6 +347,7 @@
         "frontend/src/app/admin/billing/[campaignId]/closeout/content.tsx",
         "frontend/src/app/admin/billing/[campaignId]/content.tsx",
         "frontend/src/app/admin/billing/[campaignId]/invoices/[invoiceId]/content.tsx",
+        "frontend/src/app/admin/billing/[campaignId]/quotation-form.tsx",
         "frontend/src/app/admin/campaigns/[campaignId]/cancel-campaign-form.tsx",
         "frontend/src/app/admin/campaigns/[campaignId]/cancellation-actions.ts",
         "frontend/src/app/admin/campaigns/[campaignId]/page.tsx",
@@ -541,7 +543,6 @@
         "frontend/src/app/driver/(portal)/assignments/assignment-actions.tsx",
         "frontend/src/app/driver/(portal)/assignments/installation-evidence-actions.tsx",
         "frontend/src/app/driver/(portal)/assignments/page.tsx",
-        "frontend/src/app/driver/(portal)/capabilities/capability-probe.tsx",
         "frontend/src/app/driver/(portal)/capabilities/page.tsx",
         "frontend/src/app/driver/(portal)/capabilities/phone-check.tsx",
         "frontend/src/app/driver/(portal)/capabilities/use-capability-probes.ts",
@@ -669,6 +670,7 @@
         "frontend/src/lib/apply/continuation.ts",
         "frontend/src/lib/assignments/installation-views.ts",
         "frontend/src/lib/assignments/offer-terms.ts",
+        "frontend/src/lib/assignments/start-message.ts",
         "frontend/src/lib/auth/actions.ts",
         "frontend/src/lib/auth/change-password-action.ts",
         "frontend/src/lib/auth/client-ip.ts",
@@ -681,6 +683,7 @@
         "frontend/src/lib/billing/commercial-history.tsx",
         "frontend/src/lib/billing/history.ts",
         "frontend/src/lib/billing/invoice-document.tsx",
+        "frontend/src/lib/billing/vat-percentage.ts",
         "frontend/src/lib/campaigns/cancellation.ts",
         "frontend/src/lib/campaigns/day-progress.ts",
         "frontend/src/lib/campaigns/schema.ts",
@@ -694,6 +697,7 @@
         "frontend/src/lib/cx.ts",
         "frontend/src/lib/driver-agreement.ts",
         "frontend/src/lib/driver/api-read.ts",
+        "frontend/src/lib/driver/bank-name.ts",
         "frontend/src/lib/driver/campaign-journey.ts",
         "frontend/src/lib/driver/daily-earnings.ts",
         "frontend/src/lib/driver/earnings-presentation.ts",
@@ -728,25 +732,33 @@
       ]
     }
   },
-  "eligible_inventory_sha256": "5df034daf2dcc30ed1e698a6010f967f7b08e168c7d5481035798fd215989839",
+  "eligible_inventory_sha256": "8ff51573df0319c7f921bb1b3d4f840f3910142abe8f2053ab1989712bae5d10",
   "global": {
-    "branch_covered": 13814,
-    "branch_percent": 81.59,
-    "branch_total": 16931,
-    "line_covered": 36954,
-    "line_percent": 92.6979,
-    "line_total": 39865
+    "branch_covered": 14072,
+    "branch_percent": 82.3261,
+    "branch_total": 17093,
+    "line_covered": 37196,
+    "line_percent": 92.9784,
+    "line_total": 40005
   },
   "policy_sha256": "f4346d9fa3f4116f842cd17d853cd0ad0079121d9ffac691da19a93e8ef5ec33",
   "refresh": {
     "inventory_changes": {
-      "added": [],
-      "removed": []
+      "added": [
+        "app/services/email_availability.py",
+        "frontend/src/app/admin/billing/[campaignId]/quotation-form.tsx",
+        "frontend/src/lib/assignments/start-message.ts",
+        "frontend/src/lib/billing/vat-percentage.ts",
+        "frontend/src/lib/driver/bank-name.ts"
+      ],
+      "removed": [
+        "frontend/src/app/driver/(portal)/capabilities/capability-probe.tsx"
+      ]
     },
-    "previous_baseline_sha256": "4f2f33c3c637257963495816fb89895806493cbc51ea647106f1ff9a3e7225ae",
-    "reason": "REQ-271 controlled D33 refresh: measured complete CI candidate, whole delivery from master 55122b9b, unchanged numeric floors and exact historical baseline lineage"
+    "previous_baseline_sha256": "3c37a6884c396a4df42ee0ef5f2508047ae4e81d617ec9aa15006374abfef8cb",
+    "reason": "REQ-272 through REQ-304: same-artifact strict D33 refresh from CI 41811417478, measured candidate 311bcfc0, whole-delivery ancestor 1d8f8ab8; raw CI stale-receipt failure retained under D135/D136"
   },
-  "source_parent_sha": "55122b9baea94c915839ef9fbac7dacd66161b83",
-  "source_sha256": "7ba8beeae3d78272f97f92de82bfa1e1886594e51c5da00d72d0ebda798fe261",
+  "source_parent_sha": "1d8f8ab8ba53554d779a04aee55c3fa7700b9ad9",
+  "source_sha256": "46540dca02a23d50c42a89bd3389f705a5732060a09973236fe1907c36d8b083",
   "version": 3
 }

@@ -156,6 +156,7 @@ small labels use sans, and past jobs do not repeat their dated status. Demo
 work days use realistic qualifying mileage and separate next-day payments.
 
 **History:**
+- **2026-11-04** - REQ-288/289/292/293: the cross-area preview wording and short-name work is Built in `fc041a64`, `e8f22841`, `57d3f94e`, `0ee15135`, `ca5bdbac`, `61d116ce` and `e08561d1` (driver, advertiser, staff money, reviews/jobs, sign-in/application/errors, exports/mail and receipt follow-up respectively). Stored records and historical issued artifacts retain their prior content.
 - **2026-10-24** — Owner, after the REQ-209 clean audit: an advertiser's first login comes from a staff-sent invite, including companies made with Add company (D130, REQ-232). Previously enquiry conversion needed an existing owner login, which an empty system did not have, and Add company set a temporary password that staff passed on. Saved enquiries now also appear in the Work queue (REQ-231).
 - **2026-10-20** — Orchestrator screenshot review refines compact cards, hierarchy, hero composition, honest withholding, consistent state words, existing-geometry driver map and the admin mark (D129). Shared worker repair verified in production builds. Local taste, privacy/security and consolidated review PASS; [receipt](../issues/testing/req220-client-feedback-2026-10-20.md). Full CI/merge remain pending.
 - **2026-10-20** — Client approved the background-additions mockups with the above changes (D120/D125–128); the earlier palette-only admin and separate Company/campaign-invoice surfaces are superseded within this work. Local implementation/reviews PASS on Lane B; full CI/merge remain pending.
@@ -243,6 +244,7 @@ access, [REQ-025](requests.md) password and two-step verification,
 [REQ-027](requests.md), [REQ-035](requests.md).
 
 **History:**
+- **2026-11-04** - REQ-272: online payment availability is computed from the configured gateway and valid return URL before offering checkout. Built in `65a856e8`.
 - **2026-11-03** — Delivery accepted on master. Built in `6d4d6a95`; full CI passed on `1a6d563f`. See the [acceptance evidence](../issues/testing/req271-ci-acceptance-2026-11-03.md).
 - **2026-08-14** — Client confirmed payment timing and methods (Q2, Q3, D18).
 - **2026-10-27–29** — Owner requires an issued invoice before recording money (D139 / REQ-255). Previously allocation could mark a draft invoice Paid. Built on integrate/req252-264 (`6d4d6a95`).
@@ -278,6 +280,7 @@ facts or real payment instructions. Built in `3abcc85b` on master.
 [REQ-042](requests.md) accountant's confirmation and [REQ-052](requests.md) someone to check the sample invoice.
 
 **History:**
+- **2026-11-04** - REQ-276/281: exact invoice total/balance wording and duplicate-reference conflict handling with retained input are Built in `d98e72b9`. REQ-279: exact VAT percentage entry/confirmation is Built in `ca386df4`; REQ-294 attribution correction is Built in `68cdacfc`.
 - **2026-11-03** — Controller judgement under the owner's 3 Nov 2026 mandate, reported to the owner, replaces decimal-rate VAT entry (for example 0.075) with percentage entry (7.5), retaining the existing stored rate and server validation. Accept 0–100% to four decimal places using exact string arithmetic; confirm positive values below 1% once before each save. No minimum rate is introduced (REQ-279).
 - **2026-11-03** — Delivery accepted on master. Built in `3abcc85b`; full CI passed on `1a6d563f`. See the [acceptance evidence](../issues/testing/req271-ci-acceptance-2026-11-03.md).
 - **2026-10-07** — Owner W2-D brief requires advertiser/driver money grouped with two decimal places and VAT shown as "VAT 7.5% · ₦…"; stored values and issued invoices remain unchanged (D71, REQ-142). Earlier display precision varied by amount. Built in `78ad5580` and real integration `21239a6d`.
@@ -362,6 +365,7 @@ preview of those inputs (D71, REQ-140). Completed and cancelled campaigns no
 longer offer a new custom-quotation request (D71, REQ-142).
 
 **History:**
+- **2026-11-04** - REQ-278 readable proposal dates/new-draft review and REQ-282 configured area-map styles with a usable schematic fallback are Built in `d98e72b9`.
 - **2026-10-07** — Owner W2-D brief replaces retained previews after edits with fresh-preview confirmation, and removes terminal-campaign quotation requests (D71, REQ-140, REQ-142); existing funding and approval rules remain. Built in `78ad5580` and real integration `21239a6d`.
 - **2026-08-14** — Client confirmed the lifecycle (Q6, Q9, Q15, D18).
 - **2026-09-24** — Owner added the submission requirements (D38d). Built in `7a9ceb0` (REQ-001).
@@ -471,6 +475,7 @@ staff review. Work remains blocked until the current reviews pass. Unknown
 renewal periods stay unset (D69, REQ-137). Mark expired retains the recorded outcomes, dates and review history. Actually expired driver or vehicle documents require new clean uploads and audited current approval before work resumes; accepted retained documents remain reusable (D76, REQ-152).
 
 **History:**
+- **2026-11-04** - REQ-277: review-email access rotation is Built in `65a856e8`; replaced/expired-link decision-mail fallback is Built in `10e006fb`. REQ-299 terminal car queue correction is Built in `919c52fd`; REQ-300 presentation and one reviewable seeded car are Built in `c5b784cf`; REQ-301 activation guard is Built in `5d477924`; REQ-302 current unexpired snapshot authority, Profile recovery and scoped staff/driver wording are Built in `ac5fbb8e`. REQ-303 plain bank-check messages and intended-authority CI assertions are Built in `8eff5c0f`.
 - **2026-10-24** — Owner (D131, REQ-233): sending a new application link makes the older ones stop working. Previously every link worked until it expired after 24 hours.
 - **2026-10-20** — Owner-approved pre-push fixes (REQ-208): the approved-driver account set-up link lasts 24 hours instead of 30 minutes (D106), and Apply no longer needs the `DRIVER_REGISTRATION_ENABLED` switch, which a fresh deployment left off. Rate limits, expiry and single use are unchanged.
 - **2026-10-19** — Owner follow-up to audit D8 (REQ-195): the continuation link now returns the step's state (needed, in review or changes needed) and a plain reason from the existing applicant wording. Previously it returned only the step, so a rejected or expired applicant saw no reason. Authority and expiry are unchanged.
@@ -531,6 +536,7 @@ For daily-rate work, **each stop of up to
 continuous stop adds no distance (D39b, D43d).
 
 **History:**
+- **2026-11-04** - REQ-290: raw driver support presentation was removed while Phone check and plain support copy remain. Built in `fc041a64`.
 - **2026-11-03** — Delivery accepted on master. Built in `8c95d630`, `5df44b39`; full CI passed on `1a6d563f`. See the [acceptance evidence](../issues/testing/req271-ci-acceptance-2026-11-03.md).
 - **2026-08-14** — Client confirmed screen-on tracking with driver Start/End (Q10, D18).
 - **2026-10-27–29** — Owner approves device-change continuation (D142 / REQ-259); previously a fresh browser could not reconstruct the recorded evidence to end a trip. Existing received miles and the over-15-minute review hold remain. Built on integrate/req252-264 (`8c95d630`).
@@ -588,6 +594,7 @@ time). Earnings shows this week, total earned and money on hold: the unpaid part
 of days on hold. Paid money is never counted as on hold (REQ-208).
 
 **History:**
+- **2026-11-04** - REQ-274: released unsent earnings say Payment pending while still-under-check earnings retain their existing state. Built in `65a856e8`.
 - **2026-11-03** — Delivery accepted on master. Built in `98a86547`, `71ebcd01`, `6d2fc593`; full CI passed on `1a6d563f`. See the [acceptance evidence](../issues/testing/req271-ci-acceptance-2026-11-03.md).
 - **2026-10-20** — Owner-approved pre-push speed fix (REQ-208): one server read now totals each day and the headline figures, replacing the screens' 2,000-entry paging. Amounts and day statuses are unchanged; Home adds this week and Earnings adds this week, total earned and on hold.
 - **2026-10-30** — Money review F3 replaces the rare-over-recovery alert, automatic exclusion and staff positive-adjustment remedy with computed net settlement (D147, clarifying D146); owner informed, no objection. A net amount owed back is paid through normal next-payout checks. Offsets and cash history remain immutable. Built on integrate/req252-264 (`6d2fc593`); full CI and merge pending.
@@ -625,6 +632,7 @@ dashboard and statements show fees. Accepted work and the short-day calculation
 remain unchanged. Requested hardening: [REQ-036](requests.md), [REQ-040](requests.md).
 
 **History:**
+- **2026-11-04** - REQ-273/275: unavailable payment sending is hidden with saved/unsent guidance, and reserved closeout amounts have one truthful label. Built in `d98e72b9`. REQ-291 check-specific alert advice is Built in `57d3f94e`.
 - **2026-11-03** — Delivery accepted on master. Built in `98a86547`; full CI passed on `1a6d563f`. See the [acceptance evidence](../issues/testing/req271-ci-acceptance-2026-11-03.md).
 - **2026-10-05** — Client reversed the 1 Oct driver-deduction rule: Terrax bears the transfer fee and the driver receives full earnings, with no fee calculation, storage, display or setting in Cardvert (D67; REQ-053; owner W1-P brief; renumbered at merge from D59 on 6 Oct 2026). Locally verified on `w1/payouts`; evidence: `issues/testing/w1p-payouts-2026-10-05.md`. Built in `54662367`, with CI corrections in `f4261af4`; combined exact R branch CI and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass. The owner's one-time Wave 1 D41 exception remains historical in REQ-053.
 - **2026-10-27; clarified 2026-10-29** — Owner replaces D113's manual-adjustment-only/no-future-recovery rule with actual overpaid-cash recovery from the next payout(s), bounded by trip worth and final audited offsets (D146 / REQ-262). This is not a fee or fine. Built on integrate/req252-264 (`98a86547`); full CI and merge pending.
@@ -784,6 +792,7 @@ recommendations; D123 excludes ROI from pilot output.
 **Still open:** [REQ-018](requests.md) — confirm no driver identity in reports.
 
 **History:**
+- **2026-11-04** - REQ-280: safe campaign/date report filenames on downloads are Built in `d98e72b9`. REQ-295 advertiser driver-pay removal is Built in `10e006fb`; staff/internal funding authority remains unchanged.
 - **2026-11-03** — Delivery accepted on master. Built in `7b048586`, `e9e990c7`; full CI passed on `1a6d563f`. See the [acceptance evidence](../issues/testing/req271-ci-acceptance-2026-11-03.md).
 - **2026-10-24** — Owner (D132, REQ-234): weekly and final reports send a short report-ready notice with a link. Previously there was no notice.
 - **2026-10-27–29** — Owner includes stopped cars on live trips and changes the wording to "on the road" (D138 / REQ-258). D124 previously filtered out zero-speed points and said "driving". Anonymous, delayed, fresh in-area evidence and no trails remain. Built on integrate/req252-264 (`e9e990c7`).
@@ -862,6 +871,7 @@ ceiling; sanitized driver error codes keep failure diagnosis private.
 [REQ-043](requests.md) domain connection; [REQ-033](requests.md) which address (for example app.terraxmedia.com); [REQ-032](requests.md) residency and legal prerequisites.
 
 **History:**
+- **2026-11-04** - REQ-286: process findings and preview prerequisites are recorded in the host/seed amendments Built in `d98e72b9` and specialist trace/corrections Built in `10e006fb`. REQ-287 explicitly opted-in staging seeding is Built in `d98e72b9`. REQ-283 remains a host-only TODO; this records no trusted-IP deployment verification.
 - **2026-10-25** — Owner-approved recovery hardening (D133, REQ-239/240): every process must explicitly identify its environment, and nonlocal email transport verifies the server certificate and hostname. Useful bounded diagnostics remain available without an error-tracking account; scan personal data stays excluded. Earlier startup silently selected local mode, SMTP had no explicit verifying context, and local exception diagnostics were absent or unsafe. Implementation/verification is in progress; no external delivery or deployment is authorized.
 - **2026-10-26** — Recovery source Built in `72a0f084` (including the preceding integrated commits); exact-head run40309956920 passes all runtime/static/browser/audit jobs, including real HTTPS revocation outage and bounded database recovery. Strict same-artifact D33 refresh/admission passes under D135; independent receipt/final review and master promotion are separate pending gates in the recovery record. No deployment, external delivery or production-load qualification is claimed.
 - **2026-10-26, delivery closure** — Built in `72a0f084`, with receipt/policy `2282d892`, merged without squashing at `55122b9b`. Independent specialist, receipt/equivalence and final medium reviews PASS; [full master CI40332705585](https://github.com/oluwasolaonigbinde/mobility/actions/runs/40332705585) passes all12 jobs. External prerequisites and launch queue remain unchanged.
@@ -957,6 +967,7 @@ remain mandatory. Receipt-only automatic CI is informational after equivalence
 is proved. The shared bank picker remains one implementation under D78.
 
 **History:**
+- **2026-11-04** - REQ-303 CI repairs are Built in `8eff5c0f`; REQ-304 deterministic coverage-margin tests are Built in `311bcfc0`. Runs `41802748289` and `41811417478` both failed; the latter failed only the stale-receipt guard after every noncoverage job passed. Strict same-artifact D33 qualification, refresh and admission now pass for measured candidate `311bcfc0` and whole-delivery base `1d8f8ab8`. Receipt/final review, push/merge and post-merge master CI remain separate gates; no current master-CI acceptance is claimed.
 - **2026-10-13, completed 14 October** - Owner approved Waves 3/4 and the two-run D33/D41 sequence. The earlier policy had no separate 85% money/privacy floor. Built in `115fc505`, with independently reviewed receipt `40e39f4c` and full green verification [38539599622](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38539599622). Whole-range qualification includes REQ-158/159; shared bank picker retained. Non-squash merge `4bbb689d`. Structural refinement Built in `30eadf27`; progress archive/process trim and hosting-scope verification Built in `0b0be762`.
 
 - **2026-10-14** — Final in-house behavior verification Built in `4f41e895` (REQ-171–177), with independently reviewed D33 receipt Built in `8e509f7f` and full green verification [38571889225](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38571889225). All implementing commits reached GitHub master without squashing at `8e509f7f`. Historical request tidy-up Built in `e2655df1` (REQ-178). R3 PASS (gpt-6.1-sol high, review thread mcp:9ccfc0c9), no findings; the owner supplied the verdict covering `4f41e895` and `8e509f7f`. Closure remains on local master only; the owner prohibits further pushes until more work is ready.
@@ -982,6 +993,7 @@ launch; replacement is a launch checklist task, with no additional runtime
 blocker authorized by that clarification.
 
 **History:**
+- **2026-11-04** - REQ-284/285: seed campaigns/offers/evidence leave a useful testing window, and the seed retains a bounded handful of payout samples rather than bulk unsendable automatic instructions. Built in `d98e72b9`.
 - **2026-11-03** — Delivery accepted on master. Built in `3abcc85b`; full CI passed on `1a6d563f`. See the [acceptance evidence](../issues/testing/req271-ci-acceptance-2026-11-03.md).
 - **2026-10-06** — Reviewed complete preview seed states, fictional-company ownership, chronology, active-driver-only earnings, synthetic contacts, exports and report histories are integrated (REQ-072/090–103). Built in `6879c95`; preserved thresholds, immutable reruns and seed-only values are verified. Historical preview reseeding does not authorize or claim a new application deployment.
 - **2026-10-27–29** — Owner replaces the test-only synthetic issuance exception with local/test/staging issuance (D141 / REQ-263), retaining real-input replacement and production/rehearsal fail-closed authority. Built on integrate/req252-264 (`3abcc85b`).
@@ -1081,8 +1093,14 @@ Advertiser APIs omit driver-pay figures, including report totals and the commerc
 
 - **2026-11-03 — REQ-296:** Controller walkthrough corrections use readable quotation/report dates, print the invoice alone with payment details together, and use map in the drawing empty state. Newly rendered reports use v3; historical issued artifacts are unchanged.
 
+**History:**
+- **2026-11-04** - REQ-295 specialist corrections and REQ-296 walkthrough dates, invoice printing, report layout and map copy are Built in `10e006fb`; historical issued artifacts remain unchanged.
+
 ### Final preview corrections — 3 November 2026 (REQ-297 / D155)
 Sign-in resumes a plain path in the signed-in role's own area after any required password change. Health alerts distinguish no tracking work from missing or broken telemetry, and disconnected email from delivery failures or policy refusals. Seed-created emails cannot be delivered, including report-ready notices. Previously an empty GPS window raised an outage and sign-in always went home. Runtime email-dependent flows remain unchanged pending the owner. Presentation fixes follow the controller's screenshot review; F18/F19 require a larger valid evidence/seed correction and are reported without altering money or trip records.
+
+**History:**
+- **2026-11-04** - REQ-297 final screenshot/navigation/health corrections are Built in `b46c14e0`; the controller disposition leaving truthful F18/F19 seed data unchanged is Built in `6d9f412b`.
 
 ### Email-off preview and recheck corrections — 3 November 2026 (REQ-298 / D156)
 The server refuses new driver applications, renewed application links, password resets and staff sign-in invitations while its email adapter is disabled. Replies use fixed text; password reset does not disclose whether an account exists and creates no token or mail. Staff can still create a company and see that its invite was not sent; reviews and saved public enquiries keep working. Connecting email restores the existing behavior without a setting change. Source: controller judgement under the owner's 3 Nov 2026 mandate, reported to the owner, reverts itself once email is connected. This supersedes the earlier decision to leave runtime email entry points unchanged pending the owner.
@@ -1091,3 +1109,6 @@ Empty location counters alone become an outage only for a trip started at least 
 REQ-299 / D157 — 3 November 2026: pending car reviews exclude current terminal evidence revisions. Expired/rejected car evidence requires a fresh submission; the staff form and car details show that state. Immutable decisions and work eligibility remain authoritative. Source: controller recheck additions. Earlier pending work status was also used as review readiness, causing an impossible repeat approval.
 
 REQ-301 / D158 - 4 November 2026: generic car activation and Restore check the highest-version evidence under the existing work-eligibility lock. Current, unexpired approved evidence is required, with matching car details and a current approval decision. REQ-302 keeps staff instructions in staff actions and directs drivers to Profile or Terrax Media; fresh Profile submission is available when approval is no longer current. No-submission staff cars retain active creation and generic approval; approved-evidence staff cars retain Restore. Public-applicant activation still uses the existing evidence review. The Cars control uses the same evidence distinction; trip eligibility and funding authority are unchanged. Source: controller browser-review correction.
+
+**History:**
+- **2026-11-04** - REQ-298 email-off entry-point refusals, five-minute GPS alert grace and recheck fixes are Built in `6d9f412b`. This records implementation, not email connection, deployment or hosted/device approval.
