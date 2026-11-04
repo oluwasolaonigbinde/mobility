@@ -726,7 +726,6 @@ async def _ensure_applicant_review(session, *, application, person, stage, staff
             application=application,
             person=person,
             token=token,
-            staff=staff,
             settings=settings,
             clock=clock,
         )
@@ -745,7 +744,7 @@ async def _ensure_applicant_review(session, *, application, person, stage, staff
         person.status = "disabled"
 
 
-async def _ensure_applicant_vehicle(session, *, application, person, token, staff, settings, clock):
+async def _ensure_applicant_vehicle(session, *, application, person, token, settings, clock):
     from app.schemas.driver_onboarding import (
         ApplicantVehicleSubmissionCreate,
     )

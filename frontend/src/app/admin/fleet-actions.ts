@@ -15,7 +15,13 @@ export interface AdminActionState {
 }
 
 function toState(error: unknown): AdminActionState {
-  if (error instanceof ApiError) return { error: publicActionError(error) };
+  if (error instanceof ApiError)
+    return {
+      error: publicActionError(error, {
+        VEHICLE_APPROVAL_REQUIRED:
+          "Use the car document review to approve this car. For an expired approval, changed car details or rejected documents, ask the driver for a fresh submission from Profile.",
+      }),
+    };
   return { error: "Could not reach the server." };
 }
 

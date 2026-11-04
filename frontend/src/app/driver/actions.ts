@@ -16,7 +16,13 @@ export interface DriverActionState {
 }
 
 function toState(error: unknown): DriverActionState {
-  if (error instanceof ApiError) return { error: publicActionError(error) };
+  if (error instanceof ApiError)
+    return {
+      error: publicActionError(error, {
+        VEHICLE_APPROVAL_REQUIRED:
+          "Your car isn't ready for this job. Check your documents in Profile or contact Terrax Media.",
+      }),
+    };
   return { error: "Could not reach the server. Please try again." };
 }
 
@@ -62,8 +68,10 @@ export interface StartTripResult extends DriverActionState {
   outcome?: "started" | "failed" | "unknown";
 }
 
-/** Start refusals that mean the driver has a photo task to do first; never an uncertain start. */
-const START_PHOTO_REFUSALS: Record<string, string> = {
+/** Known start refusals require driver action; they are never an uncertain start. */
+const START_REFUSALS: Record<string, string> = {
+  VEHICLE_APPROVAL_REQUIRED:
+    "Your car isn't ready for this job. Check your documents in Profile or contact Terrax Media.",
   APPROVED_INSTALLATION_EVIDENCE_REQUIRED:
     "Your installation photos need to be approved first. Send them from Jobs.",
   INSTALLATION_EVIDENCE_EXPIRED: "New installation photos are due. Send them from Jobs.",
@@ -92,8 +100,8 @@ export async function startTripAction(assignmentId: string): Promise<StartTripRe
     };
   } catch (error) {
     unstable_rethrow(error);
-    if (error instanceof ApiError && START_PHOTO_REFUSALS[error.code]) {
-      return { error: START_PHOTO_REFUSALS[error.code], outcome: "failed" };
+    if (error instanceof ApiError && START_REFUSALS[error.code]) {
+      return { error: START_REFUSALS[error.code], outcome: "failed" };
     }
     if (error instanceof ApiError && [400, 403, 404, 422].includes(error.status)) {
       return { error: publicActionError(error), outcome: "failed" };

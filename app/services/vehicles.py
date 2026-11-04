@@ -264,22 +264,21 @@ async def get_driver_vehicle(
 async def _require_vehicle_activation(
     session: AsyncSession, vehicle: Vehicle, driver_profile: DriverProfile
 ) -> None:
-    from app.services.vehicle_onboarding import acquire_work_eligibility_lock
+    from app.services.payout_rule_serialization import database_clock
+    from app.services.vehicle_onboarding import _vehicle_approved, acquire_work_eligibility_lock
 
     await acquire_work_eligibility_lock(
         session, driver_profile_id=driver_profile.id, vehicle_id=vehicle.id
     )
-    current_evidence_status = await session.scalar(
-        select(VehicleEvidenceSubmission.status)
-        .where(VehicleEvidenceSubmission.vehicle_id == vehicle.id)
-        .order_by(VehicleEvidenceSubmission.version.desc())
-        .limit(1)
+    approved, submission, _ = await _vehicle_approved(
+        session, vehicle=vehicle, now=await database_clock(session), lock=False
     )
-    if current_evidence_status is not None and current_evidence_status != "approved":
+    if submission is not None and not approved:
         raise AppError(
             "VEHICLE_APPROVAL_REQUIRED",
-            "Use the car document review to approve this car. "
-            "Expired or rejected documents need a fresh submission.",
+            "Use the car document review to approve this car. For an expired approval, "
+            "changed car details or rejected documents, ask the driver for a fresh "
+            "submission from Profile.",
             status_code=status.HTTP_409_CONFLICT,
         )
     if await session.scalar(

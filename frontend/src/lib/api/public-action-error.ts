@@ -2,8 +2,6 @@ import { ApiError } from "./errors";
 import { unstable_rethrow } from "next/navigation";
 
 const sharedMessages: Readonly<Record<string, string>> = {
-  VEHICLE_APPROVAL_REQUIRED:
-    "Use the car document review to approve this car. Expired or rejected documents need a fresh submission.",
   EMAIL_NOT_CONFIGURED: "Emails aren't connected yet, so this invite can't be sent.",
   TRY_AGAIN_SOON: "This page is busy. Try again in a moment.",
 };

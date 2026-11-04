@@ -119,53 +119,58 @@ it("limits company hub reads to four concurrent requests", async () => {
   expect(screen.queryByRole("alert")).toBeNull();
   expect(peak).toBe(4);
 });
-it("shows exact invoice funding and recorded refunds without inventing payment events", async () => {
-  const original = mocks.get.getMockImplementation()!;
-  mocks.get.mockImplementation(async (path, options) => {
-    if (path.endsWith("/campaigns"))
-      return {
-        data: {
-          items: [
-            { id: "campaign", organization_id: "org", name: "PalmPay Wuse", status: "active" },
-          ],
-          total: 1,
-        },
-      };
-    if (path.endsWith("/commercial"))
-      return {
-        data: {
-          invoices: [
-            {
-              id: "invoice",
-              organization_id: "org",
-              campaign_id: "campaign",
-              invoice_number: "INV-001",
-              status: "issued",
-              payment_status: "part_paid",
-              currency: "NGN",
-              effective_obligation_amount: "9007199254740993.01",
-              funded_amount: "100.00",
-              issued_at: "2026-09-03T00:00:00Z",
-            },
-          ],
-          settlements: [
-            {
-              id: "refund",
-              disposition: "refund_recorded",
-              currency: "NGN",
-              amount: "25.00",
-              recorded_at: "2026-09-04T00:00:00Z",
-            },
-          ],
-        },
-      };
-    return original(path, options);
-  });
-  render(await run());
-  expect(screen.getByText(/Amount: ₦9,007,199,254,740,993.01.*Paid: ₦100.00/)).toBeVisible();
-  expect(screen.getByText(/Refund recorded.*₦25.00/)).toBeVisible();
-  expect(screen.queryByText(/Payment recorded/)).toBeNull();
-});
+it.each(["issued", "void"])(
+  "shows exact %s invoice funding and recorded refunds",
+  async (status) => {
+    const original = mocks.get.getMockImplementation()!;
+    mocks.get.mockImplementation(async (path, options) => {
+      if (path.endsWith("/campaigns"))
+        return {
+          data: {
+            items: [
+              { id: "campaign", organization_id: "org", name: "PalmPay Wuse", status: "active" },
+            ],
+            total: 1,
+          },
+        };
+      if (path.endsWith("/commercial"))
+        return {
+          data: {
+            invoices: [
+              {
+                id: "invoice",
+                organization_id: "org",
+                campaign_id: "campaign",
+                invoice_number: "INV-001",
+                status,
+                payment_status: "part_paid",
+                currency: "NGN",
+                effective_obligation_amount: "9007199254740993.01",
+                funded_amount: "100.00",
+                issued_at: "2026-09-03T00:00:00Z",
+              },
+            ],
+            settlements: [
+              {
+                id: "refund",
+                disposition: "refund_recorded",
+                currency: "NGN",
+                amount: "25.00",
+                recorded_at: "2026-09-04T00:00:00Z",
+              },
+            ],
+          },
+        };
+      return original(path, options);
+    });
+    render(await run());
+    expect(screen.getByText(/Amount: ₦9,007,199,254,740,993.01.*Paid: ₦100.00/)).toBeVisible();
+    expect(screen.getByText(/Refund recorded.*₦25.00/)).toBeVisible();
+    expect(screen.queryByText(/Payment recorded/)).toBeNull();
+    expect(screen.queryByText(/Unknown status/)).toBeNull();
+    if (status === "void") expect(screen.getByText(/Voided/)).toBeVisible();
+  },
+);
 it("shows a single plain failure for a failed section", async () => {
   const original = mocks.get.getMockImplementation()!;
   mocks.get.mockImplementation(async (path, options) => {
@@ -283,4 +288,33 @@ it("keeps pending and replaced invites out of the password-account restore contr
   expect(screen.queryByRole("button", { name: "Account actions" })).toBeNull();
   expect(screen.getByText("Waiting for password setup")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Send login invite" })).toBeInTheDocument();
+});
+
+it.each([
+  ["open", "campaign_cancellation", "Needs a reply"],
+  ["answered", "campaign_or_job", "Waiting on them"],
+  ["resolved", "other", "Resolved"],
+])("labels company message status %s in the complaint context", async (status, category, label) => {
+  const original = mocks.get.getMockImplementation()!;
+  mocks.get.mockImplementation(async (path, options) =>
+    path.endsWith("/complaints")
+      ? {
+          data: {
+            items: [
+              {
+                id: "request",
+                raised_by_name: "Amina Yusuf",
+                status,
+                category,
+                created_at: "2026-11-03T12:00:00Z",
+              },
+            ],
+            total: 1,
+          },
+        }
+      : original(path, options),
+  );
+  render(await run());
+  expect(screen.getByText(new RegExp(label))).toBeVisible();
+  expect(screen.queryByText(/Unknown status/)).toBeNull();
 });

@@ -381,49 +381,96 @@ def test_legacy_pending_car_is_in_review_list_and_badge(db_client, db_sessionmak
     )
 
 
-@pytest.mark.parametrize("evidence", [None, "approved", "expired", "rejected"])
+@pytest.mark.parametrize(
+    "evidence",
+    [None, "approved", "expired", "rejected", "lapsed", "changed_facts", "pending_review"],
+)
 @pytest.mark.parametrize(
     "car_status", [VehicleStatus.PENDING, VehicleStatus.SUSPENDED, VehicleStatus.INACTIVE]
 )
 def test_generic_activation_uses_current_evidence_for_staff_car(
     db_client, db_sessionmaker, evidence, car_status
 ):
-    create_test_user(db_sessionmaker, email="activation-staff@example.test", password=PASSWORD)
+    admin = create_test_user(
+        db_sessionmaker, email="activation-staff@example.test", password=PASSWORD
+    )
     user, profile = create_driver_with_profile(db_sessionmaker, "activation-driver@example.test")
     car = create_test_vehicle(
         db_sessionmaker, driver_profile_id=profile.id, vehicle_status=car_status
     )
     if evidence:
-        from app.models.kyc import VehicleEvidenceSubmission
+        from datetime import UTC, datetime, timedelta
+
+        from app.models.kyc import VehicleEvidenceReviewDecision, VehicleEvidenceSubmission
 
         async def submit_versions():
             async with db_sessionmaker() as session:
+                latest_state = "approved" if evidence in {"lapsed", "changed_facts"} else evidence
                 for version, state in enumerate(
-                    ["expired" if evidence == "approved" else "approved", evidence], 1
+                    ["expired" if latest_state == "approved" else "approved", latest_state], 1
                 ):
-                    session.add(
-                        VehicleEvidenceSubmission(
-                            vehicle_id=car.id,
-                            version=version,
-                            client_request_id=uuid4(),
-                            status=state,
-                            snapshot_trusted=True,
-                            plate_number_snapshot=car.plate_number,
-                            plate_number_normalized_snapshot=car.plate_number_normalized,
-                            plate_country_code_snapshot=car.plate_country_code,
-                            vehicle_type_snapshot=car.vehicle_type,
-                            created_by_user_id=user.id,
-                        )
+                    submission = VehicleEvidenceSubmission(
+                        vehicle_id=car.id,
+                        version=version,
+                        client_request_id=uuid4(),
+                        status=state,
+                        snapshot_trusted=True,
+                        plate_number_snapshot=car.plate_number,
+                        plate_number_normalized_snapshot=car.plate_number_normalized,
+                        plate_country_code_snapshot=car.plate_country_code,
+                        vehicle_type_snapshot=car.vehicle_type,
+                        make_snapshot=car.make,
+                        model_snapshot=car.model,
+                        year_snapshot=car.year,
+                        color_snapshot=car.color,
+                        created_by_user_id=user.id,
                     )
+                    session.add(submission)
+                    await session.flush()
+                    if state != "pending_review":
+                        approved = state == "approved"
+                        session.add(
+                            VehicleEvidenceReviewDecision(
+                                submission_id=submission.id,
+                                sequence=1,
+                                client_request_id=uuid4(),
+                                request_fingerprint=uuid4().hex * 2,
+                                decision=state,
+                                reason_code="complete_current_evidence"
+                                if approved
+                                else "expired_evidence"
+                                if state == "expired"
+                                else "not_roadworthy",
+                                owner_match_confirmed=approved,
+                                vehicle_identity_confirmed=approved,
+                                roadworthy_confirmed=approved,
+                                pilot_car_confirmed=approved,
+                                documents_readable_confirmed=approved,
+                                valid_until=datetime.now(UTC)
+                                + timedelta(
+                                    days=-1 if evidence == "lapsed" and version == 2 else 30
+                                )
+                                if approved
+                                else None,
+                                decided_by_user_id=admin.id,
+                            )
+                        )
                 await session.commit()
 
         asyncio.run(submit_versions())
+    if evidence == "changed_facts":
+        changed = db_client.patch(
+            f"/api/v1/admin/vehicles/{car.id}",
+            headers=auth_headers(db_client, "activation-staff@example.test", PASSWORD),
+            json={"make": "Changed make"},
+        )
+        assert changed.status_code == 200
     response = db_client.patch(
         f"/api/v1/admin/vehicles/{car.id}",
         headers=auth_headers(db_client, "activation-staff@example.test", PASSWORD),
         json={"status": "active"},
     )
-    if evidence in {"expired", "rejected"}:
+    if evidence not in {None, "approved"}:
         assert response.status_code == 409, response.text
         assert response.json()["error"]["code"] == "VEHICLE_APPROVAL_REQUIRED"
         assert "fresh submission" in response.json()["error"]["message"]

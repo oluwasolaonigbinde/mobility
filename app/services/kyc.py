@@ -1,6 +1,5 @@
 import re
 from dataclasses import dataclass
-from datetime import UTC
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -596,13 +595,13 @@ async def submit_vehicle_evidence(
             .limit(1)
         )
         now = await database_clock(session)
-        expired_approval = bool(
-            decision and decision.valid_until and decision.valid_until.replace(tzinfo=UTC) <= now
-        )
+        from app.services.vehicle_onboarding import _vehicle_approved
+
+        approved, _, _ = await _vehicle_approved(session, vehicle=vehicle, now=now, lock=False)
         if current.status not in {
             KycSubmissionStatus.REJECTED,
             KycSubmissionStatus.EXPIRED,
-        } and not (current.status == KycSubmissionStatus.APPROVED and expired_approval):
+        } and not (current.status == KycSubmissionStatus.APPROVED and not approved):
             raise _error(
                 "VEHICLE_RESUBMISSION_NOT_ALLOWED",
                 "Only rejected or expired documents can be replaced",

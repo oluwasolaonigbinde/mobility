@@ -1,4 +1,3 @@
-from datetime import UTC
 from uuid import UUID
 
 from fastapi import APIRouter, status
@@ -80,12 +79,14 @@ async def driver_documents(
     vehicle_reads = []
     for stage in vehicles:
         read = _admin_vehicle_response(stage, now)
-        if (
-            read.status == "approved"
-            and read.valid_until
-            and read.valid_until.replace(tzinfo=UTC) <= now
-        ):
-            read = read.model_copy(update={"status": "expired"})
+        if read.status == "approved" and stage.vehicle is not None:
+            from app.services.vehicle_onboarding import _vehicle_approved
+
+            approved, _, _ = await _vehicle_approved(
+                session, vehicle=stage.vehicle, now=now, lock=False
+            )
+            if not approved:
+                read = read.model_copy(update={"status": "expired"})
         vehicle_reads.append(
             VehicleStageRead(**read.model_dump(exclude={"document_file_ids", "decided_by_user_id"}))
         )

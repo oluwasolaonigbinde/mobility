@@ -610,8 +610,11 @@ export default async function DriverHub({
                           {formatMoneyExact(trip.final_payout, trip.currency)}
                         </p>
                         <p className="text-muted text-sm">
-                          {adminStatus(trip.ledger_entry?.status ?? trip.status)} · Calculated{" "}
-                          {formatDate(trip.calculated_at)}
+                          {adminStatus(
+                            trip.ledger_entry?.status ?? trip.status,
+                            "payout_calculation",
+                          )}{" "}
+                          · Calculated {formatDate(trip.calculated_at)}
                         </p>
                       </Link>
                     ))
@@ -720,7 +723,10 @@ export default async function DriverHub({
         >
           <p className="mb-4">
             {formatMoneyExact(selectedTrip.final_payout, selectedTrip.currency)} ·{" "}
-            {adminStatus(selectedTrip.ledger_entry?.status ?? selectedTrip.status)}
+            {adminStatus(
+              selectedTrip.ledger_entry?.status ?? selectedTrip.status,
+              "payout_calculation",
+            )}
           </p>
           <ProcessTripForm tripId={selectedTrip.trip_session_id} />
         </HubDrawer>

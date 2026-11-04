@@ -727,3 +727,21 @@ it("rejects heading 360 before relay while leaving valid peers in the caller's p
   expect(mocks.post).not.toHaveBeenCalled();
   expect(JSON.stringify(pings)).toBe(before);
 });
+
+import { assignmentAction as legacyAssignmentAction } from "./actions";
+import { assignmentAction as portalAssignmentAction } from "./(portal)/assignments/actions";
+it("keeps staff approval instructions out of driver Accept and Start refusals", async () => {
+  mocks.post.mockRejectedValue(
+    new ApiError(409, {
+      code: "VEHICLE_APPROVAL_REQUIRED",
+      message: "Use the car document review to approve this car",
+    }),
+  );
+  const expected =
+    "Your car isn't ready for this job. Check your documents in Profile or contact Terrax Media.";
+  const assignmentId = "10000000-0000-4000-8000-000000000001";
+  expect((await legacyAssignmentAction({ assignmentId, action: "accept" })).error).toBe(expected);
+  expect((await portalAssignmentAction({ assignmentId, action: "accept" })).error).toBe(expected);
+  expect(await startTripAction(assignmentId)).toEqual({ error: expected, outcome: "failed" });
+  expect(expected).not.toContain("Use the car document review");
+});

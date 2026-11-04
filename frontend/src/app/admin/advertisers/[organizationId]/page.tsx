@@ -237,7 +237,8 @@ export default async function CompanyHub({
                         {invoice.invoice_number ?? "Draft invoice"} · {campaign.name}
                       </Link>
                       <p className="text-muted text-sm">
-                        {adminStatus(invoice.status)} · {adminStatus(invoice.payment_status)} ·{" "}
+                        {adminStatus(invoice.status, "invoice")} ·{" "}
+                        {adminStatus(invoice.payment_status)} ·{" "}
                         {formatDate(invoice.issued_at ?? invoice.created_at)}
                       </p>
                       <p className="mt-2 text-sm">
@@ -293,7 +294,7 @@ export default async function CompanyHub({
                         {item.raised_by_name} · {CATEGORY_LABELS[item.category]}
                       </Link>
                       <p className="text-muted text-sm">
-                        {adminStatus(item.status)} · {formatDate(item.created_at)}
+                        {adminStatus(item.status, "complaint")} · {formatDate(item.created_at)}
                       </p>
                     </li>
                   ))}

@@ -359,19 +359,13 @@ def test_seed_missing_applicant_authority_stops_dependent_calls(settings, monkey
         submit.assert_awaited_once()
 
 
-def test_seed_missing_vehicle_submission_stops_document_reads_and_review(settings, monkeypatch):
+def test_seed_missing_vehicle_submission_fails_before_continuing(settings, monkeypatch):
     from app.seeds import demo_authority
 
     managed = AsyncMock(return_value=SimpleNamespace(id=UUID(int=3)))
     submit = AsyncMock(return_value=SimpleNamespace(submission=None))
-    read = AsyncMock()
-    review = AsyncMock()
-    setup = AsyncMock()
     monkeypatch.setattr(demo_authority, "managed_seed_image", managed)
     monkeypatch.setattr("app.services.vehicle_onboarding.submit_application_vehicle", submit)
-    monkeypatch.setattr("app.services.vehicle_onboarding.review_application_vehicle", review)
-    monkeypatch.setattr("app.services.stored_files.issue_admin_file_download", read)
-    monkeypatch.setattr("app.services.driver_account_setup.initiate_driver_account_setup", setup)
     with pytest.raises(ValueError, match="vehicle submission is missing"):
         asyncio.run(
             demo_authority._ensure_applicant_vehicle(
@@ -379,14 +373,10 @@ def test_seed_missing_vehicle_submission_stops_document_reads_and_review(setting
                 application=SimpleNamespace(id=UUID(int=1)),
                 person=object(),
                 token="seed-token",
-                staff=[],
                 settings=settings,
                 clock=[datetime.now(UTC)],
             )
         )
-    read.assert_not_awaited()
-    review.assert_not_awaited()
-    setup.assert_not_awaited()
 
 
 def test_demo_seed_requires_the_current_migration_head(monkeypatch: pytest.MonkeyPatch) -> None:

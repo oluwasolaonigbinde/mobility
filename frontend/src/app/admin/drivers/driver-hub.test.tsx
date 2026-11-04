@@ -728,3 +728,29 @@ it.each(["expired", "not_submitted"])(
     );
   },
 );
+
+it.each([
+  ["calculated", "Calculated"],
+  ["insufficient_data", "Not enough trip data"],
+  ["blocked", "Pay calculation blocked"],
+])("labels a %s calculation without a ledger entry", async (status, label) => {
+  const original = mocks.get.getMockImplementation()!;
+  mocks.get.mockImplementation(async (path, options) => {
+    const response = await original(path, options);
+    if (path.endsWith("/payout-calculations"))
+      return {
+        data: {
+          ...response.data,
+          items: response.data.items.map((item: object) => ({
+            ...item,
+            ledger_entry: null,
+            status,
+          })),
+        },
+      };
+    return response;
+  });
+  render(await DriverHub({ driverId, query: { trip: "trip" } }));
+  expect(screen.getAllByText(new RegExp(label)).length).toBeGreaterThanOrEqual(2);
+  expect(screen.queryByText(/Unknown status/)).toBeNull();
+});

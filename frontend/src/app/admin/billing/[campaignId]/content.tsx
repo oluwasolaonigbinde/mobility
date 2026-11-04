@@ -373,7 +373,7 @@ export default async function AdminCampaignBillingPage({
               <StatusChip
                 tone={invoice?.status === "issued" ? "green" : invoice ? "amber" : "default"}
               >
-                {invoice ? adminStatus(invoice.status) : "Not created"}
+                {invoice ? adminStatus(invoice.status, "invoice") : "Not created"}
               </StatusChip>
             </div>
             {invoice ? (

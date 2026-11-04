@@ -198,3 +198,13 @@ it("maps automation actors consistently while keeping human names and addresses"
   expect(adminActor("staff@example.test", "Ada")).toBe("Ada");
   expect(adminActor("staff@example.test")).toBe("staff@example.test");
 });
+
+it.each([
+  ["void", "invoice", "Voided"],
+  ["archived", "review", "Archived"],
+  ["calculated", "payout_calculation", "Calculated"],
+  ["insufficient_data", "payout_calculation", "Not enough trip data"],
+  ["blocked", "payout_calculation", "Pay calculation blocked"],
+])("labels the reachable %s status in %s", (value, context, label) => {
+  expect(adminStatus(value, context)).toBe(label);
+});

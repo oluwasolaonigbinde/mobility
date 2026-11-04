@@ -308,6 +308,8 @@ it.each([
         searchParams: Promise.resolve({}),
       }),
     );
+    expect(screen.queryByText(/Unknown status/)).toBeNull();
+    if (state === "void") expect(screen.getByText("Voided")).toBeVisible();
     if (!shown && state !== "none") {
       expect(screen.getByText("Balance due").nextElementSibling).toHaveTextContent("—");
     }

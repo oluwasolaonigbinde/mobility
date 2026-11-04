@@ -38,7 +38,13 @@ export async function assignmentAction({
     }
   } catch (error) {
     unstable_rethrow(error);
-    if (error instanceof ApiError) return { error: publicActionError(error) };
+    if (error instanceof ApiError)
+      return {
+        error: publicActionError(error, {
+          VEHICLE_APPROVAL_REQUIRED:
+            "Your car isn't ready for this job. Check your documents in Profile or contact Terrax Media.",
+        }),
+      };
     return { error: "Could not reach the server." };
   }
   revalidatePath("/driver/assignments");

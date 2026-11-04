@@ -947,8 +947,9 @@ def review_document_files(client, maker, *, admin, submission_id, files, vehicle
         assert read.status_code == 200, read.text
 
 
+@pytest.mark.parametrize("changed_facts", [False, True])
 def test_vehicle_approval_expires_at_exact_boundary_without_inventing_document_expiry(
-    postgis_db_client, postgis_db_sessionmaker, monkeypatch
+    postgis_db_client, postgis_db_sessionmaker, monkeypatch, changed_facts
 ):
     from datetime import UTC, datetime, timedelta
 
@@ -1044,7 +1045,15 @@ def test_vehicle_approval_expires_at_exact_boundary_without_inventing_document_e
     too_early = client.post(route, headers=dh, json=renewal)
     assert too_early.status_code == 409
     assert too_early.json()["error"]["code"] == "VEHICLE_RESUBMISSION_NOT_ALLOWED"
-    now = expiry
+    if changed_facts:
+        assert (
+            client.patch(
+                f"/api/v1/admin/vehicles/{car.id}", headers=ah, json={"make": "Changed make"}
+            ).status_code
+            == 200
+        )
+    else:
+        now = expiry
     at_boundary = client.get("/api/v1/driver/documents", headers=dh).json()["vehicles"][0]
     assert at_boundary["status"] == "expired"
     assert all(

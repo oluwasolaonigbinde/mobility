@@ -95,6 +95,11 @@ const contexts: Record<string, Record<string, string>> = {
     reserved: "Saved, not sent yet",
     reconciled: "Payment results recorded",
   },
+  payout_calculation: {
+    calculated: "Calculated",
+    insufficient_data: "Not enough trip data",
+    blocked: "Pay calculation blocked",
+  },
   correction: {
     stale: "Needs a new preview",
     executed: "Completed",
@@ -109,7 +114,7 @@ const contexts: Record<string, Record<string, string>> = {
   driver: { pending: "Applicant", rejected: "Not approved" },
   campaign: { active: "Running", pending_review: "For review", finished: "Finished" },
   job: { active: "Running", accepted: "Accepted" },
-  review: { pending: "Needs review", pending_review: "Needs review" },
+  review: { pending: "Needs review", pending_review: "Needs review", archived: "Archived" },
   report: { queued: "Being prepared", processing: "Being prepared", ready: "Ready" },
   complaint: { open: "Needs a reply", answered: "Waiting on them", resolved: "Resolved" },
   contact: { open: "Needs contact", completed: "Completed" },

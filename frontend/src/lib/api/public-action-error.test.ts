@@ -80,12 +80,10 @@ it("uses fixed invite copy for the disabled-email code", () => {
   ).toBe("Emails aren't connected yet, so this invite can't be sent.");
 });
 
-it("gives staff plain vehicle approval guidance instead of raw server text", () => {
+it("does not put staff vehicle approval instructions in the shared fallback", () => {
   expect(
     publicActionError(
       new ApiError(409, { code: "VEHICLE_APPROVAL_REQUIRED", message: "raw internal detail" }),
     ),
-  ).toBe(
-    "Use the car document review to approve this car. Expired or rejected documents need a fresh submission.",
-  );
+  ).toBe("That didn't work. Please try again.");
 });
