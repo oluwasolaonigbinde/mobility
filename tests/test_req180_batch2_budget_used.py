@@ -49,7 +49,8 @@ def _actors(maker, tag, *, status="active", budget_amount="1000.00", currency="N
 def _detail(client, headers, campaign):
     response = client.get(f"/api/v1/advertiser/campaigns/{campaign.id}", headers=headers)
     assert response.status_code == 200, response.text
-    return response.json()["budget_used"]
+    assert "budget_used" not in response.json()
+    return response.json()
 
 
 async def _staff_cancel(session, *, admin, campaign, reason="Advertiser asked Terrax to stop"):
@@ -62,7 +63,7 @@ async def _staff_cancel(session, *, admin, campaign, reason="Advertiser asked Te
     )
 
 
-def test_budget_used_is_the_booked_total_on_every_advertiser_response(
+def test_budget_used_is_absent_from_every_advertiser_response(
     db_client, db_sessionmaker, settings
 ):
     admin, owner, organization, funded = _actors(db_sessionmaker, "used-read")
@@ -90,13 +91,8 @@ def test_budget_used_is_the_booked_total_on_every_advertiser_response(
     headers = auth_headers(db_client, owner.email)
 
     empty = _detail(db_client, headers, funded)
-    assert {key: empty[key] for key in ("amount", "budget_amount", "currency", "basis")} == {
-        "amount": "0.00",
-        "budget_amount": "1000.00",
-        "currency": "NGN",
-        "basis": "funding",
-    }
-    assert datetime.fromisoformat(empty["as_of"].replace("Z", "+00:00")).tzinfo is not None
+    assert empty["budget_amount"] == "1000.00"
+    assert empty["currency"] == "NGN"
 
     async def book():
         async with db_sessionmaker() as session:
@@ -141,28 +137,20 @@ def test_budget_used_is_the_booked_total_on_every_advertiser_response(
             return evaluation, locked
 
     evaluation, locked = asyncio.run(book())
-    deposit = _detail(db_client, headers, funded)
-    assert (deposit["amount"], deposit["basis"]) == ("250.00", "funding")
-    assert Decimal(deposit["amount"]) == locked[0][0]
-    over = _detail(db_client, headers, produced)
-    # A daily budget never changes the figure: it is always the booked total.
-    assert over == {**over, "amount": "1100.00", "budget_amount": "1000.00", "basis": "invoice"}
-    assert Decimal(over["amount"]) == locked[1][0] == evaluation.billing_spend_amount
-
+    assert locked[0][0] == Decimal("250.00")
+    assert locked[1][0] == evaluation.billing_spend_amount == Decimal("1100.00")
+    assert _detail(db_client, headers, funded)["budget_amount"] == "1000.00"
+    assert _detail(db_client, headers, produced)["pause_kind"] == "budget"
     listing = db_client.get("/api/v1/advertiser/campaigns", headers=headers).json()["items"]
-    by_id = {item["id"]: item["budget_used"] for item in listing}
-    assert by_id[str(usd.id)]["currency"] == "USD" and by_id[str(usd.id)]["amount"] == "0.00"
-    assert by_id[str(produced.id)]["amount"] == "1100.00"
+    assert all("budget_used" not in item and "pause_kind" in item for item in listing)
     patched = db_client.patch(
         f"/api/v1/advertiser/campaigns/{usd.id}", headers=headers, json={"name": "Dollar plan"}
     )
-    assert patched.status_code == 200 and patched.json()["budget_used"]["currency"] == "USD"
+    assert patched.status_code == 200 and "budget_used" not in patched.json()
     created = db_client.post(
         "/api/v1/advertiser/campaigns", headers=headers, json={"name": "No budget yet"}
     )
-    assert created.status_code == 201, created.text
-    assert created.json()["budget_used"]["amount"] == "0.00"
-    assert created.json()["budget_used"]["budget_amount"] is None
+    assert created.status_code == 201 and "budget_used" not in created.json()
     foreign = db_client.get(
         f"/api/v1/advertiser/campaigns/{funded.id}", headers=auth_headers(db_client, stranger.email)
     )
@@ -248,10 +236,9 @@ def test_cancelled_campaigns_keep_a_truthful_booked_amount_and_no_repeat_notices
             return settled
 
     settled = asyncio.run(exercise())
-    after = _detail(db_client, headers, running)
-    assert (after["amount"], after["basis"]) == (f"{settled:.2f}", "invoice")
-    assert Decimal(after["amount"]) == Decimal("850.00")
-    assert _detail(db_client, headers, early)["amount"] == "0.00"
+    assert settled == Decimal("850.00")
+    assert _detail(db_client, headers, running)["status"] == "cancelled"
+    assert _detail(db_client, headers, early)["status"] == "cancelled"
     # Staff cannot cancel a campaign that already ended.
     completed = create_test_campaign(
         db_sessionmaker,

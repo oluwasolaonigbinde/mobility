@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.167 — 2026-11-04. Canonical source of truth: current state AND target state.**
+**Version 1.168 — 2026-11-09. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1722,9 +1722,9 @@ Funding is capped at the accepted obligation and campaign changes move
 driver-liability headroom, not the invoice, so before production nothing can
 exceed the agreed total; only debit notes after production can. A
 progress-based measure is REQ-196 (needs a client rule plus expansion
-re-quoting or a delivery meter). Advertiser campaign reads return `budget_used`
-`{amount, budget_amount|null, currency, basis: funding|invoice, as_of}` from the
-same unlocked spend function (D103).
+re-quoting or a delivery meter). D159/REQ-310 replaces the advertiser display
+with a presentation-only campaign-day countdown; campaign reads expose the
+campaign's own budget and dates. Billing spend and alerts remain authoritative.
 
 **[BUILT — REQ-213 / D104]:** `services/billing/budget.py` calculates this
 rule directly from current locked billing facts. There is no budget-policy
@@ -3519,9 +3519,9 @@ financial decision/release authority remain unchanged.
 D154 / REQ-288/289 removes staff-visible hashes, raw trip/check/run IDs and calculation JSON. Names, dates and plates retain trip context; pay corrections show per-trip current/correct/change amounts and links. Stored data, review controls and financial authority are unchanged.
 One white/brand-green palette applies to signed-in screens; advertiser/driver
 headers pair the official Terrax mark with Cardvert. Admin is palette-only.
-Advertiser Home has running campaigns and cars on the road, a new-campaign
-action and visual running-campaign cards (§27.9 replaces the earlier spending
-figure: Booked shows per campaign only, D100/D103). Each card shows its artwork
+Advertiser Home has Running campaigns, Cars on the road, Campaign budget and
+Campaign performance (D159 / REQ-310), a new-campaign action and visual running-campaign
+cards. D159 supersedes D100/D103’s earlier per-campaign-only Booked display. Each card shows its artwork
 and its target-area count from the campaign list read (`preview_file_id`,
 `target_zone_count`), so Home makes no per-campaign artwork or area reads
 (REQ-208).
@@ -3610,20 +3610,15 @@ Focused checks, desktop/mobile and six-theme evidence, consolidated and named
 money/privacy/security review precede acceptance; D41 full CI remains required
 before an owner-authorized merge. No launch-package state changes.
 
-### 27.9 Portal integration and Booked budget display (D100/D103/D104, REQ-180/182/184/193–195) **[TARGET — Phase 2 in progress]**
+### 27.9 Portal integration and budget remaining (D159, REQ-310) **[IMPLEMENTED — verification pending]**
 
-Worker B consumes Worker A's role-scoped summary/count, coarse results,
+The advertiser portal consumes role-scoped campaign, daily-metrics, live-position,
 enquiry, continuation and artwork contracts through the existing server BFF.
-No demo-specific screen branches are permitted. The figure is D103's
-`budget_used` (REQ-193); D100 records only its screen wording, superseding
-D95's display. **[BUILT — REQ-253; owner, 27–29 October 2026]** Each campaign
-page shows "Booked: ₦X of your ₦Y budget", and each campaigns-list row shows
-"₦X of ₦Y", with amounts only: no bar, percent or colour. Its `budget_amount` is null
-for a daily-only campaign, which shows "Booked: ₦X"; otherwise it
-must match the campaign's own budget. No funding is zero; missing is a quiet
-dash. It is never summed across campaigns or currencies, so Home has no Booked
-figure. D104's budget/alert authority is unchanged by this presentation
-replacement. Never reconstruct payout-based spend.
+No demo-specific screen branches are permitted. D159 replaces the D103/REQ-253
+advertiser display with Budget remaining, calculated evenly by inclusive Nigeria
+campaign days. Home adds remaining and total amounts separately per currency.
+Cancelled, budget-paused and invalid totals show a dash. This display does not
+reconstruct or alter spend: D104 billing and budget alerts are unchanged.
 
 Admin gains two operations: D97 staff cancellation and audit D4's create
 advertiser from a saved enquiry. Staff cancellation requires a reason;
@@ -4151,6 +4146,7 @@ It does not authorize deployment or close external launch gates.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.168 | 2026-11-09 | REQ-310 / D159: advertiser display-only budget remaining, per-currency Home totals and released complete-day estimated performance. API read removal moves all three §9 baselines. Privacy correction hides every unavailable window total; reporting fixtures use dedicated unbound assignments checked through worker and auto-end. Nigeria-date seed fixtures cover all fourteen complete days regardless of seed hour; the primary campaign starts and ends one day earlier to contain that window without changing its duration or reserved liability. Local implementation; controller owns review/CI. |
 | v1.134 | 2026-10-13 | **D79/REQ-160 one-off delivery exception.** Agreement/bank integration may merge after the accepted failed CI's five stale test/schema cases are corrected, affected local tests pass and independent reassessment PASS. No additional full pre-merge CI wait; full evaluation is deferred until after Waves 3/4. D33 checker, receipt and every floor remain unchanged; coverage policy was skipped, not passed. Automatically triggered CI is reported without waiting. Any real app, migration or money defect stops the merge. Evidence: [agreement/bank receipt](../issues/testing/agreement-bank-picker-2026-10-13.md). |
 | v1.133 | 2026-10-13 | D77/D78 replaces signed agreement files with versioned in-app acceptance (`0102`) and reuses one searchable Apply/renewal bank catalog/picker with server-authoritative account-name confirmation and unavailable fallback. Legal text remains internally draft (REQ-032); D40b unchanged. Reviewed contract: agreement-bank-picker-2026-10-13; focused verification and specialist/source reviews PASS. Integrated CI failed five stale test/schema cases, corrected under D79/REQ-160; final affected tests (69 executions with overlap, zero skips) and independent correction reassessment PASS under D79. Full CI/source-bound coverage evaluation is deferred until after Waves 3/4; no green coverage claim. |
 | v1.132 | 2026-10-13 | **REQ-157 payout recovery locking.** Resolution locks the durable requester before payout rows and revalidates the association, removing the user/batch/audit-FK deadlock without changing payment values or submission/recovery authority. Deterministic PostgreSQL regression and financial/security/consolidated reviews PASS; Built in `31997a67`, with accepted source branch/master CI [38369572447](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38369572447) / [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034). |
@@ -4312,3 +4308,12 @@ REQ-298 / D156 — 3 November 2026 (§20 email, §27 health, §9 API): one share
 REQ-299 / D157 — 3 November 2026: pending car reviews exclude current terminal evidence revisions. Expired/rejected car evidence requires a fresh submission; the staff form and car details show that state. Immutable decisions and work eligibility remain authoritative. Source: controller recheck additions. Earlier pending work status was also used as review readiness, causing an impossible repeat approval.
 
 REQ-301 / D158 - 4 November 2026: generic car activation and Restore check the highest-version evidence under the existing work-eligibility lock. Current, unexpired approved evidence is required: the trusted car snapshot must match and the current decision must approve with future validity. REQ-302 applies the existing _vehicle_approved predicate and exposes Profile renewal when approval is no longer current. Refusals use VEHICLE_APPROVAL_REQUIRED; staff guidance is scoped to staff actions and drivers get Profile/contact guidance. No-submission staff cars retain active creation and generic approval; approved-evidence staff cars retain Restore. Public-applicant activation still uses the existing evidence review. The Cars control uses the same evidence distinction; trip eligibility and funding authority are unchanged. Source: controller browser-review correction.
+
+
+### REQ-310 / D159 — advertiser budget and performance [IMPLEMENTED, verification pending]
+
+Owner, 9 Nov 2026: replace advertiser Booked with a presentation-only even countdown by inclusive Nigeria campaign days. Share day-progress maths, use integer minor units, display whole currency units and aggregate Home only within each currency. Budget-paused/cancelled and invalid values fail closed. Remove the unconsumed budget_used read/schema and regenerate all three §9 baselines; _campaign_billing_spend and alert enforcement remain unchanged. REQ-196 stays open.
+
+Performance requests fourteen complete Nigeria days with explicit start_at/end_at/limit, clamps to campaign start, and uses only released days for latest-seven sums and prior-seven comparisons. Every fallback (suppressed, null, unavailable or cancelled) exposes null views and distance, rendered as dashes without chart/arrows. The loader makes no whole-campaign report request. Heading pills retain Last 7 days for private/not-ready windows, Final 7 days for finished campaigns, Cancelled for cancelled campaigns and No results yet before the first complete day. Chart is an inline responsive estimated-views SVG with Daily figures text. D159 supersedes D123 chart/positive QR display and D103/REQ-253 Booked/Home display only. Artwork QR counts and exclusions of CTR, website visits and ROI remain. Dedicated, unbound reporting assignments for each running Marula campaign preserve existing paid trip keys and respect stored campaign windows. Reporting-only trips and the separate active live trip have no assignment rule bindings, so ordinary worker sweeps and live auto-end cannot create payout or ledger rows. Verification compares financial tables, including assignment_rule_bindings, across real worker sweeps and auto-end. Owner screenshot correction: varied reporting-only routes balance the prior/latest weeks without changing financial rows; chart gridlines use rounded axes, daily dots and date labels, and the full-card window is a heading pill. Budget labels stay inline beside their wallet and totals do not wrap. R14-B verification uses the current capability-contract and driver PWA contract tests (D23), not a nonexistent native tree.
+
+Changelog — 9 Nov 2026, REQ-310 / D159: advertiser Home four figures, budget countdown and released daily estimated performance; implementation uncommitted, controller owns review/CI and acceptance. Launch gates unchanged.

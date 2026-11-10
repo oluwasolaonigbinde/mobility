@@ -120,15 +120,8 @@ it.each(["failed", "empty", "duplicate", "changed-total", "oversized"])(
   },
 );
 
-it("shows each campaign's own booked figure, never a total, and a dash when it is missing", async () => {
+it("shows each campaign's own remaining budget, never a total, and a dash when it is missing", async () => {
   mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "advertiser" } });
-  const used = {
-    amount: "1000.00",
-    budget_amount: "1000.00",
-    currency: "NGN",
-    basis: "invoice",
-    as_of: "2026-10-18T10:00:00Z",
-  };
   const row = (id: string, extra: Record<string, unknown>) => ({
     id,
     name: `Campaign ${id}`,
@@ -137,7 +130,6 @@ it("shows each campaign's own booked figure, never a total, and a dash when it i
     budget_amount: "1000.00",
     start_at: null,
     end_at: null,
-    budget_used: used,
     ...extra,
   });
   mocks.get.mockResolvedValue({
@@ -146,19 +138,18 @@ it("shows each campaign's own booked figure, never a total, and a dash when it i
         row("full", {}),
         row("daily", {
           budget_amount: null,
-          budget_used: { ...used, amount: "25.00", budget_amount: null },
         }),
-        row("missing", { budget_used: null }),
+        row("missing", { budget_amount: "invalid" }),
       ],
       total: 3,
     },
   });
   render(await CampaignsPage({ searchParams: Promise.resolve({}) }));
-  expect(screen.getByRole("columnheader", { name: "Booked" })).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", { name: "Budget remaining" })).toBeInTheDocument();
   const cell = (id: string) =>
     screen.getByRole("link", { name: `Campaign ${id}` }).closest("tr")!.lastElementChild!;
-  expect(cell("full")).toHaveTextContent(/^₦1,000\.00 of ₦1,000\.00$/);
-  expect(cell("daily")).toHaveTextContent(/^₦25\.00$/);
-  expect(cell("missing")).toHaveTextContent("—not available");
+  expect(cell("full")).toHaveTextContent("₦1,000Budget ₦1,000");
+  expect(cell("daily")).toHaveTextContent("—Budget —");
+  expect(cell("missing")).toHaveTextContent("—Budget —");
   expect(document.body).not.toHaveTextContent("₦1,025.00");
 });

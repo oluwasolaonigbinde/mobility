@@ -3,7 +3,7 @@ import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
 import { requireRole } from "@/lib/auth/current-user";
 import { getSessionToken } from "@/lib/auth/session";
-import { formatDateRange, formatMoney } from "@/lib/format";
+import { formatDateRange } from "@/lib/format";
 import { isCampaignStatus, statusLabel, statusTone } from "@/lib/campaigns/status";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
@@ -13,35 +13,12 @@ import { Pagination } from "@/components/ui/pagination";
 import { FilterChips } from "@/components/ui/tabs";
 import { DataUnavailable } from "@/components/ui/data-unavailable";
 import { loadAllAdvertiserPages, type UnavailableReason } from "@/lib/advertiser/page-data";
-import { bookedBudget, minorDecimal, type BudgetDisplay } from "@/lib/advertiser/budget-display";
+import { BudgetRemaining } from "@/components/campaigns/budget-remaining";
 import { campaignDay } from "@/lib/campaigns/day-progress";
 import { CampaignTimeline } from "@/components/campaigns/campaign-timeline";
 import { PortalIcon } from "@/components/brand/portal-icon";
 
 export const metadata: Metadata = { title: "Campaigns" };
-
-/** This campaign's own booked figure (D103); a daily-only campaign has no total to show. */
-function BookedCell({ value }: { value: BudgetDisplay | null }) {
-  if (!value)
-    return (
-      <>
-        <span aria-hidden="true">—</span>
-        <span className="sr-only">not available</span>
-      </>
-    );
-  const booked = formatMoney(minorDecimal(value.booked), value.currency);
-  return value.budget === null ? (
-    <>{booked}</>
-  ) : (
-    <>
-      {booked}
-      <span className="text-muted">
-        {" "}
-        of {formatMoney(minorDecimal(value.budget), value.currency)}
-      </span>
-    </>
-  );
-}
 
 const PAGE_SIZE = 20;
 
@@ -142,27 +119,27 @@ export default async function CampaignsPage({
         <>
           <Panel className="overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-sm">
-                <thead>
+              <table className="block w-full text-sm sm:table sm:min-w-[640px]">
+                <thead className="sr-only sm:not-sr-only sm:table-header-group">
                   <tr className="border-edge micro text-muted border-b text-left">
                     <th className="px-5 py-3.5 font-normal">Campaign</th>
                     <th className="px-5 py-3.5 font-normal">Status</th>
                     <th className="px-5 py-3.5 font-normal">Dates</th>
                     <th className="px-5 py-3.5 text-right font-normal">
-                      <span className="inline-flex items-center gap-2">
-                        <PortalIcon name="wallet" className="size-4" />
-                        Booked
+                      <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                        <PortalIcon name="wallet" className="size-4 shrink-0" />
+                        Budget remaining
                       </span>
                     </th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="block sm:table-row-group">
                   {items.map((c) => (
                     <tr
                       key={c.id}
-                      className="border-edge/60 hover:bg-raised/50 border-b transition-colors last:border-0"
+                      className="border-edge/60 hover:bg-raised/50 block border-b transition-colors last:border-0 sm:table-row"
                     >
-                      <td className="px-5 py-4">
+                      <td className="block px-5 py-3 sm:table-cell sm:py-4">
                         <Link
                           href={`/advertiser/campaigns/${c.id}`}
                           className="hover:text-amber font-medium"
@@ -175,17 +152,21 @@ export default async function CampaignsPage({
                           </p>
                         ) : null}
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="block px-5 py-3 sm:table-cell sm:py-4">
                         <StatusChip tone={statusTone[c.status]}>{statusLabel[c.status]}</StatusChip>
                       </td>
-                      <td className="text-muted px-5 py-4 text-[15px]">
+                      <td className="text-muted block px-5 py-3 text-[15px] sm:table-cell sm:py-4">
                         {formatDateRange(c.start_at, c.end_at)}
                         <p className="text-green mt-1 text-sm font-semibold">
                           {campaignDay(c.start_at, c.end_at, c.status)}
                         </p>
                       </td>
-                      <td className="px-5 py-4 text-right text-[15px] tabular-nums">
-                        <BookedCell value={bookedBudget(c)} />
+                      <td className="block px-5 py-3 text-[15px] tabular-nums sm:table-cell sm:py-4 sm:text-right">
+                        <p className="mb-1 inline-flex items-center gap-2 text-sm whitespace-nowrap sm:hidden">
+                          <PortalIcon name="wallet" className="size-4 shrink-0" />
+                          Budget remaining
+                        </p>
+                        <BudgetRemaining campaign={c} />
                       </td>
                     </tr>
                   ))}

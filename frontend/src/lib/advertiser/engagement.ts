@@ -34,11 +34,3 @@ export async function loadLivePositions(api: ApiClient, campaignId: string) {
     },
   };
 }
-
-export function loadQRScans(api: ApiClient, campaignId: string) {
-  return loadAdvertiserPageData(() =>
-    api.GET("/api/v1/advertiser/campaigns/{campaign_id}/qr-scans", {
-      params: { path: { campaign_id: campaignId } },
-    }),
-  );
-}

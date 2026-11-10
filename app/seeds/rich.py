@@ -2396,3 +2396,201 @@ async def settle_seed_driver_notifications(
         .execution_options(synchronize_session=False)
     )
     return int(cast(CursorResult[Any], result).rowcount or 0)
+
+
+async def ensure_reporting_live_car(session, *, campaign, driver_email, settings):
+    """Live fixture on an unbound reporting assignment; auto-end cannot earn money."""
+    assignment = await session.scalar(
+        select(CampaignAssignment)
+        .join(DriverProfile, DriverProfile.id == CampaignAssignment.driver_profile_id)
+        .join(User, User.id == DriverProfile.user_id)
+        .where(
+            CampaignAssignment.campaign_id == campaign.id,
+            User.email == driver_email,
+        )
+    )
+    existing = await session.scalar(
+        select(TripSession.id).where(
+            TripSession.assignment_id == assignment.id,
+            TripSession.trip_metadata["seed_version"].as_string() == "demo-live-v1",
+        )
+    )
+    if existing is not None:
+        return
+    started = utc_now().replace(microsecond=0) - timedelta(minutes=35)
+    profile = await session.get(DriverProfile, assignment.driver_profile_id)
+    trip = TripSession(
+        assignment_id=assignment.id,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=assignment.vehicle_id,
+        started_by_user_id=profile.user_id,
+        status="active",
+        started_at=started,
+        evidence_protocol_version=2,
+        trip_metadata={"seed_version": "demo-live-v1"},
+    )
+    session.add(trip)
+    await session.flush()
+    payload = LocationPingBatchCreate(
+        idempotency_key="demo-live-v1",
+        batch_sequence=0,
+        pings=[
+            LocationPingCreate(
+                recorded_at=started + timedelta(minutes=index * 3),
+                lat=9.02 + index * 0.006,
+                lon=7.46 + index * 0.004,
+                accuracy_m=8,
+                speed_mps=7.5,
+                sequence_number=index,
+            )
+            for index in range(6)
+        ],
+    )
+    batch = LocationPingBatch(
+        trip_session_id=trip.id,
+        idempotency_key=payload.idempotency_key,
+        batch_sequence=0,
+        payload_hash_version=2,
+        payload_hash=batch_payload_hash(payload),
+        pings_submitted=6,
+        pings_accepted=6,
+        pings_rejected=0,
+        evidence_scope="manifest",
+        received_at=started + timedelta(minutes=17),
+        batch_metadata={"seed_version": "demo-live-v1"},
+    )
+    session.add(batch)
+    await session.flush()
+    sign_batch_receipt(batch, settings)
+    for ping in payload.pings:
+        session.add(
+            LocationPing(
+                trip_session_id=trip.id,
+                batch_id=batch.id,
+                recorded_at=ping.recorded_at,
+                received_at=batch.received_at,
+                sequence_number=ping.sequence_number,
+                latitude=ping.lat,
+                longitude=ping.lon,
+                accuracy_m=ping.accuracy_m,
+                speed_mps=ping.speed_mps,
+                geom=point_value(session, lon=ping.lon, lat=ping.lat),
+                ping_metadata={"seed_version": "demo-live-v1"},
+            )
+        )
+    await session.flush()
+
+
+async def ensure_reporting_contributors(
+    session, *, graph, settings, campaign_name, namespace, plate_prefix, balance_paid_workdays
+):
+    """Three dedicated, unbound cars: reports and live positions without payable trips."""
+    from app.seeds.demo import (
+        REPORTING_PING_MINUTES,
+        reporting_trip_specs,
+        upsert_assignment,
+        upsert_trips_and_pings,
+        upsert_user,
+    )
+
+    campaign = await session.scalar(
+        select(Campaign).where(
+            Campaign.organization_id == graph.organization.id,
+            Campaign.name == campaign_name,
+        )
+    )
+    for index in range(3):
+        email = f"{namespace}.reporting.{index + 1}@demo.mobility.local"
+        driver = await upsert_user(
+            session,
+            email=email,
+            password="DemoReporting12345!",
+            full_name=("Amina Yusuf", "Chidi Okeke", "Bisi Adewale")[index],
+            role=UserRole.DRIVER,
+            settings=settings,
+        )
+        profile = await session.scalar(
+            select(DriverProfile).where(DriverProfile.user_id == driver.id)
+        )
+        if profile is None:
+            profile = DriverProfile(
+                user_id=driver.id,
+                onboarding_status="active",
+                service_city="Abuja",
+                country_code="NG",
+            )
+            session.add(profile)
+            await session.flush()
+        vehicle = await session.scalar(
+            select(Vehicle).where(Vehicle.driver_profile_id == profile.id)
+        )
+        if vehicle is None:
+            plate = f"{plate_prefix}{index}-RP"
+            vehicle = Vehicle(
+                driver_profile_id=profile.id,
+                plate_number=plate,
+                plate_number_normalized=normalize_plate_number(plate),
+                plate_country_code="NG",
+                vehicle_type="car",
+                make="Toyota",
+                model="Corolla",
+                color="White",
+                year=2021,
+                status="active",
+            )
+            session.add(vehicle)
+            await session.flush()
+        assignment = await upsert_assignment(
+            session,
+            campaign=campaign,
+            profile=profile,
+            vehicle=vehicle,
+            admin=graph.admin,
+            driver=driver,
+            settings=settings,
+        )
+        # Distinct nearby routes, rather than copied GPS across different cars.
+        coordinate_offset = (index + 1 + (3 if namespace == "abuja" else 0)) * 0.00009
+        trips = await upsert_trips_and_pings(
+            session,
+            assignment=assignment,
+            campaign=campaign,
+            profile=profile,
+            vehicle=vehicle,
+            driver=driver,
+            settings=settings,
+            reporting_only=True,
+            specs=[
+                (
+                    key,
+                    at + timedelta(minutes=index * 5),
+                    [
+                        (lat + coordinate_offset, lon - coordinate_offset)
+                        for lat, lon in coordinates
+                    ],
+                )
+                for key, at, coordinates in reporting_trip_specs(
+                    utc_now(), balance_paid_workdays=balance_paid_workdays
+                )
+                if campaign.start_at <= at
+                and at
+                + timedelta(minutes=index * 5 + (len(coordinates) - 1) * REPORTING_PING_MINUTES)
+                <= campaign.end_at
+            ],
+        )
+        for trip in trips:
+            if await session.scalar(
+                select(TripAnalytics.id).where(TripAnalytics.trip_session_id == trip.id)
+            ):
+                continue
+            await recompute_trip_analytics(
+                session, trip_id=trip.id, metadata=f7_metadata(), settings=settings
+            )
+            await estimate_trip_impressions(
+                session, trip_id=trip.id, metadata=f7_metadata(), settings=settings
+            )
+        if index == 0:
+            await ensure_reporting_live_car(
+                session, campaign=campaign, driver_email=email, settings=settings
+            )

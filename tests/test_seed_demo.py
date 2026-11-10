@@ -1505,7 +1505,11 @@ def fetch_seed_evidence_snapshot(
 
             assert len(batches_by_trip) == len(trips)
             assert len(entries_by_trip) == len(trips)
-            assert payout_trip_ids == set(trip_ids)
+            assert payout_trip_ids == {
+                trip.id
+                for trip in trips
+                if not str(trip.trip_metadata.get("seed_trip_key", "")).startswith("reporting-day-")
+            }
             families: set[str] = set()
             snapshot: list[tuple[object, ...]] = []
             for trip in trips:
@@ -1805,7 +1809,7 @@ def test_seed_business_ownership_and_applicant_financial_separation(
             # D103/D104: running demo campaigns show real booked money and stay running.
             from app.models.billing import BudgetCampaignTransition
             from app.services.billing.budget import (
-                campaign_budget_used,
+                _campaign_billing_spend,
                 sweep_campaign_budgets,
             )
 
@@ -1813,9 +1817,11 @@ def test_seed_business_ownership_and_applicant_financial_separation(
             running = [row for row in campaigns if row.status in {"scheduled", "active"}]
             assert running
             for campaign in running:
-                used = await campaign_budget_used(session, campaign=campaign, now=now)
-                assert used["amount"] > 0, campaign.name
-                assert used["amount"] <= used["budget_amount"], campaign.name
+                amount, _ = await _campaign_billing_spend(
+                    session, campaign_id=campaign.id, lock=False
+                )
+                assert amount > 0, campaign.name
+                assert amount <= campaign.budget_amount, campaign.name
             statuses = {row.id: row.status for row in campaigns}
             async with postgis_db_sessionmaker() as sweep:
                 evaluated = await sweep_campaign_budgets(sweep)
@@ -2226,7 +2232,82 @@ def test_demo_seed_is_idempotent_with_postgis(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "2")
-    seed_demo_graph(postgis_db_sessionmaker, settings)
+    graph = seed_demo_graph(postgis_db_sessionmaker, settings)
+
+    async def check_live_car():
+        async with postgis_db_sessionmaker() as session:
+            live = (
+                await session.scalars(
+                    select(TripSession).where(
+                        TripSession.trip_metadata["seed_version"].as_string() == "demo-live-v1"
+                    )
+                )
+            ).all()
+            assert len(live) == 2
+            assert len({trip.campaign_id for trip in live}) == 2
+            from zoneinfo import ZoneInfo
+
+            from app.services.campaign_live_positions import live_positions
+            from app.services.reports import daily_metrics_for_campaign
+
+            end = datetime.now(ZoneInfo("Africa/Lagos")).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            for trip in live:
+                assert trip.status == "active" and trip.ended_at is None
+                assert (
+                    await session.scalar(
+                        select(func.count(LocationPing.id)).where(
+                            LocationPing.trip_session_id == trip.id
+                        )
+                    )
+                    == 6
+                )
+                assert (
+                    await session.scalar(
+                        select(func.count(PayoutCalculation.id)).where(
+                            PayoutCalculation.trip_session_id == trip.id
+                        )
+                    )
+                    == 0
+                )
+                positions = await live_positions(
+                    session,
+                    user_id=graph.advertiser.id,
+                    campaign_id=trip.campaign_id,
+                    settings=settings,
+                )
+                assert len(positions.positions) >= 1
+                daily = await daily_metrics_for_campaign(
+                    session,
+                    user_id=graph.advertiser.id,
+                    campaign_id=trip.campaign_id,
+                    start_at=end - timedelta(days=14),
+                    end_at=end,
+                    limit=14,
+                    offset=0,
+                    settings=settings,
+                )
+                assert len(daily.items) == 14
+                assert all(
+                    not day.suppressed
+                    and day.vehicle_count >= 3
+                    and day.estimated_impressions is not None
+                    for day in daily.items
+                )
+                for field in ("distance_m", "estimated_impressions"):
+                    prior = sum(getattr(day, field) for day in daily.items[:7])
+                    recent = sum(getattr(day, field) for day in daily.items[7:])
+                    assert prior > 0
+                    assert Decimal("-15") <= (recent - prior) / prior * 100 <= Decimal("35"), (
+                        trip.campaign_id,
+                        field,
+                        prior,
+                        recent,
+                    )
+                    assert len({getattr(day, field) for day in daily.items[7:]}) == 7
+
+    asyncio.run(check_live_car())
     first_counts = fetch_seed_counts(postgis_db_sessionmaker)
     first_rich = fetch_rich_snapshot(postgis_db_sessionmaker)
     first_legacy = fetch_legacy_derived_snapshot(postgis_db_sessionmaker)
@@ -2244,12 +2325,12 @@ def test_demo_seed_is_idempotent_with_postgis(
         "users": 4,
         "organizations": 1,
         "memberships": 12,
-        "driver_profiles": 20,
+        "driver_profiles": 26,
         "vehicles": 1,
         "campaigns": 1,
         "creatives": 1,
         "zones": 2,
-        "assignments": 5,
+        "assignments": 8,
         "legacy_driver_f7_assignments": 0,
         "trips": 4,
         "batches": 4,
@@ -2653,3 +2734,21 @@ def test_ordinary_demo_driver_can_start_and_end_using_production_authority(
     response = postgis_db_client.get("/api/v1/driver/trips/current", headers=headers)
     assert response.status_code == 200, response.text
     assert response.json()["trip"] is None
+
+
+def test_reporting_trip_specs_cover_fourteen_complete_days_without_replacing_paid_trips():
+    from app.seeds.demo import reporting_trip_specs, trip_specs
+
+    now = datetime(2026, 11, 15, 12, tzinfo=UTC)
+    specs = trip_specs(now)
+    reporting = [(key, at) for key, at, _ in reporting_trip_specs(now)]
+    assert len(specs) == 4
+    assert not any(key.startswith("reporting-day-") for key, _, _ in specs)
+    assert len(reporting) == 14
+    assert {at.day for _, at in reporting} == set(range(1, 15))
+    assert {key for key, _, _ in specs if not key.startswith("reporting-day-")} == {
+        "demo-trip-0",
+        "demo-trip-00",
+        "demo-trip-1",
+        "demo-trip-2",
+    }

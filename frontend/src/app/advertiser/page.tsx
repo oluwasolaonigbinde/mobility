@@ -12,6 +12,8 @@ import { loadLivePositions } from "@/lib/advertiser/engagement";
 import { loadPerformance } from "@/lib/advertiser/performance";
 import { CampaignArtwork } from "@/components/campaigns/campaign-artwork";
 import { CampaignMap } from "@/components/campaigns/campaign-map";
+import { campaignBudgets, wholeMoney } from "@/lib/advertiser/budget-display";
+import { Trend } from "@/components/campaigns/performance-card";
 import { PerformanceCard } from "@/components/campaigns/performance-card";
 import { IconTile, PortalIcon } from "@/components/brand/portal-icon";
 import { campaignDay } from "@/lib/campaigns/day-progress";
@@ -33,7 +35,7 @@ export default async function AdvertiserOverviewPage() {
     const [areas, live, performance] = await Promise.all([
       loadCampaignAreas(api, campaign.id),
       loadLivePositions(api, campaign.id),
-      loadPerformance(api, campaign.id),
+      loadPerformance(api, campaign.id, campaign),
     ]);
     return { campaign, areas, live, performance };
   };
@@ -49,6 +51,19 @@ export default async function AdvertiserOverviewPage() {
         0,
       )
     : null;
+  const budgets = inventory.available ? campaignBudgets(campaigns) : [];
+  const included = cards.filter(
+    (c) => !c.performance.fallback && c.performance.estimatedViews !== null,
+  );
+  const views =
+    inventory.available && included.length
+      ? included.reduce((n, c) => n + Number(c.performance.estimatedViews), 0)
+      : null;
+  const priorViews =
+    included.length &&
+    included.every((c) => c.performance.viewChange !== null && c.performance.priorViews !== null)
+      ? included.reduce((n, c) => n + c.performance.priorViews!, 0)
+      : null;
   const company = me.advertiser_organization?.name ?? me.user.full_name;
   const empty = inventory.available && !inventory.data.length;
   return (
@@ -72,23 +87,59 @@ export default async function AdvertiserOverviewPage() {
         </div>
         <div className="portal-hero-art" aria-hidden="true" />
       </section>
-      <section className="mb-8 grid gap-4 sm:grid-cols-2" aria-label="Running campaign figures">
-        <Panel className="portal-card flex gap-4 p-5 md:p-6">
+      <section
+        className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4"
+        aria-label="Running campaign figures"
+      >
+        <Panel className="portal-card flex min-w-0 flex-col gap-3 p-3 md:p-5">
           <IconTile name="megaphone" />
           <div>
             <p>Running campaigns</p>
-            <p className="font-display mt-1 text-3xl font-semibold">
+            <p className="font-display mt-1 text-[clamp(1rem,4vw,1.875rem)] font-semibold">
               {inventory.available ? formatCount(campaigns.length) : "—"}
             </p>
           </div>
         </Panel>
-        <Panel className="portal-card flex gap-4 p-5 md:p-6">
+        <Panel className="portal-card flex min-w-0 flex-col gap-3 p-3 md:p-5">
           <IconTile name="car" tone="coral" />
           <div>
             <p>Cars on the road</p>
-            <p className="font-display mt-1 text-3xl font-semibold">{formatCount(carCount)}</p>
+            <p className="font-display mt-1 text-[clamp(1rem,4vw,1.875rem)] font-semibold">
+              {formatCount(carCount)}
+            </p>
             <p className="text-muted mt-1 text-sm">As of about 15 minutes ago</p>
           </div>
+        </Panel>
+        <Panel className="portal-card flex min-w-0 flex-col gap-3 p-3 md:p-5">
+          <IconTile name="wallet" />
+          <p>Campaign budget</p>
+          <div className="space-y-2">
+            {budgets.length ? (
+              budgets.map((b) => (
+                <div key={b.currency}>
+                  <p className="font-display text-[clamp(1rem,4vw,1.875rem)] font-semibold break-words">
+                    {wholeMoney(b.remaining, b.currency)}
+                  </p>
+                  <p className="text-muted text-xs break-words">
+                    left of {wholeMoney(b.budget, b.currency)}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p className="text-2xl">—</p>
+            )}
+          </div>
+        </Panel>
+        <Panel className="portal-card flex min-w-0 flex-col gap-3 p-3 md:p-5">
+          <IconTile name="chart" tone="gold" />
+          <p>Campaign performance</p>
+          <p className="font-display text-[clamp(1rem,4vw,1.875rem)] font-semibold">
+            {formatCount(views)}
+          </p>
+          <Trend
+            value={views !== null && priorViews ? ((views - priorViews) / priorViews) * 100 : null}
+          />
+          <p className="text-muted text-xs">estimated views, last 7 days</p>
         </Panel>
       </section>
       <section className="portal-zone">

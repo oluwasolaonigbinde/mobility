@@ -107,8 +107,10 @@ it("leads with status and one next action, keeping quotation and changes closed"
 });
 it("keeps campaign visuals and safe controls when performance is unavailable", async () => {
   mocks.get.mockImplementation(async (path: string) => {
-    if (path.endsWith("/report"))
+    if (path.endsWith("/daily-metrics"))
       throw new ApiError(409, { code: "DISCLOSURE_SUPPRESSED", message: "Sensitive detail" });
+    if (path === "/api/v1/advertiser/campaigns/{campaign_id}")
+      return { data: { ...campaign, start_at: "2026-01-01T00:00Z", end_at: "2027-01-01T00:00Z" } };
     return ready(path);
   });
   render(await Page(input));
@@ -117,32 +119,10 @@ it("keeps campaign visuals and safe controls when performance is unavailable", a
   expect(screen.getByRole("link", { name: /See results/ })).toBeInTheDocument();
   expect(document.body).not.toHaveTextContent("Sensitive detail");
 });
-it("shows Booked from the campaign's own figure, and a quiet dash when it is missing", async () => {
-  mocks.get.mockImplementation(async (path: string) =>
-    path === "/api/v1/advertiser/campaigns/{campaign_id}"
-      ? {
-          data: {
-            ...campaign,
-            budget_used: {
-              amount: "1200.00",
-              budget_amount: "1000.00",
-              currency: "NGN",
-              basis: "invoice",
-              as_of: "2026-10-18T10:00:00Z",
-            },
-          },
-        }
-      : ready(path),
-  );
-  const { unmount } = render(await Page(input));
-  expect(screen.getByRole("heading", { name: /^Booked:/ })).toHaveTextContent(
-    "Booked: ₦1,200.00 of your ₦1,000.00 budget",
-  );
-  expect(screen.queryByRole("progressbar")).toBeNull();
-  unmount();
-  mocks.get.mockImplementation(async (path: string) => ready(path));
+it("shows the remaining budget without an as-at line", async () => {
   render(await Page(input));
-  expect(screen.getByRole("heading", { name: /^Booked:/ })).toHaveTextContent("Booked: —");
+  expect(screen.getByRole("heading", { name: "Budget remaining" })).toBeInTheDocument();
+  expect(screen.queryByText(/^As at/)).toBeNull();
 });
 it("opens Manage to a cancellation request, never permanent cancellation", async () => {
   const user = userEvent.setup();

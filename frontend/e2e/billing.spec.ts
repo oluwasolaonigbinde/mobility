@@ -94,8 +94,8 @@ test("advertiser sees canonical company, billing and accepted terms", async ({ p
   await expect(quotationSection.getByText("Accepted", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Accepted quotation")).toBeVisible();
   await expect(page.getByRole("button", { name: "Request custom quotation" })).not.toBeVisible();
-  // D128 keeps invoices in Billing; D129 retains the campaign's Booked summary.
-  await expect(page.getByRole("heading", { name: /^Booked:/ })).toBeVisible();
+  // Invoices stay in Billing; campaign budget shows remaining.
+  await expect(page.getByRole("heading", { name: "Budget remaining" })).toBeVisible();
   await expect(page.getByRole("link", { name: "View invoices in Billing" })).toHaveAttribute(
     "href",
     /\/advertiser\/billing#campaign-[0-9a-f-]{36}$/,

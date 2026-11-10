@@ -3117,9 +3117,6 @@
             ],
             "title": "Budget Amount"
           },
-          "budget_used": {
-            "$ref": "#/components/schemas/BudgetUsedRead"
-          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -3240,8 +3237,7 @@
           "daily_budget_amount",
           "currency",
           "created_at",
-          "updated_at",
-          "budget_used"
+          "updated_at"
         ],
         "title": "AdvertiserCampaignRead",
         "type": "object"
@@ -5267,59 +5263,6 @@
         "title": "BudgetTransitionRead",
         "type": "object"
       },
-      "BudgetUsedRead": {
-        "description": "D103: the booked total behind the budget alerts.",
-        "properties": {
-          "amount": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Amount"
-          },
-          "as_of": {
-            "format": "date-time",
-            "title": "As Of",
-            "type": "string"
-          },
-          "basis": {
-            "enum": [
-              "funding",
-              "invoice"
-            ],
-            "title": "Basis",
-            "type": "string"
-          },
-          "budget_amount": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Budget Amount"
-          },
-          "currency": {
-            "title": "Currency",
-            "type": "string"
-          }
-        },
-        "required": [
-          "amount",
-          "budget_amount",
-          "currency",
-          "basis",
-          "as_of"
-        ],
-        "title": "BudgetUsedRead",
-        "type": "object"
-      },
       "CalculatePayoutRequest": {
         "additionalProperties": false,
         "properties": {
@@ -7002,9 +6945,6 @@
             ],
             "title": "Budget Amount"
           },
-          "budget_used": {
-            "$ref": "#/components/schemas/BudgetUsedRead"
-          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -7143,7 +7083,6 @@
           "currency",
           "created_at",
           "updated_at",
-          "budget_used",
           "assignment_count",
           "target_zone_count",
           "preview_file_id"

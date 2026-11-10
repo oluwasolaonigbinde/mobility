@@ -65,18 +65,6 @@ async def _campaign_billing_spend(
     return total, "confirmed_funding"
 
 
-async def campaign_budget_used(session: AsyncSession, *, campaign: Campaign, now: datetime) -> dict:
-    """Read-only D103 display: the booked total behind the alerts, never a daily figure."""
-    total, source = await _campaign_billing_spend(session, campaign_id=campaign.id, lock=False)
-    return {
-        "amount": total,
-        "budget_amount": campaign.budget_amount if (campaign.budget_amount or 0) > 0 else None,
-        "currency": campaign.currency,
-        "basis": "invoice" if source == "production_obligation" else "funding",
-        "as_of": now,
-    }
-
-
 @dataclass(frozen=True)
 class BudgetCheck:
     campaign_id: UUID

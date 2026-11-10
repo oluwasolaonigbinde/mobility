@@ -45,7 +45,6 @@ from app.schemas.campaigns import (
     ensure_timezone_aware,
 )
 from app.services.audit import create_audit_event
-from app.services.billing.budget import campaign_budget_used
 from app.services.campaigns import (
     create_campaign,
     create_campaign_creative,
@@ -67,7 +66,6 @@ from app.services.campaigns import (
     update_advertiser_campaign,
     update_campaign_creative,
 )
-from app.services.payout_rule_serialization import database_clock
 
 router = APIRouter(tags=["Campaigns"])
 
@@ -117,11 +115,7 @@ def campaign_response(campaign: Campaign) -> CampaignRead:
     )
 
 
-async def advertiser_campaign_response(
-    session, campaign: Campaign, *, now: datetime | None = None
-) -> AdvertiserCampaignRead:
-    if now is None:
-        now = await database_clock(session)
+async def advertiser_campaign_response(session, campaign: Campaign) -> AdvertiserCampaignRead:
     pause_kind = None
     if campaign.status == CampaignStatus.PAUSED:
         from app.services.campaign_resume import pause_info
@@ -130,7 +124,6 @@ async def advertiser_campaign_response(
     return AdvertiserCampaignRead.model_validate(
         {
             **campaign_response(campaign).model_dump(),
-            "budget_used": await campaign_budget_used(session, campaign=campaign, now=now),
             "pause_kind": pause_kind,
         }
     )
@@ -264,11 +257,10 @@ async def advertiser_list_campaigns(
     identities = [row.id for row in campaigns]
     counts = await campaign_list_counts(session, identities)
     previews = await campaign_preview_files(session, identities)
-    now = await database_clock(session)
     return CampaignListResponse(
         items=[
             CampaignListItemRead(
-                **(await advertiser_campaign_response(session, row, now=now)).model_dump(),
+                **(await advertiser_campaign_response(session, row)).model_dump(),
                 **counts[row.id],
                 preview_file_id=previews.get(row.id),
             )

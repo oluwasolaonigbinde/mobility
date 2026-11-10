@@ -5566,7 +5566,6 @@ export interface components {
         AdvertiserCampaignRead: {
             /** Budget Amount */
             budget_amount: string | null;
-            budget_used: components["schemas"]["BudgetUsedRead"];
             /**
              * Created At
              * Format: date-time
@@ -6417,28 +6416,6 @@ export interface components {
             /** Reason */
             reason: string | null;
         };
-        /**
-         * BudgetUsedRead
-         * @description D103: the booked total behind the budget alerts.
-         */
-        BudgetUsedRead: {
-            /** Amount */
-            amount: string | null;
-            /**
-             * As Of
-             * Format: date-time
-             */
-            as_of: string;
-            /**
-             * Basis
-             * @enum {string}
-             */
-            basis: "funding" | "invoice";
-            /** Budget Amount */
-            budget_amount: string | null;
-            /** Currency */
-            currency: string;
-        };
         /** CalculatePayoutRequest */
         CalculatePayoutRequest: {
             /** Metadata */
@@ -7034,7 +7011,6 @@ export interface components {
             assignment_count: number;
             /** Budget Amount */
             budget_amount: string | null;
-            budget_used: components["schemas"]["BudgetUsedRead"];
             /**
              * Created At
              * Format: date-time

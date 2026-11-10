@@ -5,8 +5,6 @@ type EnquiryQuery = paths["/api/v1/admin/campaign-enquiries"]["get"]["parameters
 type ReportQuery =
   paths["/api/v1/advertiser/campaigns/{campaign_id}/report"]["get"]["parameters"]["query"];
 
-/** D103: the booked total behind the budget alerts, on every advertiser campaign read. */
-export type BudgetUsed = components["schemas"]["BudgetUsedRead"];
 export type ApplicationContinuation = components["schemas"]["ApplicationContinuationRead"];
 
 export const readCampaignPerformance = (api: ApiClient, campaignId: string, query?: ReportQuery) =>

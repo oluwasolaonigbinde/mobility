@@ -13,12 +13,11 @@ import { Panel } from "@/components/ui/panel";
 import { CampaignMap } from "@/components/campaigns/campaign-map";
 import { PerformanceCard } from "@/components/campaigns/performance-card";
 import { IconTile } from "@/components/brand/portal-icon";
-import { BudgetUsed } from "@/components/campaigns/budget-used";
+import { BudgetRemaining } from "@/components/campaigns/budget-remaining";
 import { loadCampaignVisuals } from "@/lib/advertiser/campaign-visuals";
 import { loadLivePositions } from "@/lib/advertiser/engagement";
 import { loadPerformance } from "@/lib/advertiser/performance";
 import { campaignDay } from "@/lib/campaigns/day-progress";
-import { bookedBudget } from "@/lib/advertiser/budget-display";
 import { isOutstandingInvoice } from "@/lib/billing/commercial-history";
 import { readCampaignCancellationRequests } from "@/lib/api/audit-batch2";
 import { isCancellableCampaign } from "@/lib/campaigns/cancellation";
@@ -90,7 +89,7 @@ export default async function CampaignDetailPage({
         ? loadAdvertiserPageData(() => readCampaignCancellationRequests(api, campaignId))
         : null,
       loadLivePositions(api, campaignId),
-      loadPerformance(api, campaignId),
+      loadPerformance(api, campaignId, campaign),
     ]);
   // A request already sent shows its status instead of a second form (REQ-194).
   const cancellation =
@@ -284,7 +283,8 @@ export default async function CampaignDetailPage({
       <Panel className="mb-7 flex items-start gap-4 p-5 md:p-6">
         <IconTile name="wallet" tone="gold" />
         <div className="min-w-0 flex-1">
-          <BudgetUsed value={bookedBudget(campaign)} />
+          <h2 className="text-sm">Budget remaining</h2>
+          <BudgetRemaining campaign={campaign} showDay />
         </div>
       </Panel>
       <p className="mb-6 text-sm">

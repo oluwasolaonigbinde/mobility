@@ -26,7 +26,6 @@ const campaign = {
   end_at: "2026-10-30T18:00Z",
   preview_file_id: "file-one",
   target_zone_count: 2,
-  budget_used: { amount: "200.00" },
 };
 type Options = { params?: { path?: { campaign_id?: string }; query?: { offset?: number } } };
 function ready(path: string, options?: Options) {
@@ -40,16 +39,6 @@ function ready(path: string, options?: Options) {
         positions: [{ longitude: 7.49, latitude: 9.06 }],
       },
     };
-  if (path.endsWith("/report"))
-    return {
-      data: {
-        campaign_id: id,
-        start_at: campaign.start_at,
-        end_at: campaign.end_at,
-        totals: { estimated_views: "12500" },
-      },
-    };
-  if (path.endsWith("/qr-scans")) return { data: { campaign_id: id, scans: 3, days: [] } };
   if (path.endsWith("/daily-metrics"))
     return {
       data: { campaign_id: id, items: [{ date: "2026-10-20", distance_m: "25000" }], total: 1 },
@@ -67,18 +56,19 @@ beforeEach(() => {
     advertiser_organization: { name: "Marula", membership_role: "advertiser" },
   });
 });
-it("has the approved hero, actual artwork/map, estimates and no Home money total", async () => {
+it("has the approved hero, actual artwork/map, estimates and four Home figures", async () => {
   const { container } = render(await Home());
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Welcome back, Marula");
   expect(figures()).toHaveTextContent("Running campaigns1");
   expect(figures()).toHaveTextContent("Cars on the road1");
-  expect(document.body).not.toHaveTextContent(
-    /booked|₦200|budget|driver pay|CTR|ROI|website visits/i,
-  );
+  expect(document.body).not.toHaveTextContent(/booked|driver pay|CTR|ROI|website visits/i);
   expect(screen.getByText("Actual campaign map")).toBeInTheDocument();
   expect(screen.getByText("Estimated views")).toBeInTheDocument();
-  expect(screen.getByText("12,500")).toBeInTheDocument();
-  expect(screen.getByText("QR scans")).toBeInTheDocument();
+  expect(figures()).toHaveTextContent("Campaign performance—");
+  expect(screen.queryByText("So far")).toBeNull();
+  expect(screen.queryByText("QR scans")).toBeNull();
+  expect(figures()).toHaveTextContent("Campaign budget");
+  expect(figures()).toHaveTextContent("Campaign performance");
   expect(screen.getByText("Day 20 of 30")).toBeInTheDocument();
   expect(container.querySelector(".portal-hero-art")).not.toBeNull();
   expect(container.querySelector("img[src*='/api/advertiser/artwork/file-one']")).not.toBeNull();
@@ -87,7 +77,7 @@ it("has the approved hero, actual artwork/map, estimates and no Home money total
 });
 it("keeps campaign inventory and unavailable figures when result reads fail", async () => {
   mocks.get.mockImplementation(async (path: string, options?: Options) => {
-    if (path.endsWith("/live-positions") || path.endsWith("/report"))
+    if (path.endsWith("/live-positions") || path.endsWith("/daily-metrics"))
       throw new ApiError(503, { code: "DOWN", message: "Private failure" });
     return ready(path, options);
   });
@@ -162,4 +152,57 @@ it("shows the required empty on-the-road state for a campaign with no eligible d
   render(await Home());
   expect(screen.getByText("No cars on the road right now")).toBeInTheDocument();
   expect(figures()).toHaveTextContent("Cars on the road0");
+});
+it("sums daily performance across exactly the included set and keeps currencies separate", async () => {
+  mocks.get.mockImplementation(async (path: string, options?: Options) => {
+    const id = options?.params?.path?.campaign_id ?? "one";
+    if (path.endsWith("/campaigns"))
+      return {
+        data: {
+          items: [campaign, { ...campaign, id: "two", currency: "USD", budget_amount: "2000.00" }],
+          total: 2,
+        },
+      };
+    if (path.endsWith("/daily-metrics"))
+      return {
+        data: {
+          campaign_id: id,
+          total: 14,
+          items: Array.from({ length: 14 }, (_, i) => ({
+            date: `2026-10-${String(i + 6).padStart(2, "0")}`,
+            estimated_impressions: i < 7 ? "10" : "20",
+            distance_m: i < 7 ? "1000" : "2000",
+            suppressed: false,
+          })),
+        },
+      };
+    return ready(path, options);
+  });
+  render(await Home());
+  expect(figures()).toHaveTextContent("Campaign performance280↑ 100%");
+  expect(figures()).toHaveTextContent("left of ₦1,000");
+  expect(figures()).toHaveTextContent("left of US$2,000");
+});
+it("does not add a fallback campaign to Home views or its percent", async () => {
+  mocks.get.mockImplementation(async (path: string, options?: Options) => {
+    const id = options?.params?.path?.campaign_id ?? "one";
+    if (path.endsWith("/campaigns"))
+      return { data: { items: [campaign, { ...campaign, id: "two" }], total: 2 } };
+    if (path.endsWith("/daily-metrics"))
+      return {
+        data: {
+          campaign_id: id,
+          total: 14,
+          items: Array.from({ length: 14 }, (_, i) => ({
+            date: `2026-10-${String(i + 6).padStart(2, "0")}`,
+            estimated_impressions: id === "two" && i === 13 ? null : i < 7 ? "10" : "20",
+            distance_m: "1000",
+            suppressed: false,
+          })),
+        },
+      };
+    return ready(path, options);
+  });
+  render(await Home());
+  expect(figures()).toHaveTextContent("Campaign performance140↑ 100%");
 });

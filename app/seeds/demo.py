@@ -2,11 +2,12 @@ import asyncio
 import json
 import sys
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
@@ -386,8 +387,8 @@ async def upsert_campaign(
         "created_by_user_id": advertiser.id,
         "description": ("Deliver lunch orders around Garki and the Central Business District."),
         "status": CampaignStatus.ACTIVE.value,
-        "start_at": now - timedelta(days=14),
-        "end_at": now + timedelta(days=45),
+        "start_at": now - timedelta(days=15),
+        "end_at": now + timedelta(days=44),
         "budget_amount": Decimal("3500000.00"),
         "daily_budget_amount": Decimal("150000.00"),
         "currency": "NGN",
@@ -702,6 +703,34 @@ def trip_specs(now: datetime) -> list[tuple[str, datetime, list[tuple[float, flo
     ]
 
 
+REPORTING_PING_MINUTES = 4
+
+
+def reporting_trip_specs(now: datetime, *, balance_paid_workdays: bool = True):
+    """Varied driving-only fixtures. Existing paid routes and money stay frozen."""
+    from app.seeds.rich import _interpolate_corridor
+
+    lap = _interpolate_corridor(
+        ((9.012, 7.450), (9.070, 7.450), (9.070, 7.500), (9.012, 7.500), (9.012, 7.450)),
+        17,
+    )
+    # Latest week, newest first; prior week follows. The first campaign already
+    # has paid workdays on offsets 2, 3, 4 and 6: supplement rather than amplify them.
+    latest = (5, 3, 3, 3, 5, 2, 4) if balance_paid_workdays else (7, 7, 7, 7, 7, 7, 7)
+    prior = (7, 6, 7, 7, 6, 7, 7)
+    laps = (*latest, *prior)
+    lagos = ZoneInfo("Africa/Lagos")
+    today = now.astimezone(lagos).date()
+    return [
+        (
+            f"reporting-day-{offset}",
+            datetime.combine(today - timedelta(days=offset), time(15), lagos).astimezone(UTC),
+            lap[:-1] * laps[offset - 1] + lap[1 : 1 + offset],
+        )
+        for offset in range(1, 15)
+    ]
+
+
 def palmpay_trip_specs(
     now: datetime,
 ) -> list[tuple[str, datetime, list[tuple[float, float]]]]:
@@ -872,31 +901,39 @@ async def upsert_trips_and_pings(
     settings: Settings,
     specs: list[tuple[str, datetime, list[tuple[float, float]]]] | None = None,
     full_workday: bool = False,
+    reporting_only: bool = False,
 ) -> list[TripSession]:
     from app.seeds.demo_authority import SeedStartAuthorityGraph, ensure_demo_start_authority
 
-    admin = await session.get(User, assignment.assigned_by_user_id)
-    advertiser = await session.get(User, campaign.created_by_user_id)
-    assert admin and advertiser
-    await ensure_demo_start_authority(
-        session,
-        graph=SeedStartAuthorityGraph(
-            driver=driver,
-            admin=admin,
-            advertiser=advertiser,
-            driver_profile=profile,
-            assignment=assignment,
-            campaign=campaign,
-            vehicle=vehicle,
-        ),
-        settings=settings,
-    )
+    if reporting_only:
+        assert specs and all(key.startswith("reporting-day-") for key, _, _ in specs)
+    else:
+        admin = await session.get(User, assignment.assigned_by_user_id)
+        advertiser = await session.get(User, campaign.created_by_user_id)
+        assert admin and advertiser
+        await ensure_demo_start_authority(
+            session,
+            graph=SeedStartAuthorityGraph(
+                driver=driver,
+                admin=admin,
+                advertiser=advertiser,
+                driver_profile=profile,
+                assignment=assignment,
+                campaign=campaign,
+                vehicle=vehicle,
+            ),
+            settings=settings,
+        )
     trips = []
     for trip_key, started_at, coordinates in specs or trip_specs(utc_now()):
-        workday = full_workday
+        workday = full_workday and not trip_key.startswith("reporting-day-")
         if workday:
             started_at = started_at.replace(hour=7, minute=0, second=0, microsecond=0)
-        ended_at = started_at + timedelta(minutes=42)
+        ended_at = started_at + timedelta(
+            minutes=(len(coordinates) - 1) * REPORTING_PING_MINUTES
+            if trip_key.startswith("reporting-day-")
+            else 42
+        )
         if workday:
             from app.seeds.driver_story import workday_route
 
@@ -1182,7 +1219,9 @@ async def ensure_ping_batch(
 ) -> None:
     from app.seeds.rich import _interpolate_corridor
 
-    if trip.trip_metadata.get("full_workday"):
+    if trip_key.startswith("reporting-day-"):
+        pass  # Reporting routes already contain evenly spaced moving fixes.
+    elif trip.trip_metadata.get("full_workday"):
         from app.seeds.driver_story import workday_route
 
         coordinates = workday_route(trip_key)
@@ -1190,11 +1229,17 @@ async def ensure_ping_batch(
         coordinates = _interpolate_corridor(tuple(coordinates), 36)
     pings = [
         LocationPingCreate(
-            recorded_at=started_at + timedelta(minutes=index),
+            recorded_at=started_at
+            + timedelta(
+                minutes=index
+                * (REPORTING_PING_MINUTES if trip_key.startswith("reporting-day-") else 1)
+            ),
             lat=lat,
             lon=lon,
             accuracy_m=8.0 + index % 5,
-            speed_mps=7.5 if trip.trip_metadata.get("full_workday") else 7.5 + index / 3,
+            speed_mps=7.5
+            if trip.trip_metadata.get("full_workday") or trip_key.startswith("reporting-day-")
+            else 7.5 + index / 3,
             heading_degrees=65.0,
             altitude_m=35.0,
             sequence_number=index,
@@ -1716,6 +1761,21 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
     from app.seeds.renewals import ensure_demo_renewals
 
     await ensure_demo_renewals(session, settings=settings, reviewer=staff[2])
+    from app.seeds.rich import ensure_reporting_contributors
+
+    for campaign_name, namespace, plate_prefix, balance_paid_workdays in (
+        (graph.campaign.name, "abuja", "ABJ-82", True),
+        ("Marula Kitchens — Wuse Lunch Rush", "wuse", "ABJ-81", False),
+    ):
+        await ensure_reporting_contributors(
+            session,
+            graph=graph,
+            settings=settings,
+            campaign_name=campaign_name,
+            namespace=namespace,
+            plate_prefix=plate_prefix,
+            balance_paid_workdays=balance_paid_workdays,
+        )
     await settle_seed_driver_notifications(
         session, driver_user_ids=[graph.driver.id, *(asset.user.id for asset in graph.rich.drivers)]
     )

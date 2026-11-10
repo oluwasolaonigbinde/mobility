@@ -47,7 +47,7 @@ it("saves a draft before areas, then offers design and review without auto-submi
   expect(window.location.search).toBe(`?campaignId=${id}`);
   expect(screen.queryByLabelText("Campaign name *")).toBeNull();
   await user.click(screen.getByRole("button", { name: "Continue →" }));
-  expect(screen.getByRole("button", { name: "+ Add advert design" })).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: "+ Add advert design" })).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Continue →" }));
   expect(screen.getByRole("heading", { name: "Review your draft" })).toBeInTheDocument();
   expect(screen.getByText("Draft")).toBeVisible();

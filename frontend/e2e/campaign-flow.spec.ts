@@ -389,17 +389,45 @@ test("advertiser sees only governed tenant aggregates and its campaign performan
     .getByText("Estimated views", { exact: true })
     .locator("..")
     .locator("dd");
-  const withheld = performance.getByText("Not enough cars yet to show estimated views.", {
-    exact: true,
-  });
-  if (report.totals.estimated_views === null) {
+  // A withheld or unavailable daily window exposes no whole-campaign total.
+  if (
+    !(await performance
+      .getByRole("img", { name: "Estimated views per day; daily figures below" })
+      .count())
+  ) {
     await expect(views).toHaveText("—");
-    await expect(withheld).toBeVisible();
   } else {
-    await expect(views).toHaveText(
-      new Intl.NumberFormat("en-NG").format(Math.round(Number(report.totals.estimated_views))),
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Africa/Lagos",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const end = Date.parse(`${today}T00:00:00+01:00`);
+    const dailyResponse = await page.request.get(
+      `${apiBase}/api/v1/advertiser/campaigns/${campaignId}/daily-metrics?start_at=${encodeURIComponent(new Date(end - 7 * 86400000).toISOString())}&end_at=${encodeURIComponent(new Date(end).toISOString())}&limit=7`,
+      { headers },
     );
-    await expect(withheld).toHaveCount(0);
+    expect(dailyResponse.status()).toBe(200);
+    const daily = await dailyResponse.json();
+    const startDay = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Africa/Lagos",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(report.start_at!));
+    const released = daily.items.filter((d: { date: string }) => d.date >= startDay);
+    expect(
+      released.every(
+        (d: { suppressed: boolean; estimated_impressions: string | null }) =>
+          !d.suppressed && d.estimated_impressions !== null,
+      ),
+    ).toBe(true);
+    const total = released.reduce(
+      (n: number, d: { estimated_impressions: string }) => n + Number(d.estimated_impressions),
+      0,
+    );
+    await expect(views).toHaveText(new Intl.NumberFormat("en-NG").format(Math.round(total)));
   }
   await expect(page.getByRole("heading", { name: "On the road now", exact: true })).toBeVisible();
   await expect(page.getByText("Estimated ad exposure", { exact: true })).toHaveCount(0);

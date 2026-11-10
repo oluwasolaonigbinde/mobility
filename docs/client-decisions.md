@@ -303,30 +303,16 @@ Campaigns are fixed price: accepting the quote raises the budget to the agreed
 price when it is lower (a higher budget is kept), and the warnings and pause
 only cover charges beyond the agreed price. The pause fires above 100 %, not at
 it, and a daily budget is stored but does not pause a campaign (D104, REQ-193).
-Advertisers see the booked amount against their budget, for example
-"₦1,128,750 of your ₦1,128,750 budget" (D103). A warning that follows campaign
-progress needs the client's rule for how spend builds up (REQ-196).
 Resume requires fresh confirmed funding/budget changes and spend at or below
 every applicable 100% limit; it is never automatic. The client
 also wants fixed costs (printing, installation, permits, design and any other
 quoted fixed line) to count towards the budget together with media, for the
 80 %, 95 % and 100 % levels (REQ-037). This already worked; W1-B added tests
-that prove it. Accepted prices never change. Each advertiser campaign shows
-**Booked** against its budget rather than driver pay (D103/REQ-193; screen
-wording D100/REQ-182): "Booked: ₦X of your ₦Y budget" on the campaign page and
-"₦X of ₦Y" in its row on the campaigns list. Booked is the figure the
-total-budget alerts use — confirmed funding before production, the invoice
-with corrections from production onwards — not a spent-so-far meter. It is
-never added up across campaigns or currencies, so Home shows only running
-campaigns and cars on the road. A campaign with only a daily budget shows just
-"Booked: ₦X". No funding or terms shows ₦0 of ₦Y; missing or failed data shows
-a quiet dash. Accepting a quotation raises the budget to at least the agreed
-price; budget emails come only when extra charges go past the agreed price
-(D104). Booked shows amounts only: no bar, percentage or colour. Owner,
-27–29 October 2026 (REQ-253): "keep the amounts and drop the bar and percent".
-Built in `e9e990c7` on master.
+that prove it. Accepted prices never change. **Current display rule (Owner, 9 Nov 2026; D159 / REQ-310):** Budget remaining counts down evenly by inclusive Nigeria campaign days, in integer minor units, floored to whole currency units on screen. Draft/review/approved/rejected and future or undated campaigns keep the full positive total; active and paused campaigns follow dates; the last day and finished campaigns show zero. Cancelled and budget-paused campaigns show a dash with the budget beneath. Invalid or absent totals show a dash. This is display only: billing and alerts, and REQ-196's open warning rule, do not change. Home sums running campaigns separately per currency and shows remaining / total; malformed or budget-paused included campaigns make that currency unavailable. No total is excluded.
 
 **History:**
+- **2026-11-09 — Owner, 9 Nov 2026:** D159 replaces the prior display rule: Advertisers see the booked amount against their budget, for example "₦1,128,750 of your ₦1,128,750 budget" (D103). A warning that follows campaign progress needs the client's rule for how spend builds up (REQ-196). Accepted prices never change. Each advertiser campaign shows **Booked** against its budget rather than driver pay (D103/REQ-193; screen wording D100/REQ-182): "Booked: ₦X of your ₦Y budget" on the campaign page and "₦X of ₦Y" in its row on the campaigns list. Booked is the figure the total-budget alerts use — confirmed funding before production, the invoice with corrections from production onwards — not a spent-so-far meter. It is never added up across campaigns or currencies, so Home shows only running campaigns and cars on the road. A campaign with only a daily budget shows just "Booked: ₦X". No funding or terms shows ₦0 of ₦Y; missing or failed data shows a quiet dash. Accepting a quotation raises the budget to at least the agreed price; budget emails come only when extra charges go past the agreed price (D104). Booked shows amounts only: no bar, percentage or colour. Owner, 27–29 October 2026 (REQ-253): "keep the amounts and drop the bar and percent". Built in `e9e990c7` on master.
+
 - **2026-11-03** — Delivery accepted on master. Built in `e9e990c7`; full CI passed on `1a6d563f`. See the [acceptance evidence](../issues/testing/req271-ci-acceptance-2026-11-03.md).
 - **Before 2026-09-24** — One alert level (`budget_alert_ratio`) before the pause.
 - **2026-10-27–29** — Owner removes the Booked bar, percent and colour (REQ-253), superseding the presentation retained by D125/D129; previously a normal campaign showed at most 100% with a full green bar. Amounts and D103/D104 budget authority stay. Built on integrate/req252-264 (`e9e990c7`).
@@ -742,7 +728,9 @@ Upload/Replace and See it on a car. Once printed or running, replacement asks
 Terrax through existing support; it never swaps the fitted design. Each artwork
 may have one validated https website URL with a downloadable QR through a
 rate-limited Cardvert short redirect. Count scans per day without retaining IP,
-user agent or other personal scan data. Home/campaign performance shows estimated
+user agent or other personal scan data. **Current campaign performance (Owner, 9 Nov 2026; D159 / REQ-310):** Home has Running campaigns, Cars on the road, Campaign budget and Campaign performance. Performance shows estimated views, distance driven and live cars, with a per-day estimated-views line chart and Daily figures text alternative. Owner screenshot correction, 9 Nov 2026: rounded horizontal gridlines, a dot and date for every day, and the window label in a heading pill; both running Marula demo campaigns must show varied daily results, believable weekly changes (roughly -15% to +35%) and live cars without changing seeded money. Fetch fourteen complete Nigeria days ending yesterday (or the campaign's last day), clamp to the campaign start and use released days only. Sum the latest up-to-seven days; compare only a full valid prior seven with positive sum. Before the first complete day show No results yet. Every fallback, including suppressed/not-ready daily figures, failed loads and cancellation, shows dashes for views and distance, with no total, arrow or chart. The portal does not request whole-campaign totals for these cards. Keep Last 7 days for suppressed/not-ready windows and campaigns with fewer than seven complete days; finished campaigns use Final 7 days, cancelled campaigns use Cancelled, and No results yet remains unchanged. Cars on the road is unchanged. Reporting and live demo trips use dedicated drivers without assignment rule bindings, so worker sweeps and auto-end cannot create pay, invoices or payouts. Home excludes fallback campaigns and shows a dash if none qualifies or campaign loading fails; percent uses the same included set and requires every campaign's valid comparison. QR scans leave performance, but per-artwork QR scans remain. No CTR, website visits or ROI.
+
+**History — 2026-11-09, Owner, 9 Nov 2026:** D159 supersedes D123's chart and positive QR clauses. Previous rule: Home/campaign performance shows estimated
 views (labelled), cars, a seven-day distance/cars chart and QR scans when positive;
 no CTR, website visits or pilot ROI.
 

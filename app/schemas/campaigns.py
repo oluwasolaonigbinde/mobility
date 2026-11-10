@@ -160,22 +160,7 @@ class CampaignRead(CampaignLifecycleReadMixin, DecimalStringMixin):
     updated_at: datetime
 
 
-class BudgetUsedRead(BaseModel):
-    """D103: the booked total behind the budget alerts."""
-
-    amount: Decimal
-    budget_amount: Decimal | None
-    currency: str
-    basis: Literal["funding", "invoice"]
-    as_of: datetime
-
-    @field_serializer("amount", "budget_amount")
-    def serialize_money(self, value: Decimal | None) -> str | None:
-        return None if value is None else str(value)
-
-
 class AdvertiserCampaignRead(CampaignRead):
-    budget_used: BudgetUsedRead
     pause_kind: Literal["budget", "operational", "unknown"] | None = None
 
 
