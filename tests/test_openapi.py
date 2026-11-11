@@ -37,12 +37,7 @@ def test_openapi_schema_generates(client) -> None:
     assert artwork["responses"]["200"]["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/FileDownloadRead"
     }
-    assert set(components["CampaignPerformanceTotals"]["properties"]) == {
-        "distance_m",
-        "trip_count",
-        "driving_days",
-        "estimated_views",
-    }
+    assert "CampaignPerformanceTotals" not in components
     assert set(components["CampaignPerformanceArea"]["properties"]) == {
         "area_id",
         "name",
@@ -71,18 +66,6 @@ def test_openapi_schema_generates(client) -> None:
         "$ref": "#/components/schemas/DriverApplicationStatus"
     }
     assert components["DriverApplicationStatus"]["enum"] == ["pending", "approved", "rejected"]
-    campaign_trips = components["CampaignTripsResponse"]["properties"]
-    assert "items" not in campaign_trips
-    assert "CampaignTripSummary" not in components
-    assert {
-        "campaign_id",
-        "trips",
-        "route_analytics",
-        "impressions",
-        "fraud_flags",
-    } == set(campaign_trips)
-    trip_operation = schema["paths"]["/api/v1/advertiser/campaigns/{campaign_id}/trips"]["get"]
-    assert {parameter["name"] for parameter in trip_operation["parameters"]} == {"campaign_id"}
 
 
 def test_openapi_matches_committed_json_artifacts(client) -> None:

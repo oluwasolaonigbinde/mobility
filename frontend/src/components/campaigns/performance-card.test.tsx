@@ -10,7 +10,12 @@ const data = {
   windowLabel: "Last 7 days",
   dailyMessage: null,
   days: [
-    { date: "2026-11-14", estimated_impressions: "140", distance_m: "14000", suppressed: false },
+    {
+      date: "2026-11-14",
+      estimated_impressions: "140",
+      distance_m: "14000",
+      status: "released" as const,
+    },
   ],
 };
 it.each([true, false])(
@@ -53,7 +58,7 @@ it.each([true, false])(
       date: `2026-11-${String(i + 2).padStart(2, "0")}`,
       estimated_impressions: String(80000 + i * 10000),
       distance_m: "1000",
-      suppressed: false,
+      status: "released" as const,
     }));
     const { container } = render(<PerformanceCard {...data} days={days} compact={compact} />);
     const chart = screen.getByRole("img", { name: "Estimated views per day; daily figures below" });
@@ -101,13 +106,20 @@ it.each([true, false])("renders only dashes for every fallback, compact %s", asy
     date: `2026-11-${String(i + 1).padStart(2, "0")}`,
     estimated_impressions: "1000",
     distance_m: "10000",
-    suppressed: false,
+    status: "released" as const,
   }));
   for (const [status, days] of [
     [
       "active",
       rows.map((d, i) =>
-        i === 13 ? { ...d, suppressed: true, estimated_impressions: null, distance_m: null } : d,
+        i === 13
+          ? {
+              ...d,
+              status: "not_enough_cars" as const,
+              estimated_impressions: null,
+              distance_m: null,
+            }
+          : d,
       ),
     ],
     ["active", rows.map((d, i) => (i === 13 ? { ...d, estimated_impressions: null } : d))],

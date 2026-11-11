@@ -38,6 +38,7 @@ it("keeps chosen geometry separate from an empty safe performance breakdown", as
   const { container } = render(await page());
   expect(screen.getByText("Drawn campaign area")).toBeInTheDocument();
   expect(screen.getByText(/Area results aren’t available/)).toBeInTheDocument();
+  expect(screen.getByText("Full weeks only.")).toBeInTheDocument();
   expect(mocks.drawing).toHaveBeenCalledWith({ areas: [area] });
   expect(
     mocks.get.mock.calls.every(

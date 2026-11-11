@@ -16,7 +16,7 @@ from app.models.report_schedule import ReportScheduleCursor
 from app.services.audit import create_audit_event
 from app.services.campaign_report_data import aware
 from app.services.campaign_reports import _request_lock, create_report
-from app.services.disclosure import _canonical_hash
+from app.services.disclosure import _canonical_hash, after_day, load_cells, midnight
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 from app.services.report_authorization import REPORT_ACTOR_ID, require_report_operator
 
@@ -37,10 +37,12 @@ async def report_cutoff(session, campaign):
         if cutoff is None:
             return None
         end = min(end, aware(cutoff))
-    return end
+    return after_day(end)
 
 
 def next_due_window(start, end, now, existing):
+    start = midnight(start)
+    existing = {midnight(value) for value in existing}
     if start >= end:
         return None
     due = start + WEEK
@@ -52,6 +54,7 @@ def next_due_window(start, end, now, existing):
 
 
 def latest_due_window(start, end, now):
+    start = midnight(start)
     if start >= end or now < min(start + WEEK, end):
         return None
     if end <= now:
@@ -93,12 +96,23 @@ async def rerun_campaign_report(
         raise AppError(
             "REPORT_NOT_DUE", "The first weekly or final report is not due yet", status_code=409
         )
+    _, days = await load_cells(
+        session,
+        campaign_id=campaign.id,
+        start=midnight(campaign.start_at),
+        end=due[0],
+        settings=settings,
+        now=now,
+    )
+    if any(d.status == "not_ready" for d in days):
+        raise AppError("REPORT_NOT_DUE", "Daily figures are not ready yet", status_code=409)
     prior = await session.scalar(
         select(CampaignReport)
         .where(
             CampaignReport.campaign_id == campaign.id,
             CampaignReport.kind == due[1],
-            CampaignReport.period_end_at == due[0],
+            CampaignReport.period_end_at >= due[0],
+            CampaignReport.period_end_at < due[0] + timedelta(days=1),
         )
         .order_by(CampaignReport.version.desc())
         .limit(1)
@@ -109,7 +123,7 @@ async def rerun_campaign_report(
         campaigns=[campaign],
         request_id=request_id,
         request_fingerprint=fingerprint,
-        start=aware(campaign.start_at),
+        start=midnight(campaign.start_at),
         end=due[0],
         kind=due[1],
         settings=settings,
@@ -140,6 +154,16 @@ async def _discover_campaign_report(session, *, campaign_id, settings, storage) 
     due = next_due_window(aware(campaign.start_at), end, now, known)
     if not due:
         return 0
+    _, days = await load_cells(
+        session,
+        campaign_id=campaign.id,
+        start=midnight(campaign.start_at),
+        end=due[0],
+        settings=settings,
+        now=now,
+    )
+    if any(d.status == "not_ready" for d in days):
+        return 0
     request_id = uuid4()
     try:
         async with session.begin_nested():
@@ -149,7 +173,7 @@ async def _discover_campaign_report(session, *, campaign_id, settings, storage) 
                 campaigns=[campaign],
                 request_id=request_id,
                 request_fingerprint=_canonical_hash(str(request_id)),
-                start=aware(campaign.start_at),
+                start=midnight(campaign.start_at),
                 end=due[0],
                 kind=due[1],
                 settings=settings,

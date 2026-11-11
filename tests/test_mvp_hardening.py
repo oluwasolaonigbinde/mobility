@@ -32,7 +32,7 @@ MAJOR_CONTRACT_PATHS = {
     "payouts": "/api/v1/admin/payout-calculations",
     "earnings": "/api/v1/driver/earnings/ledger",
     "advertiser reports": "/api/v1/advertiser/campaigns/{campaign_id}/report",
-    "heatmaps": "/api/v1/advertiser/campaigns/{campaign_id}/heatmap",
+    "heatmaps": "/api/v1/admin/heatmap",
     "protected KYC": "/api/v1/driver/kyc/submissions",
     "advertiser report request (S9/D118)": "/api/v1/advertiser/reports",
     "advertiser report artifact download": "/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/{artifact_format}/download",  # noqa: E501
@@ -224,93 +224,5 @@ def test_advertiser_campaign_list_naive_datetime_uses_standard_error_envelope(
                 ]
             },
             "request_id": "slice13-campaign-list-naive",
-        }
-    }
-
-
-def test_impression_summary_invalid_date_range_uses_standard_error_envelope(
-    db_client,
-    db_sessionmaker,
-) -> None:
-    advertiser = create_test_user(
-        db_sessionmaker,
-        email="impression-advertiser@example.com",
-        role=UserRole.ADVERTISER,
-    )
-    organization, _ = create_test_organization(
-        db_sessionmaker,
-        owner_user_id=advertiser.id,
-    )
-    campaign = create_test_campaign(
-        db_sessionmaker,
-        organization_id=organization.id,
-        created_by_user_id=advertiser.id,
-    )
-    headers = auth_headers(db_client, "impression-advertiser@example.com")
-    headers["X-Request-ID"] = "slice13-impression-range"
-
-    response = db_client.get(
-        (
-            f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary"
-            "?start_at=2026-01-02T00:00:00%2B00:00"
-            "&end_at=2026-01-01T00:00:00%2B00:00"
-        ),
-        headers=headers,
-    )
-
-    assert response.status_code == 400
-    assert response.json() == {
-        "error": {
-            "code": "INVALID_DATE_RANGE",
-            "message": "start_at must be before or equal to end_at",
-            "details": {},
-            "request_id": "slice13-impression-range",
-        }
-    }
-
-
-def test_impression_summary_naive_datetime_uses_standard_error_envelope(
-    db_client,
-    db_sessionmaker,
-) -> None:
-    advertiser = create_test_user(
-        db_sessionmaker,
-        email="impression-naive-advertiser@example.com",
-        role=UserRole.ADVERTISER,
-    )
-    organization, _ = create_test_organization(
-        db_sessionmaker,
-        owner_user_id=advertiser.id,
-    )
-    campaign = create_test_campaign(
-        db_sessionmaker,
-        organization_id=organization.id,
-        created_by_user_id=advertiser.id,
-    )
-    headers = auth_headers(db_client, "impression-naive-advertiser@example.com")
-    headers["X-Request-ID"] = "slice13-impression-naive"
-
-    response = db_client.get(
-        (
-            f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary"
-            "?start_at=2026-01-01T00:00:00"
-        ),
-        headers=headers,
-    )
-
-    assert response.status_code == 422
-    assert response.json() == {
-        "error": {
-            "code": "VALIDATION_ERROR",
-            "message": "Request validation failed",
-            "details": {
-                "errors": [
-                    {
-                        "loc": ["query", "start_at"],
-                        "msg": "Datetime must include timezone information",
-                    }
-                ]
-            },
-            "request_id": "slice13-impression-naive",
         }
     }

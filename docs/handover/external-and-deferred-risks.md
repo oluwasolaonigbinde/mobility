@@ -67,3 +67,11 @@ Never replace a missing value with synthetic data, a repository placeholder, a
 test result, or inference. Only owner-recorded authority can change a gate;
 only the specified physical/external exercise can change a deferred-validation
 state.
+
+## REQ-311 / D160 residual risks and legal questions
+
+Released cells are not frozen. Fraud flags raised after release, route-replay flags on earlier trips (trip_processing.py), formula-version changes (report_cohorts.py), and staff recompute (frontend/src/app/admin/payouts/actions.ts) can change released cells. Comparing any two of the advertiser's own reads over time can reveal one trip's distance and driving time: live daily figures read on different days, a fresh report against an earlier download, or either against immutable issued reports that keep old values. A hold placed after release also hides a day that was already released, which shows that a trip on that day was held. Queued reports at renderer upgrade may fail. Cars deployed, and the assignment count in the advertiser campaign list (CampaignListItemRead.assignment_count), are assignment data outside the cell rule; advertisers see them without small counts being hidden.
+
+Individual dots leave a coarse trail where cars are few; rounding after clipping can place a dot just inside an exclusion zone. Counsel must decide acceptability.
+
+Unanswered lawyer inputs: lawful basis; driver notices and consent; DPIA and GAID filing; retention periods; whether three is the right threshold or a dominance rule is needed; individual dots including the coarse trail; controller registration; cross-border transfer; data-subject requests; an advertiser no-re-identification clause. No values or legal wording are invented. Real-use gates remain open.

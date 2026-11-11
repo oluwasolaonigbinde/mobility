@@ -1404,6 +1404,7 @@ async def ensure_golden_contributors(session, *, graph, settings):
             # Match the primary driver's full workdays so frozen report and
             # map contributions satisfy the existing disclosure share limit.
             full_workday=True,
+            route_offset=person_index * 0.00009,
             specs=[
                 (
                     key,
@@ -1963,11 +1964,14 @@ async def ensure_completed_report_contributors(session, *, graph, settings):
                 settings=settings,
                 kind="completed",
             )
+            # One lap of the original route on the car's own nearby path: a whole
+            # workday squeezed into 42 minutes is impossible speed, copied GPS is replay.
+            offset = (asset.index + 6) * 0.00009
             specs = [
                 (
                     f"report-route:{trip.id}:{asset.index}:{leg}",
                     trip.started_at.replace(hour=6 if leg == 0 else 20, minute=asset.index * 10),
-                    points,
+                    [(lat + offset, lon - offset) for lat, lon in points[:61]],
                 )
                 for trip, points in routes
                 for leg in range(2)
@@ -2034,7 +2038,7 @@ async def ensure_portal_reports(session, *, graph, settings):
             continue
         from app.adapters.storage import build_storage_provider
         from app.services.campaign_reports import create_report
-        from app.services.disclosure import _canonical_hash
+        from app.services.disclosure import _canonical_hash, after_day, midnight
 
         key = uuid5(NAMESPACE_URL, f"cardvert-preview:report:{campaign.id}")
         await create_report(
@@ -2043,8 +2047,10 @@ async def ensure_portal_reports(session, *, graph, settings):
             campaigns=[campaign],
             request_id=key,
             request_fingerprint=_canonical_hash(str(key)),
-            start=campaign.start_at,
-            end=min(campaign.end_at, utc_now()),
+            start=midnight(campaign.start_at),
+            end=after_day(campaign.end_at)
+            if campaign.end_at < midnight(utc_now())
+            else midnight(utc_now()),
             kind="final" if campaign.end_at <= utc_now() else "weekly",
             settings=settings,
             storage=build_storage_provider(settings),
@@ -2417,7 +2423,9 @@ async def ensure_reporting_live_car(session, *, campaign, driver_email, settings
     )
     if existing is not None:
         return
-    started = utc_now().replace(microsecond=0) - timedelta(minutes=35)
+    # Last fix 23 and batch 21 minutes old: visible through the 15-minute delay
+    # even after the five-minute bucket rounds the clock down (D160).
+    started = utc_now().replace(microsecond=0) - timedelta(minutes=38)
     profile = await session.get(DriverProfile, assignment.driver_profile_id)
     trip = TripSession(
         assignment_id=assignment.id,

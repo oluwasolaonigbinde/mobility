@@ -13,7 +13,7 @@ const rows = (): PerformanceDay[] =>
     date: `2026-11-${String(i + 1).padStart(2, "0")}`,
     distance_m: i < 7 ? "1000" : "2000",
     estimated_impressions: i < 7 ? "10" : "20",
-    suppressed: false,
+    status: "released" as const,
   }));
 it("sums released latest seven (140 views, 14km) and compares prior 70 views, 7km", () => {
   expect(summarizePerformance(campaign, rows(), now)).toMatchObject({
@@ -37,7 +37,7 @@ it.each([0, 13])("suppressed day %s never enters comparison", (index) => {
   const days = rows();
   days[index] = {
     ...days[index]!,
-    suppressed: true,
+    status: "not_enough_cars" as const,
     estimated_impressions: null,
     distance_m: null,
   };
@@ -156,3 +156,14 @@ it.each(["cancelled", "active", "finished"])(
       );
   },
 );
+
+it("uses the not-ready explanation without exposing daily figures", () => {
+  const daily = rows();
+  daily[13] = { ...daily[13]!, status: "not_ready", distance_m: null, estimated_impressions: null };
+  expect(summarizePerformance(campaign, daily, now)).toMatchObject({
+    estimatedViews: null,
+    distance: null,
+    days: null,
+    dailyMessage: "Daily figures aren't ready yet.",
+  });
+});

@@ -170,7 +170,8 @@ async def create_report(
                 select(func.max(CampaignReport.version)).where(
                     CampaignReport.campaign_id == campaign_id,
                     CampaignReport.kind == kind,
-                    CampaignReport.period_end_at == end,
+                    CampaignReport.period_end_at >= end,
+                    CampaignReport.period_end_at < end + timedelta(days=1),
                 )
             )
             or 0
@@ -242,10 +243,6 @@ async def request_advertiser_report(session, *, actor_user_id, payload, settings
     if payload.campaign_id is not None and not campaigns:
         raise not_found()
     now = await database_clock(session)
-    if payload.end_date > now.astimezone(LAGOS).date():
-        raise AppError(
-            "REPORT_PERIOD_INVALID", "Choose an end date on or before today", status_code=422
-        )
     start = datetime.combine(payload.start_date, time.min, LAGOS)
     end = datetime.combine(payload.end_date + timedelta(days=1), time.min, LAGOS)
     return await create_report(

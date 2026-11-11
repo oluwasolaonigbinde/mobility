@@ -172,7 +172,7 @@ it("sums daily performance across exactly the included set and keeps currencies 
             date: `2026-10-${String(i + 6).padStart(2, "0")}`,
             estimated_impressions: i < 7 ? "10" : "20",
             distance_m: i < 7 ? "1000" : "2000",
-            suppressed: false,
+            status: "released" as const,
           })),
         },
       };
@@ -197,7 +197,7 @@ it("does not add a fallback campaign to Home views or its percent", async () => 
             date: `2026-10-${String(i + 6).padStart(2, "0")}`,
             estimated_impressions: id === "two" && i === 13 ? null : i < 7 ? "10" : "20",
             distance_m: "1000",
-            suppressed: false,
+            status: "released" as const,
           })),
         },
       };

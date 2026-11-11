@@ -6,7 +6,6 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 
 from app.models.campaign_report import CampaignReport
-from app.seeds.demo import DEMO_BBOX
 from tests.conftest import auth_headers
 from tests.test_seed_demo import seed_demo_graph, seed_private_storage  # noqa: F401
 
@@ -28,11 +27,11 @@ def test_golden_seed_reports_and_map_meet_default_privacy(
             # retain the same three-car assertion on every disclosed driving day.
             assert report is not None and report.status == "ready"
             campaign = report.snapshot["campaigns"][0]
-            assert campaign["measured"]["cars_driven"] >= 3
+            assert Decimal(campaign["measured"]["average_cars_per_day"]) > 0
             driving_days = [day for day in campaign["daily"] if day["trip_count"]]
             assert driving_days
             for day in driving_days:
-                assert day["suppressed"] is False
+                assert day["status"] == "released"
                 assert day["vehicle_count"] >= 3, day["date"]
 
     asyncio.run(inspect())
@@ -42,16 +41,10 @@ def test_golden_seed_reports_and_map_meet_default_privacy(
     root = f"/api/v1/advertiser/campaigns/{graph.campaign.id}"
     report = postgis_db_client.get(f"{root}/report", headers=headers)
     assert report.status_code == 200
-    assert report.json()["totals"]["trip_count"] > 0
     daily = postgis_db_client.get(f"{root}/daily-metrics", headers=headers)
     assert daily.status_code == 200
     assert daily.json()["items"]
-    heatmap = postgis_db_client.get(
-        f"{root}/heatmap?bbox={DEMO_BBOX}&resolution_m=500&metric=estimated_impressions",
-        headers=headers,
-    )
-    assert heatmap.status_code == 200
-    assert heatmap.json()["features"]
+    assert "totals" not in report.json()
 
 
 def test_demo_seed_frontend_smoke_paths(
@@ -70,13 +63,6 @@ def test_demo_seed_frontend_smoke_paths(
     assert me_response.status_code == 200
     assert me_response.json()["advertiser_organization"]["name"] == "Marula Kitchens"
 
-    dashboard_response = postgis_db_client.get(
-        "/api/v1/advertiser/dashboard/summary",
-        headers=advertiser_headers,
-    )
-    assert dashboard_response.status_code == 200
-    assert dashboard_response.json()["campaigns"]["total"] >= 1
-
     campaigns_response = postgis_db_client.get(
         "/api/v1/advertiser/campaigns",
         headers=advertiser_headers,
@@ -90,51 +76,7 @@ def test_demo_seed_frontend_smoke_paths(
     assert campaign_items["Marula Kitchens — Wuse Lunch Rush"]["description"] == (
         "Lunchtime visibility around Wuse II offices."
     )
-    palmpay_id = campaign_items["Marula Kitchens — Wuse Lunch Rush"]["id"]
-    palmpay_summary_response = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{palmpay_id}/summary",
-        headers=advertiser_headers,
-    )
-    assert palmpay_summary_response.status_code == 200
-    palmpay_summary = palmpay_summary_response.json()
-    assert palmpay_summary["trips"]["total"] == 3
-    # S12 / D116 removes each story's non-paying bonus zone; target areas remain.
-    assert palmpay_summary["zones"]["total"] == 1
-    assert palmpay_summary["assignments"]["active"] == 1
-    assert float(palmpay_summary["route_analytics"]["total_distance_m"]) > 0
-    assert float(palmpay_summary["route_analytics"]["average_quality_score"]) > 0
-    assert float(palmpay_summary["impressions"]["estimated_impressions"]) > 0
-    assert float(palmpay_summary["impressions"]["average_confidence_score"]) > 0
-    assert "costs" not in palmpay_summary
-
-    palmpay_heatmap_response = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{palmpay_id}/heatmap"
-        "?bbox=7.43,9.03,7.51,9.11&resolution_m=500&metric=estimated_impressions",
-        headers=advertiser_headers,
-    )
-    assert palmpay_heatmap_response.status_code == 200
-    assert palmpay_heatmap_response.json()["features"]
-
-    market_routes_id = campaign_items["Marula Kitchens — Utako Office Lunch"]["id"]
-    market_routes_summary_response = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{market_routes_id}/summary",
-        headers=advertiser_headers,
-    )
-    assert market_routes_summary_response.status_code == 200
-    market_routes_summary = market_routes_summary_response.json()
-    assert market_routes_summary["creatives"]["total"] == 1
-    assert market_routes_summary["zones"]["total"] == 1
-    # S23 / D118: this retired demo job has a future campaign end, so it is
-    # cancelled explicitly; Finished is reserved for dates that have ended.
-    assert market_routes_summary["assignments"]["cancelled"] == 1
-    assert market_routes_summary["trips"]["total"] == 3
-    assert float(market_routes_summary["route_analytics"]["total_distance_m"]) > 0
-    assert float(market_routes_summary["route_analytics"]["target_zone_distance_m"]) > 0
-    assert float(market_routes_summary["route_analytics"]["average_quality_score"]) > 0
-    assert float(market_routes_summary["impressions"]["estimated_impressions"]) > 0
-    assert float(market_routes_summary["impressions"]["average_confidence_score"]) > 0
-    assert "costs" not in market_routes_summary
-
+    market_routes_id = campaign_items["Marula Kitchens \u2014 Utako Office Lunch"]["id"]
     market_routes_creatives_response = postgis_db_client.get(
         f"/api/v1/advertiser/campaigns/{market_routes_id}/creatives",
         headers=advertiser_headers,
@@ -145,14 +87,6 @@ def test_demo_seed_frontend_smoke_paths(
     assert market_routes_creatives[0]["name"] == "Marula Kitchens door panel"
     assert market_routes_creatives[0]["status"] == "approved"
 
-    market_routes_heatmap_response = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{market_routes_id}/heatmap"
-        f"?bbox={DEMO_BBOX}&resolution_m=500&metric=estimated_impressions",
-        headers=advertiser_headers,
-    )
-    assert market_routes_heatmap_response.status_code == 200
-    assert market_routes_heatmap_response.json()["features"]
-
     market_routes_report_response = postgis_db_client.get(
         f"/api/v1/advertiser/campaigns/{market_routes_id}/report",
         headers=advertiser_headers,
@@ -162,26 +96,12 @@ def test_demo_seed_frontend_smoke_paths(
     assert market_routes_report_response.json()["campaign_id"] == market_routes_id
 
     campaign_id = str(graph.campaign.id)
-    summary_response = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign_id}/summary",
-        headers=advertiser_headers,
-    )
-    assert summary_response.status_code == 200
-    assert summary_response.json()["trips"]["total"] == 20
-
     daily_response = postgis_db_client.get(
         f"/api/v1/advertiser/campaigns/{campaign_id}/daily-metrics",
         headers=advertiser_headers,
     )
     assert daily_response.status_code == 200
     assert daily_response.json()["total"] >= 2
-
-    trips_response = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign_id}/trips",
-        headers=advertiser_headers,
-    )
-    assert trips_response.status_code == 200
-    assert trips_response.json()["trips"]["total"] == 20
 
     report_response = postgis_db_client.get(
         f"/api/v1/advertiser/campaigns/{campaign_id}/report",
@@ -190,27 +110,11 @@ def test_demo_seed_frontend_smoke_paths(
     assert report_response.status_code == 200
     assert report_response.json()["campaign_id"] == campaign_id
 
-    impressions_response = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign_id}/impressions/summary",
-        headers=advertiser_headers,
-    )
-    assert impressions_response.status_code == 200
-    assert float(impressions_response.json()["estimated_impressions"]) > 0
-
     cost_response = postgis_db_client.get(
         f"/api/v1/advertiser/campaigns/{campaign_id}/cost-summary",
         headers=advertiser_headers,
     )
     assert cost_response.status_code == 404
-
-    heatmap_response = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign_id}/heatmap"
-        f"?bbox={DEMO_BBOX}&resolution_m=500&metric=estimated_impressions",
-        headers=advertiser_headers,
-    )
-    assert heatmap_response.status_code == 200
-    assert heatmap_response.json()["type"] == "FeatureCollection"
-    assert heatmap_response.json()["features"]
 
     driver_headers = auth_headers(
         postgis_db_client,

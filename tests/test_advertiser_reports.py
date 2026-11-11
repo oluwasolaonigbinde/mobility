@@ -4,26 +4,18 @@ from decimal import Decimal
 
 from conftest import (
     auth_headers,
-    create_test_campaign,
     create_test_campaign_assignment,
-    create_test_campaign_creative,
     create_test_driver_profile,
     create_test_estimate_source,
     create_test_impression_estimate,
-    create_test_organization,
     create_test_payout_rule,
     create_test_trip_analytics,
     create_test_trip_session,
     create_test_user,
     create_test_vehicle,
-    fetch_impression_estimates,
-    fetch_payout_calculations,
 )
-from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from starlette import status as http_status
 
-from app.models.campaign import CampaignStatus, CreativeStatus
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.campaign_zone import CampaignZone
 from app.models.driver import DriverOnboardingStatus
@@ -315,486 +307,35 @@ def add_payout_calculation(
     asyncio.run(create())
 
 
-def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(
-    db_client, db_sessionmaker, settings
-):
-    admin = create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
-    advertiser = create_test_user(
-        db_sessionmaker,
-        email="adv-report@example.com",
-        password=PASSWORD,
-        role=UserRole.ADVERTISER,
-    )
-    organization, _ = create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
-    campaign = create_test_campaign(
-        db_sessionmaker,
-        organization_id=organization.id,
-        created_by_user_id=advertiser.id,
-        name="Lagos Launch Campaign",
-        campaign_status=CampaignStatus.ACTIVE,
-        start_at=DAY_1,
-        end_at=DAY_2 + timedelta(days=30),
-        budget_amount=Decimal("500000.00"),
-        daily_budget_amount=Decimal("25000.00"),
-    )
-    create_test_campaign(
-        db_sessionmaker,
-        organization_id=organization.id,
-        created_by_user_id=advertiser.id,
-        name="Draft campaign",
-        campaign_status=CampaignStatus.DRAFT,
-    )
-    create_test_campaign_creative(
-        db_sessionmaker,
-        campaign_id=campaign.id,
-        creative_status=CreativeStatus.APPROVED,
-    )
-    create_test_campaign_creative(
-        db_sessionmaker,
-        campaign_id=campaign.id,
-        name="Draft creative",
-        creative_status=CreativeStatus.DRAFT,
-    )
-    for zone_type in ["target", "exclusion"]:
-        add_campaign_zone(
-            db_sessionmaker,
-            campaign_id=campaign.id,
-            created_by_user_id=advertiser.id,
-            zone_type=zone_type,
-        )
-    _, _, _, _, trip, analytics, estimate = create_report_graph(
-        db_sessionmaker,
-        admin=admin,
-        advertiser=advertiser,
-        campaign=campaign,
-        driver_email="driver-report@example.com",
-        plate_number="RPT-1",
-        started_at=DAY_1,
-    )
-    add_fraud_flag(
-        db_sessionmaker,
-        trip=trip,
-        analytics=analytics,
-        severity="high",
-        flag_type="impossible_speed",
-    )
-    add_fraud_flag(
-        db_sessionmaker,
-        trip=trip,
-        analytics=analytics,
-        severity="low",
-        flag_type="excessive_ping_gap",
-        flag_status=FraudFlagStatus.DISMISSED.value,
-        reviewed_by_user_id=admin.id,
-    )
-    set_estimate_fraud_counts(
-        db_sessionmaker,
-        estimate.id,
-        {"low": 0, "medium": 0, "high": 1},
-    )
-    create_report_graph(
-        db_sessionmaker,
-        admin=admin,
-        advertiser=advertiser,
-        campaign=campaign,
-        driver_email="driver-report-2@example.com",
-        plate_number="RPT-2",
-        started_at=DAY_2,
-        trip_status=TripSessionStatus.ACTIVE,
-        analytics_status="insufficient_data",
-        estimate_status="insufficient_data",
-        payout_status="insufficient_data",
-        distance_m=Decimal("5000.00"),
-        estimated_impressions=Decimal("0.00"),
-        final_payout=Decimal("0.00"),
-        gross_payout=Decimal("0.00"),
-        quality_score=Decimal("0.5000"),
-        confidence_score=Decimal("0.1000"),
-    )
-    other_advertiser = create_test_user(
-        db_sessionmaker,
-        email="other-adv-report@example.com",
-        password=PASSWORD,
-        role=UserRole.ADVERTISER,
-    )
-    other_org, _ = create_test_organization(
-        db_sessionmaker,
-        name="Other Org",
-        owner_user_id=other_advertiser.id,
-    )
-    other_campaign = create_test_campaign(
-        db_sessionmaker,
-        organization_id=other_org.id,
-        created_by_user_id=other_advertiser.id,
-        campaign_status=CampaignStatus.ACTIVE,
-    )
-    create_report_graph(
-        db_sessionmaker,
-        admin=admin,
-        advertiser=other_advertiser,
-        campaign=other_campaign,
-        driver_email="other-driver-report@example.com",
-        plate_number="OTH-1",
-        started_at=DAY_1,
-        estimated_impressions=Decimal("9999.00"),
-        final_payout=Decimal("9999.00"),
-        gross_payout=Decimal("9999.00"),
-    )
+def test_current_advertiser_outputs(db_client, db_sessionmaker):
+    from test_req217_reports import owner_graph
 
-    headers = auth_headers(db_client, advertiser.email, PASSWORD)
-    dashboard = db_client.get("/api/v1/advertiser/dashboard/summary", headers=headers)
-    campaign_summary = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/summary",
-        headers=headers,
-    )
-    daily = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/daily-metrics?limit=1&start_at=2026-06-01T00:00:00Z&end_at=2026-06-03T00:00:00Z",
-        headers=headers,
-    )
-    report = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/report",
-        headers=headers,
-    )
-
-    assert dashboard.status_code == http_status.HTTP_200_OK
-    dashboard_data = dashboard.json()
-    assert dashboard_data["campaigns"]["total"] == 2
-    assert dashboard_data["campaigns"]["active"] == 0
-    assert dashboard_data["campaigns"]["finished"] == 1
-    assert dashboard_data["campaigns"]["draft"] == 1
-    assert dashboard_data["trips"] == {"total": 2, "ended": 1, "active": 1}
-    assert dashboard_data["impressions"]["estimated_impressions"] == "500.00"
-    assert dashboard_data["impressions"]["estimated_trip_count"] == 1
-    assert dashboard_data["impressions"]["insufficient_data_trip_count"] == 1
-    assert "costs" not in dashboard_data
-    assert "costs" not in dashboard_data
-    assert dashboard_data["quality"]["fraud_flags"]["open"] == 1
-    assert dashboard_data["quality"]["fraud_flags"]["dismissed"] == 1
-    assert dashboard_data["quality"]["fraud_flags"]["high"] == 1
-
-    assert campaign_summary.status_code == http_status.HTTP_200_OK
-    summary_data = campaign_summary.json()
-    assert summary_data["campaign"]["name"] == "Lagos Launch Campaign"
-    assert summary_data["campaign"]["budget_amount"] == "500000.00"
-    assert summary_data["creatives"] == {
-        "total": 2,
-        "approved": 1,
-        "draft": 1,
-        "archived": 0,
-        "pending_review": 0,
-        "rejected": 0,
-    }
-    assert summary_data["zones"] == {"total": 2, "target": 1, "exclusion": 1}
-    assert summary_data["route_analytics"]["analyzed_trip_count"] == 2
-    assert summary_data["route_analytics"]["total_distance_m"] == "15000.00"
-    assert "costs" not in summary_data
-    assert "costs" not in summary_data
-    assert summary_data["fraud_flags"]["open"] == 1
-
-    assert daily.status_code == http_status.HTTP_200_OK
-    daily_data = daily.json()
-    assert daily_data["total"] == 3
-    assert daily_data["limit"] == 1
-    assert daily_data["items"][0]["date"] == "2026-06-01"
-    assert daily_data["items"][0]["trip_count"] is None
-    assert daily_data["items"][0]["suppressed"] is True
-
-    assert report.status_code == http_status.HTTP_200_OK, report.text
-    # D118: a one-car report remains withheld, even though the staff ledger exists.
-    assert all(value is None for value in report.json()["totals"].values())
-    assert report.json()["areas"] == []
-    assert "daily_metrics" not in report.json()
-
-
-def test_campaign_report_uses_half_open_trip_cohort_and_latest_payout_once(
-    db_client, db_sessionmaker, settings
-) -> None:
-    admin = create_test_user(db_sessionmaker, email="admin-cohort@example.com", password=PASSWORD)
-    advertiser = create_test_user(
-        db_sessionmaker,
-        email="adv-cohort@example.com",
-        password=PASSWORD,
-        role=UserRole.ADVERTISER,
-    )
-    organization, _ = create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
-    campaign = create_test_campaign(
-        db_sessionmaker,
-        organization_id=organization.id,
-        created_by_user_id=advertiser.id,
-        campaign_status=CampaignStatus.ACTIVE,
-        start_at=DAY_1,
-        end_at=DAY_2 + timedelta(days=2),
-    )
-    driver, _, _, _, trip, analytics, estimate = create_report_graph(
-        db_sessionmaker,
-        admin=admin,
-        advertiser=advertiser,
-        campaign=campaign,
-        driver_email="driver-cohort@example.com",
-        plate_number="COHORT-1",
-        started_at=DAY_1,
-    )
-    create_report_graph(
-        db_sessionmaker,
-        admin=admin,
-        advertiser=advertiser,
-        campaign=campaign,
-        driver_email="driver-cohort-end@example.com",
-        plate_number="COHORT-END",
-        started_at=DAY_2,
-        estimated_impressions=Decimal("9000.00"),
-        final_payout=Decimal("9000.00"),
-        gross_payout=Decimal("9000.00"),
-    )
-
-    async def delay_sources() -> None:
-        async with db_sessionmaker() as session:
-            stored_estimate = await session.get(ImpressionEstimate, estimate.id)
-            payout = await session.scalar(
-                select(PayoutCalculation).where(PayoutCalculation.trip_session_id == trip.id)
-            )
-            assert stored_estimate is not None and payout is not None
-            stored_estimate.estimated_at = stored_estimate.estimated_at + timedelta(days=3)
-            payout.calculated_at = DAY_2 + timedelta(days=2)
-            await session.execute(
-                delete(EarningsLedgerEntry).where(EarningsLedgerEntry.trip_session_id == trip.id)
-            )
-            await session.commit()
-
-    asyncio.run(delay_sources())
-    replacement_rule = create_test_payout_rule(
-        db_sessionmaker,
-        campaign_id=campaign.id,
-        created_by_user_id=admin.id,
-        currency=campaign.currency,
-        status="inactive",
-    )
-    add_payout_calculation(
-        db_sessionmaker,
-        trip=trip,
-        analytics=analytics,
-        estimate=estimate,
-        payout_rule_id=replacement_rule.id,
-        driver_user_id=driver.id,
-        status="calculated",
-        final_payout=Decimal("700.00"),
-        gross_payout=Decimal("800.00"),
-        calculated_at=DAY_2 + timedelta(days=4),
-    )
-
-    response = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/report",
-        params={"start_at": DAY_1.isoformat(), "end_at": DAY_2.isoformat()},
-        headers=auth_headers(db_client, advertiser.email, PASSWORD),
-    )
-
-    assert response.status_code == http_status.HTTP_200_OK, response.text
-    assert all(value is None for value in response.json()["totals"].values())
-
-
-def test_campaign_trip_report_is_aggregate_only_and_rbac_protected(
-    db_client,
-    db_sessionmaker,
-) -> None:
-    admin = create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
-    advertiser = create_test_user(
-        db_sessionmaker,
-        email="adv-trips@example.com",
-        password=PASSWORD,
-        role=UserRole.ADVERTISER,
-    )
-    organization, _ = create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
-    campaign = create_test_campaign(
-        db_sessionmaker,
-        organization_id=organization.id,
-        created_by_user_id=advertiser.id,
-        campaign_status=CampaignStatus.ACTIVE,
-    )
-    driver, _, _, _, trip, analytics, estimate = create_report_graph(
-        db_sessionmaker,
-        admin=admin,
-        advertiser=advertiser,
-        campaign=campaign,
-        driver_email="driver-private@example.com",
-        plate_number="SECRET-PLATE",
-        started_at=DAY_1,
-    )
-    add_fraud_flag(
-        db_sessionmaker,
-        trip=trip,
-        analytics=analytics,
-        severity="medium",
-        flag_type="excessive_ping_gap",
-    )
-    set_estimate_fraud_counts(
-        db_sessionmaker,
-        estimate.id,
-        {"low": 0, "medium": 1, "high": 0},
-    )
-    headers = auth_headers(db_client, advertiser.email, PASSWORD)
-
-    response = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/trips",
-        headers=headers,
-    )
-    sub_day_probe = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/trips"
-        "?start_at=2026-06-01T12:34:56Z&end_at=2026-06-01T12:34:57Z",
-        headers=headers,
-    )
-
-    data = response.json()
-    serialized = str(data)
-    assert response.status_code == http_status.HTTP_200_OK
-    assert sub_day_probe.status_code == http_status.HTTP_200_OK
-    assert sub_day_probe.json() == data
-    assert data["campaign_id"] == str(campaign.id)
-    assert data["trips"] == {"total": 1, "ended": 1, "active": 0}
-    assert data["route_analytics"]["total_distance_m"] == "10000.00"
-    assert data["impressions"]["estimated_impressions"] == "500.00"
-    assert "costs" not in data
-    assert data["fraud_flags"] == {
-        "open": 1,
-        "confirmed": 0,
-        "dismissed": 0,
-        "low": 0,
-        "medium": 1,
-        "high": 0,
-    }
-    for forbidden in [
-        str(trip.id),
-        str(trip.assignment_id),
-        str(driver.id),
-        "Sensitive Driver",
-        "+234555000",
-        "SECRET-LICENSE",
-        "SECRET-PLATE",
-        "driver_profile_id",
-        "plate_number",
-        "latitude",
-        "longitude",
-        "idempotency_key",
-        "ledger_entry_id",
-        "trip_id",
-        "assignment_id",
-        "started_at",
-        "ended_at",
-        "items",
-    ]:
-        assert forbidden not in serialized
+    owner, _, campaign = owner_graph(db_sessionmaker, "current-output")
+    headers = auth_headers(db_client, owner.email, PASSWORD)
+    root = f"/api/v1/advertiser/campaigns/{campaign.id}"
+    for suffix in ("report", "daily-metrics"):
+        response = db_client.get(f"{root}/{suffix}", headers=headers)
+        assert response.status_code == 200, response.text
+        assert response.json()["campaign_id"] == str(campaign.id)
+        assert db_client.get(f"{root}/{suffix}").status_code == 401
     assert (
         db_client.get(
-            f"/api/v1/advertiser/campaigns/{campaign.id}/trips",
-            headers=auth_headers(db_client, driver.email, PASSWORD),
+            f"{root}/daily-metrics", headers=headers, params={"start_at": "2026-06-01T10:00:00Z"}
         ).status_code
-        == http_status.HTTP_403_FORBIDDEN
-    )
-    assert (
-        db_client.get(
-            f"/api/v1/advertiser/campaigns/{campaign.id}/trips",
-            headers=auth_headers(db_client, admin.email, PASSWORD),
-        ).status_code
-        == http_status.HTTP_403_FORBIDDEN
-    )
-    assert (
-        db_client.get(f"/api/v1/advertiser/campaigns/{campaign.id}/trips").status_code
-        == http_status.HTTP_401_UNAUTHORIZED
+        == 422
     )
 
 
-def test_reporting_empty_cohort_suppression_cross_org_date_validation_and_no_auto_calculation(
-    db_client,
-    db_sessionmaker,
-) -> None:
-    admin = create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
-    advertiser = create_test_user(
-        db_sessionmaker,
-        email="adv-zero@example.com",
-        password=PASSWORD,
-        role=UserRole.ADVERTISER,
-    )
-    organization, _ = create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
-    empty_campaign = create_test_campaign(
-        db_sessionmaker,
-        organization_id=organization.id,
-        created_by_user_id=advertiser.id,
-        campaign_status=CampaignStatus.ACTIVE,
-    )
-    for campaign_status in [
-        CampaignStatus.PENDING_REVIEW,
-        CampaignStatus.APPROVED,
-        CampaignStatus.REJECTED,
-    ]:
-        create_test_campaign(
-            db_sessionmaker,
-            organization_id=organization.id,
-            created_by_user_id=advertiser.id,
-            campaign_status=campaign_status,
+def test_current_outputs_keep_company_isolation(db_client, db_sessionmaker):
+    from test_req217_reports import owner_graph
+
+    owner, _, campaign = owner_graph(db_sessionmaker, "company-one")
+    other, _, _ = owner_graph(db_sessionmaker, "company-two")
+    headers = auth_headers(db_client, other.email, PASSWORD)
+    for suffix in ("report", "daily-metrics", "live-positions"):
+        assert (
+            db_client.get(
+                f"/api/v1/advertiser/campaigns/{campaign.id}/{suffix}", headers=headers
+            ).status_code
+            == 404
         )
-    other_advertiser = create_test_user(
-        db_sessionmaker,
-        email="adv-zero-other@example.com",
-        password=PASSWORD,
-        role=UserRole.ADVERTISER,
-    )
-    other_org, _ = create_test_organization(
-        db_sessionmaker,
-        name="Other zero org",
-        owner_user_id=other_advertiser.id,
-    )
-    other_campaign = create_test_campaign(
-        db_sessionmaker,
-        organization_id=other_org.id,
-        created_by_user_id=other_advertiser.id,
-    )
-    headers = auth_headers(db_client, advertiser.email, PASSWORD)
-    before_estimates = len(fetch_impression_estimates(db_sessionmaker))
-    before_payouts = len(fetch_payout_calculations(db_sessionmaker))
-
-    summary = db_client.get(
-        f"/api/v1/advertiser/campaigns/{empty_campaign.id}/summary",
-        headers=headers,
-    )
-    dashboard = db_client.get("/api/v1/advertiser/dashboard/summary", headers=headers)
-    daily = db_client.get(
-        f"/api/v1/advertiser/campaigns/{empty_campaign.id}/daily-metrics",
-        headers=headers,
-    )
-    trips = db_client.get(
-        f"/api/v1/advertiser/campaigns/{empty_campaign.id}/trips",
-        headers=headers,
-    )
-    cross_org = db_client.get(
-        f"/api/v1/advertiser/campaigns/{other_campaign.id}/summary",
-        headers=headers,
-    )
-    cross_org_trips = db_client.get(
-        f"/api/v1/advertiser/campaigns/{other_campaign.id}/trips",
-        headers=headers,
-    )
-    invalid_range = db_client.get(
-        f"/api/v1/advertiser/campaigns/{empty_campaign.id}/summary"
-        "?start_at=2026-06-02T00:00:00Z&end_at=2026-06-01T00:00:00Z",
-        headers=headers,
-    )
-    naive_date = db_client.get(
-        f"/api/v1/advertiser/campaigns/{empty_campaign.id}/summary?start_at=2026-06-01T00:00:00",
-        headers=headers,
-    )
-
-    # D118 makes empty calendar days explicit without weakening guarded summaries.
-    assert daily.status_code == 200 and len(daily.json()["items"]) == 7
-    assert all(row["distance_m"] == "0.00" for row in daily.json()["items"])
-    for response in (summary, dashboard, trips):
-        assert response.status_code == http_status.HTTP_409_CONFLICT
-        assert response.json()["error"]["code"] == "DISCLOSURE_SUPPRESSED"
-        assert response.json()["error"]["details"] == {"reason": "minimum_cars"}
-    assert cross_org.status_code == http_status.HTTP_404_NOT_FOUND
-    assert cross_org_trips.status_code == http_status.HTTP_404_NOT_FOUND
-    assert invalid_range.status_code == http_status.HTTP_400_BAD_REQUEST
-    assert invalid_range.json()["error"]["code"] == "INVALID_DATE_RANGE"
-    assert naive_date.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
-    assert naive_date.json()["error"]["code"] == "VALIDATION_ERROR"
-    assert len(fetch_impression_estimates(db_sessionmaker)) == before_estimates
-    assert len(fetch_payout_calculations(db_sessionmaker)) == before_payouts
-    assert admin.role == UserRole.ADMIN

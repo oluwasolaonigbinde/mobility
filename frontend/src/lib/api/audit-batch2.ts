@@ -2,14 +2,11 @@ import type { ApiClient } from "./client";
 import type { components, paths } from "./schema";
 
 type EnquiryQuery = paths["/api/v1/admin/campaign-enquiries"]["get"]["parameters"]["query"];
-type ReportQuery =
-  paths["/api/v1/advertiser/campaigns/{campaign_id}/report"]["get"]["parameters"]["query"];
-
 export type ApplicationContinuation = components["schemas"]["ApplicationContinuationRead"];
 
-export const readCampaignPerformance = (api: ApiClient, campaignId: string, query?: ReportQuery) =>
+export const readCampaignPerformance = (api: ApiClient, campaignId: string) =>
   api.GET("/api/v1/advertiser/campaigns/{campaign_id}/report", {
-    params: { path: { campaign_id: campaignId }, query },
+    params: { path: { campaign_id: campaignId } },
   });
 export const rerunCampaignReport = (api: ApiClient, campaignId: string, clientRequestId: string) =>
   api.POST("/api/v1/admin/campaigns/{campaign_id}/reports/re-run", {

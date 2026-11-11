@@ -9,17 +9,11 @@ from app.api.v1.dependencies import AdvertiserUserDependency, SessionDependency,
 from app.core.errors import AppError
 from app.schemas.campaigns import ensure_timezone_aware
 from app.schemas.reports import (
-    AdvertiserDashboardSummary,
     CampaignPerformanceRead,
-    CampaignSummary,
-    CampaignTripsResponse,
     DailyMetricsResponse,
 )
 from app.services.reports import (
     advertiser_campaign_report,
-    advertiser_campaign_summary,
-    advertiser_campaign_trips,
-    advertiser_dashboard_summary,
     daily_metrics_for_campaign,
 )
 
@@ -54,62 +48,11 @@ def ensure_report_date_range(
 
 
 @router.get(
-    "/advertiser/dashboard/summary",
-    response_model=AdvertiserDashboardSummary,
-    summary="Read advertiser dashboard summary",
-    description=(
-        "Aggregate stored campaign, trip, impression, payout, and fraud data for the "
-        "current advertiser organization. The demo seed returns non-empty data here."
-    ),
-)
-async def advertiser_get_dashboard_summary(
-    current_user: AdvertiserUserDependency,
-    session: SessionDependency,
-    settings: SettingsDependency,
-    start_at: datetime | None = None,
-    end_at: datetime | None = None,
-) -> AdvertiserDashboardSummary:
-    start_at, end_at = ensure_report_date_range(start_at, end_at)
-    return await advertiser_dashboard_summary(
-        session,
-        user_id=current_user.id,
-        start_at=start_at,
-        end_at=end_at,
-        settings=settings,
-    )
-
-
-@router.get(
-    "/advertiser/campaigns/{campaign_id}/summary",
-    response_model=CampaignSummary,
-    summary="Read advertiser campaign reporting summary",
-    description="Return frontend-ready totals for one advertiser-owned campaign.",
-)
-async def advertiser_get_campaign_summary(
-    campaign_id: UUID,
-    current_user: AdvertiserUserDependency,
-    session: SessionDependency,
-    settings: SettingsDependency,
-    start_at: datetime | None = None,
-    end_at: datetime | None = None,
-) -> CampaignSummary:
-    start_at, end_at = ensure_report_date_range(start_at, end_at)
-    return await advertiser_campaign_summary(
-        session,
-        user_id=current_user.id,
-        campaign_id=campaign_id,
-        start_at=start_at,
-        end_at=end_at,
-        settings=settings,
-    )
-
-
-@router.get(
     "/advertiser/campaigns/{campaign_id}/daily-metrics",
     response_model=DailyMetricsResponse,
     summary="List advertiser campaign daily metrics",
     description=(
-        "Return Nigeria calendar days (WAT); default to seven days including partial today. "
+        "Return Nigeria calendar days (WAT); default to seven days with today not ready. "
         "Empty days are zero; days below three cars are withheld."
     ),
 )
@@ -137,35 +80,11 @@ async def advertiser_get_campaign_daily_metrics(
 
 
 @router.get(
-    "/advertiser/campaigns/{campaign_id}/trips",
-    response_model=CampaignTripsResponse,
-    summary="Read advertiser campaign trip aggregate",
-    description=(
-        "Return one privacy-governed whole-campaign aggregate without trip rows, identifiers, "
-        "or event timestamps."
-    ),
-)
-async def advertiser_get_campaign_trip_aggregate(
-    campaign_id: UUID,
-    current_user: AdvertiserUserDependency,
-    session: SessionDependency,
-    settings: SettingsDependency,
-) -> CampaignTripsResponse:
-    return await advertiser_campaign_trips(
-        session,
-        user_id=current_user.id,
-        campaign_id=campaign_id,
-        settings=settings,
-    )
-
-
-@router.get(
     "/advertiser/campaigns/{campaign_id}/report",
     response_model=CampaignPerformanceRead,
     summary="Read campaign results",
     description=(
-        "Return campaign-wide distance, trips, Nigeria driving days, "
-        "estimated views and privacy-safe areas."
+        "Return trip counts and estimated views summed from qualifying complete area weeks."
     ),
 )
 async def advertiser_get_campaign_report(
@@ -173,15 +92,10 @@ async def advertiser_get_campaign_report(
     current_user: AdvertiserUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
-    start_at: datetime | None = None,
-    end_at: datetime | None = None,
 ) -> CampaignPerformanceRead:
-    start_at, end_at = ensure_report_date_range(start_at, end_at)
     return await advertiser_campaign_report(
         session,
         user_id=current_user.id,
         campaign_id=campaign_id,
-        start_at=start_at,
-        end_at=end_at,
         settings=settings,
     )

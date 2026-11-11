@@ -1,99 +1,50 @@
-"""Coarse advertiser campaign facts; shared terminal-trip authority with D118 reports."""
+"""D160 area-page projection from the shared released cells."""
 
-from datetime import datetime
-from decimal import Decimal
-from typing import cast
-from zoneinfo import ZoneInfo
+from datetime import timedelta
 
-from app.schemas.reports import (
-    CampaignPerformanceArea,
-    CampaignPerformanceRead,
-    CampaignPerformanceTotals,
-)
-from app.services.report_cohorts import ReportCohort, select_report_cohort
+from app.schemas.reports import CampaignPerformanceArea, CampaignPerformanceRead
+from app.services.disclosure import load_cells, midnight
 
-PERFORMANCE_POLICY = "campaign-performance-d118-v2"
+PERFORMANCE_POLICY = "campaign-performance-d160-v1"
 UNCERTAINTY = "Views are estimates of potential contacts, not measured people or guaranteed views."
-LAGOS = ZoneInfo("Africa/Lagos")
 
 
-async def live_campaign_performance(
-    session, *, campaign, settings, now, start_at=None, end_at=None
-):
-    from app.services.campaign_report_data import (
-        _areas,
-        aware,
-        verified_driving,
-    )
+async def live_campaign_performance(session, *, campaign, settings, now):
+    from app.services.campaign_report_data import _areas, verified_driving
 
-    lower = start_at or campaign.start_at
-    upper = min(aware(end_at or now), aware(now))
-    cohort = ReportCohort((), (), (), (), terminal_period=True)
-    if lower is None or aware(lower) < upper:
-        cohort = await select_report_cohort(
-            session,
-            campaign_id=campaign.id,
-            start_at=lower,
-            end_at=upper,
-            settings=settings,
-            terminal_period=True,
-            include_money=False,
+    lower = midnight(campaign.start_at or now)
+    end = midnight(now)
+    # Include the prior Sunday only once its whole week is closed.
+    end -= timedelta(days=end.weekday())
+    areas = []
+    hidden = False
+    if lower < end:
+        cohort, days = await load_cells(
+            session, campaign_id=campaign.id, start=lower, end=end, settings=settings, now=now
         )
-    trips, measured, cars, hidden = verified_driving(cohort)
-    estimates = {
-        row.trip_session_id: row for row in cohort.impressions if row.status == "estimated"
-    }
-    areas = await _areas(
-        session,
-        campaign=campaign,
-        cohort=cohort,
-        driving=measured,
-        settings=settings,
-        unknown=hidden and not measured,
-    )
+        hidden = any(day.status != "released" for day in days)
+        _, driving, _, _ = verified_driving(cohort)
+        areas = await _areas(
+            session,
+            campaign=campaign,
+            cohort=cohort,
+            driving=driving,
+            settings=settings,
+            days=days,
+            start=lower,
+            end=end,
+        )
     return CampaignPerformanceRead(
         campaign_id=campaign.id,
-        start_at=lower,
-        end_at=upper,
-        totals=CampaignPerformanceTotals.model_validate(
-            {
-                "distance_m": None
-                if hidden
-                else str(sum((row.distance_m for row in measured), Decimal(0))),
-                "trip_count": None if hidden else len(measured),
-                "driving_days": None
-                if hidden
-                else len(
-                    {
-                        aware(cast(datetime, trips[row.trip_session_id].ended_at))
-                        .astimezone(LAGOS)
-                        .date()
-                        for row in measured
-                    }
-                ),
-                "estimated_views": str(
-                    sum(
-                        (estimates[row.trip_session_id].estimated_impressions for row in measured),
-                        Decimal(0),
-                    )
-                )
-                if not hidden and all(row.trip_session_id in estimates for row in measured)
-                else None,
-            }
-        ),
         areas=[
-            CampaignPerformanceArea.model_validate(
-                {
-                    "area_id": row["id"],
-                    "name": row["name"],
-                    "trip_count": row["trip_count"],
-                    "modelled_potential_contacts": row["estimated_views"],
-                }
+            CampaignPerformanceArea(
+                area_id=a["id"],
+                name=a["name"],
+                trip_count=a["trip_count"],
+                modelled_potential_contacts=a["estimated_views"],
             )
-            for row in areas
-            if row["vehicle_count"] and row["vehicle_count"] >= 3
+            for a in areas
         ],
-        completeness="Available verified results only. Some trips may still be processing. "
-        "Withheld results need at least three cars; they are not zero.",
+        completeness="Some days hidden." if hidden else "",
         uncertainty=UNCERTAINTY,
     )

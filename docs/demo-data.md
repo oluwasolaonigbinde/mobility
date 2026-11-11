@@ -32,10 +32,15 @@ they do not establish live automatic-payment readiness. Notification cleanup
 is restricted to the exact demo graph's drivers and preserves curated notices.
 Existing credentials, immutable history and unrelated records remain intact.
 
-Golden report contributors use the same canonical full-workday routes and
-durations as the primary driver. This balances synthetic distance, time,
-impressions and cost within the existing disclosure limits; privacy thresholds
-are not reduced to display the demo report.
+Golden report contributors and the Wuse workday driver use the canonical
+full-workday route and durations of the primary driver, each car shifted a few
+metres. Identical GPS from different drivers correctly opens a route-replay
+hold, which under D160 keeps that day not ready. Completed-campaign report
+contributors drive one lap of the original route on their own nearby path, at
+a plausible speed. The live demo car's last fix is 23 minutes old, so it stays
+visible through the 15-minute delay and five-minute bucket. This balances synthetic
+distance, time, impressions and cost within the existing disclosure limits;
+privacy thresholds are not reduced to display the demo report.
 
 Verification uses only isolated branch candidate and test databases. This
 change does not reseed the client demo or rehost the client preview. The dated
@@ -94,6 +99,23 @@ The serving `cardvertpreview` database is freshly seeded from final3: 21 campaig
 The running API/frontend remain pinned to c2ab2d9. Its report endpoint still returns `503 PRIVACY_LIVE_USE_BLOCKED`; the page-unlock source has not been deployed. Browser-accessible storage routing also needs verification before an application deployment; storage/scanning and seeded bytes are verified internally. The recorded public tunnel hostname failed DNS resolution from this host during the final check, so current public reachability is not claimed.
 
 The affected E2E suites used only `mobility_unlock_seed_v21`, a fresh v20 copy, through the owned local API/frontend at ports 3355/3356. Playwright rejects the public tunnel domains, preview service hosts, preview proxy/frontend/relay ports and preview database names/containers. Eleven guard cases pass. The serving preview still contains zero E2E campaigns after those tests; no historical claim about earlier suite targets is inferred.
+
+## REQ-311 reporting verification
+
+D160 replaces the earlier threshold-only reporting examples. Daily reads expose
+`released`, `not_ready` or `not_enough_cars`; only released days carry figures.
+Report totals sum those days. Area results sum complete, qualifying Lagos weeks
+and carry the label **Full weeks only**. The campaign `/report` read contains area
+results only; the advertiser dashboard summary, campaign summary, trips,
+impressions summary and heatmap reads are retired. Staff analytics and artwork
+QR counts remain.
+
+Seed density is not adjusted to obtain area releases. Count qualifying seed weeks
+from the real retained GPS and exact area-membership partitions; report zero
+honestly if none qualify. Worker and auto-end verification must compare the
+financial records before and after the sweep. Local verification evidence lives
+in the owner-designated REQ-311 evidence folder; these rules do not claim a fresh
+seed run, external deployment or legal approval.
 
 ## Seeded content inventory
 

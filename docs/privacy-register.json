@@ -48,7 +48,7 @@
       "lawful_basis_candidate": "contract performance plus a separately approved tracking notice/consent posture; counsel confirmation required",
       "basis_approval": "MISSING",
       "retention_class": "R03_RAW_LOCATION",
-      "recipients": ["existing analytics, fraud and payout services", "the grandfathered heatmap service until W3-00C migration"],
+      "recipients": ["existing analytics, fraud and payout services", "admin heatmap and protected advertiser area aggregation services"],
       "withdrawal_or_objection_effect": "Stop new tracking and live use immediately; quarantine pending data and begin the verified DSR/exception assessment"
     },
     {
@@ -221,8 +221,8 @@
     },
     {
       "risk": "Re-identification or differencing of sparse exposure cells",
-      "controls": "Central disclosure service with coarse buckets, a three-distinct-car floor (D107), complementary suppression and query history in W3-00C",
-      "residual": "OPEN — W3-00C and density evidence incomplete"
+      "controls": "D160 shared closed Lagos-day cells, sums of released days, complete-week exact area-membership partitions with a three-car floor, and coarsened individual delayed dots; no query-history reservation state",
+      "residual": "OPEN — post-release fraud/replay flags, formula changes and staff recompute can change cells; individual coarse dots and legal approval remain unresolved"
     },
     {
       "risk": "Function creep from routes to person-level retargeting",
@@ -249,5 +249,30 @@
       "controls": "Provider/region/agreement register defaults MISSING and live_use=false",
       "residual": "OPEN — every production provider and region is missing"
     }
+  ],
+  "req311_residual_risks": {
+  "status": "OPEN",
+  "decision": "D160",
+  "sources": [
+    "fraud flags raised after release",
+    "route-replay flags on earlier trips: trip_processing.py",
+    "formula-version changes: report_cohorts.py",
+    "staff recompute: frontend/src/app/admin/payouts/actions.ts"
+  ],
+  "leak": "Released cells are not frozen. Comparing any two of the advertiser's own reads over time (live daily figures on different days, a fresh report against an earlier download, or either against immutable issued reports retaining old values) can reveal one trip's distance and driving time. A hold placed after release hides an already released day, revealing that a trip on that day was held.",
+  "outside_cell_rule": "Cars deployed and the advertiser campaign list assignment count (CampaignListItemRead.assignment_count) are assignment data outside the cell rule, shown without small counts hidden.",
+  "dots": "Coarse trail with few cars; rounding after clipping can put a dot just inside an exclusion zone.",
+  "lawyer_inputs": [
+    "lawful basis",
+    "driver notices and consent",
+    "DPIA and GAID filing",
+    "retention periods",
+    "threshold three or dominance rule",
+    "individual dots including coarse trail",
+    "controller registration",
+    "cross-border transfer",
+    "data-subject requests",
+    "advertiser no-re-identification clause"
   ]
+}
 }

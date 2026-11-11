@@ -8,6 +8,7 @@ import hashlib
 import io
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 from conftest import (
@@ -46,7 +47,7 @@ from app.services.campaign_report_rendering import (
 from app.services.report_scheduling import WEEK, latest_due_window, next_due_window
 
 PASSWORD = "long-secure-password"
-START = datetime(2020, 1, 1, tzinfo=UTC)
+START = datetime(2020, 1, 1, tzinfo=ZoneInfo("Africa/Lagos"))
 
 
 def owner_graph(maker, suffix):
@@ -98,7 +99,7 @@ def driving_trip(maker, *, campaign, suffix, ended_at, distance=1000):
         driver_profile_id=profile.id,
         vehicle_id=vehicle.id,
         started_by_user_id=driver.id,
-        trip_status=TripSessionStatus.ENDED,
+        trip_status=TripSessionStatus.SEALED,
         started_at=ended_at - timedelta(hours=1),
         ended_at=ended_at,
     )
@@ -156,7 +157,7 @@ def snapshot():
                 "end_at": "03 Jan 2020 00:00 WAT",
                 "measured": {
                     "cars_deployed": 3,
-                    "cars_driven": 3,
+                    "average_cars_per_day": "3",
                     "distance_m": "3000.00",
                     "driving_days": 1,
                     "trip_count": 3,
@@ -181,9 +182,7 @@ def snapshot():
                         "estimated_impressions": "75",
                     },
                 ],
-                "areas": [
-                    {"id": str(uuid4()), "name": "Wuse", "vehicle_count": 3, "trip_count": 3}
-                ],
+                "areas": [{"id": str(uuid4()), "name": "Wuse", "trip_count": 3}],
                 "creatives": [
                     {
                         "label": "Blue wrap",
@@ -238,6 +237,10 @@ def test_renderer_is_deterministic_allowlisted_and_csv_is_safe():
         and "Daily chart data" in content
     )
     assert "PDF" in content and "Artwork" in content
+    assert any(row[6] == "Estimated views in area" and row[7] == "\u2014" for row in rows[1:])
+    from app.services.campaign_report_rendering import _number
+
+    assert _number(None) == "\u2014"
     assert not any(value in content for value in ("999999", "PRIVATE DRIVER", "UTC", "ROI", "CTR"))
     assert frozen == before
 
@@ -305,7 +308,7 @@ def test_terminal_trip_after_campaign_end_uses_same_requested_period_everywhere(
     assert daily.json()["items"][0]["distance_m"] == "3000.00"
     coarse = db_client.get(f"{root}/report", headers=headers, params=period)
     assert coarse.status_code == 200, coarse.text
-    assert coarse.json()["totals"]["trip_count"] == 3
+    assert "totals" not in coarse.json()
     requested = db_client.post(
         "/api/v1/advertiser/reports",
         headers=headers,
@@ -401,7 +404,7 @@ def test_chosen_period_one_or_all_campaigns_is_owned_frozen_and_has_wat_cells(
             assert item["status"] == "finished"
             assert item["measured"] == {
                 "cars_deployed": 3,
-                "cars_driven": 3,
+                "average_cars_per_day": "3",
                 "distance_m": "3000.00",
                 "trip_count": 3,
                 "driving_days": 1,
@@ -429,9 +432,9 @@ def test_chosen_period_one_or_all_campaigns_is_owned_frozen_and_has_wat_cells(
         async with db_sessionmaker() as session:
             report = await session.get(CampaignReport, all_response.json()["id"])
             small = next(row for row in report.snapshot["campaigns"] if row["id"] == str(second.id))
-            assert all(value is None for value in small["measured"].values())
-            assert small["estimates"]["views"] is None
-            assert small["daily"][0]["suppressed"] is True
+            assert small["measured"]["distance_m"] == "0.00"
+            assert small["estimates"]["views"] == "0"
+            assert small["daily"][0]["status"] == "not_enough_cars"
 
     asyncio.run(small_is_still_withheld())
 
@@ -585,7 +588,10 @@ def test_daily_read_is_owned_zero_filled_and_bounded(db_client, db_sessionmaker,
     assert data["timezone"] == "Africa/Lagos"
     assert len(data["items"]) == data["total"] == 7
     assert data["items"][-1]["date"] == "2020-01-02"
-    assert all(row["distance_m"] == "0.00" and row["vehicle_count"] == 0 for row in data["items"])
+    assert all(
+        row["distance_m"] == "0.00" and row["vehicle_count"] == 0 for row in data["items"][:-1]
+    )
+    assert data["items"][-1]["status"] == "not_ready"
     denied = db_client.get(
         f"/api/v1/advertiser/campaigns/{campaign.id}/daily-metrics",
         headers=auth_headers(db_client, other.email, PASSWORD),
@@ -594,10 +600,10 @@ def test_daily_read_is_owned_zero_filled_and_bounded(db_client, db_sessionmaker,
     page = db_client.get(
         f"/api/v1/advertiser/campaigns/{campaign.id}/daily-metrics",
         headers=headers,
-        params={"start_at": "1900-01-01T00:00:00+01:00", "limit": 1, "offset": 10},
+        params={"start_at": "1970-01-01T00:00:00+01:00", "limit": 1, "offset": 10},
     )
     assert page.status_code == 200, page.text
-    assert len(page.json()["items"]) == 1 and page.json()["total"] > 40_000
+    assert len(page.json()["items"]) == 1 and page.json()["total"] > 10_000
 
 
 def test_finished_is_a_read_only_date_status_and_cannot_trigger_a_new_refund(
@@ -674,7 +680,7 @@ def test_automatic_weekly_final_and_staff_rerun_share_one_report_object(
             assert [row.kind for row in rows] == ["weekly"] * 4 + ["final"]
             assert [row.period_end_at for row in rows] == [
                 START + WEEK * n for n in range(1, 5)
-            ] + [START + timedelta(days=30)]
+            ] + [START + timedelta(days=31)]
             original_id, original_sha = rows[-1].id, rows[-1].snapshot_sha256
         request_id = uuid4()
         async with db_sessionmaker() as session:

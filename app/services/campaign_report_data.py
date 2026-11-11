@@ -3,10 +3,8 @@
 import base64
 import io
 import json
-from collections import defaultdict
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, timedelta
 from decimal import Decimal
-from typing import cast
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
@@ -24,8 +22,6 @@ from app.services.campaign_lifecycle import campaign_display_status
 from app.services.campaign_report_rendering import MAX_ARTIFACT_BYTES, RENDERER_VERSION
 from app.services.disclosure import DisclosureQuery, _canonical_hash, record_disclosure
 from app.services.heatmaps import report_area_trip_cell_counts
-from app.services.report_cohorts import ReportCohort, select_report_cohort
-from app.services.reports import campaign_daily_series
 
 LAGOS = ZoneInfo("Africa/Lagos")
 ZERO = Decimal("0.00")
@@ -231,143 +227,118 @@ async def _deployed_cars(session, *, campaign, start, end):
     return None if 0 < len(cars) < 3 else len(cars)
 
 
-async def _areas(session, *, campaign, cohort, driving, settings, unknown):
+async def _areas(session, *, campaign, cohort, driving, settings, days, start, end):
+    """Sum only complete, closed weeks with safe exact trip-membership partitions."""
     zones = list(
         await session.scalars(
             select(CampaignZone)
-            .where(
-                CampaignZone.campaign_id == campaign.id,
-                CampaignZone.zone_type == "target",
-            )
+            .where(CampaignZone.campaign_id == campaign.id, CampaignZone.zone_type == "target")
             .order_by(CampaignZone.name, CampaignZone.id)
         )
     )
-    selected = {row.trip_session_id for row in driving}
-    trips = [trip for trip in cohort.trips if trip.id in selected]
-    estimates = {
-        str(row.trip_session_id): row.estimated_impressions
-        for row in cohort.impressions
-        if row.status == "estimated"
+    result = {
+        str(z.id): {"id": str(z.id), "name": z.name, "trip_count": 0, "estimated_views": Decimal(0)}
+        for z in zones
     }
-    if zones and trips:
-        # Retention may remove raw GPS while verified trip summaries remain.
-        # Partial/missing route evidence cannot establish that an area was empty.
+    statuses = {d.date: d.status for d in days}
+    estimates = {
+        str(r.trip_session_id): r.estimated_impressions
+        for r in cohort.impressions
+        if r.status == "estimated"
+    }
+    week = start.astimezone(LAGOS)
+    released_weeks = 0
+    while week.weekday() != 0:
+        week += timedelta(days=1)
+    while week + timedelta(days=7) <= end:
+        week_days = [week.date() + timedelta(days=i) for i in range(7)]
+        if any(statuses.get(d) in {None, "not_ready"} for d in week_days):
+            week += timedelta(days=7)
+            continue
+        released = {d for d in week_days if statuses[d] == "released"}
+        trips = [t for t in cohort.trips if aware(t.ended_at).astimezone(LAGOS).date() in released]
+        ids = {t.id for t in trips}
+        rows = [r for r in driving if r.trip_session_id in ids]
+        selected = {r.trip_session_id for r in rows}
+        trips = [t for t in trips if t.id in selected]
+        cells_by_zone = {}
+        week_trips = [
+            t for t in cohort.trips if aware(t.ended_at).astimezone(LAGOS).date() in week_days
+        ]
+        week_ids = {t.id for t in week_trips}
         retained = dict(
             (
                 await session.execute(
                     select(LocationPing.trip_session_id, func.count())
-                    .where(
-                        LocationPing.trip_session_id.in_(selected),
-                        LocationPing.recorded_at
-                        >= min(aware(trip.started_at) for trip in trips)
-                        - timedelta(seconds=settings.location_ping_start_skew_seconds),
-                        LocationPing.recorded_at
-                        < max(aware(trip.ended_at) for trip in trips)
-                        + timedelta(
-                            seconds=settings.location_ping_end_skew_seconds, microseconds=1
-                        ),
-                    )
+                    .where(LocationPing.trip_session_id.in_(week_ids))
                     .group_by(LocationPing.trip_session_id)
                 )
             ).all()
         )
-        unknown = unknown or any(
-            retained.get(row.trip_session_id, 0) < max(1, row.ping_count) for row in driving
+        unknown = any(
+            retained.get(r.trip_session_id, 0) < r.ping_count
+            for r in cohort.analytics
+            if r.trip_session_id in week_ids
         )
-    result = []
-    for zone in zones:
-        cells = []
         if trips:
-            # The entire selected terminal trip contributes, including movement
-            # before the requested start day on a cross-midnight trip (D118).
-            cells = await report_area_trip_cell_counts(
-                session,
-                trip_ids=list(selected),
-                zone_id=zone.id,
-                resolution_m=settings.privacy_min_resolution_m,
-                window_start_at=min(aware(trip.started_at) for trip in trips)
-                - timedelta(seconds=settings.location_ping_start_skew_seconds),
-                window_end_at=max(aware(trip.ended_at) for trip in trips)
-                + timedelta(seconds=settings.location_ping_end_skew_seconds, microseconds=1),
+            lower = min(aware(t.started_at) for t in trips) - timedelta(
+                seconds=settings.location_ping_start_skew_seconds
             )
-        cars = {str(cell["vehicle_id"]) for cell in cells}
-        members = {str(cell["trip_session_id"]) for cell in cells}
-        hidden = unknown or 0 < len(cars) < 3
-        contacts = None
-        if not hidden and members <= estimates.keys():
-            # Keep the existing per-cell proportional estimate allocation.
-            # Overlapping areas are separate estimates, never unique reach.
-            allocated = defaultdict(Decimal)
-            for cell in cells:
-                allocated[(cell["grid_x"], cell["grid_y"])] += (
-                    estimates[str(cell["trip_session_id"])]
-                    * Decimal(cell["cell_ping_count"])
-                    / Decimal(cell["total_ping_count"])
-                )
-            contacts = str(
-                sum(
-                    (value.quantize(Decimal("0.0001")) for value in allocated.values()),
-                    Decimal("0.0000"),
-                )
+            upper = max(aware(t.ended_at) for t in trips) + timedelta(
+                seconds=settings.location_ping_end_skew_seconds, microseconds=1
             )
-        result.append(
-            {
-                "id": str(zone.id),
-                "name": zone.name,
-                "vehicle_count": None if hidden else len(cars),
-                "trip_count": None if hidden else len(members),
-                "estimated_views": contacts,
-            }
-        )
-    return result
+            for z in zones:
+                cells_by_zone[str(z.id)] = await report_area_trip_cell_counts(
+                    session,
+                    trip_ids=list(selected),
+                    zone_id=z.id,
+                    resolution_m=settings.privacy_min_resolution_m,
+                    window_start_at=lower,
+                    window_end_at=upper,
+                )
+        from app.services.disclosure import area_week_figures
+
+        figures = None if unknown else area_week_figures(trips, cells_by_zone, estimates)
+        if figures is not None:
+            released_weeks += 1
+            for zone, item in result.items():
+                values = figures.get(zone, {"trip_count": 0, "estimated_views": Decimal(0)})
+                item["trip_count"] += values["trip_count"]
+                if item["estimated_views"] is None or values["estimated_views"] is None:
+                    item["estimated_views"] = None
+                else:
+                    item["estimated_views"] += values["estimated_views"]
+        week += timedelta(days=7)
+    if not released_weeks:
+        return []
+    return [
+        {
+            **item,
+            "estimated_views": str(item["estimated_views"])
+            if item["estimated_views"] is not None
+            else None,
+        }
+        for item in result.values()
+    ]
 
 
 async def _campaign_snapshot(session, *, campaign, start, end, settings, storage, now, budget):
     lower = max(start, aware(campaign.start_at)) if campaign.start_at else start
     campaign_end = await report_campaign_end(session, campaign)
     upper = min(end, campaign_end, now) if campaign_end else min(end, now)
-    cohort = ReportCohort((), (), (), (), terminal_period=True)
-    metric_end = min(end, now)
-    if start < metric_end:
-        cohort = await select_report_cohort(
-            session,
-            campaign_id=campaign.id,
-            start_at=start,
-            end_at=metric_end,
-            settings=settings,
-            terminal_period=True,
-            include_money=False,
-        )
-    trips, rows, cars, hidden = verified_driving(cohort)
-    estimates = {
-        row.trip_session_id: row for row in cohort.impressions if row.status == "estimated"
-    }
-    measured = {
-        "cars_deployed": (await _deployed_cars(session, campaign=campaign, start=lower, end=upper))
+    from app.services.disclosure import load_cells, released_totals
+
+    cohort, daily = await load_cells(
+        session, campaign_id=campaign.id, start=start, end=end, settings=settings, now=now
+    )
+    _, rows, _, _ = verified_driving(cohort)
+    measured = released_totals(daily)
+    views = measured.pop("estimated_views")
+    measured = {k: str(v) if isinstance(v, Decimal) else v for k, v in measured.items()}
+    measured["cars_deployed"] = (
+        (await _deployed_cars(session, campaign=campaign, start=lower, end=upper))
         if lower < upper
-        else 0,
-        "cars_driven": None if hidden else len(cars),
-        "distance_m": None if hidden else str(sum((row.distance_m for row in rows), ZERO)),
-        "trip_count": None if hidden else len(rows),
-        "driving_days": None
-        if hidden
-        else len(
-            {
-                aware(cast(datetime, trips[row.trip_session_id].ended_at)).astimezone(LAGOS).date()
-                for row in rows
-            }
-        ),
-        "driving_seconds": None if hidden else sum(row.moving_seconds for row in rows),
-    }
-    views = None
-    if not hidden and all(row.trip_session_id in estimates for row in rows):
-        views = str(
-            sum((estimates[row.trip_session_id].estimated_impressions for row in rows), ZERO)
-        )
-    daily = campaign_daily_series(
-        cohort,
-        start_day=start.astimezone(LAGOS).date(),
-        end_day=(end - timedelta(microseconds=1)).astimezone(LAGOS).date(),
+        else 0
     )
     return {
         "id": str(campaign.id),
@@ -378,7 +349,7 @@ async def _campaign_snapshot(session, *, campaign, start, end, settings, storage
         "overlap_start": lower.astimezone(LAGOS).date().isoformat() if lower < upper else None,
         "overlap_end": upper.astimezone(LAGOS).date().isoformat() if lower < upper else None,
         "measured": measured,
-        "estimates": {"views": views},
+        "estimates": {"views": str(views) if views is not None else None},
         "daily": [row.model_dump(mode="json") for row in daily],
         "areas": await _areas(
             session,
@@ -386,7 +357,9 @@ async def _campaign_snapshot(session, *, campaign, start, end, settings, storage
             cohort=cohort,
             driving=rows,
             settings=settings,
-            unknown=hidden and not rows,
+            days=daily,
+            start=start,
+            end=end,
         ),
         "creatives": await _creatives(
             session,
@@ -395,9 +368,8 @@ async def _campaign_snapshot(session, *, campaign, start, end, settings, storage
             budget=budget,
             public_origin=settings.public_origin,
         ),
-        "note": "Available verified results only. Some trips may still be processing. "
-        "A result needs at least three cars in its campaign, day or area. "
-        "An empty day is zero; a withheld result is unavailable, not zero.",
+        "note": "Some days hidden." if any(d.status != "released" for d in daily) else "",
+        "areas_label": "Full weeks only",
     }
 
 
@@ -444,9 +416,7 @@ async def build_report_snapshot(
             value is None or value == 0 or value >= 3
             for value in (
                 item["measured"]["cars_deployed"],
-                item["measured"]["cars_driven"],
                 *(row["vehicle_count"] for row in item["daily"]),
-                *(row["vehicle_count"] for row in item["areas"]),
             )
         )
         await record_disclosure(

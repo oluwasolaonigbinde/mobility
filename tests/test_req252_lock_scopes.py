@@ -127,7 +127,6 @@ def advertiser_reads(client, headers, campaign_id):
     return {
         "daily_metrics": client.get(f"{root}/daily-metrics", headers=headers),
         "report": client.get(f"{root}/report", headers=headers),
-        "dashboard": client.get("/api/v1/advertiser/dashboard/summary", headers=headers),
     }
 
 
@@ -180,7 +179,6 @@ def test_unrelated_campaigns_and_drivers_do_not_wait_for_trip_processing(
         assert statuses(advertiser_reads(read_client, headers, tenant.campaign.id)) == {
             "daily_metrics": 200,
             "report": 200,
-            "dashboard": 200,
         }
         # Another driver's trip and driver scopes are free.
         run_short(db, lambda s: lock_fraud_hold_scope(s, tenant.trip.id))
@@ -210,7 +208,6 @@ def test_same_campaign_read_waits_for_processing_then_succeeds_and_never_500s(
         assert statuses(responses) == {
             "daily_metrics": 503,
             "report": 503,
-            "dashboard": 503,
         }
         for response in responses.values():
             assert response.json()["error"]["code"] == "TRY_AGAIN_SOON"
@@ -251,7 +248,6 @@ def test_same_campaign_read_waits_for_processing_then_succeeds_and_never_500s(
     assert statuses(advertiser_reads(read_client, headers, processing.campaign.id)) == {
         "daily_metrics": 200,
         "report": 200,
-        "dashboard": 200,
     }
 
 
@@ -276,13 +272,13 @@ def test_concurrent_readers_of_one_campaign_and_organisation_all_succeed(
         await pause(session)
 
     root = f"/api/v1/advertiser/campaigns/{tenant.campaign.id}"
-    paths = [f"{root}/daily-metrics", f"{root}/report", "/api/v1/advertiser/dashboard/summary"]
+    paths = [f"{root}/daily-metrics", f"{root}/report"]
     with Holder(db, hold_snapshot):
         # An organisation-wide reader is open; same-campaign and same-
         # organisation readers share it and each other.
         with ThreadPoolExecutor(max_workers=6) as pool:
             responses = list(
-                pool.map(lambda path: read_client.get(path, headers=headers), paths * 2)
+                pool.map(lambda path: read_client.get(path, headers=headers), paths * 3)
             )
     assert [response.status_code for response in responses] == [200] * 6, [
         response.text for response in responses if response.status_code != 200

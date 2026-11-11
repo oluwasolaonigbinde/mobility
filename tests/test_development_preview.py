@@ -119,13 +119,13 @@ def test_default_aggregation_supports_navigation_frozen_reports_and_maps(
             idempotency_key=f"navigation-{trip.id}",
         )
     headers = auth_headers(postgis_db_client, advertiser.email, PASSWORD)
-    dates = {"start_at": DAY_1.isoformat(), "end_at": (DAY_1 + timedelta(days=2)).isoformat()}
-    for path in (
-        "/api/v1/advertiser/dashboard/summary",
-        f"/api/v1/advertiser/campaigns/{campaign.id}/summary",
-        f"/api/v1/advertiser/campaigns/{campaign.id}/daily-metrics",
-        f"/api/v1/advertiser/campaigns/{campaign.id}/trips",
-    ):
+    from app.services.disclosure import midnight
+
+    dates = {
+        "start_at": midnight(DAY_1).isoformat(),
+        "end_at": midnight(DAY_1 + timedelta(days=2)).isoformat(),
+    }
+    for path in (f"/api/v1/advertiser/campaigns/{campaign.id}/daily-metrics",):
         response = postgis_db_client.get(path, headers=headers, params=dates)
         assert response.status_code == 200, response.text
         replay = postgis_db_client.get(path, headers=headers, params=dates)
@@ -134,10 +134,10 @@ def test_default_aggregation_supports_navigation_frozen_reports_and_maps(
         f"/api/v1/advertiser/campaigns/{campaign.id}/report", headers=headers, params=dates
     )
     assert report.status_code == 200, report.text
-    assert report.json()["totals"]["trip_count"] == 13
+    assert "totals" not in report.json()
     heatmap = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
-        headers=headers,
+        "/api/v1/admin/heatmap",
+        headers=auth_headers(postgis_db_client, admin.email, PASSWORD),
         params={**dates, "bbox": "3,6,3.1,6.1", "resolution_m": 500, "metric": "trip_count"},
     )
     assert heatmap.status_code == 200, heatmap.text
@@ -149,5 +149,5 @@ def test_default_aggregation_supports_navigation_frozen_reports_and_maps(
             return list(await session.scalars(select(DisclosureQueryDecision)))
 
     records = asyncio.run(history())
-    assert len(records) >= 6
+    assert len(records) >= 3
     assert all(row.decision == "served" for row in records)

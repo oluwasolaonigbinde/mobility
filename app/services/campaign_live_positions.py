@@ -29,6 +29,10 @@ POLICY = "delayed_in_area_live_dots_v3"
 LIVE_POSITION_STATIONARY_SECONDS = 30 * 60
 
 
+def position_bucket(now):
+    return now.replace(minute=now.minute // 5 * 5, second=0, microsecond=0)
+
+
 async def live_positions(
     session: AsyncSession, *, user_id: UUID, campaign_id: UUID, settings: Settings
 ) -> LivePositionsRead:
@@ -36,7 +40,7 @@ async def live_positions(
         session, settings=settings, route_id=ROUTE, user_id=user_id
     )
     await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
-    now = await database_clock(session)
+    now = position_bucket(await database_clock(session))
     cutoff, oldest = now - timedelta(minutes=15), now - timedelta(minutes=30)
     positions = await _delayed_points(
         session, campaign_id=campaign_id, now=now, cutoff=cutoff, oldest=oldest
@@ -152,4 +156,4 @@ async def _delayed_points(session: AsyncSession, *, campaign_id: UUID, now, cuto
             or_(stationary_start.is_(None), moved),
         )
     )
-    return [AnonymousPosition(longitude=lon, latitude=lat) for lon, lat in rows]
+    return [AnonymousPosition(longitude=round(lon, 3), latitude=round(lat, 3)) for lon, lat in rows]

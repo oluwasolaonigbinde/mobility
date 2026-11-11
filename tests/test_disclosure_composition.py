@@ -11,7 +11,7 @@ from app.core.errors import AppError
 from app.models.user import UserRole
 from app.services import disclosure
 from app.services.disclosure import DisclosureQuery
-from app.services.reports import advertiser_campaign_summary
+from app.services.reports import daily_metrics_for_campaign
 
 
 def live_settings() -> Settings:
@@ -28,7 +28,7 @@ def test_three_query_cross_endpoint_and_principal_composition_is_recorded(
     campaign_id = uuid4()
     start_at = datetime(2026, 8, 1, tzinfo=UTC)
     first = DisclosureQuery(
-        route_id="advertiser.campaign.summary",
+        route_id="advertiser.campaign.daily_metrics",
         principal_id=uuid4(),
         tenant_id=tenant_id,
         campaign_id=campaign_id,
@@ -142,17 +142,20 @@ def test_campaign_summary_denies_a_single_contributor_before_returning_values(
     )
 
     async def run() -> None:
+        from app.services.disclosure import midnight
+
         async with db_sessionmaker() as session:
-            with pytest.raises(AppError) as suppressed:
-                await advertiser_campaign_summary(
-                    session,
-                    user_id=advertiser.id,
-                    campaign_id=campaign.id,
-                    start_at=datetime(2026, 8, 1, tzinfo=UTC),
-                    end_at=datetime(2026, 8, 2, tzinfo=UTC),
-                    settings=live_settings(),
-                )
-            assert suppressed.value.code == "DISCLOSURE_SUPPRESSED"
-            assert suppressed.value.details == {"reason": "minimum_cars"}
+            result = await daily_metrics_for_campaign(
+                session,
+                user_id=advertiser.id,
+                campaign_id=campaign.id,
+                start_at=midnight(datetime(2026, 8, 1, tzinfo=UTC)),
+                end_at=midnight(datetime(2026, 8, 2, tzinfo=UTC)),
+                limit=30,
+                offset=0,
+                settings=live_settings(),
+            )
+            assert all(row.status != "released" for row in result.items)
+            assert all(row.distance_m is None and row.vehicle_count is None for row in result.items)
 
     asyncio.run(run())

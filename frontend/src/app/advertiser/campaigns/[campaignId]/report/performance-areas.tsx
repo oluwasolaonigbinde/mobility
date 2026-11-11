@@ -11,9 +11,7 @@ export function PerformanceAreas({
     <Panel className="mt-6 overflow-hidden">
       <h2 className="border-edge border-b p-5 font-semibold">Results by area</h2>
       {!areas.length ? (
-        <p className="text-muted p-5 text-sm">
-          Area results aren’t available for this period. You can still see your campaign totals.
-        </p>
+        <p className="text-muted p-5 text-sm">Area results aren’t available for this period.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">

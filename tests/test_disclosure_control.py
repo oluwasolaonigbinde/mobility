@@ -14,15 +14,13 @@ from conftest import (
     create_test_estimate_source,
     create_test_impression_estimate,
     create_test_organization,
-    create_test_payout_rule,
     create_test_trip_analytics,
     create_test_trip_session,
     create_test_user,
     create_test_vehicle,
 )
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
-from starlette import status
 from test_heatmaps import BBOX, PASSWORD, RECORDED_AT, add_ping_batch, create_heatmap_graph
 
 from app.core.config import Settings
@@ -31,23 +29,19 @@ from app.db.integrity import integrity_constraint_name
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.disclosure import DisclosureQueryDecision
 from app.models.driver import DriverOnboardingStatus
-from app.models.impression import ImpressionEstimate
 from app.models.organization import (
     AdvertiserOrganization,
     MembershipStatus,
     OrganizationMembership,
     OrganizationStatus,
 )
-from app.models.payout import PayoutCalculation
 from app.models.trip import TripSessionStatus
-from app.models.trip_analytics import FraudFlag, TripAnalytics
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
 from app.services import (
     campaign_live_positions,
     campaign_report_data,
     heatmaps,
-    impressions,
     reports,
 )
 from app.services.disclosure import (
@@ -56,7 +50,6 @@ from app.services.disclosure import (
     frozen_manifest_meets_disclosure_floor,
     record_heatmap_disclosure,
     require_governed_advertiser_output,
-    trip_cohort_meets_disclosure_floor,
 )
 
 
@@ -69,7 +62,7 @@ def live_test_settings(**overrides) -> Settings:
     return Settings(**values)
 
 
-def query(*, route_id: str = "advertiser.campaign.heatmap", metric: str = "ping_count"):
+def query(*, route_id: str = "admin.heatmap", metric: str = "ping_count"):
     return DisclosureQuery(
         route_id=route_id,
         principal_id=uuid4(),
@@ -177,30 +170,20 @@ def test_frozen_report_authority_rechecks_cars_per_reported_day() -> None:
 
 def test_route_inventory_covers_every_current_output_at_the_service_boundary() -> None:
     expected = {
-        "advertiser.dashboard.summary",
-        "advertiser.campaign.summary",
         "advertiser.campaign.daily_metrics",
-        "advertiser.campaign.trips",
         "advertiser.campaign.report",
         "advertiser.campaign.performance",
         "advertiser.campaign.live_positions",
-        "advertiser.campaign.impressions_summary",
-        "advertiser.campaign.heatmap",
         "admin.heatmap",
     }
     assert DISCLOSURE_ROUTE_INVENTORY == expected
 
     sources = "\n".join(
         [
-            inspect.getsource(reports.advertiser_dashboard_summary),
-            inspect.getsource(reports.advertiser_campaign_summary),
             inspect.getsource(reports.daily_metrics_for_campaign),
-            inspect.getsource(reports.advertiser_campaign_trips),
             inspect.getsource(reports.advertiser_campaign_report),
             inspect.getsource(campaign_live_positions),
             inspect.getsource(campaign_report_data.build_report_snapshot),
-            inspect.getsource(impressions.advertiser_campaign_impression_summary),
-            inspect.getsource(heatmaps.advertiser_campaign_heatmap),
             inspect.getsource(heatmaps.admin_heatmap),
         ]
     )
@@ -241,7 +224,7 @@ def test_governed_output_resolves_the_single_active_company_membership(
             selected = await require_governed_advertiser_output(
                 session,
                 settings=live_test_settings(),
-                route_id="advertiser.dashboard.summary",
+                route_id="advertiser.campaign.daily_metrics",
                 user_id=advertiser.id,
             )
             assert selected == active_org.id
@@ -285,46 +268,12 @@ def test_advertiser_reads_keep_the_disclosure_authorized_tenant(
     headers = auth_headers(db_client, advertiser.email, PASSWORD)
 
     def assert_authorized_reads() -> None:
-        responses = {
-            "dashboard": db_client.get("/api/v1/advertiser/dashboard/summary", headers=headers),
-            "summary": db_client.get(
-                f"/api/v1/advertiser/campaigns/{campaign.id}/summary", headers=headers
-            ),
-            "daily_metrics": db_client.get(
-                f"/api/v1/advertiser/campaigns/{campaign.id}/daily-metrics", headers=headers
-            ),
-            "trips": db_client.get(
-                f"/api/v1/advertiser/campaigns/{campaign.id}/trips", headers=headers
-            ),
-            "report": db_client.get(
-                f"/api/v1/advertiser/campaigns/{campaign.id}/report", headers=headers
-            ),
-            "impressions": db_client.get(
-                f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
-                headers=headers,
-            ),
-            "heatmap": db_client.get(
-                f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
-                headers=headers,
-                params={"bbox": BBOX},
-            ),
-        }
-        assert {
-            name: (response.status_code, response.text)
-            for name, response in responses.items()
-            if response.status_code != status.HTTP_200_OK
-            and not (
-                name == "heatmap"
-                and response.status_code == status.HTTP_400_BAD_REQUEST
-                and response.json()["error"]["code"] == "POSTGIS_REQUIRED"
+        for route in ("daily-metrics", "report", "live-positions"):
+            response = db_client.get(
+                f"/api/v1/advertiser/campaigns/{campaign.id}/{route}", headers=headers
             )
-        } == {}
-        # D90: before the first run the report shows current coarse totals.
-        assert responses["report"].json()["campaign_id"] == str(campaign.id)
-        assert responses["dashboard"].json()["organization_id"] == str(authorized_org.id)
-        assert responses["summary"].json()["campaign"]["id"] == str(campaign.id)
-        for name in ("daily_metrics", "trips", "impressions"):
-            assert responses[name].json()["campaign_id"] == str(campaign.id)
+            assert response.status_code == 200, response.text
+            assert response.json()["campaign_id"] == str(campaign.id)
 
     async def set_membership_authority(
         *,
@@ -747,207 +696,6 @@ def test_heatmap_area_shows_at_exactly_the_minimum_distinct_cars_on_one_day(
     assert (exact, below_vehicle) == (1, 0)
 
 
-def test_trip_cohort_releases_uneven_metrics_once_enough_cars_drove(
-    postgis_db_sessionmaker,
-) -> None:
-    admin, _, organization, campaign, _, _, _, first_trip, first_estimate = create_heatmap_graph(
-        postgis_db_sessionmaker,
-        advertiser_email="disclosure-report-cap-advertiser@example.com",
-        driver_email="disclosure-report-cap-driver@example.com",
-        plate_number="DISC-REPORT-1",
-    )
-    driver = create_test_user(
-        postgis_db_sessionmaker,
-        email="disclosure-report-cap-second@example.com",
-        password=PASSWORD,
-        role=UserRole.DRIVER,
-    )
-    profile = create_test_driver_profile(
-        postgis_db_sessionmaker,
-        user_id=driver.id,
-        onboarding_status=DriverOnboardingStatus.ACTIVE,
-    )
-    vehicle = create_test_vehicle(
-        postgis_db_sessionmaker,
-        driver_profile_id=profile.id,
-        plate_number="DISC-REPORT-2",
-        vehicle_status=VehicleStatus.ACTIVE,
-    )
-    assignment = create_test_campaign_assignment(
-        postgis_db_sessionmaker,
-        campaign_id=campaign.id,
-        driver_profile_id=profile.id,
-        vehicle_id=vehicle.id,
-        assigned_by_user_id=admin.id,
-        assignment_status=CampaignAssignmentStatus.ACTIVE,
-        activated_at=RECORDED_AT,
-    )
-    trip = create_test_trip_session(
-        postgis_db_sessionmaker,
-        assignment_id=assignment.id,
-        campaign_id=campaign.id,
-        driver_profile_id=profile.id,
-        vehicle_id=vehicle.id,
-        started_by_user_id=driver.id,
-        trip_status=TripSessionStatus.ENDED,
-        started_at=RECORDED_AT,
-        ended_at=RECORDED_AT.replace(hour=11),
-    )
-    analytics = create_test_trip_analytics(
-        postgis_db_sessionmaker,
-        trip_session_id=trip.id,
-        assignment_id=assignment.id,
-        campaign_id=campaign.id,
-        driver_profile_id=profile.id,
-        vehicle_id=vehicle.id,
-        started_at=RECORDED_AT,
-        ended_at=RECORDED_AT.replace(hour=11),
-        first_ping_at=RECORDED_AT,
-        last_ping_at=RECORDED_AT.replace(minute=5),
-        distance_m=Decimal("1.00"),
-    )
-    density = create_test_estimate_source(
-        postgis_db_sessionmaker,
-        name="Report contributor cap density",
-    )
-    estimate = create_test_impression_estimate(
-        postgis_db_sessionmaker,
-        trip_session_id=trip.id,
-        trip_analytics_id=analytics.id,
-        assignment_id=assignment.id,
-        campaign_id=campaign.id,
-        driver_profile_id=profile.id,
-        vehicle_id=vehicle.id,
-        traffic_density_profile_id=density.id,
-        estimated_impressions=Decimal("1.00"),
-    )
-    settings = live_test_settings(privacy_min_vehicles_per_cell=2)
-    payout_rule = create_test_payout_rule(
-        postgis_db_sessionmaker,
-        campaign_id=campaign.id,
-        created_by_user_id=admin.id,
-    )
-
-    async def evaluate() -> tuple[bool, bool, bool, bool]:
-        async with postgis_db_sessionmaker() as session:
-            dominated = await trip_cohort_meets_disclosure_floor(
-                session,
-                tenant_id=organization.id,
-                campaign_id=campaign.id,
-                start_at=None,
-                end_at=None,
-                route_id="advertiser.campaign.trips",
-                settings=settings,
-            )
-            analytics.distance_m = Decimal("1000.00")
-            estimate.estimated_impressions = Decimal("200.00")
-            await session.merge(analytics)
-            await session.merge(estimate)
-            await session.flush()
-            first_analytics = await session.scalar(
-                select(TripAnalytics).where(TripAnalytics.trip_session_id == first_trip.id)
-            )
-            assert first_analytics is not None
-            first_payout = PayoutCalculation(
-                trip_session_id=first_trip.id,
-                trip_analytics_id=first_analytics.id,
-                impression_estimate_id=first_estimate.id,
-                payout_rule_id=payout_rule.id,
-                assignment_id=first_trip.assignment_id,
-                campaign_id=campaign.id,
-                driver_profile_id=first_trip.driver_profile_id,
-                vehicle_id=first_trip.vehicle_id,
-                formula_version="payout_v4",
-                eligible_seconds=0,
-                excluded_seconds_by_reason={},
-                inputs_fingerprint="synthetic-report-fixture",
-                distance_m_by_day={},
-                amount_by_day={},
-                status="calculated",
-                currency="NGN",
-                gross_payout=Decimal("1000.00"),
-                final_payout=Decimal("1000.00"),
-                calculated_at=RECORDED_AT,
-                payout_metadata={},
-            )
-            second_payout = PayoutCalculation(
-                trip_session_id=trip.id,
-                trip_analytics_id=analytics.id,
-                impression_estimate_id=estimate.id,
-                payout_rule_id=payout_rule.id,
-                assignment_id=trip.assignment_id,
-                campaign_id=campaign.id,
-                driver_profile_id=trip.driver_profile_id,
-                vehicle_id=trip.vehicle_id,
-                formula_version="payout_v4",
-                eligible_seconds=0,
-                excluded_seconds_by_reason={},
-                inputs_fingerprint="synthetic-report-fixture",
-                distance_m_by_day={},
-                amount_by_day={},
-                status="calculated",
-                currency="NGN",
-                gross_payout=Decimal("1.00"),
-                final_payout=Decimal("1.00"),
-                calculated_at=RECORDED_AT,
-                payout_metadata={},
-            )
-            session.add_all([first_payout, second_payout])
-            await session.flush()
-            cost_dominated = await trip_cohort_meets_disclosure_floor(
-                session,
-                tenant_id=organization.id,
-                campaign_id=campaign.id,
-                start_at=None,
-                end_at=None,
-                route_id="advertiser.campaign.trips",
-                settings=settings,
-            )
-            second_payout.gross_payout = Decimal("1000.00")
-            second_payout.final_payout = Decimal("1000.00")
-            await session.flush()
-            balanced = await trip_cohort_meets_disclosure_floor(
-                session,
-                tenant_id=organization.id,
-                campaign_id=campaign.id,
-                start_at=None,
-                end_at=None,
-                route_id="advertiser.campaign.trips",
-                settings=settings,
-            )
-            session.add(
-                FraudFlag(
-                    trip_session_id=first_trip.id,
-                    trip_analytics_id=first_analytics.id,
-                    assignment_id=first_trip.assignment_id,
-                    campaign_id=campaign.id,
-                    driver_profile_id=first_trip.driver_profile_id,
-                    vehicle_id=first_trip.vehicle_id,
-                    flag_type="excessive_ping_gap",
-                    severity="low",
-                    status="open",
-                    description="Synthetic daily authority boundary",
-                    evidence={},
-                    detected_at=RECORDED_AT - timedelta(days=30),
-                )
-            )
-            await session.flush()
-            daily_out_of_detection_window = await trip_cohort_meets_disclosure_floor(
-                session,
-                tenant_id=organization.id,
-                campaign_id=campaign.id,
-                start_at=RECORDED_AT - timedelta(minutes=1),
-                end_at=RECORDED_AT.replace(hour=12),
-                route_id="advertiser.campaign.daily_metrics",
-                settings=settings,
-            )
-            return dominated, cost_dominated, balanced, daily_out_of_detection_window
-
-    # D107: uneven distance, impressions, cost and one car's open fraud flag on the day
-    # no longer suppress once enough distinct cars drove; the car count alone decides.
-    assert asyncio.run(evaluate()) == (True, True, True, True)
-
-
 def test_heatmap_releases_a_dominated_metric_once_enough_cars_drove_there(
     postgis_db_sessionmaker,
 ) -> None:
@@ -1240,211 +988,3 @@ def _add_one_trip_car(sessionmaker, *, admin, campaign, number: int):
         points=[(RECORDED_AT, 6.45, 3.39), (RECORDED_AT.replace(minute=5), 6.45, 3.39)],
     )
     return trip, analytics, estimate
-
-
-def test_date_range_summaries_need_three_cars_in_each_released_set(
-    postgis_db_sessionmaker,
-) -> None:
-    """D107: estimates, costs and fraud flags are picked by their own timestamps, so three
-    cars starting trips in the range cannot release one car's figures written in it."""
-    settings = live_test_settings()
-    admin, _, organization, campaign, *_ = create_heatmap_graph(
-        postgis_db_sessionmaker,
-        advertiser_email="dated-sets-advertiser@example.com",
-        driver_email="dated-sets-driver@example.com",
-        plate_number="DATED-1",
-    )
-    trip, analytics, estimate = _add_one_trip_car(
-        postgis_db_sessionmaker, admin=admin, campaign=campaign, number=21
-    )
-    _add_one_trip_car(postgis_db_sessionmaker, admin=admin, campaign=campaign, number=22)
-    payout_rule = create_test_payout_rule(
-        postgis_db_sessionmaker, campaign_id=campaign.id, created_by_user_id=admin.id
-    )
-    start_at, end_at = RECORDED_AT - timedelta(minutes=1), RECORDED_AT.replace(hour=12)
-    outside = datetime.now(UTC)
-
-    async def date_analytics() -> None:
-        async with postgis_db_sessionmaker() as session:
-            await session.execute(
-                update(TripAnalytics)
-                .where(TripAnalytics.campaign_id == campaign.id)
-                .values(computed_at=RECORDED_AT)
-            )
-            await session.commit()
-
-    # Backdated estimates must still be newer than their source analytics.
-    asyncio.run(date_analytics())
-
-    async def floors(statement=None) -> tuple[bool, bool]:
-        async with postgis_db_sessionmaker() as session:
-            if statement is not None:
-                await session.execute(statement)
-                await session.commit()
-            return tuple(
-                [
-                    await trip_cohort_meets_disclosure_floor(
-                        session,
-                        tenant_id=organization.id,
-                        campaign_id=campaign.id,
-                        start_at=start_at,
-                        end_at=end_at,
-                        route_id=route_id,
-                        settings=settings,
-                    )
-                    for route_id in (
-                        "advertiser.campaign.impressions_summary",
-                        "advertiser.campaign.summary",
-                    )
-                ]
-            )
-
-    in_campaign = ImpressionEstimate.campaign_id == campaign.id
-    assert asyncio.run(
-        floors(update(ImpressionEstimate).where(in_campaign).values(estimated_at=outside))
-    ) == (True, True)
-    one_estimate = update(ImpressionEstimate).where(ImpressionEstimate.id == estimate.id)
-    assert asyncio.run(floors(one_estimate.values(estimated_at=RECORDED_AT))) == (False, False)
-    every_estimate = update(ImpressionEstimate).where(in_campaign)
-    assert asyncio.run(floors(every_estimate.values(estimated_at=RECORDED_AT))) == (True, True)
-
-    async def add(row) -> None:
-        async with postgis_db_sessionmaker() as session:
-            session.add(row)
-            await session.commit()
-
-    car = {
-        "trip_session_id": trip.id,
-        "trip_analytics_id": analytics.id,
-        "assignment_id": trip.assignment_id,
-        "campaign_id": campaign.id,
-        "driver_profile_id": trip.driver_profile_id,
-        "vehicle_id": trip.vehicle_id,
-    }
-    asyncio.run(
-        add(
-            PayoutCalculation(
-                **car,
-                impression_estimate_id=estimate.id,
-                payout_rule_id=payout_rule.id,
-                formula_version="payout_v4",
-                eligible_seconds=0,
-                excluded_seconds_by_reason={},
-                inputs_fingerprint="synthetic-dated-sets",
-                distance_m_by_day={},
-                amount_by_day={},
-                status="calculated",
-                currency="NGN",
-                gross_payout=Decimal("1000.00"),
-                final_payout=Decimal("1000.00"),
-                calculated_at=RECORDED_AT,
-                payout_metadata={},
-            )
-        )
-    )
-    # One car's cost in the range stays hidden; the impressions summary never shows costs.
-    assert asyncio.run(floors()) == (True, False)
-    one_cost = update(PayoutCalculation).where(PayoutCalculation.campaign_id == campaign.id)
-    assert asyncio.run(floors(one_cost.values(calculated_at=outside))) == (True, True)
-    asyncio.run(
-        add(
-            FraudFlag(
-                **car,
-                flag_type="excessive_ping_gap",
-                severity="low",
-                status="open",
-                description="Synthetic dated fraud flag",
-                evidence={},
-                detected_at=RECORDED_AT,
-            )
-        )
-    )
-    # Refresh the estimate's fraud authority so the last assertion isolates the
-    # one-car fraud output rather than stale-estimate suppression.
-    asyncio.run(
-        floors(
-            one_estimate.values(
-                estimate_metadata={"fraud_flag_counts": {"low": 1, "medium": 0, "high": 0}}
-            )
-        )
-    )
-    assert asyncio.run(floors()) == (True, False)
-
-
-@pytest.mark.parametrize("vehicle_count", [2, 3])
-def test_report_area_uses_three_cars_on_one_day_despite_dominant_contributions(
-    postgis_db_client, postgis_db_sessionmaker, settings, vehicle_count
-) -> None:
-    from test_req180_batch2_reporting_flow import three_car_run
-
-    settings.privacy_min_vehicles_per_cell = 3
-    settings.privacy_min_resolution_m = 500
-    _, campaign, _, headers = three_car_run(
-        postgis_db_client,
-        postgis_db_sessionmaker,
-        vehicle_count=vehicle_count,
-        dominant=True,
-    )
-    response = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/report",
-        params={
-            "start_at": "2026-06-01T10:00:00+00:00",
-            "end_at": "2026-06-02T10:00:00+00:00",
-        },
-        headers=headers,
-    )
-    assert response.status_code == 200, response.text
-    assert len(response.json()["areas"]) == (1 if vehicle_count == 3 else 0)
-
-
-def test_three_cars_on_one_day_show_their_area_and_trips_with_default_settings(
-    postgis_db_sessionmaker,
-) -> None:
-    """REQ-208 / D105 / D107: three distinct cars is the whole rule, even on a single day."""
-    settings = live_test_settings()
-    assert settings.privacy_min_vehicles_per_cell == 3
-    admin, _, organization, campaign, *_ = create_heatmap_graph(
-        postgis_db_sessionmaker,
-        advertiser_email="three-car-advertiser@example.com",
-        driver_email="three-car-driver-1@example.com",
-        plate_number="THREE-1",
-    )
-    _add_one_trip_car(postgis_db_sessionmaker, admin=admin, campaign=campaign, number=2)
-    query = heatmaps.parse_heatmap_query(
-        bbox=BBOX,
-        resolution_m=500,
-        metric="estimated_impressions",
-        start_at=None,
-        end_at=None,
-        settings=settings,
-    )
-
-    async def outputs() -> tuple[int, bool, bool]:
-        async with postgis_db_sessionmaker() as session:
-            result = await heatmaps.build_heatmap(
-                session,
-                query=query,
-                settings=settings,
-                campaign_id=campaign.id,
-                organization_id=None,
-                vehicle_type=None,
-                metadata_campaign_id=campaign.id,
-                metadata_organization_id=None,
-            )
-            cohort = {
-                route_id: await trip_cohort_meets_disclosure_floor(
-                    session,
-                    tenant_id=organization.id,
-                    campaign_id=campaign.id,
-                    start_at=None,
-                    end_at=None,
-                    route_id=route_id,
-                    settings=settings,
-                )
-                for route_id in ("advertiser.campaign.trips", "advertiser.campaign.daily_metrics")
-            }
-            return len(result.features), *cohort.values()
-
-    assert asyncio.run(outputs()) == (0, False, False)
-    _add_one_trip_car(postgis_db_sessionmaker, admin=admin, campaign=campaign, number=3)
-    assert asyncio.run(outputs()) == (1, True, True)

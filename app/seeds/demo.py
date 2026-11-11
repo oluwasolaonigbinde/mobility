@@ -902,6 +902,7 @@ async def upsert_trips_and_pings(
     specs: list[tuple[str, datetime, list[tuple[float, float]]]] | None = None,
     full_workday: bool = False,
     reporting_only: bool = False,
+    route_offset: float = 0.0,
 ) -> list[TripSession]:
     from app.seeds.demo_authority import SeedStartAuthorityGraph, ensure_demo_start_authority
 
@@ -965,6 +966,7 @@ async def upsert_trips_and_pings(
             started_at=started_at,
             trip_key=trip_key,
             settings=settings,
+            route_offset=route_offset,
         )
         await session.refresh(trip)
         trips.append(trip)
@@ -1216,6 +1218,7 @@ async def ensure_ping_batch(
     started_at: datetime,
     trip_key: str,
     settings: Settings,
+    route_offset: float = 0.0,
 ) -> None:
     from app.seeds.rich import _interpolate_corridor
 
@@ -1224,7 +1227,7 @@ async def ensure_ping_batch(
     elif trip.trip_metadata.get("full_workday"):
         from app.seeds.driver_story import workday_route
 
-        coordinates = workday_route(trip_key)
+        coordinates = workday_route(trip_key, route_offset)
     else:
         coordinates = _interpolate_corridor(tuple(coordinates), 36)
     pings = [
@@ -1545,6 +1548,7 @@ async def upsert_palmpay_graph(  # noqa: C901
         settings=settings,
         specs=palmpay_trip_specs(now),
         full_workday=True,
+        route_offset=5 * 0.00009,
     )
     await upsert_payout_rule(session, campaign=campaign, admin=admin)
     await session.flush()
@@ -1898,11 +1902,7 @@ def print_summary(graph: DemoGraph, summary_counts: dict[str, int]) -> None:
     print("Sample frontend endpoints:")
     print("- POST /api/v1/auth/login")
     print("- GET /api/v1/me")
-    print(f"- GET /api/v1/advertiser/campaigns/{graph.campaign.id}/summary")
-    print(
-        f"- GET /api/v1/advertiser/campaigns/{graph.campaign.id}/heatmap"
-        f"?bbox={DEMO_BBOX}&resolution_m=500&metric=estimated_impressions"
-    )
+    print(f"- GET /api/v1/advertiser/campaigns/{graph.campaign.id}/daily-metrics")
     print("- GET /api/v1/driver/earnings/summary")
 
 

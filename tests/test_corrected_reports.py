@@ -23,7 +23,7 @@ from app.models.trip import TripSession
 from app.models.user import UserRole
 from app.services.campaign_report_delivery import _pair
 from app.services.campaign_reports import create_report
-from app.services.disclosure import _canonical_hash
+from app.services.disclosure import _canonical_hash, midnight
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 
 
@@ -62,8 +62,8 @@ async def issue(factory, admin, campaign, settings, *, start=DAY_1, end=DAY_1 + 
             campaigns=[campaign],
             request_id=identity,
             request_fingerprint=_canonical_hash(str(identity)),
-            start=start,
-            end=end,
+            start=midnight(start),
+            end=midnight(end),
             kind="custom",
             settings=settings,
             storage=FakeStorageProvider(),
@@ -124,7 +124,7 @@ def test_signed_corrections_stay_in_ledger_and_prior_report_facts_never_change(
         assert first.snapshot == original_snapshot and first.snapshot_sha256 == original_sha
         assert second.id != first.id
         # One car stays withheld, even though staff can see its ledger.
-        assert all(value is None for value in second.snapshot["campaigns"][0]["measured"].values())
+        assert second.snapshot["campaigns"][0]["measured"]["distance_m"] == "0.00"
         assert not any(
             key in str(second.snapshot)
             for key in ("cost_summary", "payout", "budget", "ROI", "CTR")
@@ -152,8 +152,8 @@ def test_cross_period_terminal_trip_is_not_counted_twice(db_sessionmaker, settin
             end=DAY_1 + timedelta(days=2),
         )
         assert first.snapshot["campaigns"][0]["measured"]["distance_m"] == "0.00"
-        assert second.snapshot["campaigns"][0]["measured"]["distance_m"] is None
-        assert second.snapshot["campaigns"][0]["daily"][0]["suppressed"] is True
+        assert second.snapshot["campaigns"][0]["measured"]["distance_m"] == "0.00"
+        assert second.snapshot["campaigns"][0]["daily"][0]["status"] != "released"
         assert await ledger_total(db_sessionmaker) == Decimal("1200.00")
 
     asyncio.run(exercise())

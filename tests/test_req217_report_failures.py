@@ -5,18 +5,18 @@ import hashlib
 import importlib.util
 import io
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from conftest import auth_headers, create_test_campaign_creative, create_test_campaign_zone
+from conftest import auth_headers, create_test_campaign_creative
 from PIL import Image
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
-from test_heatmaps import add_ping_batch
-from test_req217_reports import PASSWORD, driving_trip, owner_graph
+from test_req217_reports import PASSWORD, owner_graph
 from test_stored_files import FakeStorageProvider
 
 from app.adapters.storage import ObjectMetadata, StorageUnavailable
@@ -26,8 +26,8 @@ from app.models.campaign import CampaignCreative, CreativeStatus
 from app.models.campaign_report import CampaignReport
 from app.models.report_issuance import ReportArtifact
 from app.models.stored_file import FileUploadIntent, StoredFile
+from app.models.trip import LocationPing
 from app.models.user import User
-from app.services.campaign_report_data import _areas
 from app.services.campaign_report_delivery import (
     _claim,
     _failed,
@@ -43,58 +43,39 @@ from app.services.report_authorization import (
     REPORT_ACTOR_NAME,
     REPORT_ACTOR_PASSWORD,
 )
-from app.services.report_cohorts import select_report_cohort
 
 
 @pytest.mark.parametrize("gps", ["missing", "partial", "outside", "inside"])
-def test_area_zero_requires_complete_retained_gps(db_sessionmaker, settings, gps):
+def test_area_zero_requires_complete_retained_gps(db_sessionmaker, settings, monkeypatch, gps):
+    from test_req311_attacks import CLOCK, area, snapshot, trips
+
+    async def clock(_session):
+        return CLOCK
+
+    monkeypatch.setattr("app.services.payout_rule_serialization.database_clock", clock)
     owner, _, campaign = owner_graph(db_sessionmaker, f"area-{gps}")
-    create_test_campaign_zone(db_sessionmaker, campaign_id=campaign.id, created_by_user_id=owner.id)
-    end = datetime(2020, 1, 2, 10, tzinfo=UTC)
-    for index in range(3):
-        trip = driving_trip(
-            db_sessionmaker, campaign=campaign, suffix=f"{gps}-{index}", ended_at=end
-        )
-        if gps != "missing":
-            lat, lon = (6.50, 3.40) if gps == "inside" else (8.05, 5.05)
-            points = [(trip.started_at + timedelta(minutes=5), lat, lon)]
-            if gps != "partial":
-                points.append((trip.started_at + timedelta(minutes=6), lat, lon))
-            add_ping_batch(
-                db_sessionmaker,
-                trip_id=trip.id,
-                points=points,
-                idempotency_key=f"area-source-{index}",
-            )
+    area(db_sessionmaker, owner, campaign)
+    longitudes = None if gps == "missing" else [3.4 if gps == "inside" else 3.6] * 3
+    records = trips(db_sessionmaker, campaign, longitudes=longitudes)
+    if gps == "partial":
 
-    async def exercise():
-        async with db_sessionmaker() as session:
-            cohort = await select_report_cohort(
-                session,
-                campaign_id=campaign.id,
-                start_at=end - timedelta(days=1),
-                end_at=end + timedelta(hours=1),
-                terminal_period=True,
-                include_money=False,
-                settings=settings,
-            )
-            result = await _areas(
-                session,
-                campaign=campaign,
-                cohort=cohort,
-                driving=list(cohort.analytics),
-                settings=settings,
-                unknown=False,
-            )
-            assert len(result) == 1
-            expected = None if gps in {"missing", "partial"} else (3 if gps == "inside" else 0)
-            assert result[0]["vehicle_count"] == result[0]["trip_count"] == expected
-            expected_views = (
-                None if expected is None else ("75.0000" if gps == "inside" else "0.0000")
-            )
-            assert result[0]["estimated_views"] == expected_views
+        async def drop_one_ping():
+            async with db_sessionmaker() as session:
+                ping = await session.scalar(
+                    select(LocationPing).where(LocationPing.trip_session_id == records[0].id)
+                )
+                await session.delete(ping)
+                await session.commit()
 
-    asyncio.run(exercise())
+        asyncio.run(drop_one_ping())
+    areas = snapshot(db_sessionmaker, settings, owner, campaign)["areas"]
+    if gps in {"missing", "partial"}:
+        # Incomplete retained GPS withholds the week rather than showing a zero.
+        assert areas == []
+    else:
+        expected = 3 if gps == "inside" else 0
+        assert areas[0]["trip_count"] == expected
+        assert Decimal(areas[0]["estimated_views"]) == 25 * expected
 
 
 def test_scheduler_failure_isolated_from_other_company_and_expired_hint_recovery(

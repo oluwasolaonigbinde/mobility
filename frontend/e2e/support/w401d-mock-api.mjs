@@ -208,19 +208,7 @@ const server = createServer(async (request, response) => {
       : [];
     return send(response, 200, { items, total: items.length, limit: 50, offset: 0 });
   }
-  if (request.method === "GET" && url.pathname === "/api/v1/advertiser/dashboard/summary") {
-    return send(response, 200, {
-      impressions: {
-        estimated_impressions: null,
-        estimated_trip_count: null,
-        average_confidence_score: null,
-      },
-      campaigns: { active: 0, total: 0 },
-      assignments: { active: 0 },
-      trips: { total: 0 },
-      quality: { fraud_flags: { open: 0 } },
-    });
-  }
+
   if (request.method === "GET" && url.pathname === "/api/v1/driver/earnings/summary") {
     return send(response, 200, {
       driver_profile_id: ids.profile,

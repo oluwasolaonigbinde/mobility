@@ -25,11 +25,11 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-RENDERER_VERSION = "campaign-report-d118-v3"
+RENDERER_VERSION = "campaign-report-d160-v4"
 MAX_ARTIFACT_BYTES = 8 * 1024 * 1024
 MEASURED = (
     ("cars_deployed", "Cars deployed", "cars"),
-    ("cars_driven", "Cars that drove", "cars"),
+    ("average_cars_per_day", "Average cars per day", "cars per day"),
     ("distance_m", "Verified driving distance", "metres"),
     ("driving_days", "Driving days", "days"),
     ("trip_count", "Verified trips", "trips"),
@@ -55,6 +55,12 @@ def _cell(value):
     result = "" if value is None else str(value)
     dangerous = result.lstrip(" \t\r\n").startswith(("=", "+", "-", "@"))
     return "'" + result if dangerous or result.startswith(("\t", "\r")) else result
+
+
+def _csv_measure(value, unit):
+    if unit == "cars per day" and value is not None:
+        return f"{Decimal(str(value)):.2f}"
+    return value
 
 
 def render_campaign_csv(snapshot: dict) -> bytes:
@@ -88,6 +94,8 @@ def render_campaign_csv(snapshot: dict) -> bytes:
         def row(
             section, metric, value, unit="", day="", area="", artwork="", _prefix=tuple(prefix)
         ):
+            if value is None and unit:
+                value = "\u2014"
             writer.writerow(
                 [_cell(v) for v in [*_prefix, section, metric, value, unit, day, area, artwork]]
             )
@@ -95,9 +103,11 @@ def render_campaign_csv(snapshot: dict) -> bytes:
         row("Campaign", "Campaign start", campaign["start_at"])
         row("Campaign", "Campaign end", campaign["end_at"])
         for key, label, unit in MEASURED:
-            row("Measured results", label, campaign["measured"][key], unit)
+            row("Measured results", label, _csv_measure(campaign["measured"][key], unit), unit)
         row("Estimates", "Estimated views", campaign["estimates"]["views"], "estimated views")
         row("Estimates", "Estimate explanation", UNCERTAINTY)
+        row("Notes", "Completeness", campaign["note"])
+        row("Campaign areas", "Period", "Full weeks only")
         for item in campaign["daily"]:
             for key, label, unit in (
                 ("distance_m", "Verified distance", "metres"),
@@ -109,13 +119,6 @@ def render_campaign_csv(snapshot: dict) -> bytes:
                 row("Daily chart data", label, item[key], unit, item["date"])
         for area in campaign["areas"]:
             row("Campaign areas", "Verified trips", area["trip_count"], "trips", area=area["name"])
-            row(
-                "Campaign areas",
-                "Cars that drove",
-                area["vehicle_count"],
-                "cars",
-                area=area["name"],
-            )
             row(
                 "Estimates",
                 "Estimated views in area",
@@ -139,8 +142,10 @@ def render_campaign_csv(snapshot: dict) -> bytes:
 
 def _number(value, unit=""):
     if value is None:
-        return "Not enough data"
+        return "\u2014"
     number = Decimal(str(value))
+    if unit == "cars per day":
+        return f"{number:,.2f}"
     if unit == "metres":
         return f"{number / 1000:,.2f} km"
     if unit == "seconds":
@@ -295,13 +300,13 @@ def render_campaign_pdf(snapshot: dict) -> bytes:
                     title="Estimated daily views",
                     estimated=True,
                 ),
-                paragraph("Campaign areas", "Heading2"),
+                paragraph("Campaign areas: Full weeks only", "Heading2"),
             ]
         )
         for area in campaign["areas"]:
             detail = (
-                f"{area['vehicle_count']} cars; {area['trip_count']} verified trips"
-                if area["vehicle_count"] is not None
+                f"{area['trip_count']} verified trips"
+                if area["trip_count"] is not None
                 else "Area results unavailable"
             )
             story.append(paragraph(f"{area['name']}: {detail}", "ReportNote"))
@@ -313,7 +318,7 @@ def render_campaign_pdf(snapshot: dict) -> bytes:
                 )
             )
         if not campaign["areas"]:
-            story.append(paragraph("No campaign areas in this reporting period.", "ReportNote"))
+            story.append(paragraph("Area results aren't available for this period.", "ReportNote"))
         story.extend(_creative_previews(campaign, paragraph))
         story.extend([paragraph(campaign["note"], "ReportNote"), Spacer(1, 20)])
     buffer = io.BytesIO()

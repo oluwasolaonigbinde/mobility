@@ -79,16 +79,3 @@ class ImpressionEstimateListResponse(BaseModel):
     total: int
     limit: int
     offset: int
-
-
-class CampaignImpressionSummary(DecimalStringMixin):
-    campaign_id: UUID
-    formula_version: str
-    estimated_impressions: Decimal
-    trip_count: int
-    estimated_trip_count: int
-    insufficient_data_trip_count: int
-    excluded_trip_count: int
-    average_confidence_score: Decimal
-    start_at: datetime | None
-    end_at: datetime | None

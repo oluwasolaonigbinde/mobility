@@ -33,8 +33,9 @@ it("shows the empty state and clearly explains charts, estimates and withheld re
   fetchMock.mockImplementation(async () => Response.json(empty));
   show();
   expect(await screen.findByText("No reports yet.")).toBeInTheDocument();
+  expect(screen.getByText(/Today's daily figures aren't ready yet/)).toBeInTheDocument();
   expect(screen.getByText(/The PDF has charts and pictures of your advert/)).toBeInTheDocument();
-  expect(screen.getByText(/not enough data, not zero/)).toBeInTheDocument();
+  expect(screen.getByText(/finished days\. A hidden result is not zero/)).toBeInTheDocument();
   expect(screen.queryByText(/ROI|CTR|budget figures|money figures/)).not.toBeInTheDocument();
 });
 
@@ -56,7 +57,7 @@ it("sends the selected Nigeria dates and one campaign", async () => {
   expect(sent).toHaveLength(1);
   expect(sent[0]).toMatchObject({
     start_date: "2026-10-19",
-    end_date: "2026-10-21",
+    end_date: "2026-10-20",
     campaign_id: "campaign",
   });
   expect(sent[0]?.client_request_id).toMatch(/^[\da-f-]{36}$/);

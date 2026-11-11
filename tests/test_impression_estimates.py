@@ -468,63 +468,6 @@ def test_admin_can_list_and_filter_impression_estimates(db_client, db_sessionmak
     assert response.json()["items"][0]["campaign_id"] == str(campaign.id)
 
 
-def test_advertiser_summary_is_scoped_and_aggregates_stored_estimates(
-    db_client,
-    db_sessionmaker,
-) -> None:
-    _, advertiser, _, campaign, _, _, _, trip, _ = create_estimation_graph(
-        db_sessionmaker,
-        advertiser_email="adv-summary@example.com",
-        driver_email="driver-summary@example.com",
-        plate_number="SUM-123",
-    )
-    estimate = db_client.post(
-        f"/api/v1/admin/trips/{trip.id}/estimate-impressions",
-        headers=admin_headers(db_client),
-        json={},
-    )
-    assert estimate.status_code == http_status.HTTP_200_OK
-
-    advertiser_headers = auth_headers(db_client, advertiser.email, PASSWORD)
-    own = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
-        headers=advertiser_headers,
-    )
-
-    other_advertiser = create_test_user(
-        db_sessionmaker,
-        email="other-adv@example.com",
-        password=PASSWORD,
-        role=UserRole.ADVERTISER,
-    )
-    create_test_organization(db_sessionmaker, name="Other Org", owner_user_id=other_advertiser.id)
-    other = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
-        headers=auth_headers(db_client, other_advertiser.email, PASSWORD),
-    )
-    empty_campaign = create_test_campaign(
-        db_sessionmaker,
-        organization_id=campaign.organization_id,
-        created_by_user_id=advertiser.id,
-        name="Empty",
-        campaign_status=CampaignStatus.ACTIVE,
-    )
-    empty = db_client.get(
-        f"/api/v1/advertiser/campaigns/{empty_campaign.id}/impressions/summary",
-        headers=advertiser_headers,
-    )
-
-    assert own.status_code == http_status.HTTP_200_OK
-    assert own.json()["estimated_impressions"] == "825.00"
-    assert own.json()["trip_count"] == 1
-    assert own.json()["estimated_trip_count"] == 1
-    assert own.json()["average_confidence_score"] == "0.5000"
-    assert other.status_code == http_status.HTTP_404_NOT_FOUND
-    assert empty.status_code == http_status.HTTP_409_CONFLICT
-    assert empty.json()["error"]["code"] == "DISCLOSURE_SUPPRESSED"
-    assert empty.json()["error"]["details"] == {"reason": "minimum_cars"}
-
-
 def test_stale_authoritative_estimate_is_excluded_until_recomputed(
     db_client,
     db_sessionmaker,
@@ -553,93 +496,31 @@ def test_stale_authoritative_estimate_is_excluded_until_recomputed(
             await session.commit()
 
     asyncio.run(stale_analytics())
-    advertiser_headers = auth_headers(db_client, advertiser.email, PASSWORD)
-    stale_summary = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
-        headers=advertiser_headers,
-    )
-    assert stale_summary.status_code == http_status.HTTP_200_OK
-    assert stale_summary.json()["estimated_impressions"] == "0.00"
-    assert stale_summary.json()["trip_count"] == 0
 
+    async def current():
+        from app.core.config import Settings
+        from app.services.impressions import current_authoritative_estimates
+
+        async with db_sessionmaker() as session:
+            rows = list(
+                await session.scalars(
+                    select(ImpressionEstimate).where(ImpressionEstimate.trip_session_id == trip.id)
+                )
+            )
+            return await current_authoritative_estimates(
+                session, rows, settings=Settings(environment="test")
+            )
+
+    assert asyncio.run(current()) == []
     recomputed = db_client.post(
         f"/api/v1/admin/trips/{trip.id}/estimate-impressions",
         headers=headers,
         json={},
     )
-    fresh_summary = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
-        headers=advertiser_headers,
-    )
     assert recomputed.status_code == http_status.HTTP_200_OK
     assert recomputed.json()["id"] == estimated.json()["id"]
     assert recomputed.json()["is_authoritative"] is True
-    assert (
-        fresh_summary.json()["estimated_impressions"] == recomputed.json()["estimated_impressions"]
-    )
-    assert fresh_summary.json()["trip_count"] == 1
-
-
-def test_advertiser_summary_excludes_non_current_formula_estimates(
-    db_client,
-    db_sessionmaker,
-) -> None:
-    _, advertiser, _, campaign, profile, vehicle, assignment, trip, analytics = (
-        create_estimation_graph(
-            db_sessionmaker,
-            advertiser_email="adv-summary-formula@example.com",
-            driver_email="driver-summary-formula@example.com",
-            plate_number="SMF-123",
-        )
-    )
-    estimate = db_client.post(
-        f"/api/v1/admin/trips/{trip.id}/estimate-impressions",
-        headers=admin_headers(db_client),
-        json={},
-    )
-    assert estimate.status_code == http_status.HTTP_200_OK
-
-    async def add_old_formula_estimate() -> None:
-        async with db_sessionmaker() as session:
-            session.add(
-                ImpressionEstimate(
-                    trip_session_id=trip.id,
-                    trip_analytics_id=analytics.id,
-                    assignment_id=assignment.id,
-                    campaign_id=campaign.id,
-                    driver_profile_id=profile.id,
-                    vehicle_id=vehicle.id,
-                    traffic_density_profile_id=None,
-                    formula_version="impressions_v0",
-                    status="estimated",
-                    estimated_impressions=Decimal("999.00"),
-                    base_distance_impressions=Decimal("999.00"),
-                    dwell_impressions=Decimal("0.00"),
-                    target_zone_impressions=Decimal("0.00"),
-                    bonus_zone_impressions=Decimal("0.00"),
-                    exclusion_zone_adjustment=Decimal("0.00"),
-                    quality_multiplier=Decimal("1.0000"),
-                    fraud_adjustment_multiplier=Decimal("1.0000"),
-                    confidence_score=Decimal("1.0000"),
-                    started_at=analytics.started_at,
-                    ended_at=analytics.ended_at,
-                    estimated_at=BASE_TIME,
-                    estimate_metadata={"formula_version": "impressions_v0"},
-                )
-            )
-            await session.commit()
-
-    asyncio.run(add_old_formula_estimate())
-
-    summary = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
-        headers=auth_headers(db_client, advertiser.email, PASSWORD),
-    )
-
-    assert summary.status_code == http_status.HTTP_200_OK
-    assert summary.json()["formula_version"] == "impressions_v1"
-    assert summary.json()["estimated_impressions"] == "825.00"
-    assert summary.json()["trip_count"] == 1
+    assert len(asyncio.run(current())) == 1
 
 
 def test_impression_endpoints_enforce_roles(db_client, db_sessionmaker) -> None:
@@ -661,23 +542,5 @@ def test_impression_endpoints_enforce_roles(db_client, db_sessionmaker) -> None:
         assert response.status_code == http_status.HTTP_403_FORBIDDEN
     assert (
         db_client.post(f"/api/v1/admin/trips/{trip.id}/estimate-impressions").status_code
-        == http_status.HTTP_401_UNAUTHORIZED
-    )
-    assert (
-        db_client.get(
-            f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
-            headers=driver_headers,
-        ).status_code
-        == http_status.HTTP_403_FORBIDDEN
-    )
-    assert (
-        db_client.get(
-            f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
-            headers=admin_headers(db_client),
-        ).status_code
-        == http_status.HTTP_403_FORBIDDEN
-    )
-    assert (
-        db_client.get(f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary").status_code
         == http_status.HTTP_401_UNAUTHORIZED
     )

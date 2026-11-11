@@ -4,17 +4,15 @@ import hashlib
 import json
 from collections import Counter
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
-
-if TYPE_CHECKING:
-    from app.services.report_cohorts import ReportCohort
 
 from app.core.config import Settings
 from app.core.errors import AppError
@@ -29,15 +27,10 @@ from app.models.trip_analytics import FraudFlag, TripAnalytics
 
 DISCLOSURE_ROUTE_INVENTORY = frozenset(
     {
-        "advertiser.dashboard.summary",
-        "advertiser.campaign.summary",
         "advertiser.campaign.daily_metrics",
-        "advertiser.campaign.trips",
         "advertiser.campaign.report",
         "advertiser.campaign.performance",
         "advertiser.campaign.live_positions",
-        "advertiser.campaign.impressions_summary",
-        "advertiser.campaign.heatmap",
         "admin.heatmap",
     }
 )
@@ -198,17 +191,6 @@ def disclosure_suppressed(reason: str) -> AppError:
     )
 
 
-def _add_contribution(
-    contributions: dict[str, Counter[UUID]],
-    metric: str,
-    vehicle_id: UUID,
-    value: int | float | Decimal | None,
-) -> None:
-    amount = Decimal(str(value or 0))
-    if amount > 0:
-        contributions.setdefault(metric, Counter())[vehicle_id] += amount
-
-
 def frozen_manifest_meets_disclosure_floor(manifest: dict[str, Any], *, settings: Settings) -> bool:
     authority = manifest.get("disclosure_authority")
     if isinstance(authority, dict):
@@ -270,214 +252,6 @@ def frozen_manifest_meets_disclosure_floor(manifest: dict[str, Any], *, settings
     return len(set(vehicle_by_trip.values())) >= settings.privacy_min_vehicles_per_cell and all(
         len(vehicles) >= settings.privacy_min_vehicles_per_cell
         for vehicles in vehicles_by_day.values()
-    )
-
-
-async def _dated_outputs_meet_floor(
-    session: AsyncSession,
-    *,
-    tenant_id: UUID,
-    campaign_id: UUID | None,
-    start_at: datetime | None,
-    end_at: datetime | None,
-    route_id: str,
-    settings: Settings,
-) -> bool:
-    """D107 for a date range: estimates, costs and fraud flags are picked by their own
-    timestamps, not by trip start, so each released set needs three cars of its own."""
-    from app.services.impressions import current_authoritative_estimates
-    from app.services.payouts.ledger import latest_payout_calculation_ids
-
-    def scoped(statement, model, stamp):
-        if campaign_id is not None:
-            statement = statement.where(model.campaign_id == campaign_id)
-        else:
-            statement = statement.join(Campaign, Campaign.id == model.campaign_id).where(
-                Campaign.organization_id == tenant_id
-            )
-        if start_at is not None:
-            statement = statement.where(stamp >= start_at)
-        if end_at is not None:
-            statement = statement.where(stamp <= end_at)
-        return statement
-
-    estimates = await current_authoritative_estimates(
-        session,
-        list(
-            await session.scalars(
-                scoped(
-                    select(ImpressionEstimate).where(
-                        ImpressionEstimate.formula_version == settings.impression_formula_version,
-                        ImpressionEstimate.is_authoritative.is_(True),
-                    ),
-                    ImpressionEstimate,
-                    ImpressionEstimate.estimated_at,
-                )
-            )
-        ),
-        settings=settings,
-    )
-    released = [{row.vehicle_id for row in estimates}]
-    if route_id != "advertiser.campaign.impressions_summary":
-        latest = (
-            latest_payout_calculation_ids(campaign_id=campaign_id)
-            if campaign_id is not None
-            else latest_payout_calculation_ids(organization_id=tenant_id)
-        )
-        released.append(
-            set(
-                await session.scalars(
-                    scoped(
-                        select(PayoutCalculation.vehicle_id).where(
-                            PayoutCalculation.id.in_(latest)
-                        ),
-                        PayoutCalculation,
-                        PayoutCalculation.calculated_at,
-                    )
-                )
-            )
-        )
-        released.append(
-            set(
-                await session.scalars(
-                    scoped(select(FraudFlag.vehicle_id), FraudFlag, FraudFlag.detected_at)
-                )
-            )
-        )
-    return all(
-        len(vehicles) >= settings.privacy_min_vehicles_per_cell for vehicles in released if vehicles
-    )
-
-
-async def trip_cohort_meets_disclosure_floor(
-    session: AsyncSession,
-    *,
-    tenant_id: UUID,
-    campaign_id: UUID | None,
-    start_at: datetime | None,
-    end_at: datetime | None,
-    route_id: str,
-    settings: Settings,
-    return_manifest: bool = False,
-    cohort: ReportCohort | None = None,
-) -> bool | dict[str, Any]:
-    filters = [Campaign.organization_id == tenant_id]
-    if campaign_id is not None:
-        filters.append(TripSession.campaign_id == campaign_id)
-    if cohort is None and start_at is not None:
-        filters.append(TripSession.started_at >= start_at)
-    if cohort is None and end_at is not None:
-        filters.append(TripSession.started_at <= end_at)
-    if cohort is not None:
-        filters.append(TripSession.id.in_(cohort.trip_ids))
-    rows = (
-        await session.execute(
-            select(
-                TripSession.id,
-                TripSession.vehicle_id,
-                (
-                    TripSession.ended_at
-                    if cohort is not None and cohort.terminal_period
-                    else TripSession.started_at
-                ).label("started_at"),
-                TripSession.status,
-            )
-            .join(Campaign, Campaign.id == TripSession.campaign_id)
-            .where(*filters)
-        )
-    ).all()
-    if not rows:
-        if return_manifest:
-            return {
-                "passed": False,
-                "vehicle_count": 0,
-                "trip_count": 0,
-                "day_count": 0,
-                "contributions": {},
-            }
-        return False
-    vehicles = Counter(row.vehicle_id for row in rows)
-    daily_metrics = route_id == "advertiser.campaign.daily_metrics"
-    # D107: the only rule is three distinct cars (per day for daily rows). The trip counts
-    # stay in the manifest so a frozen report can re-check its daily rows.
-    contributions: dict[str, Counter[UUID]] = {}
-    for row in rows:
-        day = _utc_date(row.started_at)
-        metric = f"trip_count:{day}" if daily_metrics else f"trip_status:{row.status}"
-        _add_contribution(contributions, metric, row.vehicle_id, 1)
-    passed = len(vehicles) >= settings.privacy_min_vehicles_per_cell and (
-        not daily_metrics
-        or all(
-            len(values) >= settings.privacy_min_vehicles_per_cell
-            for values in contributions.values()
-        )
-    )
-    if passed and cohort is None and not daily_metrics and (start_at or end_at):
-        passed = await _dated_outputs_meet_floor(
-            session,
-            tenant_id=tenant_id,
-            campaign_id=campaign_id,
-            start_at=start_at,
-            end_at=end_at,
-            route_id=route_id,
-            settings=settings,
-        )
-    if not return_manifest:
-        return passed
-    return {
-        "passed": passed,
-        "vehicle_count": len(vehicles),
-        "trip_count": len(rows),
-        "day_count": len({_utc_date(row.started_at) for row in rows}),
-        "contributions": {
-            metric: {str(vehicle_id): str(value) for vehicle_id, value in values.items()}
-            for metric, values in sorted(contributions.items())
-        },
-    }
-
-
-async def record_governed_trip_output(
-    session: AsyncSession,
-    *,
-    settings: Settings,
-    route_id: str,
-    principal_id: UUID,
-    tenant_id: UUID,
-    campaign_id: UUID | None,
-    start_at: datetime | None,
-    end_at: datetime | None,
-    filters: dict[str, Any],
-    result: Any,
-    contribution_manifest: dict[str, Any] | None = None,
-) -> None:
-    serialized = result.model_dump(mode="json") if hasattr(result, "model_dump") else result
-    has_releasable_cells = (
-        frozen_manifest_meets_disclosure_floor(contribution_manifest, settings=settings)
-        if contribution_manifest is not None
-        else await trip_cohort_meets_disclosure_floor(
-            session,
-            tenant_id=tenant_id,
-            campaign_id=campaign_id,
-            start_at=start_at,
-            end_at=end_at,
-            route_id=route_id,
-            settings=settings,
-        )
-    )
-    await record_disclosure(
-        session,
-        query=DisclosureQuery(
-            route_id=route_id,
-            principal_id=principal_id,
-            tenant_id=tenant_id,
-            campaign_id=campaign_id,
-            start_at=start_at,
-            end_at=end_at,
-            filters=filters,
-        ),
-        settings=settings,
-        has_releasable_cells=has_releasable_cells,
-        result_hash=_canonical_hash(serialized),
     )
 
 
@@ -562,7 +336,7 @@ async def record_heatmap_disclosure(
     has_releasable_cells: bool,
     result_hash: str,
 ) -> None:
-    if query.route_id not in {"advertiser.campaign.heatmap", "admin.heatmap"}:
+    if query.route_id not in {"admin.heatmap"}:
         raise RuntimeError("Heatmap disclosure history received a non-heatmap route")
     await record_disclosure(
         session,
@@ -571,3 +345,148 @@ async def record_heatmap_disclosure(
         has_releasable_cells=has_releasable_cells,
         result_hash=result_hash,
     )
+
+
+LAGOS = ZoneInfo("Africa/Lagos")
+
+
+def aware(value):
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+
+def midnight(value):
+    return datetime.combine(aware(value).astimezone(LAGOS).date(), time.min, LAGOS)
+
+
+def after_day(value):
+    return midnight(value) + timedelta(days=1)
+
+
+def validate_window(start, end):
+    for value in (start, end):
+        if value is not None and aware(value) != midnight(value):
+            raise AppError("REPORT_PERIOD_INVALID", "Choose whole Nigeria days", status_code=422)
+    if start is not None and end is not None and start >= end:
+        raise AppError(
+            "REPORT_PERIOD_INVALID", "Choose a nonempty reporting period", status_code=422
+        )
+
+
+def trip_final(trip, analytics):
+    if trip.evidence_adjudication_outcome == "incomplete_grace_expired":
+        return True
+    return (
+        trip.status == "sealed"
+        and trip.sealed_at is not None
+        and analytics is not None
+        and aware(analytics.computed_at) >= aware(trip.sealed_at)
+    )
+
+
+def released_totals(days):
+    released = [d for d in days if d.status == "released"]
+
+    def total(field):
+        return sum((getattr(d, field) for d in released), Decimal(0))
+
+    return {
+        "distance_m": total("distance_m").quantize(Decimal("0.01")),
+        "trip_count": int(total("trip_count")),
+        "driving_seconds": int(total("driving_seconds")),
+        "driving_days": sum(d.trip_count > 0 for d in released),
+        "average_cars_per_day": total("vehicle_count") / len(released) if released else None,
+        "estimated_views": total("estimated_impressions")
+        if all(d.estimated_impressions is not None for d in released)
+        else None,
+    }
+
+
+def area_week_figures(trips, cells_by_zone, estimates):
+    """Pure exact-membership partition release; no query-history state."""
+    membership = {str(t.id): set() for t in trips}
+    for zone, cells in cells_by_zone.items():
+        for cell in cells:
+            membership[str(cell["trip_session_id"])].add(zone)
+    partitions = {}
+    for trip in trips:
+        partitions.setdefault(frozenset(membership[str(trip.id)]), set()).add(trip.vehicle_id)
+    if any(len(cars) < 3 for cars in partitions.values()):
+        return None
+    figures = {}
+    for zone, cells in cells_by_zone.items():
+        members = {str(c["trip_session_id"]) for c in cells}
+        allocated = {}
+        for c in cells:
+            ident = str(c["trip_session_id"])
+            key = (c["grid_x"], c["grid_y"])
+            if ident in estimates:
+                allocated[key] = allocated.get(key, Decimal(0)) + estimates[ident] * Decimal(
+                    c["cell_ping_count"]
+                ) / Decimal(c["total_ping_count"])
+        figures[zone] = {
+            "trip_count": len(members),
+            "estimated_views": sum(
+                (v.quantize(Decimal("0.0001")) for v in allocated.values()), Decimal(0)
+            )
+            if members <= estimates.keys()
+            else None,
+        }
+    return figures
+
+
+async def blocked_days(session, *, campaign_id, start, end, now):
+    from app.services.fraud_holds import fraud_hold_active_clause
+    from app.services.trips import _last_location_at
+
+    active = list(
+        await session.scalars(
+            select(_last_location_at()).where(
+                TripSession.campaign_id == campaign_id, TripSession.status == "active"
+            )
+        )
+    )
+    held = list(
+        await session.scalars(
+            select(TripSession.ended_at)
+            .join(FraudFlag, FraudFlag.trip_session_id == TripSession.id)
+            .where(
+                TripSession.campaign_id == campaign_id,
+                TripSession.ended_at >= start,
+                TripSession.ended_at < end,
+                fraud_hold_active_clause(),
+            )
+        )
+    )
+    blocked = {aware(at).astimezone(LAGOS).date() for at in held}
+    day = midnight(start)
+    while day < end:
+        boundary = day + timedelta(days=1)
+        if now < boundary or any(aware(at) < boundary for at in active):
+            blocked.add(day.date())
+        day = boundary
+    return blocked
+
+
+async def load_cells(session, *, campaign_id, start, end, settings, now):
+    from app.services.report_cohorts import select_report_cohort
+    from app.services.reports import campaign_daily_series
+
+    validate_window(start, end)
+    cohort = await select_report_cohort(
+        session,
+        campaign_id=campaign_id,
+        start_at=start,
+        end_at=end,
+        settings=settings,
+        terminal_period=True,
+        include_money=False,
+    )
+    blocked = await blocked_days(session, campaign_id=campaign_id, start=start, end=end, now=now)
+    days = campaign_daily_series(
+        cohort,
+        start_day=start.astimezone(LAGOS).date(),
+        end_day=(end - timedelta(microseconds=1)).astimezone(LAGOS).date(),
+        now=now,
+        blocked_days=blocked,
+    )
+    return cohort, days

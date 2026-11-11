@@ -21,11 +21,9 @@ from app.schemas.heatmaps import (
     HeatmapMetric,
 )
 from app.services.admin_authorization import require_active_admin
-from app.services.campaigns import get_advertiser_campaign
 from app.services.disclosure import (
     DisclosureQuery,
     record_heatmap_disclosure,
-    require_governed_advertiser_output,
 )
 
 DECIMAL_2 = Decimal("0.01")
@@ -224,53 +222,6 @@ async def ensure_admin_filter_consistency(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     return campaign_org_id
-
-
-async def advertiser_campaign_heatmap(
-    session: AsyncSession,
-    *,
-    user_id: UUID,
-    campaign_id: UUID,
-    query: HeatmapQuery,
-    settings: Settings,
-) -> HeatmapFeatureCollection:
-    await require_governed_advertiser_output(
-        session,
-        settings=settings,
-        route_id="advertiser.campaign.heatmap",
-        user_id=user_id,
-    )
-    campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
-    result = await build_heatmap(
-        session,
-        query=query,
-        settings=settings,
-        campaign_id=campaign.id,
-        organization_id=None,
-        vehicle_type=None,
-        metadata_campaign_id=campaign.id,
-        metadata_organization_id=None,
-    )
-    await record_heatmap_disclosure(
-        session,
-        query=DisclosureQuery(
-            route_id="advertiser.campaign.heatmap",
-            principal_id=user_id,
-            tenant_id=campaign.organization_id,
-            campaign_id=campaign.id,
-            start_at=query.start_at,
-            end_at=query.end_at,
-            filters={
-                "bbox": query.bbox,
-                "resolution_m": query.resolution_m,
-                "metric": query.metric.value,
-            },
-        ),
-        settings=settings,
-        has_releasable_cells=bool(result.features),
-        result_hash=heatmap_result_hash(result),
-    )
-    return result
 
 
 async def admin_heatmap(

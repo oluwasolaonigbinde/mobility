@@ -248,50 +248,46 @@ def test_heatmap_validation_rbac_cross_org_and_scope_guards(db_client, db_sessio
         name="Other heatmap org",
         owner_user_id=other_advertiser.id,
     )
-    other_campaign = create_test_campaign(
-        db_sessionmaker,
-        organization_id=other_org.id,
-        created_by_user_id=other_advertiser.id,
-    )
     advertiser_headers = auth_headers(db_client, advertiser.email, PASSWORD)
 
+    admin_headers = auth_headers(db_client, admin.email, PASSWORD)
     missing_bbox = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
-        headers=advertiser_headers,
+        "/api/v1/admin/heatmap",
+        headers=admin_headers,
     )
     malformed_bbox = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
-        headers=advertiser_headers,
+        "/api/v1/admin/heatmap",
+        headers=admin_headers,
         params={"bbox": "3.30,6.40,3.55"},
     )
     reversed_bbox = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
-        headers=advertiser_headers,
+        "/api/v1/admin/heatmap",
+        headers=admin_headers,
         params={"bbox": "3.55,6.40,3.30,6.60"},
     )
     too_large = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
-        headers=advertiser_headers,
+        "/api/v1/admin/heatmap",
+        headers=admin_headers,
         params={"bbox": "0,0,10,10"},
     )
     bad_resolution = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
-        headers=advertiser_headers,
+        "/api/v1/admin/heatmap",
+        headers=admin_headers,
         params={"bbox": BBOX, "resolution_m": 10},
     )
     too_many_cells = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
-        headers=advertiser_headers,
+        "/api/v1/admin/heatmap",
+        headers=admin_headers,
         params={"bbox": BBOX, "resolution_m": 50},
     )
     bad_metric = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
-        headers=advertiser_headers,
+        "/api/v1/admin/heatmap",
+        headers=admin_headers,
         params={"bbox": BBOX, "metric": "raw_gps"},
     )
     bad_date = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
-        headers=advertiser_headers,
+        "/api/v1/admin/heatmap",
+        headers=admin_headers,
         params={
             "bbox": BBOX,
             "start_at": "2026-06-02T00:00:00Z",
@@ -299,8 +295,8 @@ def test_heatmap_validation_rbac_cross_org_and_scope_guards(db_client, db_sessio
         },
     )
     long_date = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
-        headers=advertiser_headers,
+        "/api/v1/admin/heatmap",
+        headers=admin_headers,
         params={
             "bbox": BBOX,
             "start_at": "2026-01-01T00:00:00Z",
@@ -308,8 +304,8 @@ def test_heatmap_validation_rbac_cross_org_and_scope_guards(db_client, db_sessio
         },
     )
     just_over_max_date = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
-        headers=advertiser_headers,
+        "/api/v1/admin/heatmap",
+        headers=admin_headers,
         params={
             "bbox": BBOX,
             "start_at": "2026-01-01T00:00:00Z",
@@ -317,17 +313,12 @@ def test_heatmap_validation_rbac_cross_org_and_scope_guards(db_client, db_sessio
         },
     )
     naive_start_at = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
-        headers=advertiser_headers,
+        "/api/v1/admin/heatmap",
+        headers=admin_headers,
         params={
             "bbox": BBOX,
             "start_at": "2026-06-01T00:00:00",
         },
-    )
-    cross_org = db_client.get(
-        f"/api/v1/advertiser/campaigns/{other_campaign.id}/heatmap",
-        headers=advertiser_headers,
-        params={"bbox": BBOX},
     )
     advertiser_as_admin = db_client.get(
         "/api/v1/admin/heatmap",
@@ -337,11 +328,6 @@ def test_heatmap_validation_rbac_cross_org_and_scope_guards(db_client, db_sessio
     driver_as_admin = db_client.get(
         "/api/v1/admin/heatmap",
         headers=auth_headers(db_client, driver.email, PASSWORD),
-        params={"bbox": BBOX},
-    )
-    admin_as_advertiser = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
-        headers=auth_headers(db_client, admin.email, PASSWORD),
         params={"bbox": BBOX},
     )
     unauthenticated = db_client.get("/api/v1/admin/heatmap", params={"bbox": BBOX})
@@ -368,34 +354,32 @@ def test_heatmap_validation_rbac_cross_org_and_scope_guards(db_client, db_sessio
     assert just_over_max_date.json()["error"]["code"] == "HEATMAP_DATE_RANGE_TOO_LARGE"
     assert naive_start_at.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
     assert naive_start_at.json()["error"]["code"] == "VALIDATION_ERROR"
-    assert cross_org.status_code == http_status.HTTP_404_NOT_FOUND
     assert advertiser_as_admin.status_code == http_status.HTTP_403_FORBIDDEN
     assert driver_as_admin.status_code == http_status.HTTP_403_FORBIDDEN
-    assert admin_as_advertiser.status_code == http_status.HTTP_403_FORBIDDEN
     assert unauthenticated.status_code == http_status.HTTP_401_UNAUTHORIZED
     assert mismatch.status_code == http_status.HTTP_400_BAD_REQUEST
     assert mismatch.json()["error"]["code"] == "INVALID_HEATMAP_FILTERS"
 
 
-def test_advertiser_heatmap_aggregates_metrics_and_preserves_privacy(
+def test_admin_heatmap_aggregates_metrics_and_preserves_privacy(
     postgis_db_client,
     postgis_db_sessionmaker,
 ) -> None:
-    _, advertiser, _, campaign, driver, profile, vehicle, _, _ = create_heatmap_graph(
+    admin, advertiser, _, campaign, driver, profile, vehicle, _, _ = create_heatmap_graph(
         postgis_db_sessionmaker
     )
-    headers = auth_headers(postgis_db_client, advertiser.email, PASSWORD)
+    headers = auth_headers(postgis_db_client, admin.email, PASSWORD)
     before_estimates = len(fetch_impression_estimates(postgis_db_sessionmaker))
     before_payouts = len(fetch_payout_calculations(postgis_db_sessionmaker))
     before_ledger = len(fetch_earnings_ledger_entries(postgis_db_sessionmaker))
 
     response = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
+        "/api/v1/admin/heatmap",
         headers=headers,
         params={"bbox": BBOX, "resolution_m": 500, "metric": "estimated_impressions"},
     )
     date_filtered = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
+        "/api/v1/admin/heatmap",
         headers=headers,
         params={
             "bbox": BBOX,
@@ -405,12 +389,12 @@ def test_advertiser_heatmap_aggregates_metrics_and_preserves_privacy(
         },
     )
     trip_metric = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
+        "/api/v1/admin/heatmap",
         headers=headers,
         params={"bbox": BBOX, "resolution_m": 500, "metric": "trip_count"},
     )
     distance_metric = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
+        "/api/v1/admin/heatmap",
         headers=headers,
         params={"bbox": BBOX, "resolution_m": 500, "metric": "distance_m"},
     )
@@ -419,7 +403,7 @@ def test_advertiser_heatmap_aggregates_metrics_and_preserves_privacy(
     serialized = str(data)
     assert response.status_code == http_status.HTTP_200_OK
     assert data["type"] == "FeatureCollection"
-    assert data["metadata"]["campaign_id"] == str(campaign.id)
+    assert data["metadata"]["campaign_id"] is None
     assert data["metadata"]["metric"] == "estimated_impressions"
     assert data["metadata"]["aggregation_version"] == "heatmap_v1"
     assert len(data["features"]) == 1
@@ -459,7 +443,7 @@ def test_heatmap_slices_conserve_authoritative_trip_totals(
     postgis_db_client,
     postgis_db_sessionmaker,
 ) -> None:
-    _, advertiser, _, campaign, _, _, _, trip, _ = create_heatmap_graph(
+    admin, advertiser, _, campaign, _, _, _, trip, _ = create_heatmap_graph(
         postgis_db_sessionmaker,
         advertiser_email="heatmap-conservation-advertiser@example.com",
         driver_email="heatmap-conservation-driver@example.com",
@@ -474,10 +458,10 @@ def test_heatmap_slices_conserve_authoritative_trip_totals(
             (RECORDED_AT + timedelta(minutes=35), 6.45, 3.39),
         ],
     )
-    headers = auth_headers(postgis_db_client, advertiser.email, PASSWORD)
+    headers = auth_headers(postgis_db_client, admin.email, PASSWORD)
 
     first_slice = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
+        "/api/v1/admin/heatmap",
         headers=headers,
         params={
             "bbox": BBOX,
@@ -488,7 +472,7 @@ def test_heatmap_slices_conserve_authoritative_trip_totals(
         },
     )
     second_slice = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
+        "/api/v1/admin/heatmap",
         headers=headers,
         params={
             "bbox": BBOX,
@@ -735,11 +719,11 @@ def test_heatmap_empty_cohort_is_suppressed(
     postgis_db_client,
     postgis_db_sessionmaker,
 ) -> None:
-    _, advertiser, _, campaign, *_ = create_heatmap_graph(postgis_db_sessionmaker)
-    headers = auth_headers(postgis_db_client, advertiser.email, PASSWORD)
+    admin, advertiser, _, campaign, *_ = create_heatmap_graph(postgis_db_sessionmaker)
+    headers = auth_headers(postgis_db_client, admin.email, PASSWORD)
 
     response = postgis_db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
+        "/api/v1/admin/heatmap",
         headers=headers,
         params={
             "bbox": BBOX,
@@ -768,12 +752,12 @@ def test_heatmap_endpoint_does_not_create_rows(
     db_client,
     db_sessionmaker,
 ) -> None:
-    _, advertiser, _, campaign, *_ = create_heatmap_graph(db_sessionmaker)
-    headers = auth_headers(db_client, advertiser.email, PASSWORD)
+    admin, advertiser, _, campaign, *_ = create_heatmap_graph(db_sessionmaker)
+    headers = auth_headers(db_client, admin.email, PASSWORD)
 
     before = asyncio.run(count_rows(db_sessionmaker))
     response = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
+        "/api/v1/admin/heatmap",
         headers=headers,
         params={"bbox": BBOX},
     )

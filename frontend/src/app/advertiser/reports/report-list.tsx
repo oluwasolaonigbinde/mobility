@@ -38,8 +38,11 @@ export function Reports({
   const queryClient = useQueryClient();
   const [offset, setOffset] = useState(0);
   const [selection, setSelection] = useState(campaignId || "all");
-  const [start, setStart] = useState(today);
-  const [end, setEnd] = useState(today);
+  const yesterday = new Date(Date.parse(today + "T00:00:00Z") - 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const [start, setStart] = useState(yesterday);
+  const [end, setEnd] = useState(yesterday);
   const [pendingRequest, setPending] = useState<RequestBody | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -145,7 +148,7 @@ export function Reports({
         >
           <h2 className="font-display text-xl font-semibold">Download a report</h2>
           <p className="text-muted text-sm">
-            Choose Nigeria calendar dates (WAT). Today includes results verified so far.
+            Choose Nigeria calendar dates (WAT). Today&apos;s daily figures aren&apos;t ready yet.
           </p>
           <div className="grid gap-4 md:grid-cols-2">
             <label className="text-ink flex min-w-0 flex-col gap-1.5 text-sm font-medium md:col-span-2">
@@ -199,7 +202,8 @@ export function Reports({
           <p className="text-muted max-w-3xl text-sm leading-relaxed">
             The PDF has charts and pictures of your advert. The CSV has the same results for a
             spreadsheet. Views are estimates. To protect drivers&apos; privacy, we only show a
-            result when at least three cars drove. A hidden result means not enough data, not zero.
+            result when at least three cars drove, and only for finished days. A hidden result is
+            not zero.
           </p>
         </form>
       </Panel>

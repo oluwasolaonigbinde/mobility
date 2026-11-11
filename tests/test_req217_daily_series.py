@@ -13,7 +13,16 @@ def cohort_for(ended_at, *, cars=3, incomplete=False):
     trips, analytics, estimates = [], [], []
     for _ in range(cars):
         trip_id, car_id = uuid4(), uuid4()
-        trips.append(SimpleNamespace(id=trip_id, ended_at=ended_at, vehicle_id=car_id))
+        trips.append(
+            SimpleNamespace(
+                id=trip_id,
+                ended_at=ended_at,
+                vehicle_id=car_id,
+                status="sealed",
+                sealed_at=ended_at,
+                evidence_adjudication_outcome=None,
+            )
+        )
         if incomplete:
             continue
         analytics.append(
@@ -21,6 +30,7 @@ def cohort_for(ended_at, *, cars=3, incomplete=False):
                 trip_session_id=trip_id,
                 vehicle_id=car_id,
                 status="computed",
+                computed_at=ended_at,
                 distance_m=Decimal("1000"),
                 moving_seconds=120,
             )
@@ -37,7 +47,12 @@ def cohort_for(ended_at, *, cars=3, incomplete=False):
 
 def test_end_time_is_assigned_to_nigeria_day_and_empty_days_are_zero():
     cohort = cohort_for(datetime(2026, 10, 20, 23, 30, tzinfo=UTC))
-    rows = campaign_daily_series(cohort, start_day=date(2026, 10, 15), end_day=date(2026, 10, 21))
+    rows = campaign_daily_series(
+        cohort,
+        now=datetime(2026, 11, 1, tzinfo=UTC),
+        start_day=date(2026, 10, 15),
+        end_day=date(2026, 10, 21),
+    )
     assert len(rows) == 7
     assert [row.date for row in rows] == [date(2026, 10, day) for day in range(15, 22)]
     assert rows[-1].vehicle_count == 3
@@ -45,11 +60,11 @@ def test_end_time_is_assigned_to_nigeria_day_and_empty_days_are_zero():
     assert rows[-1].distance_m == Decimal("3000")
     assert rows[-1].driving_seconds == 360
     assert rows[-1].estimated_impressions == Decimal("75")
-    assert not rows[-1].suppressed
+    assert rows[-1].status == "released"
     for row in rows[:-1]:
         assert row.distance_m == row.vehicle_count == row.trip_count == row.driving_seconds == 0
         assert row.estimated_impressions == 0
-        assert not row.suppressed
+        assert row.status == "released"
 
 
 def test_two_car_day_is_withheld_and_cannot_be_unlocked_by_another_day():
@@ -62,8 +77,13 @@ def test_two_car_day_is_withheld_and_cannot_be_unlocked_by_another_day():
         (),
         terminal_period=True,
     )
-    rows = campaign_daily_series(combined, start_day=date(2026, 10, 20), end_day=date(2026, 10, 21))
-    assert rows[0].suppressed
+    rows = campaign_daily_series(
+        combined,
+        now=datetime(2026, 11, 1, tzinfo=UTC),
+        start_day=date(2026, 10, 20),
+        end_day=date(2026, 10, 21),
+    )
+    assert rows[0].status != "released"
     assert rows[0].vehicle_count is rows[0].trip_count is rows[0].distance_m is None
     assert rows[0].driving_seconds is rows[0].estimated_impressions is None
     assert rows[1].distance_m == 3000
@@ -72,8 +92,9 @@ def test_two_car_day_is_withheld_and_cannot_be_unlocked_by_another_day():
 def test_unprocessed_trip_day_is_unknown_instead_of_a_false_zero():
     rows = campaign_daily_series(
         cohort_for(datetime(2026, 10, 20, 8, tzinfo=UTC), incomplete=True),
+        now=datetime(2026, 11, 1, tzinfo=UTC),
         start_day=date(2026, 10, 20),
         end_day=date(2026, 10, 20),
     )
-    assert rows[0].suppressed
+    assert rows[0].status != "released"
     assert rows[0].distance_m is rows[0].vehicle_count is rows[0].estimated_impressions is None

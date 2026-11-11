@@ -16,12 +16,6 @@ from app.models.trip_analytics import (
     TripAnalytics,
     TripAnalyticsStatus,
 )
-from app.services.campaigns import get_advertiser_campaign
-from app.services.disclosure import (
-    lock_trip_disclosure_snapshot,
-    record_governed_trip_output,
-    require_governed_advertiser_output,
-)
 from app.services.fraud_holds import active_fraud_hold_counts, fraud_hold_counts
 from app.services.provenance import stable_source_fingerprint
 from app.services.trip_analytics import (
@@ -73,20 +67,6 @@ class FixedEstimateFactors:
 
 
 FIXED_ESTIMATE_FACTORS = FixedEstimateFactors()
-
-
-@dataclass(frozen=True)
-class ImpressionSummary:
-    campaign_id: UUID
-    formula_version: str
-    estimated_impressions: Decimal
-    trip_count: int
-    estimated_trip_count: int
-    insufficient_data_trip_count: int
-    excluded_trip_count: int
-    average_confidence_score: Decimal
-    start_at: datetime | None
-    end_at: datetime | None
 
 
 def utc_now() -> datetime:
@@ -628,89 +608,3 @@ async def list_impression_estimates(
         .offset(offset)
     )
     return list(result.scalars().all()), int(total or 0)
-
-
-async def advertiser_campaign_impression_summary(
-    session: AsyncSession,
-    *,
-    user_id: UUID,
-    campaign_id: UUID,
-    start_at: datetime | None,
-    end_at: datetime | None,
-    settings: Settings,
-) -> ImpressionSummary:
-    organization_id = await require_governed_advertiser_output(
-        session,
-        settings=settings,
-        route_id="advertiser.campaign.impressions_summary",
-        user_id=user_id,
-    )
-    campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
-    await lock_trip_disclosure_snapshot(
-        session,
-        tenant_id=organization_id,
-        campaign_id=campaign.id,
-    )
-    filters = [
-        ImpressionEstimate.campaign_id == campaign.id,
-        ImpressionEstimate.formula_version == settings.impression_formula_version,
-        ImpressionEstimate.is_authoritative.is_(True),
-    ]
-    if start_at is not None:
-        filters.append(ImpressionEstimate.estimated_at >= start_at)
-    if end_at is not None:
-        filters.append(ImpressionEstimate.estimated_at <= end_at)
-
-    estimates = list(
-        (
-            await session.scalars(
-                select(ImpressionEstimate).where(*filters).order_by(ImpressionEstimate.id)
-            )
-        ).all()
-    )
-    estimates = await current_authoritative_estimates(session, estimates, settings=settings)
-    estimated_impressions = sum(
-        (Decimal(estimate.estimated_impressions or 0) for estimate in estimates),
-        Decimal("0"),
-    )
-    estimated_count = sum(
-        estimate.status == ImpressionEstimateStatus.ESTIMATED.value for estimate in estimates
-    )
-    insufficient_count = sum(
-        estimate.status == ImpressionEstimateStatus.INSUFFICIENT_DATA.value
-        for estimate in estimates
-    )
-    excluded_count = sum(
-        estimate.status == ImpressionEstimateStatus.EXCLUDED.value for estimate in estimates
-    )
-    confidence_total = sum(
-        (Decimal(estimate.confidence_score or 0) for estimate in estimates),
-        Decimal("0"),
-    )
-    result = ImpressionSummary(
-        campaign_id=campaign.id,
-        formula_version=settings.impression_formula_version,
-        estimated_impressions=quantize_2(estimated_impressions),
-        trip_count=len(estimates),
-        estimated_trip_count=estimated_count,
-        insufficient_data_trip_count=insufficient_count,
-        excluded_trip_count=excluded_count,
-        average_confidence_score=quantize_4(
-            confidence_total / len(estimates) if estimates else Decimal("0")
-        ),
-        start_at=start_at,
-        end_at=end_at,
-    )
-    await record_governed_trip_output(
-        session,
-        settings=settings,
-        route_id="advertiser.campaign.impressions_summary",
-        principal_id=user_id,
-        tenant_id=organization_id,
-        campaign_id=campaign.id,
-        start_at=start_at,
-        end_at=end_at,
-        filters={},
-        result=result,
-    )
-    return result

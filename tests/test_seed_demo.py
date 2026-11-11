@@ -58,6 +58,8 @@ from app.seeds.demo import (
 )
 from app.seeds.renewals import ensure_demo_renewals
 from app.seeds.rich import F7_DRIVER_PASSWORDS, F7_SEED_VERSION
+from app.services.disclosure import after_day as report_after_day
+from app.services.disclosure import midnight as report_midnight
 from app.services.trip_evidence import (
     batch_payload_hash,
     manifest_root,
@@ -680,7 +682,8 @@ def test_demo_seed_summary_is_human_readable(capsys: pytest.CaptureFixture[str])
     assert "trip-1 started_at=2026-09-15T08:30:00+00:00" in output
     assert '"campaigns": 1' in output
     assert "advertiser@demo.mobility.local" in output
-    assert f"bbox={DEMO_BBOX}" in output
+    assert "/daily-metrics" in output
+    assert "heatmap" not in output and "campaign-1/summary" not in output
 
 
 @pytest.mark.parametrize(
@@ -763,12 +766,6 @@ def test_openapi_has_frontend_contract_tags_and_examples(client) -> None:
     assert (
         schema["components"]["schemas"][component_name]["examples"][0]["email"]
         == "advertiser@demo.mobility.local"
-    )
-    assert (
-        "3.35,6.43,3.47,6.56"
-        in schema["paths"]["/api/v1/advertiser/campaigns/{campaign_id}/heatmap"]["get"][
-            "description"
-        ]
     )
 
 
@@ -2166,7 +2163,7 @@ def test_seed_business_ownership_and_applicant_financial_separation(
     response = postgis_db_client.get("/api/v1/advertiser/campaigns?limit=100", headers=headers)
     assert response.status_code == 200
     assert all(item["name"].startswith("Marula Kitchens — ") for item in response.json()["items"])
-    overview = postgis_db_client.get("/api/v1/advertiser/dashboard/summary", headers=headers)
+    overview = postgis_db_client.get("/api/v1/advertiser/campaigns", headers=headers)
     assert overview.status_code == 200
     for company, _name, email in rich.BUSINESS_CONTACTS:
         own_headers = auth_headers(postgis_db_client, email, "AbujaBusiness2026!")
@@ -2182,11 +2179,18 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                     f"/api/v1/advertiser/campaigns/{item['id']}/report", headers=own_headers
                 )
                 assert report.status_code == 200
-                assert Decimal(report.json()["totals"]["estimated_views"]) > 0
+                assert "totals" not in report.json()
                 daily = postgis_db_client.get(
                     f"/api/v1/advertiser/campaigns/{item['id']}/daily-metrics",
                     headers=own_headers,
-                    params={"start_at": item["start_at"], "end_at": item["end_at"]},
+                    params={
+                        "start_at": report_midnight(
+                            datetime.fromisoformat(item["start_at"])
+                        ).isoformat(),
+                        "end_at": report_after_day(
+                            datetime.fromisoformat(item["end_at"])
+                        ).isoformat(),
+                    },
                 )
                 assert daily.json()["items"]
                 assert any((row["trip_count"] or 0) >= 5 for row in daily.json()["items"])
@@ -2206,13 +2210,13 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                 f"/api/v1/advertiser/campaigns/{campaign.id}/report", headers=headers
             )
             assert report.status_code == 200
-            assert Decimal(report.json()["totals"]["estimated_views"]) > 0
+            assert "totals" not in report.json()
             daily = postgis_db_client.get(
                 f"/api/v1/advertiser/campaigns/{campaign.id}/daily-metrics",
                 headers=headers,
                 params={
-                    "start_at": campaign.start_at.isoformat(),
-                    "end_at": campaign.end_at.isoformat(),
+                    "start_at": report_midnight(campaign.start_at).isoformat(),
+                    "end_at": report_after_day(campaign.end_at).isoformat(),
                 },
             )
             assert daily.json()["items"]
@@ -2290,7 +2294,7 @@ def test_demo_seed_is_idempotent_with_postgis(
                 )
                 assert len(daily.items) == 14
                 assert all(
-                    not day.suppressed
+                    day.status == "released"
                     and day.vehicle_count >= 3
                     and day.estimated_impressions is not None
                     for day in daily.items

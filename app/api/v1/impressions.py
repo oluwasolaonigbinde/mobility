@@ -1,63 +1,29 @@
-from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Query
-from starlette import status
 
 from app.api.v1.dependencies import (
     AdminUserDependency,
-    AdvertiserUserDependency,
     SessionDependency,
     SettingsDependency,
 )
-from app.core.errors import AppError
 from app.models.impression import (
     ImpressionEstimate,
     ImpressionEstimateStatus,
 )
-from app.schemas.campaigns import ensure_timezone_aware
 from app.schemas.impressions import (
-    CampaignImpressionSummary,
     EstimateImpressionsRequest,
     ImpressionEstimateListResponse,
     ImpressionEstimateRead,
 )
 from app.services.audit import create_audit_event
 from app.services.impressions import (
-    advertiser_campaign_impression_summary,
     estimate_trip_impressions,
     list_impression_estimates,
 )
 
 router = APIRouter(tags=["Impressions"])
-
-
-def ensure_impression_datetime(value: datetime | None, field_name: str) -> datetime | None:
-    try:
-        return ensure_timezone_aware(value)
-    except ValueError as exc:
-        raise AppError(
-            "VALIDATION_ERROR",
-            "Request validation failed",
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            details={"errors": [{"loc": ["query", field_name], "msg": str(exc)}]},
-        ) from exc
-
-
-def ensure_impression_date_range(
-    start_at: datetime | None,
-    end_at: datetime | None,
-) -> tuple[datetime | None, datetime | None]:
-    start_at = ensure_impression_datetime(start_at, "start_at")
-    end_at = ensure_impression_datetime(end_at, "end_at")
-    if start_at is not None and end_at is not None and start_at > end_at:
-        raise AppError(
-            "INVALID_DATE_RANGE",
-            "start_at must be before or equal to end_at",
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-    return start_at, end_at
 
 
 def estimate_response(estimate: ImpressionEstimate) -> ImpressionEstimateRead:
@@ -155,40 +121,4 @@ async def admin_list_impression_estimates(
         total=total,
         limit=limit,
         offset=offset,
-    )
-
-
-@router.get(
-    "/advertiser/campaigns/{campaign_id}/impressions/summary",
-    response_model=CampaignImpressionSummary,
-    summary="Read advertiser campaign impression summary",
-)
-async def advertiser_get_campaign_impression_summary(
-    campaign_id: UUID,
-    current_user: AdvertiserUserDependency,
-    session: SessionDependency,
-    settings: SettingsDependency,
-    start_at: datetime | None = None,
-    end_at: datetime | None = None,
-) -> CampaignImpressionSummary:
-    start_at, end_at = ensure_impression_date_range(start_at, end_at)
-    summary = await advertiser_campaign_impression_summary(
-        session,
-        user_id=current_user.id,
-        campaign_id=campaign_id,
-        start_at=start_at,
-        end_at=end_at,
-        settings=settings,
-    )
-    return CampaignImpressionSummary(
-        campaign_id=summary.campaign_id,
-        formula_version=summary.formula_version,
-        estimated_impressions=summary.estimated_impressions,
-        trip_count=summary.trip_count,
-        estimated_trip_count=summary.estimated_trip_count,
-        insufficient_data_trip_count=summary.insufficient_data_trip_count,
-        excluded_trip_count=summary.excluded_trip_count,
-        average_confidence_score=summary.average_confidence_score,
-        start_at=summary.start_at,
-        end_at=summary.end_at,
     )

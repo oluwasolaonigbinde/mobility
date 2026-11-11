@@ -6,7 +6,7 @@ export type PerformanceDay = {
   date: string;
   distance_m: string | null;
   estimated_impressions: string | null;
-  suppressed: boolean;
+  status: "released" | "not_ready" | "not_enough_cars";
 };
 type Campaign = { start_at: string | null; end_at: string | null; status: string };
 const DAY = 86400000;
@@ -47,7 +47,7 @@ export function summarizePerformance(c: Campaign, rows: PerformanceDay[] | null,
     !empty &&
     latest.length === expected &&
     latest.every(
-      (d) => d.suppressed === false && valid(d.estimated_impressions) && valid(d.distance_m),
+      (d) => d.status === "released" && valid(d.estimated_impressions) && valid(d.distance_m),
     );
   const fallback = c.status === "cancelled" || !dailyReady;
   const prior = released.filter((d) => nigeriaDay(d.date)! < latestStart);
@@ -57,13 +57,13 @@ export function summarizePerformance(c: Campaign, rows: PerformanceDay[] | null,
     window.first <= window.start &&
     prior.length === 7 &&
     prior.every(
-      (d) => d.suppressed === false && valid(d.estimated_impressions) && valid(d.distance_m),
+      (d) => d.status === "released" && valid(d.estimated_impressions) && valid(d.distance_m),
     );
   const percent = (field: "estimated_impressions" | "distance_m") =>
     comparison && sum(prior, field) > 0
       ? ((sum(latest, field) - sum(prior, field)) / sum(prior, field)) * 100
       : null;
-  const suppressed = latest.some((d) => d.suppressed);
+  const suppressed = latest.some((d) => d.status === "not_enough_cars");
   return {
     estimatedViews: fallback || empty ? null : String(sum(latest, "estimated_impressions")),
     distance: fallback || empty ? null : String(sum(latest, "distance_m")),

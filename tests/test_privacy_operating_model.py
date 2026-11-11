@@ -52,7 +52,7 @@ def test_privacy_register_is_fail_closed_and_complete() -> None:
     tracking = next(purpose for purpose in purposes if purpose["id"] == "P03_TRIP_TRACKING")
     assert tracking["recipients"] == [
         "existing analytics, fraud and payout services",
-        "the grandfathered heatmap service until W3-00C migration",
+        "admin heatmap and protected advertiser area aggregation services",
     ]
     assert all("staff" not in recipient.lower() for recipient in tracking["recipients"])
 

@@ -28,6 +28,11 @@ programme and its remaining launch gates live in
 
 ## Delivered Backend Baseline (closed slices 0–13)
 
+The slice inventory and implementation notes below are historical. D160 / REQ-311
+replaces the advertiser summaries, trip listing and heatmap with closed Lagos-day
+daily metrics and report totals, plus complete qualifying week areas. The current
+endpoint list and smoke steps below describe those remaining advertiser reads.
+
 Full MVP scope starts with the client proposal
 (`docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx`, D11) **as
 superseded by the direct client answers and approvals recorded in decisions-log D18–D20**,
@@ -220,7 +225,6 @@ Slice 8 impression estimation endpoints:
 - `PATCH /api/v1/admin/traffic-density-profiles/{profile_id}`
 - `POST /api/v1/admin/trips/{trip_id}/estimate-impressions`
 - `GET /api/v1/admin/impression-estimates`
-- `GET /api/v1/advertiser/campaigns/{campaign_id}/impressions/summary`
 
 Slice 9 payout calculation and earnings endpoints:
 
@@ -235,15 +239,11 @@ Slice 9 payout calculation and earnings endpoints:
 
 Slice 10 advertiser reporting endpoints:
 
-- `GET /api/v1/advertiser/dashboard/summary`
-- `GET /api/v1/advertiser/campaigns/{campaign_id}/summary`
 - `GET /api/v1/advertiser/campaigns/{campaign_id}/daily-metrics`
-- `GET /api/v1/advertiser/campaigns/{campaign_id}/trips`
 - `GET /api/v1/advertiser/campaigns/{campaign_id}/report`
 
 Slice 11 heatmap endpoints:
 
-- `GET /api/v1/advertiser/campaigns/{campaign_id}/heatmap`
 - `GET /api/v1/admin/heatmap`
 
 Slice 12 local/demo seed command:
@@ -281,17 +281,13 @@ Suggested frontend smoke workflow after seeding:
 1. Start the API with `uvicorn app.main:app --reload`.
 2. Log in with `POST /api/v1/auth/login` as `advertiser@demo.mobility.local`.
 3. Call `GET /api/v1/me`.
-4. Call `GET /api/v1/advertiser/dashboard/summary`.
-5. Call `GET /api/v1/advertiser/campaigns` and use the demo campaign id.
-6. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/summary`.
-7. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/daily-metrics`.
-8. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/trips`.
-9. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/report`.
-10. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/impressions/summary`.
-12. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/heatmap?bbox=3.35,6.43,3.47,6.56&resolution_m=500&metric=estimated_impressions`.
-13. Log in as `driver@demo.mobility.local`.
-14. Call `GET /api/v1/driver/earnings/summary`.
-15. Call `GET /api/v1/driver/earnings/ledger`.
+4. Call `GET /api/v1/advertiser/campaigns` and use the demo campaign id.
+5. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/daily-metrics`.
+   Explicit windows must use Lagos midnights; today and later have no figures.
+6. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/report` for full-week area results.
+7. Log in as `driver@demo.mobility.local`.
+8. Call `GET /api/v1/driver/earnings/summary`.
+9. Call `GET /api/v1/driver/earnings/ledger`.
 
 ## MVP Contract Baseline
 

@@ -2541,7 +2541,7 @@ export interface paths {
         };
         /**
          * List advertiser campaign daily metrics
-         * @description Return Nigeria calendar days (WAT); default to seven days including partial today. Empty days are zero; days below three cars are withheld.
+         * @description Return Nigeria calendar days (WAT); default to seven days with today not ready. Empty days are zero; days below three cars are withheld.
          */
         get: operations["advertiser_get_campaign_daily_metrics_api_v1_advertiser_campaigns__campaign_id__daily_metrics_get"];
         put?: never;
@@ -2563,43 +2563,6 @@ export interface paths {
         put?: never;
         /** Advertiser Accept Expedited Waiver */
         post: operations["advertiser_accept_expedited_waiver_api_v1_advertiser_campaigns__campaign_id__expedited_waiver_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/advertiser/campaigns/{campaign_id}/heatmap": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read advertiser campaign heatmap
-         * @description Return bounded GeoJSON heatmap cells for an advertiser campaign. Demo bbox: 3.35,6.43,3.47,6.56.
-         */
-        get: operations["advertiser_get_campaign_heatmap_api_v1_advertiser_campaigns__campaign_id__heatmap_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/advertiser/campaigns/{campaign_id}/impressions/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read advertiser campaign impression summary */
-        get: operations["advertiser_get_campaign_impression_summary_api_v1_advertiser_campaigns__campaign_id__impressions_summary_get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2666,7 +2629,7 @@ export interface paths {
         };
         /**
          * Read campaign results
-         * @description Return campaign-wide distance, trips, Nigeria driving days, estimated views and privacy-safe areas.
+         * @description Return trip counts and estimated views summed from qualifying complete area weeks.
          */
         get: operations["advertiser_get_campaign_report_api_v1_advertiser_campaigns__campaign_id__report_get"];
         put?: never;
@@ -2705,46 +2668,6 @@ export interface paths {
         put?: never;
         /** Submit a campaign for admin review */
         post: operations["advertiser_submit_campaign_for_review_api_v1_advertiser_campaigns__campaign_id__submit_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/advertiser/campaigns/{campaign_id}/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read advertiser campaign reporting summary
-         * @description Return frontend-ready totals for one advertiser-owned campaign.
-         */
-        get: operations["advertiser_get_campaign_summary_api_v1_advertiser_campaigns__campaign_id__summary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/advertiser/campaigns/{campaign_id}/trips": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read advertiser campaign trip aggregate
-         * @description Return one privacy-governed whole-campaign aggregate without trip rows, identifiers, or event timestamps.
-         */
-        get: operations["advertiser_get_campaign_trip_aggregate_api_v1_advertiser_campaigns__campaign_id__trips_get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2869,26 +2792,6 @@ export interface paths {
         put?: never;
         /** Advertiser Add Complaint Message */
         post: operations["advertiser_add_complaint_message_api_v1_advertiser_complaints__complaint_id__messages_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/advertiser/dashboard/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read advertiser dashboard summary
-         * @description Aggregate stored campaign, trip, impression, payout, and fraud data for the current advertiser organization. The demo seed returns non-empty data here.
-         */
-        get: operations["advertiser_get_dashboard_summary_api_v1_advertiser_dashboard_summary_get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5607,25 +5510,6 @@ export interface components {
              */
             updated_at: string;
         };
-        /** AdvertiserDashboardSummary */
-        AdvertiserDashboardSummary: {
-            assignments: components["schemas"]["AssignmentStatusCounts"];
-            campaigns: components["schemas"]["CampaignStatusCounts"];
-            /** Currency */
-            currency: string;
-            /** End At */
-            end_at: string | null;
-            impressions: components["schemas"]["ImpressionSummary"];
-            /**
-             * Organization Id
-             * Format: uuid
-             */
-            organization_id: string;
-            quality: components["schemas"]["QualitySummary"];
-            /** Start At */
-            start_at: string | null;
-            trips: components["schemas"]["TripStatusCounts"];
-        };
         /** AdvertiserFinancialAuthorityRead */
         AdvertiserFinancialAuthorityRead: {
             /** Authority Type */
@@ -5997,39 +5881,6 @@ export interface components {
             message: string;
             /** Ready */
             ready: boolean;
-        };
-        /** AssignmentStatusCounts */
-        AssignmentStatusCounts: {
-            /**
-             * Accepted
-             * @default 0
-             */
-            accepted: number;
-            /**
-             * Active
-             * @default 0
-             */
-            active: number;
-            /**
-             * Cancelled
-             * @default 0
-             */
-            cancelled: number;
-            /**
-             * Finished
-             * @default 0
-             */
-            finished: number;
-            /**
-             * Offered
-             * @default 0
-             */
-            offered: number;
-            /**
-             * Total
-             * @default 0
-             */
-            total: number;
         };
         /** AssignmentVehicleSummary */
         AssignmentVehicleSummary: {
@@ -6979,32 +6830,6 @@ export interface components {
              */
             status: string;
         };
-        /** CampaignImpressionSummary */
-        CampaignImpressionSummary: {
-            /** Average Confidence Score */
-            average_confidence_score: string | null;
-            /**
-             * Campaign Id
-             * Format: uuid
-             */
-            campaign_id: string;
-            /** End At */
-            end_at: string | null;
-            /** Estimated Impressions */
-            estimated_impressions: string | null;
-            /** Estimated Trip Count */
-            estimated_trip_count: number;
-            /** Excluded Trip Count */
-            excluded_trip_count: number;
-            /** Formula Version */
-            formula_version: string;
-            /** Insufficient Data Trip Count */
-            insufficient_data_trip_count: number;
-            /** Start At */
-            start_at: string | null;
-            /** Trip Count */
-            trip_count: number;
-        };
         /** CampaignListItemRead */
         CampaignListItemRead: {
             /** Assignment Count */
@@ -7257,46 +7082,8 @@ export interface components {
             campaign_id: string;
             /** Completeness */
             completeness: string;
-            /** End At */
-            end_at: string | null;
-            /** Start At */
-            start_at: string | null;
-            totals: components["schemas"]["CampaignPerformanceTotals"];
             /** Uncertainty */
             uncertainty: string;
-        };
-        /** CampaignPerformanceTotals */
-        CampaignPerformanceTotals: {
-            /** Distance M */
-            distance_m: string | null;
-            /** Driving Days */
-            driving_days: number | null;
-            /** Estimated Views */
-            estimated_views: string | null;
-            /** Trip Count */
-            trip_count: number | null;
-        };
-        /** CampaignReadSummary */
-        CampaignReadSummary: {
-            /** Budget Amount */
-            budget_amount: string | null;
-            /** Currency */
-            currency: string;
-            /** Daily Budget Amount */
-            daily_budget_amount: string | null;
-            /** End At */
-            end_at: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Name */
-            name: string;
-            /** Start At */
-            start_at: string | null;
-            /** Status */
-            status: components["schemas"]["CampaignStatus"] | "finished";
         };
         /** CampaignReportCampaignRead */
         CampaignReportCampaignRead: {
@@ -7478,81 +7265,6 @@ export interface components {
          * @enum {string}
          */
         CampaignStatus: "draft" | "pending_review" | "approved" | "rejected" | "active" | "paused" | "cancelled";
-        /** CampaignStatusCounts */
-        CampaignStatusCounts: {
-            /**
-             * Active
-             * @default 0
-             */
-            active: number;
-            /**
-             * Approved
-             * @default 0
-             */
-            approved: number;
-            /**
-             * Cancelled
-             * @default 0
-             */
-            cancelled: number;
-            /**
-             * Draft
-             * @default 0
-             */
-            draft: number;
-            /**
-             * Finished
-             * @default 0
-             */
-            finished: number;
-            /**
-             * Paused
-             * @default 0
-             */
-            paused: number;
-            /**
-             * Pending Review
-             * @default 0
-             */
-            pending_review: number;
-            /**
-             * Rejected
-             * @default 0
-             */
-            rejected: number;
-            /**
-             * Total
-             * @default 0
-             */
-            total: number;
-        };
-        /** CampaignSummary */
-        CampaignSummary: {
-            assignments: components["schemas"]["AssignmentStatusCounts"];
-            campaign: components["schemas"]["CampaignReadSummary"];
-            creatives: components["schemas"]["CreativeStatusCounts"];
-            /** End At */
-            end_at: string | null;
-            fraud_flags: components["schemas"]["FraudFlagCounts"];
-            impressions: components["schemas"]["ImpressionSummary"];
-            route_analytics: components["schemas"]["RouteAnalyticsSummary"];
-            /** Start At */
-            start_at: string | null;
-            trips: components["schemas"]["TripStatusCounts"];
-            zones: components["schemas"]["ZoneTypeCounts"];
-        };
-        /** CampaignTripsResponse */
-        CampaignTripsResponse: {
-            /**
-             * Campaign Id
-             * Format: uuid
-             */
-            campaign_id: string;
-            fraud_flags: components["schemas"]["FraudFlagCounts"];
-            impressions: components["schemas"]["ImpressionSummary"];
-            route_analytics: components["schemas"]["RouteAnalyticsSummary"];
-            trips: components["schemas"]["TripStatusCounts"];
-        };
         /** CampaignUpdate */
         CampaignUpdate: {
             /** Budget Amount */
@@ -8112,39 +7824,6 @@ export interface components {
          * @enum {string}
          */
         CreativeStatus: "draft" | "pending_review" | "approved" | "rejected" | "archived";
-        /** CreativeStatusCounts */
-        CreativeStatusCounts: {
-            /**
-             * Approved
-             * @default 0
-             */
-            approved: number;
-            /**
-             * Archived
-             * @default 0
-             */
-            archived: number;
-            /**
-             * Draft
-             * @default 0
-             */
-            draft: number;
-            /**
-             * Pending Review
-             * @default 0
-             */
-            pending_review: number;
-            /**
-             * Rejected
-             * @default 0
-             */
-            rejected: number;
-            /**
-             * Total
-             * @default 0
-             */
-            total: number;
-        };
         /**
          * CreativeType
          * @enum {string}
@@ -8209,10 +7888,10 @@ export interface components {
             /** Estimated Impressions */
             estimated_impressions: string | null;
             /**
-             * Suppressed
-             * @default false
+             * Status
+             * @enum {string}
              */
-            suppressed: boolean;
+            status: "released" | "not_ready" | "not_enough_cars";
             /** Trip Count */
             trip_count: number | null;
             /** Vehicle Count */
@@ -9365,39 +9044,6 @@ export interface components {
          * @enum {string}
          */
         FraudDisputeStatus: "open" | "replied";
-        /** FraudFlagCounts */
-        FraudFlagCounts: {
-            /**
-             * Confirmed
-             * @default 0
-             */
-            confirmed: number;
-            /**
-             * Dismissed
-             * @default 0
-             */
-            dismissed: number;
-            /**
-             * High
-             * @default 0
-             */
-            high: number;
-            /**
-             * Low
-             * @default 0
-             */
-            low: number;
-            /**
-             * Medium
-             * @default 0
-             */
-            medium: number;
-            /**
-             * Open
-             * @default 0
-             */
-            open: number;
-        };
         /** FraudFlagListResponse */
         FraudFlagListResponse: {
             /** Items */
@@ -9696,19 +9342,6 @@ export interface components {
          * @enum {string}
          */
         ImpressionEstimateStatus: "estimated" | "insufficient_data" | "excluded";
-        /** ImpressionSummary */
-        ImpressionSummary: {
-            /** Average Confidence Score */
-            average_confidence_score: string | null;
-            /** Estimated Impressions */
-            estimated_impressions: string | null;
-            /** Estimated Trip Count */
-            estimated_trip_count: number;
-            /** Excluded Trip Count */
-            excluded_trip_count: number;
-            /** Insufficient Data Trip Count */
-            insufficient_data_trip_count: number;
-        };
         /** InstallationEvidenceCreate */
         InstallationEvidenceCreate: {
             /**
@@ -11387,12 +11020,6 @@ export interface components {
             /** Waiver Id */
             waiver_id: string | null;
         };
-        /** QualitySummary */
-        QualitySummary: {
-            /** Average Quality Score */
-            average_quality_score: string | null;
-            fraud_flags: components["schemas"]["FraudFlagCounts"];
-        };
         /** QuoteAccept */
         QuoteAccept: {
             /** @default in_platform */
@@ -11745,21 +11372,6 @@ export interface components {
          * @enum {string}
          */
         ReportArtifactFormat: "csv" | "pdf";
-        /** RouteAnalyticsSummary */
-        RouteAnalyticsSummary: {
-            /** Analyzed Trip Count */
-            analyzed_trip_count: number;
-            /** Average Quality Score */
-            average_quality_score: string | null;
-            /** Bonus Zone Distance M */
-            bonus_zone_distance_m: string | null;
-            /** Exclusion Zone Distance M */
-            exclusion_zone_distance_m: string | null;
-            /** Target Zone Distance M */
-            target_zone_distance_m: string | null;
-            /** Total Distance M */
-            total_distance_m: string | null;
-        };
         /** ScanDayRead */
         ScanDayRead: {
             /**
@@ -12394,24 +12006,6 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        /** TripStatusCounts */
-        TripStatusCounts: {
-            /**
-             * Active
-             * @default 0
-             */
-            active: number;
-            /**
-             * Ended
-             * @default 0
-             */
-            ended: number;
-            /**
-             * Total
-             * @default 0
-             */
-            total: number;
-        };
         /** UserCreate */
         UserCreate: {
             /** Current Password */
@@ -12848,24 +12442,6 @@ export interface components {
             version: number;
             /** Withdrawn At */
             withdrawn_at: string | null;
-        };
-        /** ZoneTypeCounts */
-        ZoneTypeCounts: {
-            /**
-             * Exclusion
-             * @default 0
-             */
-            exclusion: number;
-            /**
-             * Target
-             * @default 0
-             */
-            target: number;
-            /**
-             * Total
-             * @default 0
-             */
-            total: number;
         };
     };
     responses: never;
@@ -18485,80 +18061,6 @@ export interface operations {
             };
         };
     };
-    advertiser_get_campaign_heatmap_api_v1_advertiser_campaigns__campaign_id__heatmap_get: {
-        parameters: {
-            query?: {
-                /** @description Required min_lon,min_lat,max_lon,max_lat bbox, for example 3.35,6.43,3.47,6.56. */
-                bbox?: string | null;
-                /** @description Grid cell size in meters. */
-                resolution_m?: number | null;
-                /** @description One of ping_count, trip_count, distance_m, estimated_impressions. */
-                metric?: string;
-                start_at?: string | null;
-                end_at?: string | null;
-            };
-            header?: never;
-            path: {
-                campaign_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HeatmapFeatureCollection"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    advertiser_get_campaign_impression_summary_api_v1_advertiser_campaigns__campaign_id__impressions_summary_get: {
-        parameters: {
-            query?: {
-                start_at?: string | null;
-                end_at?: string | null;
-            };
-            header?: never;
-            path: {
-                campaign_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CampaignImpressionSummary"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     get_live_positions_api_v1_advertiser_campaigns__campaign_id__live_positions_get: {
         parameters: {
             query?: never;
@@ -18658,10 +18160,7 @@ export interface operations {
     };
     advertiser_get_campaign_report_api_v1_advertiser_campaigns__campaign_id__report_get: {
         parameters: {
-            query?: {
-                start_at?: string | null;
-                end_at?: string | null;
-            };
+            query?: never;
             header?: never;
             path: {
                 campaign_id: string;
@@ -18742,71 +18241,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdvertiserCampaignRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    advertiser_get_campaign_summary_api_v1_advertiser_campaigns__campaign_id__summary_get: {
-        parameters: {
-            query?: {
-                start_at?: string | null;
-                end_at?: string | null;
-            };
-            header?: never;
-            path: {
-                campaign_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CampaignSummary"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    advertiser_get_campaign_trip_aggregate_api_v1_advertiser_campaigns__campaign_id__trips_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                campaign_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CampaignTripsResponse"];
                 };
             };
             /** @description Request validation failed */
@@ -19196,38 +18630,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ComplaintDetailRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    advertiser_get_dashboard_summary_api_v1_advertiser_dashboard_summary_get: {
-        parameters: {
-            query?: {
-                start_at?: string | null;
-                end_at?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdvertiserDashboardSummary"];
                 };
             };
             /** @description Request validation failed */

@@ -291,7 +291,7 @@ def test_accurate_departure_unhides_only_after_the_display_delay(
     assert read(db_client, driving_graph).json()["positions"] == []
 
     async def later_clock(_session):
-        return NOW + timedelta(minutes=14)
+        return NOW + timedelta(minutes=15)
 
     monkeypatch.setattr(campaign_live_positions, "database_clock", later_clock)
     assert read(db_client, driving_graph).json()["positions"] == [
@@ -461,3 +461,29 @@ def test_campaign_pause_before_position_query_is_respected(
 
     monkeypatch.setattr(campaign_live_positions, "get_advertiser_campaign", pause_after_ownership)
     assert read(db_client, driving_graph).json()["positions"] == []
+
+
+def test_bucket_polls_do_not_add_trail_points_and_coordinates_are_coarse(
+    db_client, db_sessionmaker, driving_graph, monkeypatch
+):
+    add_point(db_sessionmaker, driving_graph, age=16, received_age=16, lon=3.401234, lat=6.501234)
+
+    async def first_clock(_session):
+        return NOW + timedelta(minutes=1)
+
+    monkeypatch.setattr(campaign_live_positions, "database_clock", first_clock)
+    first = read(db_client, driving_graph)
+    assert first.status_code == 200
+    assert first.json()["positions"] == [{"longitude": 3.401, "latitude": 6.501}]
+    # This older point would enter an unbucketed cutoff during the same bucket.
+    add_point(
+        db_sessionmaker, driving_graph, age=14.5, received_age=14.5, lon=3.402345, lat=6.502345
+    )
+
+    async def second_clock(_session):
+        return NOW + timedelta(minutes=4)
+
+    monkeypatch.setattr(campaign_live_positions, "database_clock", second_clock)
+    second = read(db_client, driving_graph)
+    assert second.status_code == 200
+    assert second.json()["positions"] == first.json()["positions"]

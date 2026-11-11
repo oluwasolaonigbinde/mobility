@@ -26,8 +26,11 @@ from app.services.earnings_release import release_pending_earnings_for_trip
 from app.services.trip_processing import process_ended_trip
 
 
-def workday_route(trip_key):
-    """Repeated delivery rounds inside the frozen Abuja target; no money override."""
+def workday_route(trip_key, car_offset=0.0):
+    """Repeated delivery rounds inside the frozen Abuja target; no money override.
+
+    Each car keeps its own nearby path: copied GPS across drivers is route replay.
+    """
     from app.seeds.rich import _interpolate_corridor
 
     lap = _interpolate_corridor(
@@ -36,7 +39,7 @@ def workday_route(trip_key):
     )
     laps = 4 if trip_key == "demo-trip-0" else 5
     # Finish at the next delivery stop, rather than fabricating a closed loop.
-    return lap[:-1] * laps + [lap[1]]
+    return [(lat + car_offset, lon - car_offset) for lat, lon in lap[:-1] * laps + [lap[1]]]
 
 
 def workday_processing_time(trip):

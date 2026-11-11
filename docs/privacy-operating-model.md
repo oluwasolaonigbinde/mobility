@@ -66,7 +66,7 @@ Operators must apply these rules:
 5. Treat aggregate location output as personal data until a documented,
    approved re-identification assessment says otherwise.
 6. Raw location remains service-only: existing analytics, fraud and payout
-   services plus the grandfathered heatmap reader until W3-00C migration.
+   services plus the admin heatmap and protected advertiser area aggregation readers.
    Operations staff receive only approved non-raw aggregates or incident-state
    evidence; this model creates no staff raw-ping access path.
 
@@ -136,3 +136,11 @@ Any future approval updates the structured register and this operating model in
 the same change, cites the evidence, and reruns the contract tests. Product or
 legal changes require the normal decisions/architecture amendment flow; a
 provider credential or approval reference never belongs in source control.
+
+## D160 technical restoration
+
+**Owner, 10 Nov 2026 - D160 / REQ-311 (implementation pending verification):** Advertiser figures sum released closed Lagos-day cells. Closure requires the database clock at the next midnight, no active trip with last server batch receipt (or start) before that midnight, every ended trip finally incomplete or sealed with current-formula analytics computed at or after seal, and no active fraud hold. Every analytics status counts as final; payout status is ignored. Closed days with zero or at least three distinct cars release; the others are not_enough_cars, and unclosed days are not_ready. Only released days carry figures. Totals sum released days; any missing released-day views makes period views unavailable. Remove period/per-area distinct cars; Average cars per day is car-days divided by released days. Cars deployed remains assignment data. The single hidden-day note is Some days hidden.
+
+Areas sum complete Monday-Sunday weeks fully inside the range, labelled Full weeks only. All seven days must be closed; trips from released days are partitioned by exact touched-area set including touched none, and each nonempty partition needs three distinct cars. Retention gaps withhold per week. Area figures are trips and estimated views only. No cross-output reservation state. Whole-day windows only; scheduling/re-runs wait for closure and final/cancelled windows end after the terminal Lagos day. Dots use five-minute clock buckets and three-decimal coordinates after clipping, retaining delay, freshness and park-hide.
+
+**History - 10 Nov 2026:** Supersedes D105/D107 threshold-only composition, amends D118 partial-today/cars and D124/D138/D145 dot precision. Threshold stays three. This is D56 technical differencing restoration only, conditional on verification; legal gates stay open. No frozen released cells. Old issued bytes retain numbers; queued reports at renderer upgrade may fail.

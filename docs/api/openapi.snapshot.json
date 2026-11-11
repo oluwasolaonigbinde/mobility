@@ -3242,71 +3242,6 @@
         "title": "AdvertiserCampaignRead",
         "type": "object"
       },
-      "AdvertiserDashboardSummary": {
-        "properties": {
-          "assignments": {
-            "$ref": "#/components/schemas/AssignmentStatusCounts"
-          },
-          "campaigns": {
-            "$ref": "#/components/schemas/CampaignStatusCounts"
-          },
-          "currency": {
-            "title": "Currency",
-            "type": "string"
-          },
-          "end_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End At"
-          },
-          "impressions": {
-            "$ref": "#/components/schemas/ImpressionSummary"
-          },
-          "organization_id": {
-            "format": "uuid",
-            "title": "Organization Id",
-            "type": "string"
-          },
-          "quality": {
-            "$ref": "#/components/schemas/QualitySummary"
-          },
-          "start_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start At"
-          },
-          "trips": {
-            "$ref": "#/components/schemas/TripStatusCounts"
-          }
-        },
-        "required": [
-          "organization_id",
-          "currency",
-          "start_at",
-          "end_at",
-          "campaigns",
-          "assignments",
-          "trips",
-          "impressions",
-          "quality"
-        ],
-        "title": "AdvertiserDashboardSummary",
-        "type": "object"
-      },
       "AdvertiserFinancialAuthorityRead": {
         "properties": {
           "authority_type": {
@@ -4174,42 +4109,6 @@
           "message"
         ],
         "title": "AssignmentReadinessRead",
-        "type": "object"
-      },
-      "AssignmentStatusCounts": {
-        "properties": {
-          "accepted": {
-            "default": 0,
-            "title": "Accepted",
-            "type": "integer"
-          },
-          "active": {
-            "default": 0,
-            "title": "Active",
-            "type": "integer"
-          },
-          "cancelled": {
-            "default": 0,
-            "title": "Cancelled",
-            "type": "integer"
-          },
-          "finished": {
-            "default": 0,
-            "title": "Finished",
-            "type": "integer"
-          },
-          "offered": {
-            "default": 0,
-            "title": "Offered",
-            "type": "integer"
-          },
-          "total": {
-            "default": 0,
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "title": "AssignmentStatusCounts",
         "type": "object"
       },
       "AssignmentVehicleSummary": {
@@ -6838,95 +6737,6 @@
         "title": "CampaignEnquiryRead",
         "type": "object"
       },
-      "CampaignImpressionSummary": {
-        "properties": {
-          "average_confidence_score": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Average Confidence Score"
-          },
-          "campaign_id": {
-            "format": "uuid",
-            "title": "Campaign Id",
-            "type": "string"
-          },
-          "end_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End At"
-          },
-          "estimated_impressions": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Estimated Impressions"
-          },
-          "estimated_trip_count": {
-            "title": "Estimated Trip Count",
-            "type": "integer"
-          },
-          "excluded_trip_count": {
-            "title": "Excluded Trip Count",
-            "type": "integer"
-          },
-          "formula_version": {
-            "title": "Formula Version",
-            "type": "string"
-          },
-          "insufficient_data_trip_count": {
-            "title": "Insufficient Data Trip Count",
-            "type": "integer"
-          },
-          "start_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start At"
-          },
-          "trip_count": {
-            "title": "Trip Count",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "campaign_id",
-          "formula_version",
-          "estimated_impressions",
-          "trip_count",
-          "estimated_trip_count",
-          "insufficient_data_trip_count",
-          "excluded_trip_count",
-          "average_confidence_score",
-          "start_at",
-          "end_at"
-        ],
-        "title": "CampaignImpressionSummary",
-        "type": "object"
-      },
       "CampaignListItemRead": {
         "properties": {
           "assignment_count": {
@@ -7575,33 +7385,6 @@
             "title": "Completeness",
             "type": "string"
           },
-          "end_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End At"
-          },
-          "start_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start At"
-          },
-          "totals": {
-            "$ref": "#/components/schemas/CampaignPerformanceTotals"
-          },
           "uncertainty": {
             "title": "Uncertainty",
             "type": "string"
@@ -7609,159 +7392,11 @@
         },
         "required": [
           "campaign_id",
-          "start_at",
-          "end_at",
-          "totals",
           "areas",
           "completeness",
           "uncertainty"
         ],
         "title": "CampaignPerformanceRead",
-        "type": "object"
-      },
-      "CampaignPerformanceTotals": {
-        "properties": {
-          "distance_m": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Distance M"
-          },
-          "driving_days": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Driving Days"
-          },
-          "estimated_views": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Estimated Views"
-          },
-          "trip_count": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Trip Count"
-          }
-        },
-        "required": [
-          "distance_m",
-          "trip_count",
-          "driving_days",
-          "estimated_views"
-        ],
-        "title": "CampaignPerformanceTotals",
-        "type": "object"
-      },
-      "CampaignReadSummary": {
-        "properties": {
-          "budget_amount": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Budget Amount"
-          },
-          "currency": {
-            "title": "Currency",
-            "type": "string"
-          },
-          "daily_budget_amount": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Daily Budget Amount"
-          },
-          "end_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End At"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "start_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start At"
-          },
-          "status": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CampaignStatus"
-              },
-              {
-                "const": "finished",
-                "type": "string"
-              }
-            ],
-            "title": "Status"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "status",
-          "start_at",
-          "end_at",
-          "budget_amount",
-          "daily_budget_amount",
-          "currency"
-        ],
-        "title": "CampaignReadSummary",
         "type": "object"
       },
       "CampaignReportCampaignRead": {
@@ -8168,153 +7803,6 @@
         ],
         "title": "CampaignStatus",
         "type": "string"
-      },
-      "CampaignStatusCounts": {
-        "properties": {
-          "active": {
-            "default": 0,
-            "title": "Active",
-            "type": "integer"
-          },
-          "approved": {
-            "default": 0,
-            "title": "Approved",
-            "type": "integer"
-          },
-          "cancelled": {
-            "default": 0,
-            "title": "Cancelled",
-            "type": "integer"
-          },
-          "draft": {
-            "default": 0,
-            "title": "Draft",
-            "type": "integer"
-          },
-          "finished": {
-            "default": 0,
-            "title": "Finished",
-            "type": "integer"
-          },
-          "paused": {
-            "default": 0,
-            "title": "Paused",
-            "type": "integer"
-          },
-          "pending_review": {
-            "default": 0,
-            "title": "Pending Review",
-            "type": "integer"
-          },
-          "rejected": {
-            "default": 0,
-            "title": "Rejected",
-            "type": "integer"
-          },
-          "total": {
-            "default": 0,
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "title": "CampaignStatusCounts",
-        "type": "object"
-      },
-      "CampaignSummary": {
-        "properties": {
-          "assignments": {
-            "$ref": "#/components/schemas/AssignmentStatusCounts"
-          },
-          "campaign": {
-            "$ref": "#/components/schemas/CampaignReadSummary"
-          },
-          "creatives": {
-            "$ref": "#/components/schemas/CreativeStatusCounts"
-          },
-          "end_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End At"
-          },
-          "fraud_flags": {
-            "$ref": "#/components/schemas/FraudFlagCounts"
-          },
-          "impressions": {
-            "$ref": "#/components/schemas/ImpressionSummary"
-          },
-          "route_analytics": {
-            "$ref": "#/components/schemas/RouteAnalyticsSummary"
-          },
-          "start_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start At"
-          },
-          "trips": {
-            "$ref": "#/components/schemas/TripStatusCounts"
-          },
-          "zones": {
-            "$ref": "#/components/schemas/ZoneTypeCounts"
-          }
-        },
-        "required": [
-          "campaign",
-          "start_at",
-          "end_at",
-          "creatives",
-          "zones",
-          "assignments",
-          "trips",
-          "route_analytics",
-          "impressions",
-          "fraud_flags"
-        ],
-        "title": "CampaignSummary",
-        "type": "object"
-      },
-      "CampaignTripsResponse": {
-        "properties": {
-          "campaign_id": {
-            "format": "uuid",
-            "title": "Campaign Id",
-            "type": "string"
-          },
-          "fraud_flags": {
-            "$ref": "#/components/schemas/FraudFlagCounts"
-          },
-          "impressions": {
-            "$ref": "#/components/schemas/ImpressionSummary"
-          },
-          "route_analytics": {
-            "$ref": "#/components/schemas/RouteAnalyticsSummary"
-          },
-          "trips": {
-            "$ref": "#/components/schemas/TripStatusCounts"
-          }
-        },
-        "required": [
-          "campaign_id",
-          "trips",
-          "route_analytics",
-          "impressions",
-          "fraud_flags"
-        ],
-        "title": "CampaignTripsResponse",
-        "type": "object"
       },
       "CampaignUpdate": {
         "additionalProperties": false,
@@ -9991,42 +9479,6 @@
         "title": "CreativeStatus",
         "type": "string"
       },
-      "CreativeStatusCounts": {
-        "properties": {
-          "approved": {
-            "default": 0,
-            "title": "Approved",
-            "type": "integer"
-          },
-          "archived": {
-            "default": 0,
-            "title": "Archived",
-            "type": "integer"
-          },
-          "draft": {
-            "default": 0,
-            "title": "Draft",
-            "type": "integer"
-          },
-          "pending_review": {
-            "default": 0,
-            "title": "Pending Review",
-            "type": "integer"
-          },
-          "rejected": {
-            "default": 0,
-            "title": "Rejected",
-            "type": "integer"
-          },
-          "total": {
-            "default": 0,
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "title": "CreativeStatusCounts",
-        "type": "object"
-      },
       "CreativeType": {
         "enum": [
           "image",
@@ -10250,10 +9702,14 @@
             ],
             "title": "Estimated Impressions"
           },
-          "suppressed": {
-            "default": false,
-            "title": "Suppressed",
-            "type": "boolean"
+          "status": {
+            "enum": [
+              "released",
+              "not_ready",
+              "not_enough_cars"
+            ],
+            "title": "Status",
+            "type": "string"
           },
           "trip_count": {
             "anyOf": [
@@ -10284,7 +9740,8 @@
           "vehicle_count",
           "trip_count",
           "driving_seconds",
-          "estimated_impressions"
+          "estimated_impressions",
+          "status"
         ],
         "title": "DailyMetricItem",
         "type": "object"
@@ -13340,42 +12797,6 @@
         "title": "FraudDisputeStatus",
         "type": "string"
       },
-      "FraudFlagCounts": {
-        "properties": {
-          "confirmed": {
-            "default": 0,
-            "title": "Confirmed",
-            "type": "integer"
-          },
-          "dismissed": {
-            "default": 0,
-            "title": "Dismissed",
-            "type": "integer"
-          },
-          "high": {
-            "default": 0,
-            "title": "High",
-            "type": "integer"
-          },
-          "low": {
-            "default": 0,
-            "title": "Low",
-            "type": "integer"
-          },
-          "medium": {
-            "default": 0,
-            "title": "Medium",
-            "type": "integer"
-          },
-          "open": {
-            "default": 0,
-            "title": "Open",
-            "type": "integer"
-          }
-        },
-        "title": "FraudFlagCounts",
-        "type": "object"
-      },
       "FraudFlagListResponse": {
         "properties": {
           "items": {
@@ -14099,53 +13520,6 @@
         ],
         "title": "ImpressionEstimateStatus",
         "type": "string"
-      },
-      "ImpressionSummary": {
-        "properties": {
-          "average_confidence_score": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Average Confidence Score"
-          },
-          "estimated_impressions": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Estimated Impressions"
-          },
-          "estimated_trip_count": {
-            "title": "Estimated Trip Count",
-            "type": "integer"
-          },
-          "excluded_trip_count": {
-            "title": "Excluded Trip Count",
-            "type": "integer"
-          },
-          "insufficient_data_trip_count": {
-            "title": "Insufficient Data Trip Count",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "estimated_impressions",
-          "estimated_trip_count",
-          "insufficient_data_trip_count",
-          "excluded_trip_count",
-          "average_confidence_score"
-        ],
-        "title": "ImpressionSummary",
-        "type": "object"
       },
       "InstallationEvidenceCreate": {
         "additionalProperties": false,
@@ -18392,30 +17766,6 @@
         "title": "ProductionStartRead",
         "type": "object"
       },
-      "QualitySummary": {
-        "properties": {
-          "average_quality_score": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Average Quality Score"
-          },
-          "fraud_flags": {
-            "$ref": "#/components/schemas/FraudFlagCounts"
-          }
-        },
-        "required": [
-          "average_quality_score",
-          "fraud_flags"
-        ],
-        "title": "QualitySummary",
-        "type": "object"
-      },
       "QuoteAccept": {
         "additionalProperties": false,
         "properties": {
@@ -19138,79 +18488,6 @@
         ],
         "title": "ReportArtifactFormat",
         "type": "string"
-      },
-      "RouteAnalyticsSummary": {
-        "properties": {
-          "analyzed_trip_count": {
-            "title": "Analyzed Trip Count",
-            "type": "integer"
-          },
-          "average_quality_score": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Average Quality Score"
-          },
-          "bonus_zone_distance_m": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bonus Zone Distance M"
-          },
-          "exclusion_zone_distance_m": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Exclusion Zone Distance M"
-          },
-          "target_zone_distance_m": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Zone Distance M"
-          },
-          "total_distance_m": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Total Distance M"
-          }
-        },
-        "required": [
-          "analyzed_trip_count",
-          "total_distance_m",
-          "target_zone_distance_m",
-          "bonus_zone_distance_m",
-          "exclusion_zone_distance_m",
-          "average_quality_score"
-        ],
-        "title": "RouteAnalyticsSummary",
-        "type": "object"
       },
       "ScanDayRead": {
         "properties": {
@@ -20874,27 +20151,6 @@
         "title": "TripStartRequest",
         "type": "object"
       },
-      "TripStatusCounts": {
-        "properties": {
-          "active": {
-            "default": 0,
-            "title": "Active",
-            "type": "integer"
-          },
-          "ended": {
-            "default": 0,
-            "title": "Ended",
-            "type": "integer"
-          },
-          "total": {
-            "default": 0,
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "title": "TripStatusCounts",
-        "type": "object"
-      },
       "UserCreate": {
         "additionalProperties": false,
         "properties": {
@@ -22193,27 +21449,6 @@
           "withdrawn_at"
         ],
         "title": "WhatsappConsentRead",
-        "type": "object"
-      },
-      "ZoneTypeCounts": {
-        "properties": {
-          "exclusion": {
-            "default": 0,
-            "title": "Exclusion",
-            "type": "integer"
-          },
-          "target": {
-            "default": 0,
-            "title": "Target",
-            "type": "integer"
-          },
-          "total": {
-            "default": 0,
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "title": "ZoneTypeCounts",
         "type": "object"
       }
     },
@@ -33171,7 +32406,7 @@
     },
     "/api/v1/advertiser/campaigns/{campaign_id}/daily-metrics": {
       "get": {
-        "description": "Return Nigeria calendar days (WAT); default to seven days including partial today. Empty days are zero; days below three cars are withheld.",
+        "description": "Return Nigeria calendar days (WAT); default to seven days with today not ready. Empty days are zero; days below three cars are withheld.",
         "operationId": "advertiser_get_campaign_daily_metrics_api_v1_advertiser_campaigns__campaign_id__daily_metrics_get",
         "parameters": [
           {
@@ -33333,220 +32568,6 @@
         ]
       }
     },
-    "/api/v1/advertiser/campaigns/{campaign_id}/heatmap": {
-      "get": {
-        "description": "Return bounded GeoJSON heatmap cells for an advertiser campaign. Demo bbox: 3.35,6.43,3.47,6.56.",
-        "operationId": "advertiser_get_campaign_heatmap_api_v1_advertiser_campaigns__campaign_id__heatmap_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "campaign_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Campaign Id",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Required min_lon,min_lat,max_lon,max_lat bbox, for example 3.35,6.43,3.47,6.56.",
-            "in": "query",
-            "name": "bbox",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Required min_lon,min_lat,max_lon,max_lat bbox, for example 3.35,6.43,3.47,6.56.",
-              "title": "Bbox"
-            }
-          },
-          {
-            "description": "Grid cell size in meters.",
-            "in": "query",
-            "name": "resolution_m",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "minimum": 1,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Grid cell size in meters.",
-              "title": "Resolution M"
-            }
-          },
-          {
-            "description": "One of ping_count, trip_count, distance_m, estimated_impressions.",
-            "in": "query",
-            "name": "metric",
-            "required": false,
-            "schema": {
-              "default": "ping_count",
-              "description": "One of ping_count, trip_count, distance_m, estimated_impressions.",
-              "title": "Metric",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "start_at",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Start At"
-            }
-          },
-          {
-            "in": "query",
-            "name": "end_at",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "End At"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HeatmapFeatureCollection"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Read advertiser campaign heatmap",
-        "tags": [
-          "Heatmaps"
-        ]
-      }
-    },
-    "/api/v1/advertiser/campaigns/{campaign_id}/impressions/summary": {
-      "get": {
-        "operationId": "advertiser_get_campaign_impression_summary_api_v1_advertiser_campaigns__campaign_id__impressions_summary_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "campaign_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Campaign Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "start_at",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Start At"
-            }
-          },
-          {
-            "in": "query",
-            "name": "end_at",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "End At"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CampaignImpressionSummary"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Read advertiser campaign impression summary",
-        "tags": [
-          "Impressions"
-        ]
-      }
-    },
     "/api/v1/advertiser/campaigns/{campaign_id}/live-positions": {
       "get": {
         "operationId": "get_live_positions_api_v1_advertiser_campaigns__campaign_id__live_positions_get",
@@ -33703,7 +32724,7 @@
     },
     "/api/v1/advertiser/campaigns/{campaign_id}/report": {
       "get": {
-        "description": "Return campaign-wide distance, trips, Nigeria driving days, estimated views and privacy-safe areas.",
+        "description": "Return trip counts and estimated views summed from qualifying complete area weeks.",
         "operationId": "advertiser_get_campaign_report_api_v1_advertiser_campaigns__campaign_id__report_get",
         "parameters": [
           {
@@ -33714,40 +32735,6 @@
               "format": "uuid",
               "title": "Campaign Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "start_at",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Start At"
-            }
-          },
-          {
-            "in": "query",
-            "name": "end_at",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "End At"
             }
           }
         ],
@@ -33900,138 +32887,6 @@
         "summary": "Submit a campaign for admin review",
         "tags": [
           "Campaigns"
-        ]
-      }
-    },
-    "/api/v1/advertiser/campaigns/{campaign_id}/summary": {
-      "get": {
-        "description": "Return frontend-ready totals for one advertiser-owned campaign.",
-        "operationId": "advertiser_get_campaign_summary_api_v1_advertiser_campaigns__campaign_id__summary_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "campaign_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Campaign Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "start_at",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Start At"
-            }
-          },
-          {
-            "in": "query",
-            "name": "end_at",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "End At"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CampaignSummary"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Read advertiser campaign reporting summary",
-        "tags": [
-          "Advertiser Reports"
-        ]
-      }
-    },
-    "/api/v1/advertiser/campaigns/{campaign_id}/trips": {
-      "get": {
-        "description": "Return one privacy-governed whole-campaign aggregate without trip rows, identifiers, or event timestamps.",
-        "operationId": "advertiser_get_campaign_trip_aggregate_api_v1_advertiser_campaigns__campaign_id__trips_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "campaign_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Campaign Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CampaignTripsResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Read advertiser campaign trip aggregate",
-        "tags": [
-          "Advertiser Reports"
         ]
       }
     },
@@ -34669,79 +33524,6 @@
         "summary": "Advertiser Add Complaint Message",
         "tags": [
           "Complaints"
-        ]
-      }
-    },
-    "/api/v1/advertiser/dashboard/summary": {
-      "get": {
-        "description": "Aggregate stored campaign, trip, impression, payout, and fraud data for the current advertiser organization. The demo seed returns non-empty data here.",
-        "operationId": "advertiser_get_dashboard_summary_api_v1_advertiser_dashboard_summary_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "start_at",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Start At"
-            }
-          },
-          {
-            "in": "query",
-            "name": "end_at",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "End At"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdvertiserDashboardSummary"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Read advertiser dashboard summary",
-        "tags": [
-          "Advertiser Reports"
         ]
       }
     },

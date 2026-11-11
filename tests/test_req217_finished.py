@@ -27,7 +27,6 @@ from app.services.campaign_assignments import (
     ensure_not_expired,
 )
 from app.services.campaign_lifecycle import campaign_display_status
-from app.services.reports import assignment_counts_for_campaign, assignment_counts_for_org
 
 
 def test_ended_campaign_cannot_be_extended_and_pending_change_cannot_cross_end(
@@ -80,7 +79,7 @@ def test_ended_campaign_cannot_be_extended_and_pending_change_cannot_cross_end(
     asyncio.run(unchanged())
 
 
-def test_finished_assignment_counts_and_mutations_use_end_date(db_sessionmaker):
+def test_finished_assignment_mutations_use_end_date(db_sessionmaker):
     admin, owner, campaign = change_graph(db_sessionmaker, "finished-assignment")
     driver = create_test_user(db_sessionmaker, email="finished-driver@example.com", role="driver")
     profile = create_test_driver_profile(db_sessionmaker, user_id=driver.id)
@@ -124,10 +123,6 @@ def test_finished_assignment_counts_and_mutations_use_end_date(db_sessionmaker):
 
     async def exercise():
         async with db_sessionmaker() as session:
-            total = await assignment_counts_for_org(session, campaign.organization_id)
-            own = await assignment_counts_for_campaign(session, campaign.id)
-            assert total.total == 2 and total.finished == 1 and total.active == 1
-            assert own.total == own.finished == 1 and own.active == 0
             events = await session.scalar(select(func.count()).select_from(CampaignActivationEvent))
         for action in ("cancel", "deactivate"):
             async with db_sessionmaker() as session:
