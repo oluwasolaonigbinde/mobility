@@ -182,14 +182,15 @@ def test_seed_pay_and_ledger_match_before_slimdown(
         + zero_ledger
         + [[*row[:5], "trip_payout", "pending", row[6], row[7]] for row in removed]
     )
+    # Updated by REQ-311: 28 demo report-route trips made physically plausible (seed data only; pay calculation unchanged).  # noqa: E501
     assert (
         _digest(historical_calculations)
-        == "5e4c7a9579c53e9f7fd6b05cdf000ccacb721a0d7968926b279bcc0c6eb51814"
+        == "e7d9347716abfbcfb6d582a04e281637a5bdd0f8bef80505e1b6799890aa8deb"
     )
     assert (
         _digest(historical_ledger)
-        == "54daf385b28af837ef7350f604d064ba392b4bd75abe9842c561d1bcc3dc6f57"
+        == "67d1c905e8fdfc17abfd5e48f075147c430d941c4bbbb23977c29d921caa61d7"
     )
     assert sum(Decimal(row[7]) for row in ledger) == (
-        Decimal("497627.06") - sum(Decimal(row[6]) for row in removed)
+        Decimal("458595.06") - sum(Decimal(row[6]) for row in removed)
     )

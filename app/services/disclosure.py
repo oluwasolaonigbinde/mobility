@@ -464,7 +464,7 @@ async def blocked_days(session, *, campaign_id, start, end, now):
         if now < boundary or any(aware(at) < boundary for at in active):
             blocked.add(day.date())
         day = boundary
-    return blocked
+    return frozenset(blocked)
 
 
 async def load_cells(session, *, campaign_id, start, end, settings, now):

@@ -35,10 +35,16 @@ Existing credentials, immutable history and unrelated records remain intact.
 Golden report contributors and the Wuse workday driver use the canonical
 full-workday route and durations of the primary driver, each car shifted a few
 metres. Identical GPS from different drivers correctly opens a route-replay
-hold, which under D160 keeps that day not ready. Completed-campaign report
-contributors drive one lap of the original route on their own nearby path, at
-a plausible speed. The live demo car's last fix is 23 minutes old, so it stays
-visible through the 15-minute delay and five-minute bucket. This balances synthetic
+hold, which under D160 keeps that day not ready; the shift changes no paid
+amount. Completed-campaign report contributors (driver01 and driver02 on Beryl
+Lane, Linden Harbour and Central Area Lunch, 28 paid trips) drive one lap of
+the original route on their own nearby path, at a plausible speed, so no
+impossible-speed hold keeps their days not ready. REQ-311 changed the demo pay
+of exactly those 28 trips, not the pay calculation; the historical pay-parity
+hash was updated with a row-level diff. The live demo car's last fix is 23
+minutes old at seeding and no new fixes arrive, so it shows on the live map
+for only about seven minutes after seeding (15-minute delay, 30-minute window,
+five-minute bucket). This balances synthetic
 distance, time, impressions and cost within the existing disclosure limits;
 privacy thresholds are not reduced to display the demo report.
 
