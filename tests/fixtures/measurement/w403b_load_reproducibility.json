@@ -188,7 +188,7 @@
     }
   },
   "report_snapshot": {
-    "schema_version": "campaign-report-d118-v1",
+    "schema_version": "campaign-report-d160-v4",
     "generated_at": "2026-09-01T01:00:00+01:00",
     "start_date": "2026-06-01",
     "end_date": "2026-08-31",
@@ -200,13 +200,15 @@
         "status": "finished",
         "start_at": "01 Jun 2026 00:00 WAT",
         "end_at": "01 Sep 2026 00:00 WAT",
+        "overlap_start": "2026-06-01",
+        "overlap_end": "2026-08-31",
         "measured": {
-          "cars_deployed": 10,
-          "cars_driven": 10,
           "distance_m": "10045.00",
-          "driving_days": 1,
           "trip_count": 10,
-          "driving_seconds": 36000
+          "driving_seconds": 36000,
+          "driving_days": 1,
+          "average_cars_per_day": "10",
+          "cars_deployed": 10
         },
         "estimates": {
           "views": "1000.00"
@@ -219,7 +221,7 @@
             "estimated_impressions": "1000.00",
             "trip_count": 10,
             "driving_seconds": 36000,
-            "suppressed": false
+            "status": "released"
           }
         ],
         "areas": [],
@@ -229,5 +231,5 @@
     ]
   },
   "measurement_input_sha256": "2d6aa62898832ecc833d78f72f2f03377e71965f55f3287c77a4ba49c4653fbd",
-  "frozen_authority_sha256": "d5b6065c19217324648bf7b3226b8c65ec51600c97f9575606e52b3d1d05c4d0"
+  "frozen_authority_sha256": "ce360497d044c63b012de6edc3c5e9747bc464ea86e8079a172716ae7e9dfd57"
 }

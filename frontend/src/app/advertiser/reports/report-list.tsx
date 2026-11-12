@@ -18,6 +18,8 @@ function subscribeToStorage(callback: () => void) {
   return () => window.removeEventListener("storage", callback);
 }
 
+const subscribeToNothing = () => () => {};
+
 async function readReports(url: string): Promise<ReportList> {
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) throw new Error("Reports could not be loaded");
@@ -82,6 +84,13 @@ export function Reports({
     }
   }
   const pending = pendingRequest || restored;
+  // Server HTML stays disabled until React hydrates; a date typed earlier would be lost.
+  const hydrated = useSyncExternalStore(
+    subscribeToNothing,
+    () => true,
+    () => false,
+  );
+  const locked = !hydrated || busy;
 
   async function requestReport() {
     const payload = pending || {
@@ -157,7 +166,7 @@ export function Reports({
                 aria-label="Campaign"
                 className="border-edge bg-raised focus:border-amber h-11 min-w-0 rounded-lg border px-3.5 text-sm font-normal focus:outline-none"
                 value={pending ? pending.campaign_id || "all" : selection}
-                disabled={busy || !!pending || !!campaignId}
+                disabled={locked || !!pending || !!campaignId}
                 onChange={(event) => setSelection(event.target.value)}
               >
                 {!campaignId ? <option value="all">All my campaigns</option> : null}
@@ -175,7 +184,7 @@ export function Reports({
               required
               value={pending?.start_date || start}
               max={end || today}
-              disabled={busy || !!pending}
+              disabled={locked || !!pending}
               onChange={(event) => setStart(event.target.value)}
             />
             <Field
@@ -186,11 +195,11 @@ export function Reports({
               value={pending?.end_date || end}
               min={start}
               max={today}
-              disabled={busy || !!pending}
+              disabled={locked || !!pending}
               onChange={(event) => setEnd(event.target.value)}
             />
           </div>
-          <Button type="submit" disabled={busy || !campaigns.length}>
+          <Button type="submit" disabled={locked || !campaigns.length}>
             {busy ? "Checking…" : pending ? "Check request" : "Create report"}
           </Button>
           <p role="status" className="text-muted text-sm">

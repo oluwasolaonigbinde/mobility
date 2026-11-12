@@ -48,7 +48,6 @@ const input = { params: Promise.resolve({ campaignId: "one" }), searchParams: Pr
 function ready(path: string) {
   if (path.endsWith("/commercial"))
     return { data: { invoices: [], terms: {}, budget_check: null, production_start: null } };
-  if (path.endsWith("/summary")) return { data: { assignments: { active: 8 } } };
   if (
     ["/creatives", "/zones", "/review-history", "/change-requests", "/complaints"].some((suffix) =>
       path.endsWith(suffix),

@@ -235,24 +235,29 @@ test("advertiser sees only governed tenant aggregates and its campaign performan
       { headers },
     );
     expect(dailyResponse.status()).toBe(200);
-    const daily = await dailyResponse.json();
+    const daily = (await dailyResponse.json()) as components["schemas"]["DailyMetricsResponse"];
+    // The performance report carries no period; the campaign's own start bounds the window.
+    const campaignResponse = await page.request.get(
+      `${apiBase}/api/v1/advertiser/campaigns/${campaignId}`,
+      { headers },
+    );
+    expect(campaignResponse.status()).toBe(200);
+    const campaign =
+      (await campaignResponse.json()) as components["schemas"]["AdvertiserCampaignRead"];
+    if (!campaign.start_at) throw new Error("The running Home campaign has no start date");
     const startDay = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Africa/Lagos",
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
-    }).format(new Date(report.start_at!));
-    const released = daily.items.filter((d: { date: string }) => d.date >= startDay);
-    expect(
-      released.every(
-        (d: { suppressed: boolean; estimated_impressions: string | null }) =>
-          !d.suppressed && d.estimated_impressions !== null,
-      ),
-    ).toBe(true);
-    const total = released.reduce(
-      (n: number, d: { estimated_impressions: string }) => n + Number(d.estimated_impressions),
-      0,
+    }).format(new Date(campaign.start_at));
+    const released = daily.items.filter((d) => d.date >= startDay);
+    expect(released.length).toBeGreaterThan(0);
+    const allReleased = released.every(
+      (d) => d.status === "released" && d.estimated_impressions !== null,
     );
+    expect(allReleased).toBe(true);
+    const total = released.reduce((n, d) => n + Number(d.estimated_impressions), 0);
     await expect(views).toHaveText(new Intl.NumberFormat("en-NG").format(Math.round(total)));
   }
   await expect(page.getByRole("heading", { name: "On the road now", exact: true })).toBeVisible();

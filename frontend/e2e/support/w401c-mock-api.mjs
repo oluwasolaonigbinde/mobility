@@ -265,14 +265,6 @@ const server = createServer(async (request, response) => {
           items: [...workflowCreatives.values()],
           total: workflowCreatives.size,
         });
-      if (tail === "/summary")
-        return send(response, 200, {
-          zones: {},
-          impressions: {},
-          route_analytics: {},
-          fraud_flags: {},
-          assignments: {},
-        });
       if (tail === "/commercial") return send(response, 200, null);
       if (tail) return send(response, 200, { items: [], total: 0 });
       return send(response, 200, workflowCampaign);

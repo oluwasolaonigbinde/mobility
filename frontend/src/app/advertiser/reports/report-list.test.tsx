@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { Reports } from "./report-list";
 
@@ -37,6 +38,19 @@ it("shows the empty state and clearly explains charts, estimates and withheld re
   expect(screen.getByText(/The PDF has charts and pictures of your advert/)).toBeInTheDocument();
   expect(screen.getByText(/finished days\. A hidden result is not zero/)).toBeInTheDocument();
   expect(screen.queryByText(/ROI|CTR|budget figures|money figures/)).not.toBeInTheDocument();
+});
+
+it("keeps the form locked in server HTML so dates typed before the page is ready aren't lost", () => {
+  const html = renderToString(
+    <QueryClientProvider client={new QueryClient()}>
+      <Reports campaigns={campaigns} today="2026-10-21" sessionScope="owner:company" />
+    </QueryClientProvider>,
+  );
+  const form = document.createElement("div");
+  form.innerHTML = html;
+  for (const label of ["Campaign", "From", "To"])
+    expect(form.querySelector(`[aria-label="${label}"]`)).toBeDisabled();
+  expect(form.querySelector('button[type="submit"]')).toBeDisabled();
 });
 
 it("sends the selected Nigeria dates and one campaign", async () => {
