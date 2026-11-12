@@ -11,6 +11,7 @@ from app.jobs import trip_processing as jobs
 from app.models.campaign import Campaign
 from app.models.payout import AssignmentRuleBinding, EarningsLedgerEntry, PayoutCalculation
 from app.models.trip import TripSession
+from app.models.trip_analytics import FraudFlag
 from app.services import trip_processing as processing
 from app.services.trips import auto_end_inactive_trip
 
@@ -43,6 +44,19 @@ async def run_reporting_worker_paths(sessionmaker, settings, monkeypatch):
     sweep = await jobs.process_unprocessed_trips(ctx)
     after_sweep = await payout_snapshot(sessionmaker)
     print("SWEEP_MONEY_BEFORE", before, "AFTER", after_sweep, flush=True)
+    # REQ-312: the demo refresher feeds both live cars for several slots first.
+    from app.seeds.live_car import refresh_demo_live_cars
+    from app.services import trips as trip_service
+
+    enabled = settings.model_copy(update={"demo_live_car_refresh": True})
+    real_utc_now = trip_service.utc_now
+    start = datetime.now(UTC).replace(microsecond=0)
+    for minutes in (5, 10, 15, 20):
+        at = start + timedelta(minutes=minutes)
+        monkeypatch.setattr(trip_service, "utc_now", lambda at=at: at)
+        refreshed = await refresh_demo_live_cars(sessionmaker, settings=enabled, now=at)
+        assert refreshed["trips"] == 2 and refreshed["accepted"] >= 2, refreshed
+    monkeypatch.setattr(trip_service, "utc_now", real_utc_now)
     future = datetime.now(UTC).replace(microsecond=0) + timedelta(hours=3)
     async with sessionmaker() as session:
         live = list(
@@ -78,6 +92,30 @@ async def run_reporting_worker_paths(sessionmaker, settings, monkeypatch):
     after_auto_end = await payout_snapshot(sessionmaker)
     print("WORKER_SWEEP", sweep, "AUTO_END_SWEEP", second)
     print("MONEY_BEFORE", before, "AFTER_SWEEP", after_sweep, "AFTER_AUTO_END", after_auto_end)
+    async with sessionmaker() as session:
+        ended = list(
+            await session.scalars(
+                select(TripSession).where(TripSession.id.in_([trip.id for trip in live]))
+            )
+        )
+        assert all(trip.status != "active" for trip in ended), [t.status for t in ended]
+        # REQ-312: the refreshed path raises no fraud flag once ended and processed.
+        flags = list(
+            await session.execute(
+                select(FraudFlag.trip_session_id, FraudFlag.flag_type).where(
+                    FraudFlag.trip_session_id.in_([trip.id for trip in live])
+                )
+            )
+        )
+        assert flags == [], flags
+        assert (
+            await session.scalar(
+                select(func.count(AssignmentRuleBinding.id)).where(
+                    AssignmentRuleBinding.assignment_id.in_([trip.assignment_id for trip in live])
+                )
+            )
+            == 0
+        )
     return before, after_sweep, after_auto_end
 
 

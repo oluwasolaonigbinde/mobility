@@ -33,6 +33,7 @@ from app.jobs import budget_enforcement as budget_enforcement_jobs
 from app.jobs import business_health as business_health_jobs
 from app.jobs import campaign_assignments as campaign_assignment_jobs
 from app.jobs import data_lifecycle as data_lifecycle_jobs
+from app.jobs import demo_live_car as demo_live_car_jobs
 from app.jobs import disbursements as disbursement_jobs
 from app.jobs import earnings_release as earnings_release_jobs
 from app.jobs import email_delivery as email_delivery_jobs
@@ -97,7 +98,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert payout_event.coroutine is disbursement_jobs.process_payout_provider_event_job
     assert payout_event.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 21
+    assert len(WorkerSettings.cron_jobs) == 22
     health_crons = [
         job
         for job in WorkerSettings.cron_jobs
@@ -106,7 +107,20 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert len(health_crons) == 1
     assert health_crons[0].minute == set(range(0, 60, 5))
     assert health_crons[0].unique is True
-    existing_crons = [job for job in WorkerSettings.cron_jobs if job not in health_crons]
+    # REQ-312: the demo live-car refresher runs every five minutes, once at a time.
+    live_car_crons = [
+        job
+        for job in WorkerSettings.cron_jobs
+        if inspect.unwrap(job.coroutine) is demo_live_car_jobs.refresh_demo_live_cars_job
+    ]
+    assert len(live_car_crons) == 1
+    assert live_car_crons[0].minute == sweep_cron_minutes(5)
+    assert live_car_crons[0].unique is True
+    existing_crons = [
+        job
+        for job in WorkerSettings.cron_jobs
+        if job not in health_crons and job not in live_car_crons
+    ]
     assert len(existing_crons) == 20
     cron_job = existing_crons[0]
     assert isinstance(cron_job, CronJob)

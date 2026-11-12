@@ -27,6 +27,7 @@ from app.jobs.data_lifecycle import (
     premake_ping_partitions,
     purge_expired_ping_partitions,
 )
+from app.jobs.demo_live_car import refresh_demo_live_cars_job
 from app.jobs.disbursements import (
     process_disbursement_intent_job,
     process_payout_provider_event_job,
@@ -219,6 +220,8 @@ class WorkerSettings:
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
             unique=True,
         ),
+        # REQ-312: demo-only; a no-op unless DEMO_LIVE_CAR_REFRESH is set (local compose).
+        cron(refresh_demo_live_cars_job, minute=sweep_cron_minutes(5), unique=True),
     ]
     # Worker-level too: finish_failed_job stores max-retries failures under the
     # deterministic job id using this value (func-level keep_result not consulted).

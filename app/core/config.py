@@ -267,6 +267,9 @@ class Settings(BaseSettings):
     privacy_min_vehicles_per_cell: int = 3
     privacy_min_resolution_m: int = 500
     allow_demo_seed: bool = False
+    # REQ-312: the worker keeps the seeded demo live cars moving. Set only for the
+    # local compose worker; ALLOW_DEMO_SEED never enables it, and production refuses it.
+    demo_live_car_refresh: bool = False
     # RM3 seal protocol: recovery window after an incomplete/legacy trip end
     # before the sweep force-seals; and how far past ended_at a late ping's
     # recorded_at may fall (matches location_ping_future_skew tolerance).

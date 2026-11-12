@@ -2404,8 +2404,31 @@ async def settle_seed_driver_notifications(
     return int(cast(CursorResult[Any], result).rowcount or 0)
 
 
-async def ensure_reporting_live_car(session, *, campaign, driver_email, settings):
-    """Live fixture on an unbound reporting assignment; auto-end cannot earn money."""
+async def ensure_reporting_live_car(session, *, campaign, driver_email, settings, path_offset):
+    """Live fixture on an unbound reporting assignment; auto-end cannot earn money.
+
+    REQ-312: the trip gets 40 minutes of staggered history, one batch per
+    five-minute slot, each received at its slot's end. Every batch becomes
+    visible through the 15-minute delay before the previous one leaves the
+    30-minute window, so the car shows from the moment of seeding; the worker's
+    demo refresher (app.seeds.live_car) then keeps it moving. The seed writes
+    these history batches directly because ingest stamps ``received_at =
+    utc_now()`` (app/services/trips.py:1126), which would hide the history until
+    T0+15. An active trip under the 12-hour cap counts as present. Reseeding
+    after auto-end starts a fresh trip; reseeding after the cap first ends and
+    seals the capped trip through the driver End service, then starts a fresh
+    one. ``path_offset`` gives each campaign's car its own lane.
+    """
+    from app.seeds.live_car import (
+        LIVE_CAR_CAP,
+        LIVE_CAR_HISTORY,
+        LIVE_CAR_SLOT,
+        LIVE_CAR_VERSION,
+        end_capped_live_car,
+        live_car_batch,
+        live_car_slot,
+    )
+
     assignment = await session.scalar(
         select(CampaignAssignment)
         .join(DriverProfile, DriverProfile.id == CampaignAssignment.driver_profile_id)
@@ -2415,17 +2438,19 @@ async def ensure_reporting_live_car(session, *, campaign, driver_email, settings
             User.email == driver_email,
         )
     )
+    now = utc_now().replace(microsecond=0)
     existing = await session.scalar(
-        select(TripSession.id).where(
+        select(TripSession).where(
             TripSession.assignment_id == assignment.id,
-            TripSession.trip_metadata["seed_version"].as_string() == "demo-live-v1",
+            TripSession.trip_metadata["seed_version"].as_string() == LIVE_CAR_VERSION,
+            TripSession.status == "active",
         )
     )
     if existing is not None:
-        return
-    # Last fix 23 and batch 21 minutes old: visible through the 15-minute delay
-    # even after the five-minute bucket rounds the clock down (D160).
-    started = utc_now().replace(microsecond=0) - timedelta(minutes=38)
+        if now < existing.started_at + LIVE_CAR_CAP:
+            return
+        await end_capped_live_car(session, trip=existing, settings=settings)
+    started = live_car_slot(now) - LIVE_CAR_HISTORY
     profile = await session.get(DriverProfile, assignment.driver_profile_id)
     trip = TripSession(
         assignment_id=assignment.id,
@@ -2436,57 +2461,52 @@ async def ensure_reporting_live_car(session, *, campaign, driver_email, settings
         status="active",
         started_at=started,
         evidence_protocol_version=2,
-        trip_metadata={"seed_version": "demo-live-v1"},
+        trip_metadata={"seed_version": LIVE_CAR_VERSION, "path_offset": path_offset},
     )
     session.add(trip)
     await session.flush()
-    payload = LocationPingBatchCreate(
-        idempotency_key="demo-live-v1",
-        batch_sequence=0,
-        pings=[
-            LocationPingCreate(
-                recorded_at=started + timedelta(minutes=index * 3),
-                lat=9.02 + index * 0.006,
-                lon=7.46 + index * 0.004,
-                accuracy_m=8,
-                speed_mps=7.5,
-                sequence_number=index,
-            )
-            for index in range(6)
-        ],
-    )
-    batch = LocationPingBatch(
-        trip_session_id=trip.id,
-        idempotency_key=payload.idempotency_key,
-        batch_sequence=0,
-        payload_hash_version=2,
-        payload_hash=batch_payload_hash(payload),
-        pings_submitted=6,
-        pings_accepted=6,
-        pings_rejected=0,
-        evidence_scope="manifest",
-        received_at=started + timedelta(minutes=17),
-        batch_metadata={"seed_version": "demo-live-v1"},
-    )
-    session.add(batch)
-    await session.flush()
-    sign_batch_receipt(batch, settings)
-    for ping in payload.pings:
-        session.add(
-            LocationPing(
-                trip_session_id=trip.id,
-                batch_id=batch.id,
-                recorded_at=ping.recorded_at,
-                received_at=batch.received_at,
-                sequence_number=ping.sequence_number,
-                latitude=ping.lat,
-                longitude=ping.lon,
-                accuracy_m=ping.accuracy_m,
-                speed_mps=ping.speed_mps,
-                geom=point_value(session, lon=ping.lon, lat=ping.lat),
-                ping_metadata={"seed_version": "demo-live-v1"},
-            )
+    slot, sequence = started, 0
+    while slot + LIVE_CAR_SLOT <= now:
+        payload = live_car_batch(
+            trip_id=trip.id,
+            started_at=started,
+            path_offset=path_offset,
+            slot=slot,
+            batch_sequence=sequence,
         )
+        batch = LocationPingBatch(
+            trip_session_id=trip.id,
+            idempotency_key=payload.idempotency_key,
+            batch_sequence=sequence,
+            payload_hash_version=2,
+            payload_hash=batch_payload_hash(payload),
+            pings_submitted=len(payload.pings),
+            pings_accepted=len(payload.pings),
+            pings_rejected=0,
+            evidence_scope="manifest",
+            received_at=slot + LIVE_CAR_SLOT,
+            batch_metadata=dict(payload.metadata),
+        )
+        session.add(batch)
+        await session.flush()
+        sign_batch_receipt(batch, settings)
+        for ping in payload.pings:
+            session.add(
+                LocationPing(
+                    trip_session_id=trip.id,
+                    batch_id=batch.id,
+                    recorded_at=ping.recorded_at,
+                    received_at=batch.received_at,
+                    sequence_number=ping.sequence_number,
+                    latitude=ping.lat,
+                    longitude=ping.lon,
+                    accuracy_m=ping.accuracy_m,
+                    speed_mps=ping.speed_mps,
+                    geom=point_value(session, lon=ping.lon, lat=ping.lat),
+                    ping_metadata=ping.metadata,
+                )
+            )
+        slot, sequence = slot + LIVE_CAR_SLOT, sequence + 1
     await session.flush()
 
 
@@ -2600,5 +2620,9 @@ async def ensure_reporting_contributors(
             )
         if index == 0:
             await ensure_reporting_live_car(
-                session, campaign=campaign, driver_email=email, settings=settings
+                session,
+                campaign=campaign,
+                driver_email=email,
+                settings=settings,
+                path_offset=("abuja", "wuse").index(namespace),
             )

@@ -126,7 +126,7 @@ def test_worker_settings_importable_without_broker_or_database() -> None:
         "process_trip",
         "generate_campaign_report",
     }
-    assert len(WorkerSettings.cron_jobs) == 21
+    assert len(WorkerSettings.cron_jobs) == 22  # REQ-312 adds the demo live-car refresher
     assert WorkerSettings.keep_result == 0
     assert WorkerSettings.on_startup is worker.on_startup
     assert WorkerSettings.on_shutdown is worker.on_shutdown
@@ -208,3 +208,9 @@ def test_compose_worker_uses_strict_entry_without_fixed_setting_knobs() -> None:
         assert fixed not in backend_env
     assert compose["services"]["worker"]["command"] == ("arq app.jobs.worker_entry.WorkerSettings")
     assert "ports" not in compose["services"]["worker"]
+    # REQ-312: only the local compose worker keeps the demo live cars moving.
+    assert "DEMO_LIVE_CAR_REFRESH" not in backend_env
+    assert "DEMO_LIVE_CAR_REFRESH" not in compose["services"]["api"]["environment"]
+    worker_env = compose["services"]["worker"]["environment"]
+    assert worker_env["DEMO_LIVE_CAR_REFRESH"] == "true"
+    assert {k: v for k, v in worker_env.items() if k != "DEMO_LIVE_CAR_REFRESH"} == backend_env

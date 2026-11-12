@@ -65,7 +65,10 @@ services:
   worker:
     build: .
     command: arq app.jobs.worker_entry.WorkerSettings
-    environment: *backend-env
+    environment:
+      <<: *backend-env
+      # REQ-312: keep the seeded demo live cars on the advertiser map (local only).
+      DEMO_LIVE_CAR_REFRESH: "true"
     volumes:
       - .:/app
     depends_on:

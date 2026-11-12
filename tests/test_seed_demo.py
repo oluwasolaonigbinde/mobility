@@ -2257,15 +2257,33 @@ def test_demo_seed_is_idempotent_with_postgis(
             end = datetime.now(ZoneInfo("Africa/Lagos")).replace(
                 hour=0, minute=0, second=0, microsecond=0
             )
+            assert sorted(trip.trip_metadata["path_offset"] for trip in live) == [0, 1]
             for trip in live:
                 assert trip.status == "active" and trip.ended_at is None
+                # REQ-312: 40 minutes of staggered history, one batch per five-minute
+                # slot, each received at its slot's end so none is ever in the future.
+                batches = (
+                    await session.scalars(
+                        select(LocationPingBatch)
+                        .where(LocationPingBatch.trip_session_id == trip.id)
+                        .order_by(LocationPingBatch.batch_sequence)
+                    )
+                ).all()
+                assert [batch.batch_sequence for batch in batches] == list(range(8))
+                assert all(batch.pings_accepted == 5 for batch in batches)
+                received = [batch.received_at for batch in batches]
+                assert all(
+                    b - a == timedelta(minutes=5)
+                    for a, b in zip(received, received[1:], strict=False)
+                )
+                assert received[-1] <= datetime.now(UTC)
                 assert (
                     await session.scalar(
                         select(func.count(LocationPing.id)).where(
                             LocationPing.trip_session_id == trip.id
                         )
                     )
-                    == 6
+                    == 40
                 )
                 assert (
                     await session.scalar(

@@ -41,10 +41,8 @@ Lane, Linden Harbour and Central Area Lunch, 28 paid trips) drive one lap of
 the original route on their own nearby path, at a plausible speed, so no
 impossible-speed hold keeps their days not ready. REQ-311 changed the demo pay
 of exactly those 28 trips, not the pay calculation; the historical pay-parity
-hash was updated with a row-level diff. The live demo car's last fix is 23
-minutes old at seeding and no new fixes arrive, so it shows on the live map
-for only about seven minutes after seeding (15-minute delay, 30-minute window,
-five-minute bucket). This balances synthetic
+hash was updated with a row-level diff. The two demo live cars stay on the live
+map while the local compose worker runs (REQ-312, below). This balances synthetic
 distance, time, impressions and cost within the existing disclosure limits;
 privacy thresholds are not reduced to display the demo report.
 
@@ -122,6 +120,44 @@ honestly if none qualify. Worker and auto-end verification must compare the
 financial records before and after the sweep. Local verification evidence lives
 in the owner-designated REQ-311 evidence folder; these rules do not claim a fresh
 seed run, external deployment or legal approval.
+
+## REQ-312 demo live cars
+
+The seed starts one active `demo-live-v1` trip on the main Abuja campaign and one
+on "Marula Kitchens — Wuse Lunch Rush", each on an unbound reporting assignment,
+so neither can earn money. Each trip gets 40 minutes of staggered history: one
+batch of five fixes per five-minute slot, each received at its slot's end, so
+the car shows on the advertiser "On the road now" map from the moment of seeding.
+
+`DEMO_LIVE_CAR_REFRESH` (default `false`) is set to `true` only for the `worker`
+service in `docker-compose.yml`. The worker then runs a five-minute job
+(`app.seeds.live_car`) that submits one deterministic batch per missed slot
+through the driver ingest path, so the cars keep moving. Production refuses the
+job whatever the flag says, and `ALLOW_DEMO_SEED` alone never enables it, so it
+is off outside the local compose stack (including staging and the client
+preview's env files, which are unchanged while the preview is on hold).
+
+- **Path.** Each car drives a 4.7 km road out and back every 20 minutes at about
+  8 m/s, accuracy 8 m. The road lies inside both campaigns' target zones and clear
+  of the Three Arms exclusion. Each trip has its own lane, phase and a few metres
+  of trip-specific jitter, so the cars never share a fix or form a route-replay
+  group. Every 30 minutes the car moves well over 200 m, so the map's parked check
+  never hides it. The privacy rules are unchanged: 15-minute delay, five-minute
+  bucket, 30-minute window, rounding to three decimals.
+- **Cap and volume.** The job feeds a trip for at most 12 hours after it starts:
+  60 fixes and 12 batches an hour per car, about 1,500 fixes and 300 batches for
+  both cars over a full 12 hours.
+- **Worker downtime.** A repeat run in the same slot is a duplicate and adds no
+  rows. A single missed five-minute run is caught up with no gap on the map. If
+  the worker misses two runs in a row (roughly 5–10 minutes of downtime), the map
+  shows a gap until it catches up. After 2 hours with no location the trip
+  auto-ends (REQ-264); rerunning the demo seed then starts a fresh trip. After the
+  12-hour cap the trip stays active but is no longer fed; rerunning the demo seed
+  ends and seals that capped trip through the driver End service (the trip is on
+  an unbound reporting assignment, so it earns nothing) and starts a fresh one.
+- **Rejected alternative:** future-dated fixes. Ingest refuses a future
+  `recorded_at`, and a future `received_at` would claim a receipt that hasn't
+  happened.
 
 ## Seeded content inventory
 
