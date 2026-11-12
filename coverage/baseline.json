@@ -6,12 +6,12 @@
   },
   "critical": {
     "backend": {
-      "branch_covered": 6229,
-      "branch_percent": 83.9714,
-      "branch_total": 7418,
-      "line_covered": 29723,
-      "line_percent": 94.4727,
-      "line_total": 31462,
+      "branch_covered": 6246,
+      "branch_percent": 84.1779,
+      "branch_total": 7420,
+      "line_covered": 29470,
+      "line_percent": 94.4915,
+      "line_total": 31188,
       "paths": [
         "app/__init__.py",
         "app/adapters/banks.py",
@@ -316,12 +316,12 @@
       ]
     },
     "frontend": {
-      "branch_covered": 7843,
-      "branch_percent": 81.0646,
-      "branch_total": 9675,
-      "line_covered": 7473,
-      "line_percent": 87.4751,
-      "line_total": 8543,
+      "branch_covered": 7929,
+      "branch_percent": 81.2148,
+      "branch_total": 9763,
+      "line_covered": 7541,
+      "line_percent": 87.5639,
+      "line_total": 8612,
       "paths": [
         "frontend/src/app/admin/advertisers/[organizationId]/company/actions.ts",
         "frontend/src/app/admin/advertisers/[organizationId]/invite-actions.ts",
@@ -590,7 +590,7 @@
         "frontend/src/components/brand/portal-icon.tsx",
         "frontend/src/components/brand/van-preview.tsx",
         "frontend/src/components/campaigns/area-graphic.tsx",
-        "frontend/src/components/campaigns/budget-used.tsx",
+        "frontend/src/components/campaigns/budget-remaining.tsx",
         "frontend/src/components/campaigns/campaign-artwork.tsx",
         "frontend/src/components/campaigns/campaign-map.tsx",
         "frontend/src/components/campaigns/campaign-timeline.tsx",
@@ -732,33 +732,29 @@
       ]
     }
   },
-  "eligible_inventory_sha256": "8ff51573df0319c7f921bb1b3d4f840f3910142abe8f2053ab1989712bae5d10",
+  "eligible_inventory_sha256": "07fb8afa103d616d6aa96bfb3e669b03cb7b5dd25751b4c62b2b5935ce9514d9",
   "global": {
-    "branch_covered": 14072,
-    "branch_percent": 82.3261,
-    "branch_total": 17093,
-    "line_covered": 37196,
-    "line_percent": 92.9784,
-    "line_total": 40005
+    "branch_covered": 14175,
+    "branch_percent": 82.4943,
+    "branch_total": 17183,
+    "line_covered": 37011,
+    "line_percent": 92.9925,
+    "line_total": 39800
   },
   "policy_sha256": "f4346d9fa3f4116f842cd17d853cd0ad0079121d9ffac691da19a93e8ef5ec33",
   "refresh": {
     "inventory_changes": {
       "added": [
-        "app/services/email_availability.py",
-        "frontend/src/app/admin/billing/[campaignId]/quotation-form.tsx",
-        "frontend/src/lib/assignments/start-message.ts",
-        "frontend/src/lib/billing/vat-percentage.ts",
-        "frontend/src/lib/driver/bank-name.ts"
+        "frontend/src/components/campaigns/budget-remaining.tsx"
       ],
       "removed": [
-        "frontend/src/app/driver/(portal)/capabilities/capability-probe.tsx"
+        "frontend/src/components/campaigns/budget-used.tsx"
       ]
     },
-    "previous_baseline_sha256": "3c37a6884c396a4df42ee0ef5f2508047ae4e81d617ec9aa15006374abfef8cb",
-    "reason": "REQ-272 through REQ-304: same-artifact strict D33 refresh from CI 41811417478, measured candidate 311bcfc0, whole-delivery ancestor 1d8f8ab8; raw CI stale-receipt failure retained under D135/D136"
+    "previous_baseline_sha256": "ffb9995a8aa4bfdda665f7026580be3971aba1ed9f69f1bcf2abd4ffcbb266a5",
+    "reason": "REQ-310/REQ-311: advertiser results, D160 differencing protection and CI repairs changed eligible files"
   },
-  "source_parent_sha": "1d8f8ab8ba53554d779a04aee55c3fa7700b9ad9",
-  "source_sha256": "46540dca02a23d50c42a89bd3389f705a5732060a09973236fe1907c36d8b083",
+  "source_parent_sha": "8800dace23de457f8c7020ede8fd1713fdbd0167",
+  "source_sha256": "bcb3e86d98bac35e1b5bae68dabf5cb854f95777eb0da76e5fbd2aad2ab1e412",
   "version": 3
 }
