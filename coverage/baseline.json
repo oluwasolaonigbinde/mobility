@@ -6,12 +6,12 @@
   },
   "critical": {
     "backend": {
-      "branch_covered": 6246,
-      "branch_percent": 84.1779,
-      "branch_total": 7420,
-      "line_covered": 29470,
-      "line_percent": 94.4915,
-      "line_total": 31188,
+      "branch_covered": 6267,
+      "branch_percent": 84.2112,
+      "branch_total": 7442,
+      "line_covered": 29590,
+      "line_percent": 94.5126,
+      "line_total": 31308,
       "paths": [
         "app/__init__.py",
         "app/adapters/banks.py",
@@ -102,6 +102,7 @@
         "app/jobs/campaign_assignments.py",
         "app/jobs/campaign_reports.py",
         "app/jobs/data_lifecycle.py",
+        "app/jobs/demo_live_car.py",
         "app/jobs/disbursements.py",
         "app/jobs/earnings_release.py",
         "app/jobs/email_delivery.py",
@@ -203,6 +204,7 @@
         "app/seeds/demo_authority.py",
         "app/seeds/driver_story.py",
         "app/seeds/history.py",
+        "app/seeds/live_car.py",
         "app/seeds/renewals.py",
         "app/seeds/rich.py",
         "app/services/account_recovery.py",
@@ -732,29 +734,28 @@
       ]
     }
   },
-  "eligible_inventory_sha256": "07fb8afa103d616d6aa96bfb3e669b03cb7b5dd25751b4c62b2b5935ce9514d9",
+  "eligible_inventory_sha256": "d587760779aab7fa6794dd981dd8a9e29284f31157eebb56d43ed30c4a5d9bfd",
   "global": {
-    "branch_covered": 14175,
-    "branch_percent": 82.4943,
-    "branch_total": 17183,
-    "line_covered": 37011,
-    "line_percent": 92.9925,
-    "line_total": 39800
+    "branch_covered": 14196,
+    "branch_percent": 82.5109,
+    "branch_total": 17205,
+    "line_covered": 37131,
+    "line_percent": 93.0135,
+    "line_total": 39920
   },
   "policy_sha256": "f4346d9fa3f4116f842cd17d853cd0ad0079121d9ffac691da19a93e8ef5ec33",
   "refresh": {
     "inventory_changes": {
       "added": [
-        "frontend/src/components/campaigns/budget-remaining.tsx"
+        "app/jobs/demo_live_car.py",
+        "app/seeds/live_car.py"
       ],
-      "removed": [
-        "frontend/src/components/campaigns/budget-used.tsx"
-      ]
+      "removed": []
     },
-    "previous_baseline_sha256": "ffb9995a8aa4bfdda665f7026580be3971aba1ed9f69f1bcf2abd4ffcbb266a5",
-    "reason": "REQ-310/REQ-311: advertiser results, D160 differencing protection and CI repairs changed eligible files"
+    "previous_baseline_sha256": "911055d354acd75edd1c53317002b32c089841de3217fd180e487659653a2ee4",
+    "reason": "REQ-312: demo live car refresher and release contract changed eligible files"
   },
-  "source_parent_sha": "8800dace23de457f8c7020ede8fd1713fdbd0167",
-  "source_sha256": "bcb3e86d98bac35e1b5bae68dabf5cb854f95777eb0da76e5fbd2aad2ab1e412",
+  "source_parent_sha": "f1756b8f1631de6ed53a6afb75b6f4dc707e33a7",
+  "source_sha256": "d0549080304082aad3f0662255c04b961af8b7a5666cd16187e7732f038551a6",
   "version": 3
 }
