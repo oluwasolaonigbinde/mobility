@@ -3,7 +3,8 @@ import asyncio
 import hashlib
 import json
 import os
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -184,6 +185,13 @@ def db_sessionmaker(postgis_db_sessionmaker):
 
 @pytest.fixture
 def postgis_db_sessionmaker() -> Generator[async_sessionmaker[AsyncSession], None, None]:
+    with isolated_postgis_sessionmaker() as sessionmaker:
+        yield sessionmaker
+
+
+@contextmanager
+def isolated_postgis_sessionmaker() -> Iterator[async_sessionmaker[AsyncSession]]:
+    """A fresh PostGIS schema, dropped on exit; a test may open a second one as a control."""
     database_url = _configured_database_url()
     if database_url is None or not database_url.startswith("postgresql+asyncpg://"):
         if real_integration_authority_required():
@@ -212,9 +220,10 @@ def postgis_db_sessionmaker() -> Generator[async_sessionmaker[AsyncSession], Non
         await engine.dispose()
 
     asyncio.run(setup_database())
-    sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
-    yield sessionmaker
-    asyncio.run(teardown_database())
+    try:
+        yield async_sessionmaker(engine, expire_on_commit=False)
+    finally:
+        asyncio.run(teardown_database())
 
 
 @pytest.fixture

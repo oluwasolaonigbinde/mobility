@@ -78,6 +78,7 @@ def test_live_environment_examples_cover_current_settings_source() -> None:
         "REQUEST_ID_HEADER",
         "JWT_ALGORITHM",
         "ALLOW_DEMO_SEED",
+        "DEMO_LIVE_CAR_REFRESH",
     }
 
 
@@ -296,6 +297,7 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
             ),
             "SESSION_COOKIE_NAME": "__Host-cardvert_session",
             "ALLOW_DEMO_SEED": "false",
+            "DEMO_LIVE_CAR_REFRESH": "false",
             "DEMO_LOGIN_ENABLED": "false",
             "LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER": "true",
             "LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER": "true",
@@ -421,6 +423,7 @@ def test_production_builds_pin_base_images_and_dependency_graphs() -> None:
         ("BACKEND_CORS_ORIGINS", '["*"]'),
         ("BACKEND_IMAGE", "registry.invalid/cardvert/backend:latest"),
         ("ALLOW_DEMO_SEED", "true"),
+        ("DEMO_LIVE_CAR_REFRESH", "true"),
         ("DEMO_LOGIN_ENABLED", "true"),
         ("OBJECT_STORAGE_ENDPOINT_URL", "http://objects.client-storage.net"),
         (

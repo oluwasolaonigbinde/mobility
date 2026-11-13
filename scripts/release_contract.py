@@ -773,6 +773,7 @@ def validate_release_environment(
         raise ContractError("SESSION_COOKIE_NAME must be __Host-cardvert_session")
     for name in (
         "ALLOW_DEMO_SEED",
+        "DEMO_LIVE_CAR_REFRESH",
         "DEMO_LOGIN_ENABLED",
     ):
         if _is_true(environment.get(name)):

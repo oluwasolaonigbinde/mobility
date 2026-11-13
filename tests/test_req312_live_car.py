@@ -232,51 +232,130 @@ def test_refresh_gate_no_ops_and_reseed_brings_the_car_back(
     asyncio.run(recovered())
 
 
-def test_reseed_after_the_cap_before_auto_end_ends_the_capped_trip(
-    postgis_db_sessionmaker, settings, monkeypatch
-):
+def _after_cap_reseed_and_sweep(sessionmaker, settings, monkeypatch, clock, *, start, change):
+    """Seed at ``start``, reach the cap, reseed 15 minutes after it, then sweep.
+
+    ``change=False`` is the control: no refresher, and the reseed keeps the capped trip
+    (as before REQ-312), so only the clock and the sweep are the same.
+    """
     from test_req310_reporting_worker import payout_snapshot
 
     from app.jobs import trip_processing as jobs
-    from app.models.payout import AssignmentRuleBinding, PayoutCalculation
-    from app.models.trip_analytics import FraudFlag
-    from app.seeds import rich
+    from app.seeds import demo, rich
     from app.services import trip_processing as processing
     from app.services.trips import find_trips_to_auto_end
 
-    monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
-    graph = seed_demo_graph(postgis_db_sessionmaker, settings)
-    clock = _controlled_clocks(monkeypatch)
+    seed_clock = {"now": start}
+    for module in (rich, demo):
+        monkeypatch.setattr(module, "utc_now", lambda: seed_clock["now"])
+    clock["now"] = start
+    graph = seed_demo_graph(sessionmaker, settings)
     enabled = settings.model_copy(update={"demo_live_car_refresh": True})
 
-    async def feed_to_the_cap():
-        trips = await _live_trips(postgis_db_sessionmaker)
+    async def reach_the_cap():
+        trips = await _live_trips(sessionmaker)
         cap = min(trip.started_at for trip in trips) + timedelta(hours=12)
-        # The worker's last run under the cap catches up every slot since seeding.
-        last_run = cap - timedelta(seconds=1)
-        clock["now"] = last_run
-        fed = await live_car.refresh_demo_live_cars(
-            postgis_db_sessionmaker, settings=enabled, now=last_run
-        )
-        assert fed["trips"] == 2 and fed["accepted"] >= 2 * 130, fed
         after_cap = cap + timedelta(minutes=15)
-        clock["now"] = after_cap
-        assert (
-            await live_car.refresh_demo_live_cars(
-                postgis_db_sessionmaker, settings=enabled, now=after_cap
+        if change:
+            # The worker's last run under the cap catches up every slot since seeding.
+            last_run = cap - timedelta(seconds=1)
+            clock["now"] = last_run
+            fed = await live_car.refresh_demo_live_cars(
+                sessionmaker, settings=enabled, now=last_run
             )
-        )["trips"] == 0
-        async with postgis_db_sessionmaker() as session:
-            # Before auto-end: the last receipt is ten minutes old, not two hours.
-            due = await find_trips_to_auto_end(session, now=after_cap, limit=100)
-            assert not {trip.id for trip in trips} & set(due)
-        return trips, after_cap, await payout_snapshot(postgis_db_sessionmaker)
+            assert fed["trips"] == 2 and fed["accepted"] >= 2 * 130, fed
+            clock["now"] = after_cap
+            assert (
+                await live_car.refresh_demo_live_cars(sessionmaker, settings=enabled, now=after_cap)
+            )["trips"] == 0
+            async with sessionmaker() as session:
+                # Before auto-end: the last receipt is ten minutes old, not two hours.
+                due = await find_trips_to_auto_end(session, now=after_cap, limit=100)
+                assert not {trip.id for trip in trips} & set(due)
+        return trips, after_cap
 
-    capped, after_cap, money_before = asyncio.run(feed_to_the_cap())
+    capped, after_cap = asyncio.run(reach_the_cap())
+    # The whole reseed and the sweep run at the after-cap time.
+    seed_clock["now"] = clock["now"] = after_cap
+    with monkeypatch.context() as control:
+        if not change:
+            control.setattr(live_car, "LIVE_CAR_CAP", timedelta(days=36500))
+        seed_demo_graph(sessionmaker, settings)
+
+    async def database_now(_session):
+        return after_cap
+
+    monkeypatch.setattr(processing, "database_now", database_now)
+
+    async def sweep():
+        await jobs.process_unprocessed_trips(
+            {
+                "settings": settings.model_copy(update={"worker_sweep_batch_size": 2000}),
+                "sessionmaker": sessionmaker,
+            }
+        )
+        return await payout_snapshot(sessionmaker)
+
+    return graph, capped, after_cap, asyncio.run(sweep())
+
+
+async def _live_car_money(sessionmaker):
+    """Payouts, ledger rows, bindings and fraud flags on any demo live-car trip or assignment."""
+    from app.models.payout import AssignmentRuleBinding, EarningsLedgerEntry, PayoutCalculation
+    from app.models.trip_analytics import FraudFlag
+
+    live = await _live_trips(sessionmaker, active_only=False)
+    trip_ids = [trip.id for trip in live]
+    assignment_ids = [trip.assignment_id for trip in live]
+    async with sessionmaker() as session:
+        counts = {}
+        for name, model, condition in (
+            (
+                "payouts",
+                PayoutCalculation,
+                PayoutCalculation.trip_session_id.in_(trip_ids)
+                | PayoutCalculation.assignment_id.in_(assignment_ids),
+            ),
+            ("ledger", EarningsLedgerEntry, EarningsLedgerEntry.trip_session_id.in_(trip_ids)),
+            (
+                "bindings",
+                AssignmentRuleBinding,
+                AssignmentRuleBinding.assignment_id.in_(assignment_ids),
+            ),
+            ("fraud_flags", FraudFlag, FraudFlag.trip_session_id.in_(trip_ids)),
+        ):
+            counts[name] = await session.scalar(select(func.count(model.id)).where(condition))
+    return len(live), counts
+
+
+def test_reseed_after_the_cap_before_auto_end_ends_the_capped_trip(
+    postgis_db_sessionmaker, settings, monkeypatch
+):
+    from conftest import isolated_postgis_sessionmaker
+
+    monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
+    clock = _controlled_clocks(monkeypatch)
+    # One pinned start for both runs. The reseed 12 h later may cross UTC midnight, when the
+    # seed's rolling day window (rich.py:533-534) adds a day of ordinary seeded trips and
+    # their money (CI run 43229285581); the control sees the same, so equality is exact.
+    # A start far in the past is not usable: parts of the seed read the real clock.
+    start = datetime.now(UTC).replace(second=0, microsecond=0)
+    with isolated_postgis_sessionmaker() as control_db:
+        _, kept, _, control_money = _after_cap_reseed_and_sweep(
+            control_db, settings, monkeypatch, clock, start=start, change=False
+        )
+
+        async def control_kept_the_capped_trips():
+            still = await _live_trips(control_db)
+            assert {trip.id for trip in still} == {trip.id for trip in kept}
+
+        asyncio.run(control_kept_the_capped_trips())
+    graph, capped, after_cap, money = _after_cap_reseed_and_sweep(
+        postgis_db_sessionmaker, settings, monkeypatch, clock, start=start, change=True
+    )
     capped_ids = [trip.id for trip in capped]
-    # The whole reseed runs at the after-cap time.
-    monkeypatch.setattr(rich, "utc_now", lambda: after_cap)
-    seed_demo_graph(postgis_db_sessionmaker, settings)
+    # Exact: the refresher, the capped end-and-seal and the fresh trip add no money at all.
+    assert money == control_money
 
     async def recovered():
         fresh = await _live_trips(postgis_db_sessionmaker)
@@ -296,36 +375,10 @@ def test_reseed_after_the_cap_before_auto_end_ends_the_capped_trip(
             assert [(trip.status, trip.seal_reason) for trip in ended] == [
                 ("sealed", "client_complete")
             ] * 2, [(trip.status, trip.seal_reason, trip.end_reason) for trip in ended]
-
-        async def database_now(_session):
-            return after_cap
-
-        monkeypatch.setattr(processing, "database_now", database_now)
-        ctx = {
-            "settings": settings.model_copy(update={"worker_sweep_batch_size": 2000}),
-            "sessionmaker": postgis_db_sessionmaker,
-        }
-        await jobs.process_unprocessed_trips(ctx)
-        assert await payout_snapshot(postgis_db_sessionmaker) == money_before
-        async with postgis_db_sessionmaker() as session:
-            for model, column in (
-                (FraudFlag, FraudFlag.trip_session_id),
-                (PayoutCalculation, PayoutCalculation.trip_session_id),
-            ):
-                assert (
-                    await session.scalar(select(func.count(model.id)).where(column.in_(capped_ids)))
-                    == 0
-                ), model.__name__
-            assert (
-                await session.scalar(
-                    select(func.count(AssignmentRuleBinding.id)).where(
-                        AssignmentRuleBinding.assignment_id.in_(
-                            [trip.assignment_id for trip in capped]
-                        )
-                    )
-                )
-                == 0
-            )
+        assert await _live_car_money(postgis_db_sessionmaker) == (
+            4,
+            {"payouts": 0, "ledger": 0, "bindings": 0, "fraud_flags": 0},
+        )
 
     asyncio.run(recovered())
 

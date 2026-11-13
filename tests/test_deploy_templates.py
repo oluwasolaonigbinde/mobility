@@ -40,6 +40,7 @@ def test_secrets_are_blank_and_unapproved_policies_stay_unset(name: str) -> None
     assert "FILE_KYC_RETENTION_DAYS" not in environment
     for key in (
         "ALLOW_DEMO_SEED",
+        "DEMO_LIVE_CAR_REFRESH",
         "DEMO_LOGIN_ENABLED",
     ):
         assert environment[key] == "false"
