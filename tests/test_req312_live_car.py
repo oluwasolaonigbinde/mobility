@@ -5,6 +5,7 @@ import math
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+import pytest
 from sqlalchemy import func, select
 from test_seed_demo import seed_demo_graph, seed_private_storage  # noqa: F401
 
@@ -448,3 +449,85 @@ def test_path_is_bounded_moving_plausible_and_never_shared():
         (lat, lon) for o, lat, lon in keys if o == 1
     }
     assert not shared
+
+
+class _FakeSession:
+    def __init__(self, *, trip_ids=(), got=None):
+        self.trip_ids = list(trip_ids)
+        self.got = got
+        self.commits = 0
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def scalars(self, _statement):
+        return self.trip_ids
+
+    async def get(self, _model, _key):
+        return self.got
+
+    async def commit(self):
+        self.commits += 1
+
+
+def test_job_feeds_the_refresher_the_current_time(settings, monkeypatch):
+    from app.jobs import demo_live_car
+
+    now = datetime(2026, 11, 13, 9, 0, tzinfo=UTC)
+    seen = {}
+
+    async def refresh(sessionmaker, *, settings, now):
+        seen.update(sessionmaker=sessionmaker, settings=settings, now=now)
+        return {"trips": 0, "accepted": 0, "duplicates": 0}
+
+    monkeypatch.setattr(demo_live_car, "refresh_demo_live_cars", refresh)
+    monkeypatch.setattr(trip_service, "utc_now", lambda: now)
+    ctx = {"sessionmaker": object(), "settings": settings}
+    assert asyncio.run(demo_live_car.refresh_demo_live_cars_job(ctx)) == {
+        "trips": 0,
+        "accepted": 0,
+        "duplicates": 0,
+    }
+    assert seen == {"sessionmaker": ctx["sessionmaker"], "settings": settings, "now": now}
+
+
+def test_a_trip_that_ended_meanwhile_is_skipped_without_counting(settings, monkeypatch):
+    from app.core.errors import AppError
+
+    ended, live = UUID(int=1), UUID(int=2)
+    sessions: list[_FakeSession] = []
+
+    def sessionmaker():
+        session = _FakeSession(trip_ids=[ended, live])
+        sessions.append(session)
+        return session
+
+    async def catch_up(_session, *, trip_id, settings, now):
+        if trip_id == ended:
+            raise AppError("TRIP_ALREADY_ENDED", "Trip has already ended")
+        return 3, 1
+
+    monkeypatch.setattr(live_car, "_catch_up", catch_up)
+    enabled = settings.model_copy(update={"demo_live_car_refresh": True})
+    summary = asyncio.run(
+        live_car.refresh_demo_live_cars(
+            sessionmaker, settings=enabled, now=datetime(2026, 11, 13, 9, 0, tzinfo=UTC)
+        )
+    )
+    assert summary == {"trips": 1, "accepted": 3, "duplicates": 1}
+    # The listing session, then one per trip; only the live trip's work is committed.
+    assert [s.commits for s in sessions] == [0, 0, 1]
+
+
+def test_missing_trip_or_driver_is_never_fed_or_ended(settings):
+    now = datetime(2026, 11, 13, 9, 0, tzinfo=UTC)
+    result = asyncio.run(
+        live_car._catch_up(_FakeSession(), trip_id=UUID(int=1), settings=settings, now=now)
+    )
+    assert result == (0, 0)
+    trip = TripSession(id=UUID(int=1), driver_profile_id=UUID(int=2))
+    with pytest.raises(RuntimeError, match="has no driver profile"):
+        asyncio.run(live_car.end_capped_live_car(_FakeSession(), trip=trip, settings=settings))
