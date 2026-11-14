@@ -5,7 +5,7 @@ import { redirect, unstable_rethrow } from "next/navigation";
 import { companyProfileUpdate } from "@/lib/advertiser/company-profile";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
-import { companyUpdateErrorCode } from "./errors";
+import { companyUpdateErrorCode } from "@/lib/advertiser/company-profile-errors";
 
 export async function updateCompanyAction(formData: FormData) {
   try {

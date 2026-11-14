@@ -558,7 +558,7 @@ async def application_vehicle_view(
 ) -> VehicleStageView:
     """The car to show: one awaiting review first, else the latest changed.
 
-    Drives the staff queue and the applicant's public status-reference page.
+    Drives the staff queue and the applicant's capability status read.
     """
     vehicles = list(
         (

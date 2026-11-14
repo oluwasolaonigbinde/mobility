@@ -55,7 +55,7 @@ it("keeps the campaign context and revalidates its billing page", async () => {
   expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns/campaign-1");
 });
 
-it("keeps campaign context while replacing arbitrary validation text with safe copy", async () => {
+it("keeps campaign context and redirects with an error code, never text", async () => {
   mocks.patch.mockRejectedValue(
     new ApiError(422, {
       code: "INVALID",
@@ -63,16 +63,19 @@ it("keeps campaign context while replacing arbitrary validation text with safe c
       details: { billing_email: "private@example.com" },
     }),
   );
-  const safeError = encodeURIComponent("That didn't work. Please try again.");
   await expect(updateCompanyAction(ORG_ID, undefined, form())).rejects.toThrow(
-    `REDIRECT ${PATH}?error=${safeError}`,
+    `REDIRECT ${PATH}?error=failed`,
   );
   await expect(updateCompanyAction(ORG_ID, "campaign-1", form())).rejects.toThrow(
-    `REDIRECT ${PATH}?campaign=campaign-1&error=${safeError}`,
+    `REDIRECT ${PATH}?campaign=campaign-1&error=failed`,
+  );
+  mocks.patch.mockRejectedValue(new ApiError(503, { code: "TRY_AGAIN_SOON", message: "busy" }));
+  await expect(updateCompanyAction(ORG_ID, undefined, form())).rejects.toThrow(
+    `REDIRECT ${PATH}?error=busy`,
   );
   mocks.patch.mockRejectedValue(new Error("network"));
   await expect(updateCompanyAction(ORG_ID, undefined, form())).rejects.toThrow(
-    `REDIRECT ${PATH}?error=Could%20not%20update%20company%20profile`,
+    `REDIRECT ${PATH}?error=unavailable`,
   );
   expect(mocks.revalidatePath).not.toHaveBeenCalled();
 });

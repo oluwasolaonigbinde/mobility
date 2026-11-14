@@ -263,7 +263,7 @@ The noted items carry these labels:
 
 | Item | Disposition |
 |---|---|
-| 1 | Fixed by REQ-314. Refundable cash and historical funding use the active-receipt basis. |
+| 1 | Fixed by REQ-314 for a reversal before cancellation. Refundable cash and historical funding use the active-receipt basis. A bounce after cancellation remains; it needs a reversal kind, which is the owner question below. |
 | 2 | Fixed by REQ-314. A credit note that would take the obligation below active confirmed funding is refused. |
 | 3 | Fixed by REQ-314. The server derives correction VAT at the invoice tax rate, rounding half-up. |
 | 4 | Fixed by REQ-315. Every role must be ACTIVE to sign in or use a token. |
@@ -272,7 +272,7 @@ The noted items carry these labels:
 | 7 | Accepted (informational). The 60-second lifetime is a fixed constant and is capped again where the URL is issued. |
 | 8 | Fixed by REQ-316. Reset and account-setup links carry the token in the fragment. |
 | 9 | Fixed by REQ-316. Dynamic BFF routes check the id is a UUID before calling the backend. |
-| 10 | Fixed by REQ-316. Pages map error codes to fixed text. |
+| 10 | Fixed by REQ-316 and REQ-314. The advertiser account, admin billing and admin advertiser pages map error codes to fixed text. |
 | N1 | Blocked on Paystack going live. What to do with an over-collected amount is an owner question. |
 | N2 | Blocked on live Paystack payload evidence. No double count is possible. |
 | N3 | Fixed by REQ-314. A draft budget below the accepted quote's gross is refused. |

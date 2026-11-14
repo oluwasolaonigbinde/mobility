@@ -278,9 +278,9 @@ facts or real payment instructions. Built in `3abcc85b` on master.
 **Corrections (Owner, 13 Nov 2026; D161 / REQ-314):**
 - Staff enter only the net change for a credit or debit note. Cardvert works out its VAT at the invoice's own rate, rounded half-up, so the corrected invoice's VAT line always equals that rate of its net.
 - A credit note that would take the invoice below the cash already confirmed is refused.
-- A cancellation never treats a bounced (reversed) payment as cash to refund.
+- A cancellation never treats a payment reversed before the cancellation as cash to refund.
 
-**Still open:** [REQ-041](requests.md) OPay bank details;
+**Still open:** a payment that bounces *after* a cancellation still leaves the frozen refund due. Closing that needs an owner decision on recording a reversal kind; see `docs/audit-findings.md`, Reconciliation. [REQ-041](requests.md) OPay bank details;
 [REQ-042](requests.md) accountant's confirmation and [REQ-052](requests.md) someone to check the sample invoice.
 
 **History:**

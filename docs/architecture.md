@@ -2902,9 +2902,10 @@ authority. Observability redacts full continuation URLs and raw capabilities.
   `invited/pending`-state user + driver profile that enters the existing admin
   onboarding queue (KYC docs per Q26 through §19). A dedicated pending-only
   application stores an allowlisted contact snapshot and only the digest of a
-  high-entropy public status reference. New, duplicate and concurrent
-  same-email requests expose the same pending response shape; unknown status
-  references expose no existence signal. A separate atomic Redis
+  high-entropy application reference. D162/REQ-315 removed the anonymous
+  status-by-reference route, so the reference is no longer a read credential.
+  New, duplicate and concurrent same-email requests expose the same pending
+  response shape. A separate atomic Redis
   per-IP and normalized-email limiter fails closed, and only the first blocked
   transition per bucket/window is audited. Distinct IP/identity pairs do not
   share a global availability switch. The generated credential is unreachable and no session, work,
@@ -4335,7 +4336,7 @@ Placement: app/services/disclosure.py shared closure and totals; daily/report/ar
 - Corrections that would make the derived VAT negative fail closed with 409 `INVOICE_CORRECTION_VAT_INCONSISTENT`. The idempotency fingerprint covers type, net and reason.
 - A credit note is refused with 409 `INVOICE_CREDIT_BELOW_FUNDED` when the obligation after it would fall below the sum of active cash allocations. Equal is allowed.
 - A draft budget update takes the campaign-terms advisory lock before the row lock. It refuses a value below the accepted terms' gross, or a null value after acceptance, with 409 `CAMPAIGN_BUDGET_BELOW_ACCEPTED_TOTAL`.
-- All refusals are typed. The admin correction form shows the derived VAT. All three §9 baselines regenerate.
+- All refusals are typed. The admin correction form states the VAT rule, and recorded corrections show the derived VAT. All three §9 baselines regenerate.
 - Open: a receipt that bounces after cancellation still leaves the frozen refund due. Closing that needs a reversal kind on `reverse_payment_receipt`.
 
 **REQ-315 / D162, access and privacy (§8, §23):**
@@ -4344,9 +4345,9 @@ Placement: app/services/disclosure.py shared closure and totals; daily/report/ar
 - Every driver assignment response uses driver-safe schemas: list, active, get, accept, decline, deactivate and `/driver/current-job`. So do driver installation-evidence submit and list. These schemas omit notes, metadata, `assigned_by_user_id`, activity flags, actor IDs, `reviewed_by_user_id` and event metadata. Admin schemas are unchanged.
 
 **REQ-316 / D163, links and BFF (§8.2, §20):**
-- Reset and driver account-setup emails emit `#token=`. A shared fragment reader generalised from `lib/auth/invite-link.ts` clears the fragment, and `instrumentation-client.ts` scrubs it. A configured public base URL containing `#` makes the email fail closed with a safe `*_public_url_invalid` code. The local `?token=` fallback for reset links is removed.
+- Reset and driver account-setup emails emit `#token=`. A shared fragment reader generalised from `lib/auth/invite-link.ts` clears the fragment, and `instrumentation-client.ts` captures and clears it before monitoring starts. A configured public base URL containing `#` makes the email fail closed with a safe `*_public_url_invalid` code. The local `?token=` fallback for reset links is removed.
 - Every dynamic BFF route, including `issuanceId`, validates UUID segments and returns 404 without a backend call.
-- The advertiser account and admin billing pages map error codes to fixed copy.
+- The advertiser account, admin billing and admin advertiser pages map error codes to fixed copy. The admin advertiser page shares `lib/advertiser/company-profile-errors.ts` with the advertiser account page.
 - The frontend Sentry scrubber redacts emails and phone numbers.
 - Both advertiser artwork routes apply the driver route's storage scheme and credentials check.
 

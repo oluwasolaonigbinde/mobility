@@ -1,11 +1,10 @@
 "use server";
 
-import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { redirect, unstable_rethrow } from "next/navigation";
+import { companyUpdateErrorCode } from "@/lib/advertiser/company-profile-errors";
 import { companyProfileUpdate } from "@/lib/advertiser/company-profile";
 import { createApiClient } from "@/lib/api/client";
-import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
 
 function companyPath(organizationId: string, campaignId?: string) {
@@ -26,10 +25,8 @@ export async function updateCompanyAction(
     });
   } catch (error) {
     unstable_rethrow(error);
-    const message =
-      error instanceof ApiError ? publicActionError(error) : "Could not update company profile";
     redirect(
-      `${companyPath(organizationId, campaignId)}${campaignId ? "&" : "?"}error=${encodeURIComponent(message)}`,
+      `${companyPath(organizationId, campaignId)}${campaignId ? "&" : "?"}error=${companyUpdateErrorCode(error)}`,
     );
   }
   revalidatePath(companyPath(organizationId));

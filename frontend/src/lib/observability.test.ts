@@ -77,7 +77,7 @@ describe("scrubSentryEvent", () => {
       request_id: "edge-request-123",
       release_revision: "0a1b2c3d".repeat(5),
       message:
-        "Report 00000000-0000-4000-8000-000000000001 on 2026-08-24T12:00:00Z for NGN 1,250,000.00 (12345 trips)",
+        "Report 00000000-0000-4000-8000-000000000001 and 08035550-1010-4abc-8def-070355501010 on 2026-08-24T12:00:00Z for NGN 1,250,000.00 (12345 trips)",
     };
     expect(scrubSentryEvent(kept)).toEqual(kept);
   });

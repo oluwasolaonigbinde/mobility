@@ -190,7 +190,7 @@ async def process_unprocessed_trips(ctx: dict[str, Any]) -> dict[str, Any]:
             except Exception as exc:
                 await session.rollback()
                 if database_sqlstate(exc) == LOCK_NOT_AVAILABLE:
-                    # REQ-317: lock wait timed out; the next sweep picks the trip up.
+                    # REQ-317: lock wait timed out; a later sweep picks the trip up.
                     busy += 1
                     logger.info(
                         "job=process_unprocessed_trips trip_id=%s outcome=lock_busy", due_trip.id

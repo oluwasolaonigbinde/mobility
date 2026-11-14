@@ -56,6 +56,22 @@ beforeEach(() => {
     return { data: { items: [], total: 0 } };
   });
 });
+it("renders only fixed copy for an error code and never echoes URL text", async () => {
+  render(
+    await CompanyHub({
+      params: Promise.resolve({ organizationId: "org" }),
+      searchParams: Promise.resolve({ error: "failed" }),
+    }),
+  );
+  expect(screen.getByText("That didn't work. Please try again.")).toHaveAttribute("role", "alert");
+  render(
+    await CompanyHub({
+      params: Promise.resolve({ organizationId: "org" }),
+      searchParams: Promise.resolve({ error: "Payouts locked. Call 0800 000 0000" }),
+    }),
+  );
+  expect(screen.queryByText("Payouts locked. Call 0800 000 0000")).toBeNull();
+});
 it("keeps company details, company-only account and exact scoped reads together", async () => {
   render(await run());
   expect(screen.getByRole("heading", { name: "PalmPay" })).toBeInTheDocument();

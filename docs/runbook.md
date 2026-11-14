@@ -450,7 +450,9 @@ Set `PUBLIC_ORIGIN`, `PASSWORD_RESET_PUBLIC_URL` and
 Both emailed links carry the one-time token after `#` (D163/REQ-316), so it
 never reaches server or proxy logs. If either URL contains a `#`, the email is
 not sent. It fails with the safe code `password_reset_public_url_invalid` or
-`driver_account_setup_public_url_invalid`, and you fix the setting.
+`driver_account_setup_public_url_invalid`, and you fix the setting. An unset
+`PASSWORD_RESET_PUBLIC_URL` fails with `password_reset_public_url_missing` in
+every environment, including local. Local compose and `.env.example` set it.
 `DRIVER_ACCOUNT_SETUP_PUBLIC_URL` is a required release value (D106): without
 it an approved driver's email cannot carry a link. The link works once, for 24
 hours (`DRIVER_ACCOUNT_SETUP_TTL_SECONDS=86400`). If the setup URL is missing,
@@ -772,7 +774,7 @@ These operational thresholds do not alter product or money rules.
 after the five-minute sweeps, so their database locks rarely overlap. When an
 item still meets the 10-second lock timeout (PostgreSQL 55P03), the sweep
 rolls it back, counts it as `busy` and logs it at info, with no Sentry error.
-Trip processing defers itself with an arq retry. The next sweep picks the item
+Trip processing defers itself with an arq retry. A later sweep picks the item
 up, and nothing is lost. A `busy` count that stays high across many sweeps
 points to a long-held lock. Investigate it, but never resend money or reprocess
 a trip by hand.

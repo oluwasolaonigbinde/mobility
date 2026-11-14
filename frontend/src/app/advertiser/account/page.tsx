@@ -8,7 +8,7 @@ import { ChangePasswordForm } from "@/components/auth/change-password-form";
 import { SessionLogoutButton } from "@/components/driver/logout-button";
 import { Panel } from "@/components/ui/panel";
 import { updateCompanyAction } from "./actions";
-import { companyUpdateErrorCopy } from "./errors";
+import { companyUpdateErrorCopy } from "@/lib/advertiser/company-profile-errors";
 
 export const metadata = { title: "Account" };
 

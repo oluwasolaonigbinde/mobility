@@ -16,6 +16,7 @@ import { HubNav, HubSection } from "../../hub-section";
 import { QueueUnavailable } from "../../queue-search";
 import { UserStatusMenu } from "../../users/user-status-menu";
 import { updateCompanyAction } from "./company/actions";
+import { companyUpdateErrorCopy } from "@/lib/advertiser/company-profile-errors";
 import { exactCompanyMoney, readCompanyInvoices } from "../company-reads";
 import { readAdvertiserCompany } from "../../entity-reads";
 import { LoginInviteForm } from "./invite-form";
@@ -57,6 +58,7 @@ export default async function CompanyHub({
 }) {
   const { organizationId } = await params;
   const p = await searchParams;
+  const errorCopy = companyUpdateErrorCopy(p.error);
   const offset = (value?: string) =>
     Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : 0;
   const api = createApiClient(await getSessionToken());
@@ -119,9 +121,9 @@ export default async function CompanyHub({
           Company profile saved.
         </p>
       ) : null}
-      {p.error ? (
+      {errorCopy ? (
         <p role="alert" className="text-coral mb-4">
-          {p.error}
+          {errorCopy}
         </p>
       ) : null}
       <div className="grid gap-5">
