@@ -15,8 +15,8 @@ work for this request is the bounded batch named in `docs/progress.md`.
   `issues/planning/remediation-order.md`, `issues/findings/high-risk-verification.md`,
   `issues/findings/product-release-verification.md`,
   `issues/product-ui-review/{README,outcomes,reconciliation,packets}.md` (42 outcomes,
-  NX-01–NX-23, PB-12/PB-13), `docs/pro-review-register.md`, `to-do.md`,
-  `.codex/delivery/cardvert-audit-remediation/plan-ledger.md` and `docs/progress.md`.
+  NX-01–NX-23, PB-12/PB-13), `docs/pro-review-register.md`, `docs/archive/to-do.md`,
+  `docs/archive/codex-delivery/cardvert-audit-remediation/plan-ledger.md` and `docs/progress.md`.
 - **Method:** each row cites the current source that decides it. "Ledger" means
   the claim rests on an accepted review receipt in `docs/progress.md` and was
   not independently re-executed here; "source" means current code was read.
@@ -81,7 +81,7 @@ ambiguous response (R34–R37 and D27(b), `trip-tracker.tsx:1044`).
 | REL-007 | Owner decision | D27(d): release contract requires authenticated TLS DSN (`scripts/release_contract.py:368`). | FIXED (source) | — |
 | COM-008 | Owner decision | No decision recorded. | OWNER DECISION | P2 |
 | REP-007 | Owner decision | D34 covers disclosure-protection retention only; report retention/withdrawal/presign TTL undecided. | OWNER DECISION | P3 |
-| AUD-003, CAM-005, MET-005, MET-007, OFF-004, OFF-007, OFF-009, ONB-001, ONB-007 | Defer | Triggers unchanged (`to-do.md`). | DEFERRED (trigger-based) | — |
+| AUD-003, CAM-005, MET-005, MET-007, OFF-004, OFF-007, OFF-009, ONB-001, ONB-007 | Defer | Triggers unchanged (`docs/archive/to-do.md`). | DEFERRED (trigger-based) | — |
 | DB-006, GOV-002, REL-001, REL-002, REL-008, TST-003, TST-006, TST-009 | External input | Registered `EXT-*` / device / provider evidence still missing. GOV-002: exact-SHA CI passed for `21a5981` per owner; later changes need their own run. | EXTERNAL PREREQUISITE | — |
 
 ## B. 21 September review leads

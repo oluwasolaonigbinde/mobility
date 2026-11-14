@@ -13,8 +13,8 @@ owner work. The dated September table below remains historical evidence.
 
 | ID | Local status | Evidence |
 | --- | --- | --- |
-| QA-08 | Fixed locally (REQ-139 / D71) | Current-access campaign names and canonical Open links for advertiser, driver and admin; malformed, conflicting or unauthorized context remains generic. Focused scope tests plus real navigation at 375px and 1440px; [receipt](issues/testing/w2d-polish-2026-10-07.md). |
-| QA-14 | Fixed locally (REQ-140 / D71) | All form edits invalidate preview; late responses cannot restore confirmation. Five-field/delayed-response tests plus real edit/repreview/confirm at both widths; [receipt](issues/testing/w2d-polish-2026-10-07.md). |
+| QA-08 | Fixed locally (REQ-139 / D71) | Current-access campaign names and canonical Open links for advertiser, driver and admin; malformed, conflicting or unauthorized context remains generic. Focused scope tests plus real navigation at 375px and 1440px; [receipt](../../issues/testing/w2d-polish-2026-10-07.md). |
+| QA-14 | Fixed locally (REQ-140 / D71) | All form edits invalidate preview; late responses cannot restore confirmation. Five-field/delayed-response tests plus real edit/repreview/confirm at both widths; [receipt](../../issues/testing/w2d-polish-2026-10-07.md). |
 
 ## Recheck on the main checkout — 24 September 2026
 
@@ -23,7 +23,7 @@ uncommitted CV-01–CV-17 work + the UX-01…UX-11 batch recorded in
 `docs/progress.md`), migrated to `0090`, demo seed, **default pre-approval
 privacy configuration**. Full screen-by-screen review, before/after wording and
 the *How Cardvert Works* comparison:
-[`issues/product-ui-review/human-journey-audit-2026-09-24.md`](issues/product-ui-review/human-journey-audit-2026-09-24.md).
+[`issues/product-ui-review/human-journey-audit-2026-09-24.md`](../../issues/product-ui-review/human-journey-audit-2026-09-24.md).
 "Fixed" means changed in the working tree and verified by unit tests plus a live check on the main stack (for QA-15 the server rule is covered by backend tests with red checks; its UI label was not seen live). Nothing is committed.
 
 | ID | Status on 24 Sep | Note |
@@ -61,14 +61,14 @@ New on 24 Sep (main checkout, default pre-approval configuration):
 
 - **Journey:** Advertiser creates a campaign with a name only, leaving description, window, budget, zones and artwork empty; submits it; admin approves it in `/admin/approvals`.
 - **Observed:** Campaign `a098c011-df85-4b5f-9858-8d2883e78359` is `approved`, yet its detail page still says “No window set,” shows no total or daily budget, zero zones and zero creatives. The admin review card disclosed the missing description/window/budget and still offered Approve.
-- **Expectation:** [A-12](docs/product-requirements.md) calls for a *completed draft* before review, but [architecture §18](docs/architecture.md) specifies lifecycle integrity without a minimum-content rule. The client/product owner should define which campaign facts make a draft complete for this approval, or distinguish a preliminary concept approval from completed-campaign approval. Do not assume that artwork or an agreed price must be present at this stage; they have later gates.
-- **Scope:** This does **not** show that the campaign can launch. [A-14](docs/product-requirements.md) says activation has separate gates, and the detail page correctly says approval does not authorize scheduling or activation.
+- **Expectation:** [A-12](../product-requirements.md) calls for a *completed draft* before review, but [architecture §18](../architecture.md) specifies lifecycle integrity without a minimum-content rule. The client/product owner should define which campaign facts make a draft complete for this approval, or distinguish a preliminary concept approval from completed-campaign approval. Do not assume that artwork or an agreed price must be present at this stage; they have later gates.
+- **Scope:** This does **not** show that the campaign can launch. [A-14](../product-requirements.md) says activation has separate gates, and the detail page correctly says approval does not authorize scheduling or activation.
 
 ### QA-02 · Missing measurement is presented as report corruption — high
 
 - **Journey:** Open the Campaign Performance Analysis and coverage map for the approved name-only campaign. The same report state was observed for seeded active “Demo Lagos Mobility Campaign,” active “F7 Lagos Commuter Reach,” and completed “Airtel Lagos Commute” before a measurement run existed.
 - **Observed:** Both pages say “This report failed its integrity check” and “Cardvert needs to reissue the analysis.” The report API returned no `measurement_run` or `measurement_result`; this is absence, not evidence of mismatched issued data. A synthetic admin attempt to prepare a run for the seeded active campaign was correctly rejected because activation proof did not bind creative and installation evidence.
-- **Expectation:** Show the already-defined “No report is available yet” / measurement-required state until a run exists; reserve integrity failure for a present run/result that fails verification. See [`report/page.tsx`](frontend/src/app/advertiser/campaigns/[campaignId]/report/page.tsx), [`map/page.tsx`](frontend/src/app/advertiser/campaigns/[campaignId]/map/page.tsx), and [`measurement-authority.tsx`](frontend/src/app/advertiser/campaigns/[campaignId]/report/measurement-authority.tsx).
+- **Expectation:** Show the already-defined “No report is available yet” / measurement-required state until a run exists; reserve integrity failure for a present run/result that fails verification. See [`report/page.tsx`](../../frontend/src/app/advertiser/campaigns/[campaignId]/report/page.tsx), [`map/page.tsx`](../../frontend/src/app/advertiser/campaigns/[campaignId]/map/page.tsx), and [`measurement-authority.tsx`](../../frontend/src/app/advertiser/campaigns/[campaignId]/report/page.tsx).
 - **Impact:** The current message tells advertisers there is a data integrity incident and a reissue action when no report has been issued.
 
 ### QA-03 · Viewer is invited into write flows that the server denies — medium
@@ -76,25 +76,25 @@ New on 24 Sep (main checkout, default pre-approval configuration):
 - **Journey:** Sign in as the seeded advertiser **viewer**. `/advertiser/campaigns` shows “+ New campaign”; complete the name-only wizard and press “Create campaign.” `/advertiser/company` also shows editable fields and “Save company profile.”
 - **Observed:** Campaign `POST` returned **403** and created no campaign, but the wizard reported “The campaign result is not yet confirmed. Retry to safely check the same request.” Company save correctly returned “Owner or manager access is required,” after allowing the viewer to edit and submit the form.
 - **Expectation:** Hide or disable owner/manager mutation controls for viewers and explain role limits before they spend time filling forms. Map a definite 403 to a permission message, not an uncertain-result retry. Backend authorization **worked**; this is a UI and error-mapping defect.
-- **Evidence:** [`campaigns/page.tsx`](frontend/src/app/advertiser/campaigns/page.tsx), [`new/actions.ts`](frontend/src/app/advertiser/campaigns/new/actions.ts), and the live 403 response.
+- **Evidence:** [`campaigns/page.tsx`](../../frontend/src/app/advertiser/campaigns/page.tsx), [`new/actions.ts`](../../frontend/src/app/advertiser/campaigns/new/actions.ts), and the live 403 response.
 
 ### QA-04 · Desktop admin rail clips lower navigation and sign-out — medium
 
 - **Journey:** Use `/admin/measurement` or another long admin page at the normal 695px high Chrome viewport.
 - **Observed:** The 695px sidebar has 823px of content with `overflow-y: visible`; its Sign out button sits about 789–805px below the viewport. Pointer clicks on the off-screen button did not sign out. On a long page, scrolling the document kept the sticky rail at the top and did not reveal the button. Keyboard focus plus Enter did activate it. On a short page, document scrolling sometimes exposed it, so this is a viewport/page-dependent reachability defect rather than an unconditional inability to sign out.
-- **Expectation:** The rail should scroll internally or otherwise keep its lower controls reachable by pointer at ordinary laptop heights. See [`app-shell.tsx`](frontend/src/components/shell/app-shell.tsx).
+- **Expectation:** The rail should scroll internally or otherwise keep its lower controls reachable by pointer at ordinary laptop heights. See [`app-shell.tsx`](../../frontend/src/components/shell/app-shell.tsx).
 
 ### QA-05 · Operator trip commands require IDs the adjacent lists do not provide — medium
 
 - **Journey:** Open `/admin/payouts` and `/admin/fraud`.
 - **Observed:** “Process a trip” requires a pasted full trip UUID, while 330 payout rows display only eight characters plus an ellipsis, with no row link or title containing the full ID. “Queue physical spot check” requires full assignment and trip IDs, while fraud flags show only shortened trip IDs and no trip/assignment navigation. The named `/admin/assignments` list links to assignment readiness, but its active-assignment detail showed no trips or full trip IDs.
-- **Expectation:** Give staff a contextual action, full copyable reference, or a searchable trip/assignment picker. This is a workflow discoverability issue; it does not establish an API authorization problem. See [`payouts/page.tsx`](frontend/src/app/admin/payouts/page.tsx) and [`fraud/page.tsx`](frontend/src/app/admin/fraud/page.tsx).
+- **Expectation:** Give staff a contextual action, full copyable reference, or a searchable trip/assignment picker. This is a workflow discoverability issue; it does not establish an API authorization problem. See [`payouts/page.tsx`](../../frontend/src/app/admin/payouts/batches/content.tsx) and [`fraud/page.tsx`](../../frontend/src/app/admin/trip-checks/page.tsx).
 
 ### QA-06 · Bank-transfer instruction has no usable destination — medium; client input required
 
 - **Journey:** Open `/advertiser/billing` with no recorded payments and follow “Billing details.”
 - **Observed:** Billing says “Online payment isn't available yet. Please pay by bank transfer.” “Billing details” leads to the advertiser's own company-contact form, with no settlement account or approved instructions.
-- **Expectation:** Give a clear approved payment route when the client supplies and verifies it, or say how the advertiser should request instructions. [A-30 and G-19](docs/product-requirements.md) explicitly make bank-account details and approved advertiser instructions a Terrax Media input. Do not invent them or enable live settlement from the local example.
+- **Expectation:** Give a clear approved payment route when the client supplies and verifies it, or say how the advertiser should request instructions. [A-30 and G-19](../product-requirements.md) explicitly make bank-account details and approved advertiser instructions a Terrax Media input. Do not invent them or enable live settlement from the local example.
 
 ### QA-07 · Legacy trip detail does not fulfil the earnings-page promise — low
 
@@ -130,43 +130,43 @@ New on 24 Sep (main checkout, default pre-approval configuration):
 
 - **Journey:** Sign in as seeded `driver.wuse@demo.mobility.local`. The journey says person/payee evidence was not submitted, vehicle evidence is not approved, and tracking is locked. Follow the person/payee step to `/driver/profile`.
 - **Observed:** Profile offers only licence number, city and country fields plus a vehicle summary; it has no person/payee or vehicle evidence resubmission. The guidance says to use an expiring code from the application email, but the public code renewal service is restricted to invited users with pending applications, not an already active account. The active driver has no visible self-service recovery route.
-- **Expectation:** [D-10](docs/product-requirements.md) requires a reviewed renewal/resubmission after activation; it is already marked **Not confirmed** for a driver-facing screen, and [progress](docs/progress.md) parks this journey pending the dedicated privacy/legal packet. Keep tracking locked, but give the driver and operator a real next action. This is a known product gap, not evidence that the safety lock failed.
+- **Expectation:** [D-10](../product-requirements.md) requires a reviewed renewal/resubmission after activation; it is already marked **Not confirmed** for a driver-facing screen, and [progress](../progress.md) parks this journey pending the dedicated privacy/legal packet. Keep tracking locked, but give the driver and operator a real next action. This is a known product gap, not evidence that the safety lock failed.
 
 ### QA-13 · Driver pages disagree about a blocked active assignment — medium
 
 - **Journey:** With the same Wuse driver, compare Home, Jobs and Track without changing account state.
 - **Observed:** Home says “Active campaign: PalmPay Wuse Blitz,” Jobs lists its assignment as Active, and the journey marks admin activation complete. Track says “No active campaign” because the missing evidence prevents Start. The latter reads as an assignment-state claim even though it is an eligibility decision.
-- **Expectation:** Track should say that the active campaign exists but is temporarily ineligible to track, with the governing evidence reason and recovery path. See [`trip-tracker.tsx`](frontend/src/app/driver/(portal)/track/trip-tracker.tsx). The seeded state is legacy/incomplete; this pass does not claim a new activation can bypass evidence gates.
+- **Expectation:** Track should say that the active campaign exists but is temporarily ineligible to track, with the governing evidence reason and recovery path. See [`trip-tracker.tsx`](../../frontend/src/app/driver/(portal)/track/trip-tracker.tsx). The seeded state is legacy/incomplete; this pass does not claim a new activation can bypass evidence gates.
 
 ### QA-14 · Edited campaign form leaves an older preview confirmable — medium
 
 - **Journey:** On live “F7 Lagos Commuter Reach,” enter a synthetic total budget of ₦5,000,000 and a reason, then press “Preview change.” After the preview appears, edit the total budget field to ₦5,500,000 without confirming.
 - **Observed:** The form shows ₦5,500,000 while “Review before confirming” still shows `4800000.00 → 5000000`, “Can apply now,” and an enabled “Confirm this change” button. The confirm form contains the frozen ₦5,000,000 proposal. No change was confirmed during this check.
-- **Expectation:** Any edit to budget, dates or reason should invalidate or clearly separate the preview and require a fresh preview before confirmation. The present screen can make a user believe the edited amount is being confirmed. See [`campaign-change-panel.tsx`](frontend/src/app/advertiser/campaigns/[campaignId]/campaign-change-panel.tsx).
+- **Expectation:** Any edit to budget, dates or reason should invalidate or clearly separate the preview and require a fresh preview before confirmation. The present screen can make a user believe the edited amount is being confirmed. See [`campaign-change-panel.tsx`](../../frontend/src/app/advertiser/campaigns/[campaignId]/campaign-change-panel.tsx).
 
 ### QA-15 · Invited driver applicant is offered “Reactivate” — high; status-path risk
 
 - **Journey:** As admin, open `/admin/users` after a synthetic public driver application is received. Its account row is `INVITED` but presents a “REACTIVATE” action.
 - **Observed:** This is a first-time applicant, not a suspended former account. The client maps every non-active status to `active`; the admin PATCH calls `update_user`, whose status transition has no driver-application approval or evidence check. A controlled service call against this synthetic applicant moved the account to `active` and made it password-recovery-eligible inside a transaction; rollback left the persisted status `invited`. No UI reactivation or password reset was performed, so this does not claim a completed sign-in or trip-start bypass.
-- **Expectation:** Keep invited drivers in the governed application → evidence review → vehicle approval → account setup path. The generic admin status control should not offer activation for an invited applicant, and the server should reject that transition outside approved setup. See [`user-status-menu.tsx`](frontend/src/app/admin/users/user-status-menu.tsx), [`users.py`](app/services/users.py), and [`driver_account_setup.py`](app/services/driver_account_setup.py).
+- **Expectation:** Keep invited drivers in the governed application → evidence review → vehicle approval → account setup path. The generic admin status control should not offer activation for an invited applicant, and the server should reject that transition outside approved setup. See [`user-status-menu.tsx`](../../frontend/src/app/admin/users/user-status-menu.tsx), [`users.py`](../../app/services/users.py), and [`driver_account_setup.py`](../../app/services/driver_account_setup.py).
 
 ### QA-16 · Driver can attempt to accept an offer the page says lacks terms — medium
 
 - **Journey:** As seeded Amina Bello, open `/driver/assignments` and inspect the offered “F7 Airport Launch Draft” job.
 - **Observed:** The page says “This legacy assignment has no complete frozen offer terms,” yet enables “Accept job.” The acceptance service rejects incomplete frozen terms with `FROZEN_OFFER_TERMS_REQUIRED` and HTTP 409. I did not press Accept because that action records a driver work decision; the visible offer state and server guard establish the UI mismatch.
-- **Expectation:** Show an unavailable offer with a specific operations remedy, and enable acceptance only once the driver can review complete frozen terms. The backend guard is correct. See [`campaign_assignments.py`](app/services/campaign_assignments.py).
+- **Expectation:** Show an unavailable offer with a specific operations remedy, and enable acceptance only once the driver can review complete frozen terms. The backend guard is correct. See [`campaign_assignments.py`](../../app/services/campaign_assignments.py).
 
 ### QA-17 · Notifications beyond the first 50 cannot be opened — medium
 
 - **Journey:** As seeded Amina Bello, open the notification centre with 57 unread notifications.
 - **Observed:** The popover lists 50 notifications, with no next page or “load more” control. Its “Mark all read” button could clear the seven unseen notifications. The API defaults to `limit=50` and supports `offset`, but the frontend always fetches `/api/notifications` without pagination.
-- **Expectation:** Expose the remaining notifications before offering to clear them all, or make the count and limited window explicit with a path to the full history. See [`notification-center.tsx`](frontend/src/components/notifications/notification-center.tsx) and [`notifications.py`](app/api/v1/notifications.py).
+- **Expectation:** Expose the remaining notifications before offering to clear them all, or make the count and limited window explicit with a path to the full history. See [`notification-center.tsx`](../../frontend/src/components/notifications/notification-center.tsx) and [`notifications.py`](../../app/api/v1/notifications.py).
 
 ### QA-18 · Notification read controls are rejected by the request boundary — medium
 
 - **Journey:** On 24 September, press “Mark all read” in the advertiser notification popover on the approved local test campaign. The browser shows “THIS COMMAND DOES NOT ACCEPT A REQUEST BODY” and leaves the notification unread.
 - **Observed:** The shared notification client adds `Content-Type: application/json` to every request, including the bodyless `POST /api/notifications/read-all` and individual `POST /api/notifications/{id}/read`. The browser request boundary rejects that media type for both bodyless routes before reaching the API. A local HTTP check with the same header returned `415 BFF_MEDIA_TYPE_DENIED`; without the header it passed the boundary and reached authentication. The individual “Mark read” action has the same client and boundary mismatch, though it was not pressed in this screenshot.
-- **Expectation:** Omit `Content-Type` when a request has no body, while retaining JSON headers for mutations that send JSON. Verify both read actions through the UI and confirm unread counts update. See [`notification-center.tsx`](frontend/src/components/notifications/notification-center.tsx) and [`mutation-boundary.ts`](frontend/src/lib/api/mutation-boundary.ts). This is separate from QA-17's missing pagination.
+- **Expectation:** Omit `Content-Type` when a request has no body, while retaining JSON headers for mutations that send JSON. Verify both read actions through the UI and confirm unread counts update. See [`notification-center.tsx`](../../frontend/src/components/notifications/notification-center.tsx) and [`mutation-boundary.ts`](../../frontend/src/lib/api/mutation-boundary.ts). This is separate from QA-17's missing pagination.
 
 ## Checked without raising a new defect
 

@@ -207,7 +207,7 @@ target are approved?
 - **Product responsibility while absent:** state that support and recovery
   commitments are not yet published, preserve incident and restore evidence,
   and do not imply a staffed channel, availability objective or recovery promise.
-- **Canonical boundary:** `REL-008` in `to-do.md:32`, `EXT-OPERATIONS-OWNER` in
+- **Canonical boundary:** `REL-008` in `docs/archive/to-do.md:32`, `EXT-OPERATIONS-OWNER` in
   `docs/progress.md:2702`, and W4-04B's named-owner/rehearsal gate
   (`docs/progress.md:2622-2630`).
 

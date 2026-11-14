@@ -705,7 +705,7 @@ This is the binding detail for the package and checklist entries in [progress.md
   returned FIX; its full endpoint-inventory/live-gate, atomic differencing,
   synthetic-ROI, source/link history/concurrency and migration corrections
   were reconciled, and the same reviewer returned PASS. The bounded plan and
-  review record live at `.codex/delivery/cardvert-pkg05/plan-ledger.md`.
+  review record live at `docs/archive/codex-delivery/cardvert-pkg05/plan-ledger.md`.
 - **W3-00A checkpoint evidence (24 Aug 2026):** a machine-checkable privacy
   register and operating model now cover nine purposes/data classes with
   organizational ownership, explicitly unapproved candidate lawful bases,
@@ -1391,7 +1391,7 @@ This is the binding detail for the package and checklist entries in [progress.md
   Central configuration, migrations, contracts, generated baselines, shared
   fixtures, and this control file remain serialized. Detailed leases, waits,
   model gates, receipts and next actions live in
-  `.codex/delivery/cardvert-audit-remediation/plan-ledger.md`; this file records
+  `docs/archive/codex-delivery/cardvert-audit-remediation/plan-ledger.md`; this file records
   only accepted register state.
 - **Admission:** a slice may move from `QUEUED` to `ACTIVE` only when its named
   plan review is `PASS` and every registered dependency is `COMPLETE`. It moves

@@ -12,7 +12,7 @@ import { getSessionToken } from "@/lib/auth/session";
 export type EnquiryConversionState = { error?: string };
 export async function convertEnquiry(
   enquiryId: string,
-  _state: EnquiryConversionState,
+  ...[]: [EnquiryConversionState]
 ): Promise<EnquiryConversionState> {
   await requireRole("admin");
   if (!z.uuid().safeParse(enquiryId).success) return { error: "This enquiry couldn’t be found." };

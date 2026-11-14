@@ -163,7 +163,7 @@ the client guide describes, which is what the client would see today.
 | p.16 enquiries | "Advertiser enquiries open a prepared email." | `mailto:` CTAs present. | ✓ |
 | p.17 sign-in | Temporary passwords must be changed; sign-out everywhere | Matches (`must_change_password`, D26). | ✓ |
 
-## 6. `issues.md` recheck (main checkout)
+## 6. `docs/archive/issues.md` recheck (main checkout)
 
 | ID | Status now | Evidence |
 | --- | --- | --- |

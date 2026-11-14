@@ -23,6 +23,7 @@ export function ApplicationJourney({ requestedStep }: { requestedStep?: string }
   const link = useRef<ReturnType<typeof takeApplicationLink>>(null);
   const generation = useRef(0);
   useEffect(() => {
+    const activeGeneration = generation;
     let controller: AbortController | undefined;
     let expiry: ReturnType<typeof setTimeout> | undefined;
     async function continueLink(fromHash = false) {
@@ -102,7 +103,7 @@ export function ApplicationJourney({ requestedStep }: { requestedStep?: string }
     };
     window.addEventListener("hashchange", hashChanged);
     return () => {
-      generation.current++;
+      activeGeneration.current++;
       controller?.abort();
       clearTimeout(expiry);
       window.removeEventListener("hashchange", hashChanged);

@@ -20,7 +20,7 @@ AUTHORITATIVE SOURCE
 - Review the attached repository snapshot labelled Mobility master at
   7e5746661b0c6abe8dae40c6ba0668ce15155230.
 - Start with docs/progress.md, docs/decisions-log.md, docs/architecture.md,
-  to-do.md and issues/product-ui-review/README.md, then inspect relevant product
+  docs/archive/to-do.md and issues/product-ui-review/README.md, then inspect relevant product
   code, contracts and tests.
 - Treat repository claims as evidence to verify, not as automatic truth.
 - Do not browse for private repositories, invent missing approvals, or infer
