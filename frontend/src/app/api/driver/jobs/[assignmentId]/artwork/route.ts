@@ -1,7 +1,7 @@
-import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { readDriverJobArtwork } from "@/lib/api/audit-batch2";
 import { ApiError } from "@/lib/api/errors";
+import { isUuidParam } from "@/lib/api/route-params";
 import { getSessionToken } from "@/lib/auth/session";
 
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -18,7 +18,7 @@ export async function GET(
   { params }: { params: Promise<{ assignmentId: string }> },
 ) {
   const { assignmentId } = await params;
-  if (!z.uuid().safeParse(assignmentId).success) return unavailable(404);
+  if (!isUuidParam(assignmentId)) return unavailable(404);
   const token = await getSessionToken();
   if (!token) return unavailable(401);
   try {

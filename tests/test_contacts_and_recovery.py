@@ -473,11 +473,14 @@ def test_password_reset_delivery_hash_mismatch_leaves_expiring_reclaimable_claim
                 claim_expires_at = claim_expires_at.replace(tzinfo=UTC)
 
         adapter = RecordingAdapter()
+        # REQ-316 F8 removed the local reset-link fallback, so delivery needs the page URL.
         assert (
             await process_email_notification(
                 db_sessionmaker,
                 notification_id=notice_id,
-                settings=settings,
+                settings=settings.model_copy(
+                    update={"password_reset_public_url": "http://localhost:3000/reset-password"}
+                ),
                 email_adapter=adapter,
                 now=claim_expires_at,
             )

@@ -67,6 +67,18 @@ it("bounds declared image sizes", async () => {
   );
   expect((await GET(new Request("http://localhost/artwork"), input)).status).toBe(404);
 });
+it.each([
+  "javascript:alert(1)",
+  "file:///etc/passwd",
+  "https://user:secret@storage.local/signed",
+  "not a url",
+])("never fetches an unsafe storage URL: %s", async (url) => {
+  mocks.post.mockResolvedValue({ data: { url } });
+  const response = await GET(new Request("http://localhost/artwork"), input);
+  expect(response.status).toBe(404);
+  expect(response.headers.get("cache-control")).toBe("private, no-store");
+  expect(mocks.fetch).not.toHaveBeenCalled();
+});
 it("refuses redirects and times out storage reads", async () => {
   await GET(new Request("http://localhost/artwork"), input);
   expect(mocks.fetch).toHaveBeenCalledWith(

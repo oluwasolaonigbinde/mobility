@@ -47,4 +47,38 @@ describe("scrubSentryEvent", () => {
       to: "/reset-password?token=[REDACTED_TOKEN]&next=1",
     });
   });
+
+  it("redacts free-text emails and phone numbers in messages and exceptions", () => {
+    const scrubbed = scrubSentryEvent({
+      message: "Invite failed for Ada.Obi+test@example.co.uk, call +234 803 555 0101",
+      exception: {
+        values: [
+          { value: "Driver 08035550101 (or 0803-555-0102, +447700900101) not reachable" },
+          { value: "Fallback +1 (415) 555-0199 and +234-803-555-0103" },
+        ],
+      },
+      breadcrumbs: [{ message: "contact: someone@cardvert.example" }],
+    });
+
+    const text = JSON.stringify(scrubbed);
+    expect(text).not.toMatch(/example\.co\.uk|cardvert\.example|555|0101|900101/);
+    expect(scrubbed.message).toBe("Invite failed for [REDACTED_EMAIL], call [REDACTED_PHONE]");
+    expect(scrubbed.exception.values[0]!.value).toBe(
+      "Driver [REDACTED_PHONE] (or [REDACTED_PHONE], [REDACTED_PHONE]) not reachable",
+    );
+    expect(scrubbed.exception.values[1]!.value).toBe(
+      "Fallback [REDACTED_PHONE] and [REDACTED_PHONE]",
+    );
+    expect(scrubbed.breadcrumbs[0]!.message).toBe("contact: [REDACTED_EMAIL]");
+  });
+
+  it("keeps correlation ids, dates, UUIDs and amounts readable", () => {
+    const kept = {
+      request_id: "edge-request-123",
+      release_revision: "0a1b2c3d".repeat(5),
+      message:
+        "Report 00000000-0000-4000-8000-000000000001 on 2026-08-24T12:00:00Z for NGN 1,250,000.00 (12345 trips)",
+    };
+    expect(scrubSentryEvent(kept)).toEqual(kept);
+  });
 });

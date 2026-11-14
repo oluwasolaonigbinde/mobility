@@ -389,7 +389,9 @@ export function TripTracker({
     const observed = passiveSnapshot(Boolean(tripRef.current));
     return patchRuntime({
       secureContext: observed.secureContext,
-      manifestLinked: observed.manifestLinked,
+      // A router refresh (every driver action revalidates) re-renders the head and can
+      // briefly drop the manifest <link>; once this page linked it, installability stands.
+      manifestLinked: observed.manifestLinked || runtimeRef.current.manifestLinked,
       displayMode: observed.displayMode,
       visibility: observed.visibility,
       online: observed.online,

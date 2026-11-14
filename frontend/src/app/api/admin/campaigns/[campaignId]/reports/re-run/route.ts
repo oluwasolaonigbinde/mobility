@@ -1,11 +1,13 @@
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { reportIssuanceError } from "@/app/api/advertiser/report-issuances/_responses";
+import { isUuidParam, unknownIdResponse } from "@/lib/api/route-params";
 import type { components } from "@/lib/api/schema";
 
 export async function POST(request: Request, context: { params: Promise<{ campaignId: string }> }) {
+  const { campaignId } = await context.params;
+  if (!isUuidParam(campaignId)) return unknownIdResponse();
   try {
-    const { campaignId } = await context.params;
     const body = (await request.json()) as components["schemas"]["CampaignReportRerun"];
     const { data } = await createApiClient(await getSessionToken()).POST(
       "/api/v1/admin/campaigns/{campaign_id}/reports/re-run",

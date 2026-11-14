@@ -742,6 +742,29 @@ describe("live runtime truth", () => {
     expect(JSON.stringify(diagnostic)).not.toMatch(/driverId|latitude|longitude|cookie|token/i);
   });
 
+  it("keeps capturing when Start's page refresh briefly drops the manifest link (REQ-319)", async () => {
+    const runtime = installRuntime();
+    pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
+    const manifest = document.querySelector('[data-test-manifest="true"]')!;
+    actions.startTripAction.mockImplementation(async () => {
+      // Start revalidates the driver pages; the refreshed head can lack the manifest link
+      // while the started trip checks installability again.
+      manifest.remove();
+      return { trip: TRIP, outcome: "started" };
+    });
+    render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /Start trip/ })).toBeEnabled());
+    await userEvent.click(screen.getByRole("button", { name: /Start trip/ }));
+    // Start's own check, then the started trip's re-check during the refresh.
+    await waitFor(() => expect(navigator.serviceWorker.getRegistration).toHaveBeenCalledTimes(2));
+    await act(async () => undefined);
+    document.head.append(manifest);
+
+    expect(screen.getByTestId("tracking-health")).toHaveAttribute("data-runtime-health", "active");
+    expect(screen.getByTestId("tracking-health")).toHaveTextContent("Tracking");
+    expect(runtime.watchPosition).toHaveBeenCalledTimes(1);
+  });
+
   it("does not claim active health without a currently held wake lock", async () => {
     pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
     grantWebLock();
@@ -985,6 +1008,11 @@ describe("GPS hiccups", () => {
       expect(screen.getByTestId("tracking-health")).toHaveTextContent("Waiting for GPS"),
     );
     expect(runtime.watchPosition).not.toHaveBeenCalled();
+    // REQ-319: the retry is scheduled by a passive effect that React may flush after the
+    // "Waiting for GPS" commit is already visible, so wait for the schedule itself.
+    await waitFor(() =>
+      expect(intervals.mock.calls.some(([, delay]) => delay === 30_000)).toBe(true),
+    );
     const retry = intervals.mock.calls.find(([, delay]) => delay === 30_000)?.[0] as
       (() => void) | undefined;
     if (!retry) throw new Error("No GPS retry was scheduled");

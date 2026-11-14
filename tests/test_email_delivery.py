@@ -964,6 +964,187 @@ def claimed_delivery(settings, monkeypatch):
     return prepare
 
 
+def _reset_rows(now: datetime):
+    from types import SimpleNamespace
+
+    from app.models.contact import PasswordResetToken
+
+    user = SimpleNamespace(id=uuid4(), session_version=3)
+    reset = SimpleNamespace(
+        user_id=user.id,
+        purpose="password_reset",
+        used_at=None,
+        expires_at=now + timedelta(minutes=30),
+        session_version=3,
+    )
+    return {PasswordResetToken: reset, User: user}
+
+
+def _setup_rows(now: datetime):
+    from types import SimpleNamespace
+
+    from app.models.driver_application import DriverAccountSetupToken, DriverApplication
+
+    user = SimpleNamespace(id=uuid4(), status=UserStatus.INVITED.value, session_version=2)
+    setup = SimpleNamespace(
+        user_id=user.id,
+        application_id=uuid4(),
+        used_at=None,
+        superseded_at=None,
+        session_version=2,
+        expires_at=now + timedelta(hours=24),
+    )
+    application = SimpleNamespace(user_id=user.id, status=DriverApplicationStatus.APPROVED.value)
+    return {DriverAccountSetupToken: setup, DriverApplication: application, User: user}
+
+
+def _deliver(claimed_delivery, settings, type_key, payload, rows, now):
+    notice, _session, adapter, maker = claimed_delivery(type_key, payload, rows)
+    result = asyncio.run(
+        process_email_notification(
+            maker, notification_id=notice.id, settings=settings, email_adapter=adapter, now=now
+        )
+    )
+    return result, notice, adapter
+
+
+@pytest.mark.parametrize(
+    "base_url,expected",
+    [
+        (
+            "https://cardvert.example/reset-password",
+            "https://cardvert.example/reset-password#token=reset.token-1",
+        ),
+        (
+            "https://cardvert.example/reset-password?lang=en",
+            "https://cardvert.example/reset-password?lang=en#token=reset.token-1",
+        ),
+    ],
+)
+def test_password_reset_link_carries_token_in_fragment(
+    settings, claimed_delivery, monkeypatch, base_url, expected
+):
+    from app.services import account_recovery
+
+    monkeypatch.setattr(
+        account_recovery, "password_reset_token_for_delivery", lambda *_: "reset.token-1"
+    )
+    now = datetime.now(UTC)
+    result, _notice, adapter = _deliver(
+        claimed_delivery,
+        settings.model_copy(update={"password_reset_public_url": base_url}),
+        "password_reset_requested",
+        {"password_reset_request_id": str(uuid4())},
+        _reset_rows(now),
+        now,
+    )
+    assert result == "sent"
+    [message] = adapter.messages
+    assert f"Choose password: {expected}" in message.text_body
+    assert "?token=" not in message.text_body and "&token=" not in message.text_body
+
+
+def test_driver_account_setup_link_carries_token_in_fragment(
+    settings, claimed_delivery, monkeypatch
+):
+    from app.services import driver_account_setup
+
+    monkeypatch.setattr(
+        driver_account_setup, "driver_account_setup_token_for_delivery", lambda *_: "setup-token"
+    )
+    now = datetime.now(UTC)
+    result, _notice, adapter = _deliver(
+        claimed_delivery,
+        settings.model_copy(
+            update={
+                "driver_account_setup_public_url": "https://cardvert.example/driver-account-setup"
+            }
+        ),
+        "driver_account_setup_requested",
+        {"driver_account_setup_id": str(uuid4())},
+        _setup_rows(now),
+        now,
+    )
+    assert result == "sent"
+    [message] = adapter.messages
+    assert (
+        "Choose password: https://cardvert.example/driver-account-setup#token=setup-token"
+        in message.text_body
+    )
+    assert "?token=" not in message.text_body
+
+
+@pytest.mark.parametrize(
+    "type_key,payload,rows,setting,base_url,code",
+    [
+        (
+            "password_reset_requested",
+            {"password_reset_request_id": str(uuid4())},
+            _reset_rows,
+            "password_reset_public_url",
+            "https://cardvert.example/reset-password#section",
+            "password_reset_public_url_invalid",
+        ),
+        (
+            "driver_account_setup_requested",
+            {"driver_account_setup_id": str(uuid4())},
+            _setup_rows,
+            "driver_account_setup_public_url",
+            "https://cardvert.example/driver-account-setup#",
+            "driver_account_setup_public_url_invalid",
+        ),
+    ],
+)
+def test_token_link_base_url_with_fragment_fails_without_sending(
+    settings, claimed_delivery, monkeypatch, type_key, payload, rows, setting, base_url, code
+):
+    from app.services import account_recovery, driver_account_setup
+
+    monkeypatch.setattr(account_recovery, "password_reset_token_for_delivery", lambda *_: "t")
+    monkeypatch.setattr(
+        driver_account_setup, "driver_account_setup_token_for_delivery", lambda *_: "t"
+    )
+    now = datetime.now(UTC)
+    result, notice, adapter = _deliver(
+        claimed_delivery,
+        settings.model_copy(update={setting: base_url}),
+        type_key,
+        payload,
+        rows(now),
+        now,
+    )
+    assert result == "failed"
+    assert notice.last_error_code == code
+    assert adapter.messages == []
+
+
+def test_password_reset_without_configured_url_fails_even_locally(
+    settings, claimed_delivery, monkeypatch
+):
+    """REQ-316 F8 removes the local fallback: every environment configures the reset page URL."""
+    from app.services import account_recovery
+
+    monkeypatch.setattr(account_recovery, "password_reset_token_for_delivery", lambda *_: "t")
+    now = datetime.now(UTC)
+    result, notice, adapter = _deliver(
+        claimed_delivery,
+        settings.model_copy(
+            update={
+                "environment": "local",
+                "public_origin": "http://localhost:3000",
+                "password_reset_public_url": "",
+            }
+        ),
+        "password_reset_requested",
+        {"password_reset_request_id": str(uuid4())},
+        _reset_rows(now),
+        now,
+    )
+    assert result == "failed"
+    assert notice.last_error_code == "password_reset_public_url_missing"
+    assert adapter.messages == []
+
+
 @pytest.mark.parametrize(
     "type_key,payload,code",
     [

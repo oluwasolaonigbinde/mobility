@@ -1,5 +1,6 @@
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
+import { isUuidParam, unknownIdResponse } from "@/lib/api/route-params";
 import { reportIssuanceError } from "../../../../_responses";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,7 @@ export async function GET(
   context: { params: Promise<{ issuanceId: string; format: string }> },
 ) {
   const { issuanceId, format } = await context.params;
+  if (!isUuidParam(issuanceId)) return unknownIdResponse();
   if (format !== "csv" && format !== "pdf") {
     return Response.json(
       {

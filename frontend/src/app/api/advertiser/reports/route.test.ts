@@ -7,6 +7,8 @@ import { ApiError } from "@/lib/api/errors";
 const mocks = vi.hoisted(() => ({ token: vi.fn(), client: vi.fn(), get: vi.fn(), post: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: mocks.token }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: mocks.client }));
+// REQ-316 F9: path ids must be UUIDs, so the download fixtures use one.
+const reportId = "00000000-0000-4000-8000-0000000000d1";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -53,10 +55,10 @@ it.each([false, true])(
     });
     const result = await download(
       new Request(
-        `http://localhost/api/advertiser/reports/report/download?format=pdf&legacy=${legacy}`,
+        `http://localhost/api/advertiser/reports/${reportId}/download?format=pdf&legacy=${legacy}`,
       ),
       {
-        params: Promise.resolve({ reportId: "report" }),
+        params: Promise.resolve({ reportId }),
       },
     );
     expect(result.status).toBe(303);
@@ -72,9 +74,9 @@ it.each([false, true])(
 
 it("rejects an unsupported format before any backend or storage request", async () => {
   const result = await download(
-    new Request("http://localhost/api/advertiser/reports/report/download?format=html"),
+    new Request(`http://localhost/api/advertiser/reports/${reportId}/download?format=html`),
     {
-      params: Promise.resolve({ reportId: "report" }),
+      params: Promise.resolve({ reportId }),
     },
   );
   expect(result.status).toBe(404);
@@ -112,4 +114,20 @@ it.each([404, 409])("retains file ownership and uncleared-scan denial (%s)", asy
   expect(result.status).toBe(status);
   expect(result.headers.get("location")).toBeNull();
   expect(result.headers.get("cache-control")).toBe("private, no-store");
+});
+
+it.each([
+  "javascript:alert(1)",
+  "data:text/html,hi",
+  "https://user:secret@private.test/artwork.pdf",
+  "not a url",
+])("never redirects report artwork to an unsafe storage URL: %s", async (url) => {
+  mocks.post.mockResolvedValue({ data: { url } });
+  const fileId = "00000000-0000-4000-8000-000000000001";
+  const result = await artwork(
+    new Request(`http://localhost/api/advertiser/reports/artwork/${fileId}`),
+    { params: Promise.resolve({ fileId }) },
+  );
+  expect(result.status).toBe(404);
+  expect(result.headers.get("location")).toBeNull();
 });
