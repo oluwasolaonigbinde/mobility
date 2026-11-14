@@ -286,6 +286,11 @@ No WhatsApp/SMS is sent by the application or seed.
 | driver.wuse@demo.mobility.local | Musa Abdullahi | +2340000000115 |
 | Terrax development/preview destination | Owner-authorized demo contact | +2347068369842 |
 
+Abdulrahman Yusuf, Nneka Umeh, Ayodele Bakare and Suleiman Idris are applicant
+drivers whose logins are invited, not active. They have a seeded password, but
+since D162/REQ-315 (13 Nov 2026) only active users can sign in, so these four
+are refused at login. Show their applications from the admin side.
+
 Damilola Akinwale (`LagosRoutes2026!`) has an active login, a readable
 renewal example with only the driving licence rejected as unreadable, and only
 insurance marked expired on 3 October 2026 for ABJ-714-KM. The six clearly fictional

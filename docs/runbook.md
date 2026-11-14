@@ -447,6 +447,10 @@ Set `PUBLIC_ORIGIN`, `PASSWORD_RESET_PUBLIC_URL` and
 `DRIVER_ACCOUNT_SETUP_PUBLIC_URL` to the actual browser origin and corresponding
 `/reset-password` and `/driver-account-setup` pages. Local compose defaults use
 `http://localhost:3000`; when using a demo tunnel, override all three together.
+Both emailed links carry the one-time token after `#` (D163/REQ-316), so it
+never reaches server or proxy logs. If either URL contains a `#`, the email is
+not sent. It fails with the safe code `password_reset_public_url_invalid` or
+`driver_account_setup_public_url_invalid`, and you fix the setting.
 `DRIVER_ACCOUNT_SETUP_PUBLIC_URL` is a required release value (D106): without
 it an approved driver's email cannot carry a link. The link works once, for 24
 hours (`DRIVER_ACCOUNT_SETUP_TTL_SECONDS=86400`). If the setup URL is missing,
@@ -763,3 +767,12 @@ creating duplicate notices. If both Redis and the database are unavailable,
 `gps_health_failure_signal_unavailable` means the durable outage signal could
 not be stored: investigate these safe logs alongside the Cron failure signal.
 These operational thresholds do not alter product or money rules.
+
+**Lock-busy items (REQ-317).** The scheduled-report sweep runs two minutes
+after the five-minute sweeps, so their database locks rarely overlap. When an
+item still meets the 10-second lock timeout (PostgreSQL 55P03), the sweep
+rolls it back, counts it as `busy` and logs it at info, with no Sentry error.
+Trip processing defers itself with an arq retry. The next sweep picks the item
+up, and nothing is lost. A `busy` count that stays high across many sweeps
+points to a long-held lock. Investigate it, but never resend money or reprocess
+a trip by hand.

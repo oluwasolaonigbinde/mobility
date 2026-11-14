@@ -144,3 +144,14 @@ provider credential or approval reference never belongs in source control.
 Areas sum complete Monday-Sunday weeks fully inside the range, labelled Full weeks only. All seven days must be closed; trips from released days are partitioned by exact touched-area set including touched none, and each nonempty partition needs three distinct cars. Retention gaps withhold per week. Area figures are trips and estimated views only. No cross-output reservation state. Whole-day windows only; scheduling/re-runs wait for closure and final/cancelled windows end after the terminal Lagos day. Dots use five-minute clock buckets and three-decimal coordinates after clipping, retaining delay, freshness and park-hide.
 
 **History - 10 Nov 2026:** Supersedes D105/D107 threshold-only composition, amends D118 partial-today/cars and D124/D138/D145 dot precision. Threshold stays three. This is D56 technical differencing restoration only, conditional on verification; legal gates stay open. No frozen released cells. Old issued bytes retain numbers; queued reports at renderer upgrade may fail.
+
+## Audit privacy fixes (13 Nov 2026)
+
+**Owner, 13 Nov 2026 - D162/D163 / REQ-315/316:** these technical minimisation fixes come from the audit reconciliation (`docs/audit-findings.md`).
+
+- The anonymous application-status-by-reference route is removed. It used to return a masked NIN and the bank-verification state to anyone holding a URL-path reference.
+- Drivers no longer receive staff assignment notes, metadata, or actor and reviewer IDs.
+- Reset and account-setup tokens travel in the URL fragment, which keeps them out of server and proxy logs.
+- The frontend Sentry scrubber now also redacts emails and phone numbers.
+
+None of this changes the register's purposes or retention. The legal gates stay open.
