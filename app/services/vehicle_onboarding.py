@@ -38,7 +38,6 @@ from app.services.driver_applications import (
     application_from_access_token,
     terminalize_driver_application,
 )
-from app.services.driver_onboarding import application_from_reference
 from app.services.kyc import _require_files, require_submission_payload
 from app.services.payout_rule_serialization import database_clock
 from app.services.vehicles import ensure_unique_plate, normalize_plate_number
@@ -607,14 +606,6 @@ async def applicant_vehicles(
     return [
         (vehicle, await _latest_submission(session, vehicle.id, lock=False)) for vehicle in vehicles
     ]
-
-
-async def vehicle_status_by_reference(session: AsyncSession, *, reference: str) -> VehicleStageView:
-    try:
-        application = await application_from_reference(session, reference=reference, lock=False)
-    except AppError:
-        return VehicleStageView(None, None, None, {})
-    return await application_vehicle_view(session, application=application)
 
 
 def _decision_fingerprint(

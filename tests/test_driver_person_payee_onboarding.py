@@ -571,17 +571,14 @@ def test_admin_approval_is_idempotent_audited_safe_and_non_work_eligible(
     assert conflict.status_code == 409
     assert conflict.json()["error"]["code"] == "PERSON_PAYEE_DECISION_RETRY_CONFLICT"
 
-    status_response = db_client.get(
-        f"/api/v1/auth/driver-application-status/{registration.json()['application_reference']}"
-    )
+    # REQ-315: the public status-by-reference route is deleted; staff read the queue.
     queue = db_client.get(
         "/api/v1/admin/driver-applications",
         headers=auth_headers(db_client, admin.email, PASSWORD),
     )
-    assert status_response.json()["person_payee"]["status"] == "approved"
     assert queue.json()["items"][0]["person_payee"]["status"] == "approved"
-    assert NIN not in status_response.text + queue.text
-    assert "0123456789" not in status_response.text + queue.text
+    assert NIN not in queue.text
+    assert "0123456789" not in queue.text
 
     async def inspect() -> tuple[DriverProfile, int, list[str]]:
         async with db_sessionmaker() as session:

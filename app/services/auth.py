@@ -41,11 +41,9 @@ from app.core.security import (
     verify_password,
     verify_password_async,
 )
-from app.models.user import User, UserRole, UserStatus
+from app.models.user import User, UserStatus
 from app.services.audit import create_audit_event
 from app.services.users import normalize_email, validate_password_length
-
-CONTAINED_USER_STATUSES = frozenset({UserStatus.SUSPENDED.value, UserStatus.DISABLED.value})
 
 
 class AuthCommandError(Exception):
@@ -216,7 +214,7 @@ async def _lock_authenticated_session(
         raise _invalid_token() from exc
     if claims.subject != locked_user.id:
         raise _invalid_token()
-    if locked_user.status in CONTAINED_USER_STATUSES:
+    if locked_user.status != UserStatus.ACTIVE:
         raise AuthCommandError(
             AppError(
                 "USER_NOT_ACTIVE",
@@ -277,9 +275,7 @@ async def login_with_password(session: AsyncSession, *, email: str, password: st
         raise await _login_rejected(session, email=email)
     if not await verify_password_async(password, user.password_hash):
         raise await _login_rejected(session, email=email)
-    if user.status in CONTAINED_USER_STATUSES or (
-        user.role == UserRole.ADMIN and user.status != UserStatus.ACTIVE
-    ):
+    if user.status != UserStatus.ACTIVE:
         await create_audit_event(
             session,
             actor_user_id=user.id,
@@ -358,7 +354,7 @@ async def change_user_password(
                 status_code=status.HTTP_401_UNAUTHORIZED,
             )
         )
-    if user.status in CONTAINED_USER_STATUSES:
+    if user.status != UserStatus.ACTIVE:
         raise AuthCommandError(
             AppError(
                 "USER_NOT_ACTIVE",

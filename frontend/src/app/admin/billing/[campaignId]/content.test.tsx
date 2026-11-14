@@ -271,17 +271,52 @@ it.each([false, true])(
   },
 );
 it("shows the server's funding refusal in plain words", async () => {
+  // REQ-316 F10: the URL carries a refusal code; the page shows its fixed copy.
+  const plain = "The maximum amount owed to drivers cannot exceed the approved funding.";
   render(
     await AdminCampaignBillingPage({
       params: Promise.resolve({ campaignId: "campaign-1" }),
-      searchParams: Promise.resolve({ error: "Not enough cleared funding for this approval." }),
+      searchParams: Promise.resolve({ error: "DRIVER_LIABILITY_EXCEEDS_AUTHORITY" }),
     }),
   );
-  expect(screen.getByText("Not enough cleared funding for this approval.")).toBeVisible();
-  expect(screen.getByText("Not enough cleared funding for this approval.")).toHaveClass(
-    "text-coral",
-  );
+  expect(screen.getByText(plain)).toBeVisible();
+  expect(screen.getByText(plain)).toHaveClass("text-coral");
   expect(screen.getByRole("button", { name: "Record funding approval" })).toBeVisible();
+});
+it("never shows text taken from the URL", async () => {
+  render(
+    await AdminCampaignBillingPage({
+      params: Promise.resolve({ campaignId: "campaign-1" }),
+      searchParams: Promise.resolve({ error: "Call 0800 000 0000 to unlock payouts" }),
+    }),
+  );
+  expect(screen.queryByText(/0800/)).toBeNull();
+  expect(screen.getByText("That didn't work. Please try again.")).toHaveClass("text-coral");
+});
+it("asks only for the amount before VAT on an issued invoice's correction", async () => {
+  get.mockImplementation(async (path: string) =>
+    path.endsWith("/commercial")
+      ? {
+          data: {
+            ...commercial,
+            invoices: [{ ...commercial.invoices[0]!, status: "issued", invoice_number: "TXM-1" }],
+          },
+        }
+      : path === "/api/v1/admin/billing"
+        ? { data: [] }
+        : { data: campaign },
+  );
+  const { container } = render(
+    await AdminCampaignBillingPage({
+      params: Promise.resolve({ campaignId: "campaign-1" }),
+      searchParams: Promise.resolve({}),
+    }),
+  );
+  expect(screen.getByLabelText("Amount before VAT")).toBeRequired();
+  expect(container.querySelector('input[name="tax_amount"]')).toBeNull();
+  expect(
+    screen.getByText("VAT is added at the invoice's rate when you record the correction."),
+  ).toBeVisible();
 });
 it.each([
   ["draft", false],

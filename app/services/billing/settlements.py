@@ -32,8 +32,12 @@ from app.models.campaign_cancellation import (
 )
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
-from app.services.billing.common import _campaign, _money, _stored_aware_utc
-from app.services.billing.queries import _receipt_status, effective_invoice_obligation
+from app.services.billing.common import _campaign, _money, _stored_aware_utc, vat_half_up
+from app.services.billing.queries import (
+    _active_cash_allocations,
+    _receipt_status,
+    effective_invoice_obligation,
+)
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 
 
@@ -45,9 +49,9 @@ async def record_invoice_correction(
     correction_reference: str,
     correction_type: InvoiceCorrectionType,
     net_amount: Decimal | str,
-    tax_amount: Decimal | str,
     reason: str,
 ) -> InvoiceCorrection:
+    """Append a credit or debit note; its VAT is derived, never entered (REQ-314)."""
     campaign_id = await session.scalar(select(Invoice.campaign_id).where(Invoice.id == invoice_id))
     if campaign_id is not None:
         await acquire_campaign_terms_lock(session, campaign_id)
@@ -69,9 +73,7 @@ async def record_invoice_correction(
         )
     normalized_reason = reason.strip()
     net = _money(net_amount, "correction.net_amount")
-    tax = _money(tax_amount, "correction.tax_amount")
-    gross = net + tax
-    if gross <= 0 or not normalized_reason:
+    if net <= 0 or not normalized_reason:
         raise AppError(
             "INVALID_INVOICE_CORRECTION",
             "A positive itemised correction and reason are required",
@@ -82,7 +84,6 @@ async def record_invoice_correction(
             {
                 "correction_type": correction_type.value,
                 "net_amount": f"{net:.2f}",
-                "tax_amount": f"{tax:.2f}",
                 "reason": normalized_reason,
             },
             sort_keys=True,
@@ -116,31 +117,9 @@ async def record_invoice_correction(
             .order_by(InvoiceCorrection.sequence_number)
         )
     )
-    credits = sum(
-        (
-            Decimal(row.gross_amount)
-            for row in rows
-            if row.correction_type == InvoiceCorrectionType.CREDIT_NOTE
-        ),
-        Decimal("0.00"),
+    tax, gross = await _derived_correction_amounts(
+        session, invoice=invoice, rows=rows, correction_type=correction_type, net=net
     )
-    debits = sum(
-        (
-            Decimal(row.gross_amount)
-            for row in rows
-            if row.correction_type == InvoiceCorrectionType.DEBIT_NOTE
-        ),
-        Decimal("0.00"),
-    )
-    if (
-        correction_type == InvoiceCorrectionType.CREDIT_NOTE
-        and credits + gross > Decimal(invoice.gross_amount) + debits
-    ):
-        raise AppError(
-            "INVOICE_CREDIT_EXCEEDS_OBLIGATION",
-            "Credit corrections cannot reduce the invoice obligation below zero",
-            status_code=status.HTTP_409_CONFLICT,
-        )
     sequence = len(rows) + 1
     now = await database_clock(session)
     correction = InvoiceCorrection(
@@ -176,6 +155,65 @@ async def record_invoice_correction(
     return correction
 
 
+def _signed(row_type: InvoiceCorrectionType | str, amount: Decimal) -> Decimal:
+    return -amount if row_type == InvoiceCorrectionType.CREDIT_NOTE else amount
+
+
+async def _derived_correction_amounts(
+    session: AsyncSession,
+    *,
+    invoice: Invoice,
+    rows: list[InvoiceCorrection],
+    correction_type: InvoiceCorrectionType,
+    net: Decimal,
+) -> tuple[Decimal, Decimal]:
+    """Return the (tax, gross) of a new correction after the REQ-314 F2/F3 checks."""
+    net_before = Decimal(invoice.net_amount) + sum(
+        (_signed(row.correction_type, Decimal(row.net_amount)) for row in rows), Decimal("0.00")
+    )
+    tax_before = Decimal(invoice.tax_amount) + sum(
+        (_signed(row.correction_type, Decimal(row.tax_amount)) for row in rows), Decimal("0.00")
+    )
+    owed_before = Decimal(invoice.gross_amount) + sum(
+        (_signed(row.correction_type, Decimal(row.gross_amount)) for row in rows),
+        Decimal("0.00"),
+    )
+    # F3: the corrected VAT line is always exactly the invoice rate x corrected net.
+    tax_after = vat_half_up(net_before + _signed(correction_type, net), Decimal(invoice.tax_rate))
+    tax = _signed(correction_type, tax_after - tax_before)
+    if tax < 0:
+        raise AppError(
+            "INVOICE_CORRECTION_VAT_INCONSISTENT",
+            "Earlier corrections carry VAT that does not match the invoice rate",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    gross = net + tax
+    if correction_type != InvoiceCorrectionType.CREDIT_NOTE:
+        return tax, gross
+    owed_after = owed_before - gross
+    if owed_after < 0:
+        raise AppError(
+            "INVOICE_CREDIT_EXCEEDS_OBLIGATION",
+            "Credit corrections cannot reduce the invoice obligation below zero",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    # F2: never below the confirmed cash already applied to these terms.
+    funded = sum(
+        (
+            Decimal(row.amount)
+            for row in await _active_cash_allocations(session, invoice.commercial_terms_id)
+        ),
+        Decimal("0.00"),
+    )
+    if owed_after < funded:
+        raise AppError(
+            "INVOICE_CREDIT_BELOW_FUNDED",
+            "Credit corrections cannot reduce the invoice below the cash already received",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    return tax, gross
+
+
 async def _historical_fully_funded_at(
     session: AsyncSession, terms: CommercialTerms
 ) -> datetime | None:
@@ -183,14 +221,8 @@ async def _historical_fully_funded_at(
     if obligation == 0:
         return terms.accepted_at
     cumulative = Decimal("0.00")
-    allocations = list(
-        await session.scalars(
-            select(ReceiptAllocation)
-            .where(ReceiptAllocation.commercial_terms_id == terms.id)
-            .order_by(ReceiptAllocation.allocated_at, ReceiptAllocation.id)
-        )
-    )
-    for allocation in allocations:
+    # F1: a reversed receipt never funded the terms; a later replacement starts the window.
+    for allocation in await _active_cash_allocations(session, terms.id):
         cumulative += Decimal(allocation.amount)
         if cumulative >= obligation:
             return allocation.allocated_at

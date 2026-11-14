@@ -17,9 +17,11 @@ vi.mock("next/cache", () => ({ revalidatePath }));
 
 import {
   recordFinancialAuthorityAction,
+  recordInvoiceCorrectionAction,
   recordManualTransferAction,
   recordRevisionAction,
 } from "./actions";
+import { billingErrorCopy } from "./billing-errors";
 import { ApiError } from "@/lib/api/errors";
 
 describe("recordRevisionAction", () => {
@@ -141,11 +143,11 @@ it.each([
   const form = new FormData();
   form.set("max_driver_liability", "40000");
   form.set("reason", "Synthetic approval check");
+  // REQ-316 F10: the redirect carries the refusal code; the page maps it to fixed copy.
   await expect(
     recordFinancialAuthorityAction("campaign-1", "standard_prepaid", "admin-1", form),
-  ).rejects.toThrow(
-    `redirect:/admin/campaigns/campaign-1?error=${encodeURIComponent(plain)}#money`,
-  );
+  ).rejects.toThrow(`redirect:/admin/campaigns/campaign-1?error=${code}#money`);
+  expect(billingErrorCopy(code)).toBe(plain);
 });
 it("submits a raised approval to the existing authority command", async () => {
   post.mockResolvedValueOnce({ data: {} });
@@ -178,11 +180,71 @@ it("explains that a transfer needs an issued invoice", async () => {
       message: "Money can be recorded only against an issued invoice",
     }),
   );
+  // REQ-316 F10: a code in the URL, fixed copy on the page.
   await expect(
     recordManualTransferAction("campaign-1", "org-1", "terms-1", new FormData()),
-  ).rejects.toThrow(
-    `redirect:/admin/campaigns/campaign-1?error=${encodeURIComponent("Payments can be recorded once the invoice is issued.")}#money`,
+  ).rejects.toThrow("redirect:/admin/campaigns/campaign-1?error=INVOICE_NOT_ISSUED#money");
+  expect(billingErrorCopy("INVOICE_NOT_ISSUED")).toBe(
+    "Payments can be recorded once the invoice is issued.",
   );
+});
+
+describe("recordInvoiceCorrectionAction", () => {
+  beforeEach(() => vi.clearAllMocks());
+  it("sends only the net amount; the server derives VAT", async () => {
+    post.mockResolvedValueOnce({ data: {} });
+    const form = new FormData();
+    form.set("correction_reference", "ref-1");
+    form.set("correction_type", "credit_note");
+    form.set("net_amount", " 100.00 ");
+    form.set("tax_amount", "7.50");
+    form.set("reason", " Scope reduced ");
+    await expect(recordInvoiceCorrectionAction("campaign-1", "invoice-1", form)).rejects.toThrow(
+      "redirect:/admin/campaigns/campaign-1?saved=correction#money",
+    );
+    expect(post).toHaveBeenCalledWith("/api/v1/admin/invoices/{invoice_id}/corrections", {
+      params: { path: { invoice_id: "invoice-1" } },
+      body: {
+        correction_reference: "ref-1",
+        correction_type: "credit_note",
+        net_amount: "100.00",
+        reason: "Scope reduced",
+      },
+    });
+  });
+  it.each([
+    [
+      "INVOICE_CREDIT_BELOW_FUNDED",
+      "This credit note would take the invoice below the money already received. Credit a smaller amount, or record a refund instead.",
+    ],
+    [
+      "INVOICE_CORRECTION_VAT_INCONSISTENT",
+      "Earlier corrections on this invoice don't match its VAT rate, so another correction can't be added. Ask the team to check this invoice.",
+    ],
+    [
+      "INVOICE_CREDIT_EXCEEDS_OBLIGATION",
+      "A credit note can't be larger than the amount still on the invoice.",
+    ],
+  ])("redirects refusal %s as a code with plain copy", async (code, plain) => {
+    post.mockRejectedValueOnce(new ApiError(409, { code, message: "raw backend text" }));
+    const form = new FormData();
+    form.set("correction_type", "credit_note");
+    await expect(recordInvoiceCorrectionAction("campaign-1", "invoice-1", form)).rejects.toThrow(
+      `redirect:/admin/campaigns/campaign-1?error=${code}#money`,
+    );
+    expect(billingErrorCopy(code)).toBe(plain);
+  });
+});
+
+describe("billingErrorCopy", () => {
+  it("never echoes URL text", () => {
+    expect(billingErrorCopy("Your account is locked, call 0800")).toBe(
+      "That didn't work. Please try again.",
+    );
+    expect(billingErrorCopy("failed")).toBe("That didn't work. Please try again.");
+    expect(billingErrorCopy("toString")).toBe("That didn't work. Please try again.");
+    expect(billingErrorCopy(undefined)).toBeNull();
+  });
 });
 
 describe("billing failure copy does not claim money was recorded", () => {
@@ -212,12 +274,9 @@ describe("billing failure copy does not claim money was recorded", () => {
       await expect(
         recordManualTransferAction("campaign-1", "org-1", "terms-1", new FormData()),
       ).rejects.toThrow("redirect:");
-      const message = api
-        ? "Payments can be recorded once the invoice is issued."
-        : "That didn't work. Please try again.";
-      expect(redirect).toHaveBeenCalledWith(
-        `/admin/campaigns/campaign-1?error=${encodeURIComponent(message)}#money`,
-      );
+      // REQ-316 F10: codes, not copy, travel in the URL.
+      const code = api ? "INVOICE_NOT_ISSUED" : "failed";
+      expect(redirect).toHaveBeenCalledWith(`/admin/campaigns/campaign-1?error=${code}#money`);
       expect(revalidatePath).not.toHaveBeenCalled();
     },
   );

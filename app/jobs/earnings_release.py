@@ -2,7 +2,9 @@ import logging
 import time
 from typing import Any
 
+from app.core.errors import LOCK_NOT_AVAILABLE
 from app.core.observability import capture_exception
+from app.db.integrity import database_sqlstate
 from app.services.earnings_release import (
     escalate_fraud_flag_if_due,
     find_due_fraud_flag_ids,
@@ -40,6 +42,8 @@ async def sweep_earnings_release_reviews(ctx: dict[str, Any]) -> dict[str, int]:
 
     released_entries = 0
     release_failed = 0
+    # REQ-317: items whose lock wait timed out; the next sweep retries them.
+    busy = 0
     for trip_id in trip_ids:
         async with sessionmaker() as session:
             try:
@@ -51,6 +55,14 @@ async def sweep_earnings_release_reviews(ctx: dict[str, Any]) -> dict[str, int]:
                 await session.commit()
             except Exception as exc:
                 await session.rollback()
+                if database_sqlstate(exc) == LOCK_NOT_AVAILABLE:
+                    busy += 1
+                    logger.info(
+                        "job=sweep_earnings_release_reviews phase=release trip_id=%s "
+                        "outcome=lock_busy",
+                        trip_id,
+                    )
+                    continue
                 release_failed += 1
                 logger.exception(
                     "job=sweep_earnings_release_reviews phase=release trip_id=%s "
@@ -75,6 +87,14 @@ async def sweep_earnings_release_reviews(ctx: dict[str, Any]) -> dict[str, int]:
                 await session.commit()
             except Exception as exc:
                 await session.rollback()
+                if database_sqlstate(exc) == LOCK_NOT_AVAILABLE:
+                    busy += 1
+                    logger.info(
+                        "job=sweep_earnings_release_reviews phase=escalation flag_id=%s "
+                        "outcome=lock_busy",
+                        flag_id,
+                    )
+                    continue
                 escalation_failed += 1
                 logger.exception(
                     "job=sweep_earnings_release_reviews phase=escalation flag_id=%s "
@@ -90,13 +110,14 @@ async def sweep_earnings_release_reviews(ctx: dict[str, Any]) -> dict[str, int]:
     logger.info(
         "job=sweep_earnings_release_reviews release_candidates=%d released_entries=%d "
         "release_failed=%d escalation_candidates=%d escalated_flags=%d "
-        "escalation_failed=%d duration_ms=%d",
+        "escalation_failed=%d busy=%d duration_ms=%d",
         len(trip_ids),
         released_entries,
         release_failed,
         len(flag_ids),
         escalated_flags,
         escalation_failed,
+        busy,
         duration_ms,
     )
     return {
@@ -106,5 +127,6 @@ async def sweep_earnings_release_reviews(ctx: dict[str, Any]) -> dict[str, int]:
         "escalation_candidates": len(flag_ids),
         "escalated_flags": escalated_flags,
         "escalation_failed": escalation_failed,
+        "busy": busy,
         "duration_ms": duration_ms,
     }

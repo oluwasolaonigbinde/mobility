@@ -2,7 +2,7 @@
 
 from copy import deepcopy
 from datetime import datetime
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -22,13 +22,13 @@ from app.models.billing import (
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.billing.common import (
-    MONEY_QUANTUM,
     _aware_utc,
     _campaign,
     _campaign_period,
     _canonical_line_items,
     _stored_aware_utc,
     _tax_rate,
+    vat_half_up,
 )
 from app.services.billing.queries import _commercial_terms_for_campaign
 from app.services.campaigns import get_required_advertiser_context
@@ -141,7 +141,7 @@ async def record_quotation_revision(
         )
     canonical_lines, net_amount, production_cost = _canonical_line_items(line_items)
     rate = _tax_rate(tax_rate)
-    tax_amount = (net_amount * rate).quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
+    tax_amount = vat_half_up(net_amount, rate)
     revision_number = (
         int(
             await session.scalar(

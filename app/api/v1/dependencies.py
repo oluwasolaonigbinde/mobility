@@ -114,9 +114,7 @@ async def get_current_user(
             "Invalid authentication token",
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
-    if user.status in {UserStatus.SUSPENDED.value, UserStatus.DISABLED.value} or (
-        user.role == UserRole.ADMIN and user.status != UserStatus.ACTIVE
-    ):
+    if user.status != UserStatus.ACTIVE:
         raise AppError(
             "USER_NOT_ACTIVE",
             "User account is not active",

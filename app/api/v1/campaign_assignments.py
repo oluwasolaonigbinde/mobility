@@ -23,7 +23,6 @@ from app.models.driver import DriverProfile
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.schemas.campaign_assignments import (
-    ActiveCampaignAssignmentResponse,
     AssignmentActivityFlagRead,
     AssignmentCampaignSummary,
     AssignmentDriverProfileSummary,
@@ -36,6 +35,9 @@ from app.schemas.campaign_assignments import (
     CampaignAssignmentRead,
     CampaignAssignmentRecommendationListResponse,
     CampaignAssignmentTransition,
+    DriverActiveCampaignAssignment,
+    DriverCampaignAssignmentListResponse,
+    DriverCampaignAssignmentRead,
 )
 from app.schemas.stored_files import FileDownloadRead
 from app.services.assignment_activity import list_assignment_activity_flags
@@ -195,6 +197,18 @@ async def assignment_response(
         vehicle=vehicle_summary(vehicle),
         events=[event_response(event) for event in events] if events is not None else None,
         activity_flags=activity_flags,
+    )
+
+
+async def driver_assignment_response(
+    session: SessionDependency,
+    assignment: CampaignAssignment,
+    *,
+    include_events: bool = False,
+) -> DriverCampaignAssignmentRead:
+    # REQ-315 N5: drivers never receive staff notes, metadata or actor IDs.
+    return DriverCampaignAssignmentRead.from_staff(
+        await assignment_response(session, assignment, include_events=include_events)
     )
 
 
@@ -408,7 +422,7 @@ async def admin_cancel_campaign_assignment(
 
 @router.get(
     "/driver/campaign-assignments",
-    response_model=CampaignAssignmentListResponse,
+    response_model=DriverCampaignAssignmentListResponse,
     summary="List current driver campaign assignments",
 )
 async def driver_list_campaign_assignments(
@@ -417,7 +431,7 @@ async def driver_list_campaign_assignments(
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     status: CampaignAssignmentStatus | Literal["finished"] | None = None,
-) -> CampaignAssignmentListResponse:
+) -> DriverCampaignAssignmentListResponse:
     await expire_due_assignment_offers(session)
     await session.commit()
     assignments, total = await list_driver_assignments(
@@ -427,9 +441,9 @@ async def driver_list_campaign_assignments(
         offset=offset,
         assignment_status=status,
     )
-    return CampaignAssignmentListResponse(
+    return DriverCampaignAssignmentListResponse(
         items=[
-            await assignment_response(session, assignment, include_events=True)
+            await driver_assignment_response(session, assignment, include_events=True)
             for assignment in assignments
         ],
         total=total,
@@ -440,19 +454,19 @@ async def driver_list_campaign_assignments(
 
 @router.get(
     "/driver/campaign-assignments/active",
-    response_model=ActiveCampaignAssignmentResponse,
+    response_model=DriverActiveCampaignAssignment,
     summary="Get current active campaign assignment",
 )
 async def driver_get_active_campaign_assignment(
     current_user: DriverUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
-) -> ActiveCampaignAssignmentResponse:
+) -> DriverActiveCampaignAssignment:
     await expire_due_assignment_offers(session)
     await session.commit()
     assignment = await get_current_active_driver_assignment(session, user_id=current_user.id)
     if assignment is None:
-        return ActiveCampaignAssignmentResponse(assignment=None)
+        return DriverActiveCampaignAssignment(assignment=None)
     from datetime import UTC, datetime
 
     from app.services.installation_evidence import ensure_current_approved_installation_evidence
@@ -469,22 +483,22 @@ async def driver_get_active_campaign_assignment(
             in {"APPROVED_INSTALLATION_EVIDENCE_REQUIRED", "INSTALLATION_EVIDENCE_EXPIRED"}
             else "unavailable"
         )
-    return ActiveCampaignAssignmentResponse(
-        assignment=await assignment_response(session, assignment),
+    return DriverActiveCampaignAssignment(
+        assignment=await driver_assignment_response(session, assignment),
         photo_status=photo_status,
     )
 
 
 @router.get(
     "/driver/campaign-assignments/{assignment_id}",
-    response_model=CampaignAssignmentRead,
+    response_model=DriverCampaignAssignmentRead,
     summary="Get current driver campaign assignment",
 )
 async def driver_get_campaign_assignment(
     assignment_id: UUID,
     current_user: DriverUserDependency,
     session: SessionDependency,
-) -> CampaignAssignmentRead:
+) -> DriverCampaignAssignmentRead:
     await get_driver_assignment(
         session,
         user_id=current_user.id,
@@ -497,12 +511,12 @@ async def driver_get_campaign_assignment(
         user_id=current_user.id,
         assignment_id=assignment_id,
     )
-    return await assignment_response(session, assignment, include_events=True)
+    return await driver_assignment_response(session, assignment, include_events=True)
 
 
 @router.post(
     "/driver/campaign-assignments/{assignment_id}/accept",
-    response_model=CampaignAssignmentRead,
+    response_model=DriverCampaignAssignmentRead,
     summary="Accept a campaign assignment",
 )
 async def driver_accept_campaign_assignment(
@@ -511,7 +525,7 @@ async def driver_accept_campaign_assignment(
     current_user: DriverUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
-) -> CampaignAssignmentRead:
+) -> DriverCampaignAssignmentRead:
     await get_driver_assignment(
         session,
         user_id=current_user.id,
@@ -531,12 +545,12 @@ async def driver_accept_campaign_assignment(
         await session.commit()
         raise
     await session.commit()
-    return await assignment_response(session, assignment, include_events=True)
+    return await driver_assignment_response(session, assignment, include_events=True)
 
 
 @router.post(
     "/driver/campaign-assignments/{assignment_id}/decline",
-    response_model=CampaignAssignmentRead,
+    response_model=DriverCampaignAssignmentRead,
     summary="Decline a campaign assignment offer",
 )
 async def driver_decline_campaign_assignment(
@@ -544,7 +558,7 @@ async def driver_decline_campaign_assignment(
     payload: CampaignAssignmentTransition,
     current_user: DriverUserDependency,
     session: SessionDependency,
-) -> CampaignAssignmentRead:
+) -> DriverCampaignAssignmentRead:
     await get_driver_assignment(
         session,
         user_id=current_user.id,
@@ -560,7 +574,7 @@ async def driver_decline_campaign_assignment(
         await session.commit()
         raise
     await session.commit()
-    return await assignment_response(session, assignment, include_events=True)
+    return await driver_assignment_response(session, assignment, include_events=True)
 
 
 @router.get(
@@ -623,7 +637,7 @@ async def admin_activate_campaign_assignment(
 
 @router.post(
     "/driver/campaign-assignments/{assignment_id}/deactivate",
-    response_model=CampaignAssignmentRead,
+    response_model=DriverCampaignAssignmentRead,
     summary="Deactivate a campaign assignment",
 )
 async def driver_deactivate_campaign_assignment(
@@ -631,7 +645,7 @@ async def driver_deactivate_campaign_assignment(
     payload: CampaignAssignmentTransition,
     current_user: DriverUserDependency,
     session: SessionDependency,
-) -> CampaignAssignmentRead:
+) -> DriverCampaignAssignmentRead:
     assignment = await deactivate_driver_assignment(
         session,
         user_id=current_user.id,
@@ -639,4 +653,4 @@ async def driver_deactivate_campaign_assignment(
         payload=payload,
     )
     await session.commit()
-    return await assignment_response(session, assignment, include_events=True)
+    return await driver_assignment_response(session, assignment, include_events=True)

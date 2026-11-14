@@ -59,9 +59,6 @@ def test_openapi_schema_generates(client) -> None:
     assert components["DriverApplicationSubmitResponse"]["properties"]["status"]["const"] == (
         "pending"
     )
-    assert components["DriverApplicationStatusResponse"]["properties"]["status"]["const"] == (
-        "pending"
-    )
     assert components["DriverApplicationAdminRead"]["properties"]["status"] == {
         "$ref": "#/components/schemas/DriverApplicationStatus"
     }

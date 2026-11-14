@@ -155,7 +155,6 @@ def test_invoice_credit_and_allocation_overlap_respects_corrected_obligation(
                     correction_reference="correction-allocation-overlap-credit",
                     correction_type=InvoiceCorrectionType.CREDIT_NOTE,
                     net_amount="40.00",
-                    tax_amount="0.00",
                     reason="approved scope reduction during allocation",
                 )
                 await session.commit()

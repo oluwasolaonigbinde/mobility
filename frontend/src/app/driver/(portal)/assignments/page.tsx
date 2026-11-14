@@ -18,10 +18,10 @@ import { PortalIcon } from "@/components/brand/portal-icon";
 
 export const metadata: Metadata = { title: "Jobs" };
 
-type AssignmentStatus = components["schemas"]["CampaignAssignmentRead"]["status"];
-type Assignment = components["schemas"]["CampaignAssignmentRead"];
+type AssignmentStatus = components["schemas"]["DriverCampaignAssignmentRead"]["status"];
+type Assignment = components["schemas"]["DriverCampaignAssignmentRead"];
 type EvidencePolicy = components["schemas"]["InstallationEvidencePolicyRead"];
-type Evidence = components["schemas"]["InstallationEvidenceRead"];
+type Evidence = components["schemas"]["DriverInstallationEvidenceRead"];
 
 const statusMeta: Record<
   AssignmentStatus,

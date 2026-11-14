@@ -12,7 +12,7 @@ from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
 from app.models.driver import DriverProfile
-from app.models.driver_application import DriverApplication, DriverApplicationStatus
+from app.models.driver_application import DriverApplication
 from app.models.kyc import (
     DriverKycReviewDecision,
     DriverKycSubmission,
@@ -34,7 +34,7 @@ from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.bank_capture import digest, require_bank_check
 from app.services.driver_agreement import require_agreement, require_recorded_agreement
-from app.services.driver_applications import application_from_access_token, status_reference_hash
+from app.services.driver_applications import application_from_access_token
 from app.services.kyc import (
     require_submission_payload,
     submit_driver_kyc,
@@ -73,32 +73,6 @@ async def _acquire_work_eligibility_authority(
     from app.services.vehicle_onboarding import acquire_work_eligibility_lock
 
     await acquire_work_eligibility_lock(session, driver_profile_id=driver_profile_id)
-
-
-async def application_from_reference(
-    session: AsyncSession, *, reference: str, lock: bool
-) -> DriverApplication:
-    normalized = reference.strip()
-    if not 32 <= len(normalized) <= 128:
-        raise _error(
-            "ONBOARDING_REFERENCE_INVALID",
-            "Driver onboarding reference is unavailable",
-            status.HTTP_404_NOT_FOUND,
-        )
-    query = select(DriverApplication).where(
-        DriverApplication.status_reference_sha256 == status_reference_hash(normalized),
-        DriverApplication.status == DriverApplicationStatus.PENDING,
-    )
-    if lock:
-        query = query.with_for_update()
-    application = await session.scalar(query)
-    if application is None:
-        raise _error(
-            "ONBOARDING_REFERENCE_INVALID",
-            "Driver onboarding reference is unavailable",
-            status.HTTP_404_NOT_FOUND,
-        )
-    return application
 
 
 async def _documents(session: AsyncSession, submission_id: UUID) -> dict[str, UUID]:
@@ -140,16 +114,6 @@ async def _view_for_profile(session: AsyncSession, *, profile_id: UUID) -> Perso
         await _documents(session, submission.id),
         payout_verification is not None,
     )
-
-
-async def person_payee_status_by_reference(
-    session: AsyncSession, *, reference: str
-) -> PersonPayeeView:
-    try:
-        application = await application_from_reference(session, reference=reference, lock=False)
-    except AppError:
-        return PersonPayeeView(None, None, {})
-    return await _view_for_profile(session, profile_id=application.driver_profile_id)
 
 
 async def _lock_review_users(

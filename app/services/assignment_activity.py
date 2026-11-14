@@ -10,6 +10,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings, get_settings
+from app.core.errors import LOCK_NOT_AVAILABLE
+from app.db.integrity import database_sqlstate
 from app.models.assignment_activity import (
     AssignmentActivityFlag,
     AssignmentActivityFlagEvent,
@@ -477,6 +479,7 @@ async def sweep_activity_flags(
         "flags_closed": 0,
         "notices_created": 0,
         "skipped": 0,
+        "busy": 0,
         "errors": 0,
     }
     for assignment_id in assignment_ids:
@@ -495,6 +498,13 @@ async def sweep_activity_flags(
             totals["notices_created"] += int(result["notices_created"])
             totals["skipped"] += int(result["skipped"])
         except Exception as exc:  # one assignment cannot poison the sweep
+            if database_sqlstate(exc) == LOCK_NOT_AVAILABLE:
+                # REQ-317: lock wait timed out; the next sweep evaluates it.
+                totals["busy"] += 1
+                logger.info(
+                    "job=sweep_activity_flags assignment_id=%s outcome=lock_busy", assignment_id
+                )
+                continue
             totals["errors"] += 1
             logger.exception(
                 "job=sweep_activity_flags assignment_id=%s outcome=error error_class=%s",
@@ -503,13 +513,14 @@ async def sweep_activity_flags(
             )
     logger.info(
         "job=sweep_activity_flags selected=%d evaluated=%d flags_opened=%d "
-        "flags_closed=%d notices_created=%d skipped=%d errors=%d",
+        "flags_closed=%d notices_created=%d skipped=%d busy=%d errors=%d",
         totals["selected"],
         totals["evaluated"],
         totals["flags_opened"],
         totals["flags_closed"],
         totals["notices_created"],
         totals["skipped"],
+        totals["busy"],
         totals["errors"],
     )
     return totals

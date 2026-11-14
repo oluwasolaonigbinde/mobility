@@ -27,6 +27,8 @@ from app.schemas.evidence_verification import (
     PhysicalSpotCheckCreate,
 )
 from app.schemas.installation_evidence import (
+    DriverInstallationEvidenceList,
+    DriverInstallationEvidenceRead,
     InstallationEvidenceCreate,
     InstallationEvidenceDecision,
     InstallationEvidenceList,
@@ -147,7 +149,7 @@ async def driver_evidence_policy(
 
 @router.post(
     "/driver/campaign-assignments/{assignment_id}/installation-evidence",
-    response_model=InstallationEvidenceRead,
+    response_model=DriverInstallationEvidenceRead,
     status_code=status.HTTP_201_CREATED,
 )
 async def driver_submit_evidence(
@@ -156,7 +158,7 @@ async def driver_submit_evidence(
     user: DriverUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
-) -> InstallationEvidenceRead:
+) -> DriverInstallationEvidenceRead:
     submission = await submit_installation_evidence(
         session,
         actor_user_id=user.id,
@@ -166,18 +168,20 @@ async def driver_submit_evidence(
         settings=settings,
     )
     await session.commit()
-    return await evidence_response(session, submission)
+    return DriverInstallationEvidenceRead.model_validate(
+        await evidence_response(session, submission), from_attributes=True
+    )
 
 
 @router.get(
     "/driver/campaign-assignments/{assignment_id}/installation-evidence",
-    response_model=InstallationEvidenceList,
+    response_model=DriverInstallationEvidenceList,
 )
 async def driver_list_evidence(
     assignment_id: UUID,
     user: DriverUserDependency,
     session: SessionDependency,
-) -> InstallationEvidenceList:
+) -> DriverInstallationEvidenceList:
     await require_history_assignment(
         session,
         assignment_id=assignment_id,
@@ -193,7 +197,15 @@ async def driver_list_evidence(
         metadata={"result_count": len(rows)},
     )
     await session.commit()
-    return InstallationEvidenceList(items=[await evidence_response(session, row) for row in rows])
+    # REQ-315 N5: the driver never sees which staff member reviewed the photos.
+    return DriverInstallationEvidenceList(
+        items=[
+            DriverInstallationEvidenceRead.model_validate(
+                await evidence_response(session, row), from_attributes=True
+            )
+            for row in rows
+        ]
+    )
 
 
 @router.post(

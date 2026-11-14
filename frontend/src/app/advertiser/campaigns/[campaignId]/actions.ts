@@ -112,6 +112,8 @@ const campaignEditErrors = {
   ORGANIZATION_WRITE_FORBIDDEN:
     "Your advertiser access is unavailable. Ask Terrax to check your account.",
   INVALID_CAMPAIGN_BUDGET: "The daily budget cannot exceed the total budget.",
+  CAMPAIGN_BUDGET_BELOW_ACCEPTED_TOTAL:
+    "The total budget can't be less than the quotation you accepted. Enter at least the accepted total.",
   INVALID_CAMPAIGN_DATES: "The campaign start must be before its end.",
   INVALID_CAMPAIGN_UPDATE: "Check the campaign details and try again.",
 } as const;

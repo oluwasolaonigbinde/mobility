@@ -252,9 +252,8 @@ async def update_advertiser_campaign(  # noqa: C901
     changed_fields = list(update_values)
 
     requested_currency = update_values.get("currency")
-    if requested_currency is not None:
-        from app.services.payout_rule_serialization import acquire_campaign_terms_lock
-
+    if requested_currency is not None or "budget_amount" in update_values:
+        # Same order as quote acceptance: terms key before the campaign row.
         await acquire_campaign_terms_lock(session, campaign_id)
 
     campaign = await session.scalar(
@@ -297,6 +296,21 @@ async def update_advertiser_campaign(  # noqa: C901
                     "Campaign currency cannot change after commercial terms are accepted",
                     status_code=status.HTTP_409_CONFLICT,
                 )
+
+    if "budget_amount" in update_values:
+        from app.models.billing import CommercialTerms
+
+        accepted_gross = await session.scalar(
+            select(CommercialTerms.gross_amount).where(CommercialTerms.campaign_id == campaign.id)
+        )
+        budget = update_values["budget_amount"]
+        if accepted_gross is not None and (budget is None or budget < accepted_gross):
+            raise AppError(
+                "CAMPAIGN_BUDGET_BELOW_ACCEPTED_TOTAL",
+                "The budget cannot be lower than the accepted quotation total",
+                status_code=status.HTTP_409_CONFLICT,
+                details={"accepted_total": f"{accepted_gross:.2f}"},
+            )
 
     if "metadata" in update_values:
         metadata = update_values.pop("metadata")

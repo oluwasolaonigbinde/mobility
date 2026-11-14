@@ -3,7 +3,7 @@
 import hashlib
 from copy import deepcopy
 from datetime import UTC, date, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -108,6 +108,11 @@ def _tax_rate(value: Decimal | str) -> Decimal:
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     return rate
+
+
+def vat_half_up(net_amount: Decimal, tax_rate: Decimal) -> Decimal:
+    """VAT on a net amount at the stored rate, rounded half-up to the kobo."""
+    return (net_amount * tax_rate).quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
 
 
 def _line_quantity(item: dict, index: int) -> tuple[int, Decimal] | None:

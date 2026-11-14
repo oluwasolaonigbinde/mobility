@@ -1,7 +1,7 @@
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.user import UserRole, UserStatus
 
@@ -20,6 +20,13 @@ class UserCreate(BaseModel):
         min_length=1,
         json_schema_extra={"writeOnly": True},
     )
+
+    @model_validator(mode="after")
+    def drivers_start_active(self) -> "UserCreate":
+        # REQ-315: a non-active account cannot sign in, so staff only create active drivers.
+        if self.role == UserRole.DRIVER and self.status != UserStatus.ACTIVE:
+            raise ValueError("Staff can only create a driver as active")
+        return self
 
 
 class UserUpdate(BaseModel):

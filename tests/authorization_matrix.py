@@ -63,7 +63,6 @@ PUBLIC_ROUTES = frozenset(
         ("POST", "/api/v1/auth/driver-onboarding-access/request"),
         ("POST", "/api/v1/auth/driver-account-setup/complete"),
         ("POST", "/api/v1/auth/register-driver"),
-        ("GET", "/api/v1/auth/driver-application-status/{reference}"),
         ("GET", "/api/v1/auth/driver-onboarding/banks"),
     }
 )

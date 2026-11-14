@@ -2,10 +2,12 @@ import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 
+import pytest
 from conftest import create_test_campaign, create_test_organization, create_test_user
 from invoice_helpers import issue_test_invoice
 from sqlalchemy import func, select
 
+from app.core.errors import AppError
 from app.models.billing import (
     AcceptanceMethod,
     BudgetCampaignTransition,
@@ -175,7 +177,6 @@ async def correct(session, *, invoice, admin, reference, amount, credit=False):
             InvoiceCorrectionType.CREDIT_NOTE if credit else InvoiceCorrectionType.DEBIT_NOTE
         ),
         net_amount=amount,
-        tax_amount="0.00",
         reason=f"synthetic {reference}",
     )
 
@@ -428,27 +429,8 @@ def test_production_obligation_raises_a_media_budget_and_only_extra_charges_paus
             # The whole obligation lands on the production day; the daily budget never pauses.
             assert result.state == "within_budget"
             assert result.billing_spend_amount == Decimal("1075.00")
-            await correct(
-                session,
-                invoice=invoice,
-                admin=admin,
-                reference="FIXED-CREDIT",
-                amount="107.50",
-                credit=True,
-            )
-            # 1075 - 107.50, without mutating the accepted quote.
-            corrected = await enforce_campaign_budget(
-                session,
-                campaign_id=campaign.id,
-            )
-            retry = await enforce_campaign_budget(
-                session,
-                campaign_id=campaign.id,
-            )
-            assert corrected.billing_spend_amount == Decimal("967.50")
-            assert corrected.state == retry.state == "within_budget"
-            assert corrected.funding_fingerprint != result.funding_fingerprint
-            assert retry.funding_fingerprint == corrected.funding_fingerprint
+            # REQ-314 F2/F3 reorder this scenario: the invoice is fully funded, so a credit
+            # can only follow an extra charge, and every correction's VAT is derived.
             # An extra charge beyond a budget equal to the agreed total pauses at once.
             await correct(
                 session, invoice=invoice, admin=admin, reference="FIXED-EXTRA", amount="200.00"
@@ -457,8 +439,40 @@ def test_production_obligation_raises_a_media_budget_and_only_extra_charges_paus
                 session,
                 campaign_id=campaign.id,
             )
-            assert extra.billing_spend_amount == Decimal("1167.50")
+            # 1075 + 200.00 net + 15.00 derived VAT.
+            assert extra.billing_spend_amount == Decimal("1290.00")
             assert extra.state == "pause_threshold" and extra.pause_applied is True
+            with pytest.raises(AppError) as below_cash:
+                await correct(
+                    session,
+                    invoice=invoice,
+                    admin=admin,
+                    reference="FIXED-CREDIT-BELOW-CASH",
+                    amount="200.01",
+                    credit=True,
+                )
+            assert below_cash.value.code == "INVOICE_CREDIT_BELOW_FUNDED"
+            await correct(
+                session,
+                invoice=invoice,
+                admin=admin,
+                reference="FIXED-CREDIT",
+                amount="200.00",
+                credit=True,
+            )
+            # Back to the 1075.00 received, without mutating the accepted quote.
+            corrected = await enforce_campaign_budget(
+                session,
+                campaign_id=campaign.id,
+            )
+            retry = await enforce_campaign_budget(
+                session,
+                campaign_id=campaign.id,
+            )
+            assert corrected.billing_spend_amount == Decimal("1075.00")
+            assert corrected.state == retry.state == "within_budget"
+            assert corrected.funding_fingerprint != extra.funding_fingerprint
+            assert retry.funding_fingerprint == corrected.funding_fingerprint
             assert terms.line_items == frozen
             assert terms.gross_amount == Decimal("1075.00")
 
