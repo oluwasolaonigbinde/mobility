@@ -268,6 +268,43 @@ describe("loadDriverCampaignJourney", () => {
     expect(result.trackerAssignment).toBeNull();
   });
 
+  it("keeps the startable assignment while a trip is in progress (REQ-319)", async () => {
+    // Ending the trip on Track must offer Start straight away, not "can't start yet"
+    // until a later page refresh replaces this read.
+    const ready = mocks.get.getMockImplementation();
+    mocks.get.mockImplementation(async (path: string, options?: Record<string, unknown>) => {
+      if (path === "/api/v1/driver/trips/current") return { data: { trip: { id: TRIP_ID } } };
+      return ready?.(path, options);
+    });
+
+    const result = await loadDriverCampaignJourney();
+
+    expect(result.journey.standing).toBe("TRACKING");
+    expect(result.journey.canStart).toBe(false);
+    expect(result.trackerAssignment).toEqual({
+      id: ASSIGNMENT_ID,
+      campaignName: "Abuja Pilot",
+      plateNumber: "ABC-123",
+      vehicleId: VEHICLE_ID,
+    });
+  });
+
+  it("withholds the next Start during a trip when a prerequisite is no longer met", async () => {
+    const ready = mocks.get.getMockImplementation();
+    mocks.get.mockImplementation(async (path: string, options?: Record<string, unknown>) => {
+      if (path === "/api/v1/driver/trips/current") return { data: { trip: { id: TRIP_ID } } };
+      if (path === "/api/v1/driver/vehicles/{vehicle_id}/evidence-current") {
+        return { data: { status: "expired", snapshot_trusted: true } };
+      }
+      return ready?.(path, options);
+    });
+
+    const result = await loadDriverCampaignJourney();
+
+    expect(result.journey.standing).toBe("TRACKING");
+    expect(result.trackerAssignment).toBeNull();
+  });
+
   it("keeps the current trip identity manageable when activation is unavailable", async () => {
     const ready = mocks.get.getMockImplementation();
     mocks.get.mockImplementation(async (path: string, options?: Record<string, unknown>) => {
