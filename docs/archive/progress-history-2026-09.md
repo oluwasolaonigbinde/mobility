@@ -947,7 +947,7 @@ checkouts and rewrote about 440 unrelated files. All of them were restored with
 explicit file list. `frontend/src/app/globals.css` was already not
 Prettier-clean at `21a5981` and carries only the CV-14 two-line change.
 
-An untracked root `docs/archive/issues.md` was created by a separate session; this batch
+An untracked root `issues.md` was created by a separate session; this batch
 does not own it. Nothing is committed or pushed; that awaits owner approval.
 
 **Product-completion P6 local closure candidate (16 Sep 2026):** The approved

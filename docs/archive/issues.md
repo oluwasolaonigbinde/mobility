@@ -68,7 +68,7 @@ New on 24 Sep (main checkout, default pre-approval configuration):
 
 - **Journey:** Open the Campaign Performance Analysis and coverage map for the approved name-only campaign. The same report state was observed for seeded active “Demo Lagos Mobility Campaign,” active “F7 Lagos Commuter Reach,” and completed “Airtel Lagos Commute” before a measurement run existed.
 - **Observed:** Both pages say “This report failed its integrity check” and “Cardvert needs to reissue the analysis.” The report API returned no `measurement_run` or `measurement_result`; this is absence, not evidence of mismatched issued data. A synthetic admin attempt to prepare a run for the seeded active campaign was correctly rejected because activation proof did not bind creative and installation evidence.
-- **Expectation:** Show the already-defined “No report is available yet” / measurement-required state until a run exists; reserve integrity failure for a present run/result that fails verification. See [`report/page.tsx`](../../frontend/src/app/advertiser/campaigns/[campaignId]/report/page.tsx), [`map/page.tsx`](../../frontend/src/app/advertiser/campaigns/[campaignId]/map/page.tsx), and [`measurement-authority.tsx`](../../frontend/src/app/advertiser/campaigns/[campaignId]/report/page.tsx).
+- **Expectation:** Show the already-defined “No report is available yet” / measurement-required state until a run exists; reserve integrity failure for a present run/result that fails verification. See [`report/page.tsx`](../../frontend/src/app/advertiser/campaigns/[campaignId]/report/page.tsx), [`map/page.tsx`](../../frontend/src/app/advertiser/campaigns/[campaignId]/map/page.tsx), and [`measurement-authority.tsx`](../../frontend/src/app/advertiser/campaigns/[campaignId]/report/measurement-authority.tsx).
 - **Impact:** The current message tells advertisers there is a data integrity incident and a reissue action when no report has been issued.
 
 ### QA-03 · Viewer is invited into write flows that the server denies — medium
@@ -88,7 +88,7 @@ New on 24 Sep (main checkout, default pre-approval configuration):
 
 - **Journey:** Open `/admin/payouts` and `/admin/fraud`.
 - **Observed:** “Process a trip” requires a pasted full trip UUID, while 330 payout rows display only eight characters plus an ellipsis, with no row link or title containing the full ID. “Queue physical spot check” requires full assignment and trip IDs, while fraud flags show only shortened trip IDs and no trip/assignment navigation. The named `/admin/assignments` list links to assignment readiness, but its active-assignment detail showed no trips or full trip IDs.
-- **Expectation:** Give staff a contextual action, full copyable reference, or a searchable trip/assignment picker. This is a workflow discoverability issue; it does not establish an API authorization problem. See [`payouts/page.tsx`](../../frontend/src/app/admin/payouts/batches/content.tsx) and [`fraud/page.tsx`](../../frontend/src/app/admin/trip-checks/page.tsx).
+- **Expectation:** Give staff a contextual action, full copyable reference, or a searchable trip/assignment picker. This is a workflow discoverability issue; it does not establish an API authorization problem. See [`payouts/page.tsx`](../../frontend/src/app/admin/payouts/page.tsx) and [`fraud/page.tsx`](../../frontend/src/app/admin/fraud/page.tsx).
 
 ### QA-06 · Bank-transfer instruction has no usable destination — medium; client input required
 

@@ -1,7 +1,7 @@
 import { createApiClient } from "@/lib/api/client";
 import { readDriverJobArtwork } from "@/lib/api/audit-batch2";
 import { ApiError } from "@/lib/api/errors";
-import { isUuidParam } from "@/lib/api/route-params";
+import { isUuidParam, storageUrl } from "@/lib/api/route-params";
 import { getSessionToken } from "@/lib/auth/session";
 
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -25,10 +25,9 @@ export async function GET(
     const { data } = await readDriverJobArtwork(createApiClient(token), assignmentId);
     if (!data || !Number.isFinite(data.expires_in_seconds) || !(data.expires_in_seconds > 0))
       return unavailable(404);
-    const url = new URL(data.url);
-    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password)
-      return unavailable(404);
-    const upstream = await fetch(url.href, {
+    const href = storageUrl(data.url);
+    if (!href) return unavailable(404);
+    const upstream = await fetch(href, {
       cache: "no-store",
       redirect: "error",
       signal: AbortSignal.timeout(15000),

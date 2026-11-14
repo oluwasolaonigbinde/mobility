@@ -33,7 +33,8 @@ function fragmentTokenLink(pathname: string): FragmentTokenLink {
       return false;
     }
     const value = values.length === 1 ? values[0] : undefined;
-    token = value && value.length <= 512 && !/[\u0000- \u007f-\u009f]/u.test(value) ? value : "";
+    token =
+      value && value.length <= 512 && !/[\u0000-\u0020\u007f-\u009f]/u.test(value) ? value : "";
     return true;
   }
 
