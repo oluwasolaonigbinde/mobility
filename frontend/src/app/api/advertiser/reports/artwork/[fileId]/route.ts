@@ -1,13 +1,13 @@
-import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
+import { isUuidParam, storageUrl } from "@/lib/api/route-params";
 import { getSessionToken } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ fileId: string }> }) {
   const { fileId } = await params;
-  if (!z.string().uuid().safeParse(fileId).success) return new Response(null, { status: 404 });
+  if (!isUuidParam(fileId)) return new Response(null, { status: 404 });
   const token = await getSessionToken();
   if (!token) return new Response(null, { status: 401 });
   try {
@@ -18,10 +18,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ fil
         body: { purpose: "campaign_preview", reason: "Report artwork preview" },
       },
     );
-    if (!data) return new Response(null, { status: 404 });
+    const location = data ? storageUrl(data.url) : null;
+    if (!location) return new Response(null, { status: 404 });
     return new Response(null, {
       status: 303,
-      headers: { location: data.url, "cache-control": "private, no-store" },
+      headers: { location, "cache-control": "private, no-store" },
     });
   } catch (error) {
     return new Response(null, {

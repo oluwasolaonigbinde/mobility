@@ -33,6 +33,24 @@ it("lets advertisers edit company details", async () => {
   expect(screen.getByText(/contact details only/)).toBeInTheDocument();
 });
 
+it.each([
+  ["failed", "That didn't work. Please try again."],
+  ["busy", "This page is busy. Try again in a moment."],
+  ["unavailable", "Could not update company profile"],
+])("maps the %s error code to fixed copy", async (error, copy) => {
+  mocks.role.mockResolvedValue({ user: { full_name: "Ada", email: "ada@example.test" } });
+  render(await CompanyPage({ searchParams: Promise.resolve({ error }) }));
+  expect(screen.getByRole("alert")).toHaveTextContent(copy);
+});
+
+it("never renders URL text as an error alert", async () => {
+  mocks.role.mockResolvedValue({ user: { full_name: "Ada", email: "ada@example.test" } });
+  const error = "Your account is suspended. Call +234 800 000 0000";
+  render(await CompanyPage({ searchParams: Promise.resolve({ error }) }));
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(document.body).not.toHaveTextContent("suspended");
+});
+
 it("keeps sign-in and password controls when company details fail, with a retry", async () => {
   mocks.role.mockResolvedValue({ user: { full_name: "Ada", email: "ada@example.test" } });
   mocks.get.mockRejectedValue(

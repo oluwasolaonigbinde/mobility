@@ -1,11 +1,13 @@
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
+import { isUuidParam, unknownIdResponse } from "@/lib/api/route-params";
 import { reportIssuanceError } from "../../../report-issuances/_responses";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request, context: { params: Promise<{ reportId: string }> }) {
   const { reportId } = await context.params;
+  if (!isUuidParam(reportId)) return unknownIdResponse();
   const query = new URL(request.url).searchParams;
   const format = query.get("format");
   if (format !== "csv" && format !== "pdf")

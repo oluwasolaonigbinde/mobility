@@ -54,6 +54,13 @@ def public_action_url(settings: Settings, path: str) -> str:
     return origin.rstrip("/") + path
 
 
+def _fragment_token_url(base_url: str, token: str, *, setting: str) -> str:
+    """One-time links carry the token in the fragment so it never reaches a server log (D130)."""
+    if "#" in base_url:
+        raise ValueError(f"{setting}_invalid")
+    return f"{base_url}#token={quote(token)}"
+
+
 def _utc(value: datetime) -> datetime:
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
@@ -292,13 +299,10 @@ async def process_email_notification(  # noqa: C901
                     + f"#token={quote(reset_token)}"
                 )
             elif settings.password_reset_public_url:
-                separator = "&" if "?" in settings.password_reset_public_url else "?"
-                runtime_payload["reset_action"] = (
-                    f"{settings.password_reset_public_url}{separator}token={quote(reset_token)}"
-                )
-            elif settings.environment in LOCAL_ENVIRONMENTS:
-                runtime_payload["reset_action"] = public_action_url(
-                    settings, f"/reset-password?token={quote(reset_token)}"
+                runtime_payload["reset_action"] = _fragment_token_url(
+                    settings.password_reset_public_url,
+                    reset_token,
+                    setting="password_reset_public_url",
                 )
             else:
                 raise ValueError("password_reset_public_url_missing")
@@ -377,9 +381,10 @@ async def process_email_notification(  # noqa: C901
             except RuntimeError:
                 raise ValueError("driver_account_setup_evidence_mismatch") from None
             if settings.driver_account_setup_public_url:
-                separator = "&" if "?" in settings.driver_account_setup_public_url else "?"
-                runtime_payload["setup_action"] = (
-                    f"{settings.driver_account_setup_public_url}{separator}token={quote(setup_token)}"
+                runtime_payload["setup_action"] = _fragment_token_url(
+                    settings.driver_account_setup_public_url,
+                    setup_token,
+                    setting="driver_account_setup_public_url",
                 )
             else:
                 # A bare token is unusable and must never be sent in its place.

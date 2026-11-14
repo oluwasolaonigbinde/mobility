@@ -1,6 +1,8 @@
 import { bffResponse } from "@/lib/api/route-response";
+import { isUuidParam, unknownIdResponse } from "@/lib/api/route-params";
 export async function POST(request: Request, context: { params: Promise<{ vehicleId: string }> }) {
   const { vehicleId } = await context.params;
+  if (!isUuidParam(vehicleId)) return unknownIdResponse();
   let body;
   try {
     body = await request.json();

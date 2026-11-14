@@ -48,10 +48,12 @@ describe("notification BFF routes", () => {
     ).toMatchObject({ items: [] });
     expect(await (await unreadCount()).json()).toEqual({ unread_count: 2 });
     expect(await (await markAllRead()).json()).toEqual({ unread_count: 0 });
+    // REQ-316 F9: path ids must be UUIDs, so the fixture uses one.
+    const noticeId = "00000000-0000-4000-8000-0000000000b1";
     expect(
       await (
-        await markRead(new Request("http://localhost/api/notifications/notice-1/read"), {
-          params: Promise.resolve({ notificationId: "notice-1" }),
+        await markRead(new Request(`http://localhost/api/notifications/${noticeId}/read`), {
+          params: Promise.resolve({ notificationId: noticeId }),
         })
       ).json(),
     ).toMatchObject({ id: "notice-1" });
@@ -61,7 +63,7 @@ describe("notification BFF routes", () => {
     expect(mocks.get).toHaveBeenNthCalledWith(2, "/api/v1/notifications/unread-count");
     expect(mocks.post).toHaveBeenNthCalledWith(1, "/api/v1/notifications/read-all");
     expect(mocks.post).toHaveBeenNthCalledWith(2, "/api/v1/notifications/{notification_id}/read", {
-      params: { path: { notification_id: "notice-1" } },
+      params: { path: { notification_id: noticeId } },
     });
   });
 

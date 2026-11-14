@@ -8,6 +8,7 @@ import { ChangePasswordForm } from "@/components/auth/change-password-form";
 import { SessionLogoutButton } from "@/components/driver/logout-button";
 import { Panel } from "@/components/ui/panel";
 import { updateCompanyAction } from "./actions";
+import { companyUpdateErrorCopy } from "./errors";
 
 export const metadata = { title: "Account" };
 
@@ -18,6 +19,7 @@ export default async function AccountPage({
 }) {
   const me = await requireRole("advertiser");
   const notice = (await searchParams) ?? {};
+  const error = companyUpdateErrorCopy(notice.error);
   const api = createApiClient(await getSessionToken());
   const company = await loadAdvertiserPageData(() => api.GET("/api/v1/advertiser/company"));
   return (
@@ -33,9 +35,9 @@ export default async function AccountPage({
             Company details saved.
           </p>
         ) : null}
-        {notice.error ? (
+        {error ? (
           <p role="alert" className="text-coral mb-4">
-            {notice.error}
+            {error}
           </p>
         ) : null}
         {company.available ? (

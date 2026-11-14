@@ -1,6 +1,6 @@
-import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
+import { isUuidParam } from "@/lib/api/route-params";
 import { getSessionToken } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -14,8 +14,7 @@ export async function GET(
     "referrer-policy": "no-referrer",
     "x-content-type-options": "nosniff",
   };
-  if (!z.uuid().safeParse(campaignId).success || !z.uuid().safeParse(creativeId).success)
-    return new Response(null, { status: 404, headers });
+  if (!isUuidParam(campaignId, creativeId)) return new Response(null, { status: 404, headers });
   const token = await getSessionToken();
   if (!token) return new Response(null, { status: 401, headers });
   try {

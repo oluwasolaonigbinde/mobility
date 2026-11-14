@@ -14,6 +14,7 @@ vi.mock("@/lib/api/client", () => ({
   },
 }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "signed-in-cookie" }));
+const vehicleId = "00000000-0000-4000-8000-0000000000a1";
 beforeEach(() => {
   vi.clearAllMocks();
   for (const fn of [mocks.get, mocks.put, mocks.post])
@@ -46,14 +47,15 @@ it("forwards current revision IDs and upload references to owned routes", async 
   };
   await phone(request({ phone: "+447700900101" }));
   await renew(request(body));
-  await vehicle(request(body), { params: Promise.resolve({ vehicleId: "owned-vehicle" }) });
+  // REQ-316 F9: path ids must be UUIDs, so the fixture uses one.
+  await vehicle(request(body), { params: Promise.resolve({ vehicleId }) });
   expect(mocks.put).toHaveBeenCalledWith("/api/v1/driver/contact/phone", {
     body: { phone: "+447700900101" },
   });
   expect(mocks.post).toHaveBeenCalledWith("/api/v1/driver/documents/person-payee", { body });
   expect(mocks.post).toHaveBeenCalledWith(
     "/api/v1/driver/vehicles/{vehicle_id}/evidence-submissions",
-    { params: { path: { vehicle_id: "owned-vehicle" } }, body },
+    { params: { path: { vehicle_id: vehicleId } }, body },
   );
 });
 it("keeps safe rejection errors free from driver code and token", async () => {
@@ -68,7 +70,7 @@ it("rejects malformed sensitive JSON without echoing it or calling the backend",
   for (const action of [
     phone,
     renew,
-    (r: Request) => vehicle(r, { params: Promise.resolve({ vehicleId: "v" }) }),
+    (r: Request) => vehicle(r, { params: Promise.resolve({ vehicleId }) }),
   ]) {
     const response = await action(
       new Request("http://localhost", { method: "POST", body: '{"nin":"485921"' }),

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect } from "react";
+import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { completeDriverAccountSetupAction, type DriverAccountSetupState } from "./actions";
@@ -10,10 +10,6 @@ const initialState: DriverAccountSetupState = {};
 
 export function DriverAccountSetupForm({ token }: { token: string }) {
   const [state, action, pending] = useActionState(completeDriverAccountSetupAction, initialState);
-
-  useEffect(() => {
-    window.history.replaceState(null, "", "/driver-account-setup");
-  }, []);
 
   return (
     <form action={action} className="flex flex-col gap-5" noValidate>

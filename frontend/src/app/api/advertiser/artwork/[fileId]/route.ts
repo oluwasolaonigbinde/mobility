@@ -1,6 +1,6 @@
-import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
+import { isUuidParam, storageUrl } from "@/lib/api/route-params";
 import { getSessionToken } from "@/lib/auth/session";
 
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -12,8 +12,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ fileId: string }> }) {
   const { fileId } = await params;
-  if (!z.string().uuid().safeParse(fileId).success)
-    return new Response(null, { status: 404, headers: PRIVATE_HEADERS });
+  if (!isUuidParam(fileId)) return new Response(null, { status: 404, headers: PRIVATE_HEADERS });
   const token = await getSessionToken();
   if (!token) return new Response(null, { status: 401, headers: PRIVATE_HEADERS });
   try {
@@ -22,8 +21,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ fil
       params: { path: { file_id: fileId } },
       body: { purpose: "campaign_preview", reason: "Campaign artwork preview" },
     });
-    if (!data) return new Response(null, { status: 404, headers: PRIVATE_HEADERS });
-    const upstream = await fetch(data.url, {
+    const url = data ? storageUrl(data.url) : null;
+    if (!url) return new Response(null, { status: 404, headers: PRIVATE_HEADERS });
+    const upstream = await fetch(url, {
       cache: "no-store",
       redirect: "error",
       signal: AbortSignal.timeout(15000),

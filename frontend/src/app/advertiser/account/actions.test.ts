@@ -38,7 +38,9 @@ it("saves the advertiser's own company and returns to the page", async () => {
   expect(mocks.revalidatePath).toHaveBeenCalledWith("/advertiser/account");
 });
 
-it("redirects with safe copy for an unmapped refusal or transport failure", async () => {
+// REQ-316 F10: the redirect carries a fixed error code, not copy, so a crafted URL cannot
+// put arbitrary text in the alert; the page maps the code to the same copy as before.
+it("redirects with a fixed error code for a refusal, a busy backend or a transport failure", async () => {
   mocks.patch.mockRejectedValue(
     new ApiError(403, {
       code: "FORBIDDEN",
@@ -46,11 +48,15 @@ it("redirects with safe copy for an unmapped refusal or transport failure", asyn
     }),
   );
   await expect(updateCompanyAction(form())).rejects.toThrow(
-    `REDIRECT /advertiser/account?error=${encodeURIComponent("That didn't work. Please try again.")}`,
+    "REDIRECT /advertiser/account?error=failed",
+  );
+  mocks.patch.mockRejectedValue(new ApiError(503, { code: "TRY_AGAIN_SOON", message: "busy" }));
+  await expect(updateCompanyAction(form())).rejects.toThrow(
+    "REDIRECT /advertiser/account?error=busy",
   );
   mocks.patch.mockRejectedValue(new Error("network"));
   await expect(updateCompanyAction(form())).rejects.toThrow(
-    "REDIRECT /advertiser/account?error=Could%20not%20update%20company%20profile",
+    "REDIRECT /advertiser/account?error=unavailable",
   );
   expect(mocks.revalidatePath).not.toHaveBeenCalled();
 });

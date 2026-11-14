@@ -21,6 +21,9 @@ describe("advertiser file BFF routes", () => {
   });
 
   it("keeps API authorization server-side across upload, confirm, and scan polling", async () => {
+    // REQ-316 F9: path ids must be UUIDs, so the fixtures use them.
+    const uploadId = "00000000-0000-4000-8000-0000000000c1";
+    const fileId = "00000000-0000-4000-8000-0000000000c2";
     mocks.post
       .mockResolvedValueOnce({
         data: { upload_id: "upload-1", upload: { url: "http://storage", fields: {} } },
@@ -43,10 +46,10 @@ describe("advertiser file BFF routes", () => {
       }),
     );
     await confirmUpload(new Request("http://localhost"), {
-      params: Promise.resolve({ uploadId: "upload-1" }),
+      params: Promise.resolve({ uploadId }),
     });
     await getFile(new Request("http://localhost"), {
-      params: Promise.resolve({ fileId: "file-1" }),
+      params: Promise.resolve({ fileId }),
     });
 
     expect(mocks.createApiClient).toHaveBeenCalledWith("http-only-token");
@@ -56,10 +59,10 @@ describe("advertiser file BFF routes", () => {
     expect(mocks.post).toHaveBeenNthCalledWith(
       2,
       "/api/v1/advertiser/files/uploads/{upload_id}/confirm",
-      { params: { path: { upload_id: "upload-1" } } },
+      { params: { path: { upload_id: uploadId } } },
     );
     expect(mocks.get).toHaveBeenCalledWith("/api/v1/advertiser/files/{file_id}", {
-      params: { path: { file_id: "file-1" } },
+      params: { path: { file_id: fileId } },
     });
   });
 });
