@@ -30,6 +30,7 @@ import {
   recordRefundAction,
   reverseReceiptAction,
 } from "./actions";
+import { billingErrorCopy } from "./billing-errors";
 
 export default async function AdminCampaignBillingPage({
   params,
@@ -43,6 +44,7 @@ export default async function AdminCampaignBillingPage({
   const { campaignId } = await params;
   const me = await requireRole("admin");
   const notice = await searchParams;
+  const errorCopy = billingErrorCopy(notice.error);
   const api = createApiClient(await getSessionToken());
   let campaign, commercial, history;
   try {
@@ -106,7 +108,7 @@ export default async function AdminCampaignBillingPage({
       >
         See money summary
       </Link>
-      {notice.error ? <p className="text-coral mb-4 text-sm">{notice.error}</p> : null}
+      {errorCopy ? <p className="text-coral mb-4 text-sm">{errorCopy}</p> : null}
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel className="p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
@@ -461,10 +463,10 @@ export default async function AdminCampaignBillingPage({
                         <option value="debit_note">Debit note</option>
                       </select>
                     </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field name="net_amount" label="Net" required />
-                      <Field name="tax_amount" label="VAT" required />
-                    </div>
+                    <Field name="net_amount" label="Amount before VAT" required />
+                    <p className="micro text-muted">
+                      VAT is added at the invoice&apos;s rate when you record the correction.
+                    </p>
                     <Field name="reason" label="Correction reason" required />
                     <Button type="submit" variant="ghost">
                       Record correction

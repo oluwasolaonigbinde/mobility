@@ -8,6 +8,7 @@ from uuid import UUID
 from arq import Retry
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
+from app.core.errors import LOCK_NOT_AVAILABLE
 from app.core.observability import capture_exception
 from app.core.trip_enqueue import build_trip_enqueuer
 from app.db.integrity import database_sqlstate, integrity_constraint_name
@@ -22,6 +23,9 @@ from app.services.trips import auto_end_inactive_trip, find_trips_to_auto_end, u
 logger = logging.getLogger(__name__)
 SWEEP_CURSOR_KEY = "worker:trip-processing:sweep-cursor:v1"
 SWEEP_CURSOR_CONTEXT_KEY = "_trip_processing_sweep_cursor"
+# REQ-317: a report sweep can hold the trip/terms locks for 60-90 s, so a job
+# that timed out waiting comes back after that hold, not straight away.
+LOCK_BUSY_RETRY_SECONDS = 120
 
 
 def _encode_cursor(cursor: tuple[datetime, UUID]) -> str:
@@ -105,6 +109,10 @@ async def process_trip(ctx: dict[str, Any], trip_id: str) -> dict[str, Any]:
                 raise
             except Exception as exc:
                 await session.rollback()
+                if database_sqlstate(exc) == LOCK_NOT_AVAILABLE:
+                    # REQ-317: another job holds this trip's locks; not a fault.
+                    logger.info("job=process_trip trip_id=%s outcome=lock_busy", parsed_trip_id)
+                    raise Retry(defer=LOCK_BUSY_RETRY_SECONDS) from None
                 logger.exception(
                     "job=process_trip trip_id=%s outcome=error error_class=%s",
                     parsed_trip_id,
@@ -139,7 +147,7 @@ async def process_unprocessed_trips(ctx: dict[str, Any]) -> dict[str, Any]:
     settings = ctx["settings"]
     sessionmaker = ctx["sessionmaker"]
     started = time.monotonic()
-    processed = partial = failed = skipped = 0
+    processed = partial = failed = skipped = busy = 0
     selected = 0
     cursor = await _load_sweep_cursor(ctx)
     async with sessionmaker() as session:
@@ -181,6 +189,13 @@ async def process_unprocessed_trips(ctx: dict[str, Any]) -> dict[str, Any]:
                 continue
             except Exception as exc:
                 await session.rollback()
+                if database_sqlstate(exc) == LOCK_NOT_AVAILABLE:
+                    # REQ-317: lock wait timed out; the next sweep picks the trip up.
+                    busy += 1
+                    logger.info(
+                        "job=process_unprocessed_trips trip_id=%s outcome=lock_busy", due_trip.id
+                    )
+                    continue
                 failed += 1
                 logger.exception(
                     "job=process_unprocessed_trips trip_id=%s outcome=error error_class=%s",
@@ -201,12 +216,13 @@ async def process_unprocessed_trips(ctx: dict[str, Any]) -> dict[str, Any]:
     duration_ms = int((time.monotonic() - started) * 1000)
     logger.info(
         "job=process_unprocessed_trips selected=%d processed=%d partial=%d failed=%d "
-        "skipped=%d duration_ms=%d",
+        "skipped=%d busy=%d duration_ms=%d",
         selected,
         processed,
         partial,
         failed,
         skipped,
+        busy,
         duration_ms,
     )
     return {
@@ -215,6 +231,7 @@ async def process_unprocessed_trips(ctx: dict[str, Any]) -> dict[str, Any]:
         "partial": partial,
         "failed": failed,
         "skipped": skipped,
+        "busy": busy,
         "duration_ms": duration_ms,
     }
 

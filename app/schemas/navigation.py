@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.models.campaign_assignment import CampaignAssignmentStatus
-from app.schemas.campaign_assignments import ActiveCampaignAssignmentResponse
+from app.schemas.campaign_assignments import DriverActiveCampaignAssignment
 
 
 class AdminBadgeSummary(BaseModel):
@@ -16,5 +16,5 @@ class AdminBadgeSummary(BaseModel):
     source_counts: dict[str, int]
 
 
-class DriverCurrentJob(ActiveCampaignAssignmentResponse):
+class DriverCurrentJob(DriverActiveCampaignAssignment):
     counts: dict[CampaignAssignmentStatus | Literal["finished"], int]

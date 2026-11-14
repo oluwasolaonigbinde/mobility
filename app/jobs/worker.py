@@ -57,8 +57,14 @@ from app.services.paystack_disbursements import build_paystack_destination_resol
 from app.services.report_scheduling import sweep_scheduled_reports
 
 
-def sweep_cron_minutes(interval_minutes: int) -> set[int]:
-    return set(range(0, 60, interval_minutes))
+def sweep_cron_minutes(interval_minutes: int, *, offset: int = 0) -> set[int]:
+    return {(minute + offset) % 60 for minute in range(0, 60, interval_minutes)}
+
+
+# REQ-317: scheduled reports read the same terms and trip rows the money sweeps
+# lock, so they start two minutes later. This lowers contention; it is a
+# mitigation, not a guarantee, and lock-busy work is still retried or deferred.
+REPORT_SWEEP_OFFSET_MINUTES = 2
 
 
 def build_redis_settings(settings: Settings | None = None) -> RedisSettings:
@@ -191,7 +197,10 @@ class WorkerSettings:
         ),
         cron(
             sweep_scheduled_reports,
-            minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
+            minute=sweep_cron_minutes(
+                get_settings().worker_sweep_interval_minutes,
+                offset=REPORT_SWEEP_OFFSET_MINUTES,
+            ),
             unique=True,
         ),
         # Data lifecycle (S4): daily, staggered hours so DDL never stacks.

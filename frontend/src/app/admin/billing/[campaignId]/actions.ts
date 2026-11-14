@@ -7,22 +7,18 @@ import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
 import { vatPercentageToRate, VAT_PERCENTAGE_ERROR } from "@/lib/billing/vat-percentage";
+import { BILLING_ERROR_COPY, billingErrorCode } from "./billing-errors";
 
 function path(campaignId: string) {
   return `/admin/campaigns/${campaignId}`;
 }
 
-const MESSAGES = {
-  INVOICE_NOT_ISSUED: "Payments can be recorded once the invoice is issued.",
-  QUOTE_REFERENCE_CONFLICT: "This quote reference is already used. Enter a different reference.",
-} as const;
-
 function fail(campaignId: string, error: unknown): never {
-  const message =
-    error instanceof ApiError
-      ? publicActionError(error, MESSAGES)
-      : "That didn't work. Please try again.";
-  redirect(`${path(campaignId)}?error=${encodeURIComponent(message)}#money`);
+  // Never log backend text/details or submitted values; the URL carries only a code.
+  console.warn("Cardvert action failed", {
+    status: error instanceof ApiError ? error.status : "unavailable",
+  });
+  redirect(`${path(campaignId)}?error=${billingErrorCode(error)}#money`);
 }
 
 export async function recordRevisionAction(
@@ -78,7 +74,7 @@ export async function recordRevisionAction(
     return {
       error:
         error instanceof ApiError
-          ? publicActionError(error, MESSAGES)
+          ? publicActionError(error, BILLING_ERROR_COPY)
           : "The quotation could not be saved. Try again.",
     };
   }
@@ -202,7 +198,6 @@ export async function recordInvoiceCorrectionAction(
         correction_reference: String(formData.get("correction_reference") ?? "").trim(),
         correction_type: String(formData.get("correction_type")) as "credit_note" | "debit_note",
         net_amount: String(formData.get("net_amount") ?? "").trim(),
-        tax_amount: String(formData.get("tax_amount") ?? "").trim(),
         reason: String(formData.get("reason") ?? "").trim(),
       },
     });
@@ -239,18 +234,6 @@ export async function recordFinancialAuthorityAction(
     });
   } catch (error) {
     unstable_rethrow(error);
-    if (error instanceof ApiError) {
-      const messages: Record<string, string> = {
-        FINANCIAL_AUTHORITY_REDUCTION_REQUIRES_GOVERNANCE:
-          "This approval cannot reduce the existing funding or maximum amount owed to drivers. Enter an amount at least as high as the current approval.",
-        DRIVER_LIABILITY_EXCEEDS_AUTHORITY:
-          "The maximum amount owed to drivers cannot exceed the approved funding.",
-        INVALID_FINANCIAL_AUTHORITY_AMOUNT:
-          "The approved funding and maximum amount owed to drivers must both be greater than zero.",
-      };
-      const message = messages[error.code];
-      if (message) redirect(`${path(campaignId)}?error=${encodeURIComponent(message)}#money`);
-    }
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));

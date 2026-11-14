@@ -31,7 +31,6 @@ from app.schemas.banks import AccountNameCheckCreate, AccountNameCheckRead, Bank
 from app.schemas.driver_applications import (
     DriverAccountSetupComplete,
     DriverApplicationCreate,
-    DriverApplicationStatusResponse,
     DriverApplicationSubmitResponse,
     DriverOnboardingAccessRequest,
     DriverPublicCommandResponse,
@@ -69,16 +68,13 @@ from app.services.bank_capture import check_account_name
 from app.services.driver_account_setup import complete_driver_account_setup
 from app.services.driver_applications import (
     PUBLIC_APPLICATION_MESSAGE,
-    PUBLIC_STATUS_MESSAGE,
     application_from_access_token,
-    application_status_exists,
     continue_driver_application,
     issue_driver_application_access,
     renew_driver_application_access,
     submit_driver_application,
 )
 from app.services.driver_onboarding import (
-    person_payee_status_by_reference,
     submit_application_person_payee,
 )
 from app.services.stored_files import (
@@ -90,7 +86,6 @@ from app.services.vehicle_onboarding import (
     VehicleStageView,
     applicant_vehicles,
     submit_application_vehicle,
-    vehicle_status_by_reference,
 )
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -200,12 +195,6 @@ def _vehicle_stage_response(view: VehicleStageView) -> VehicleStageRead:
         created_at=submission.created_at,
         decided_at=decision.created_at if decision else None,
     )
-
-
-def _vehicle_status_response(view: VehicleStageView) -> VehicleStageRead:
-    if view.submission is None:
-        return VehicleStageRead()
-    return VehicleStageRead(status=view.submission.status)
 
 
 async def reserve_driver_registration(
@@ -508,28 +497,6 @@ async def complete_driver_setup(
     )
     await session.commit()
     return DriverPublicCommandResponse(message="Driver account setup completed. Sign in.")
-
-
-@router.get(
-    "/driver-application-status/{reference}",
-    response_model=DriverApplicationStatusResponse,
-    summary="Check a driver application status",
-)
-async def driver_application_status(
-    reference: str,
-    session: SessionDependency,
-    settings: SettingsDependency,
-) -> DriverApplicationStatusResponse:
-    await application_status_exists(session, reference)
-    person_payee = await person_payee_status_by_reference(session, reference=reference)
-    vehicle = await vehicle_status_by_reference(session, reference=reference)
-    # Deliberately do not branch on existence: W3-04A has one public pending
-    # state and unknown references must have the same visible envelope.
-    return DriverApplicationStatusResponse(
-        message=PUBLIC_STATUS_MESSAGE,
-        person_payee=_person_payee_response(person_payee),
-        vehicle=_vehicle_status_response(vehicle),
-    )
 
 
 @router.post(

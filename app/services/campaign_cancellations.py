@@ -12,9 +12,6 @@ from app.models.billing import (
     CampaignLiabilityReservation,
     CommercialTerms,
     PaymentClass,
-    ReceiptAllocation,
-    RefundSettlement,
-    SettlementDisposition,
 )
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_assignment import (
@@ -30,7 +27,7 @@ from app.models.campaign_cancellation import (
 from app.models.campaign_change import CampaignChangeRequest, CampaignChangeStatus
 from app.schemas.campaign_cancellations import CampaignCancellationCreate
 from app.services.audit import create_audit_event
-from app.services.billing.queries import _commercial_terms_for_campaign
+from app.services.billing.queries import _active_cash_allocations, _commercial_terms_for_campaign
 from app.services.billing.settlements import _refund_window
 from app.services.campaign_assignments import create_activation_event
 from app.services.campaign_lifecycle import ensure_campaign_not_finished
@@ -71,24 +68,18 @@ async def effective_trip_end(
 
 
 async def _cash_remaining_for_terms(session: AsyncSession, commercial_terms_id: UUID) -> Decimal:
-    allocated = Decimal(
-        await session.scalar(
-            select(func.coalesce(func.sum(ReceiptAllocation.amount), 0)).where(
-                ReceiptAllocation.commercial_terms_id == commercial_terms_id
-            )
-        )
-        or 0
+    """F1: only confirmed, unreversed receipts count as cash held.
+
+    A refund is recorded only against a reversed receipt, which this basis already
+    excludes, so refunds are not subtracted a second time.
+    """
+    return sum(
+        (
+            Decimal(item.amount)
+            for item in await _active_cash_allocations(session, commercial_terms_id)
+        ),
+        Decimal("0.00"),
     )
-    refunded = Decimal(
-        await session.scalar(
-            select(func.coalesce(func.sum(RefundSettlement.amount), 0)).where(
-                RefundSettlement.commercial_terms_id == commercial_terms_id,
-                RefundSettlement.disposition == SettlementDisposition.REFUND_RECORDED.value,
-            )
-        )
-        or 0
-    )
-    return max(Decimal("0.00"), allocated - refunded)
 
 
 async def _lock_cancellation_campaign(

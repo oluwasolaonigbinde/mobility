@@ -139,7 +139,6 @@ def test_invoice_corrections_are_itemised_append_only_and_bounded(
                 correction_reference="correction-invoice-credit",
                 correction_type=InvoiceCorrectionType.CREDIT_NOTE,
                 net_amount="20.00",
-                tax_amount="0.00",
                 reason="approved scope reduction",
             )
             assert credit.correction_number.endswith("-001")
@@ -153,7 +152,6 @@ def test_invoice_corrections_are_itemised_append_only_and_bounded(
                     correction_reference="correction-invoice-excess",
                     correction_type=InvoiceCorrectionType.CREDIT_NOTE,
                     net_amount="81.00",
-                    tax_amount="0.00",
                     reason="invalid excess",
                 )
             assert excessive.value.code == "INVOICE_CREDIT_EXCEEDS_OBLIGATION"
@@ -201,7 +199,6 @@ def test_effective_invoice_obligation_drives_allocation_status_and_production(
                 correction_reference="projection-credit",
                 correction_type=InvoiceCorrectionType.CREDIT_NOTE,
                 net_amount="20.00",
-                tax_amount="0.00",
                 reason="approved scope reduction",
             )
             receipt = await record_payment_receipt(
@@ -267,7 +264,6 @@ def test_effective_invoice_obligation_drives_allocation_status_and_production(
                 correction_reference="projection-debit",
                 correction_type=InvoiceCorrectionType.DEBIT_NOTE,
                 net_amount="10.00",
-                tax_amount="0.00",
                 reason="approved scope increase",
             )
             with pytest.raises(AppError) as underfunded:
@@ -327,7 +323,6 @@ def test_standard_production_and_later_debit_cannot_reopen_refund_eligibility(
                 correction_reference="refund-frozen-start-debit",
                 correction_type=InvoiceCorrectionType.DEBIT_NOTE,
                 net_amount="50.00",
-                tax_amount="0.00",
                 reason="later approved scope increase",
             )
 
@@ -425,7 +420,6 @@ def test_late_refund_booking_uses_frozen_cancellation_and_exact_retry_identity(
                 correction_reference="refund-frozen-cancel-debit",
                 correction_type=InvoiceCorrectionType.DEBIT_NOTE,
                 net_amount="50.00",
-                tax_amount="0.00",
                 reason="scope increase after cancellation",
             )
             later_receipt = await record_payment_receipt(
@@ -592,6 +586,17 @@ def test_corrected_obligation_reanchors_window_without_rewriting_cash_authority(
                 actor_user_id=admin.id,
                 settings=settings,
             )
+            # REQ-314 F2: a credit can no longer take a funded invoice below its cash,
+            # so the corrected obligation is a debit followed by an equal credit.
+            await record_invoice_correction(
+                session,
+                invoice_id=invoice.id,
+                actor_user_id=admin.id,
+                correction_reference="refund-projection-debit",
+                correction_type=InvoiceCorrectionType.DEBIT_NOTE,
+                net_amount="20.00",
+                reason="approved scope increase",
+            )
             await record_invoice_correction(
                 session,
                 invoice_id=invoice.id,
@@ -599,9 +604,19 @@ def test_corrected_obligation_reanchors_window_without_rewriting_cash_authority(
                 correction_reference="refund-projection-credit",
                 correction_type=InvoiceCorrectionType.CREDIT_NOTE,
                 net_amount="20.00",
-                tax_amount="0.00",
                 reason="approved scope reduction",
             )
+            with pytest.raises(AppError) as below_funded:
+                await record_invoice_correction(
+                    session,
+                    invoice_id=invoice.id,
+                    actor_user_id=admin.id,
+                    correction_reference="refund-projection-credit-below-cash",
+                    correction_type=InvoiceCorrectionType.CREDIT_NOTE,
+                    net_amount="0.01",
+                    reason="would fall below the cash received",
+                )
+            assert below_funded.value.code == "INVOICE_CREDIT_BELOW_FUNDED"
             cancellation = await _cancel_for_refund(
                 session,
                 campaign=campaign,
@@ -955,7 +970,6 @@ def test_invoice_correction_input_refusals_preserve_issued_obligation(db_session
                 correction_reference="INPUT-CREDIT",
                 correction_type=InvoiceCorrectionType.CREDIT_NOTE,
                 net_amount="10",
-                tax_amount="0",
                 reason="approved",
             )
             with pytest.raises(AppError) as caught:

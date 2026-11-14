@@ -190,10 +190,9 @@ def test_public_registration_creates_pending_graph_and_returns_reference(
     assert "access_token" not in login.text
     assert db_client.get("/api/v1/me").status_code == http_status.HTTP_401_UNAUTHORIZED
 
-    known = db_client.get(f"/api/v1/auth/driver-application-status/{data['application_reference']}")
-    unknown = db_client.get("/api/v1/auth/driver-application-status/not-a-real-reference")
-    assert known.status_code == unknown.status_code == http_status.HTTP_200_OK
-    assert known.json() == unknown.json()
+    # REQ-315: the public status-by-reference route is deleted.
+    gone = db_client.get(f"/api/v1/auth/driver-application-status/{data['application_reference']}")
+    assert gone.status_code == http_status.HTTP_404_NOT_FOUND
 
     events = fetch_auth_audit_events(db_sessionmaker)
     assert [event.action for event in events].count("auth.driver_application.created") == 1
@@ -554,12 +553,6 @@ def test_explicit_public_applicant_rejection_is_terminal_and_revokes_access(
         "/api/v1/admin/driver-applications",
         headers=auth_headers(db_client, admin.email, PASSWORD),
     )
-    terminal_public_status = db_client.get(
-        f"/api/v1/auth/driver-application-status/{registration.json()['application_reference']}"
-    )
-    unknown_public_status = db_client.get(
-        "/api/v1/auth/driver-application-status/not-a-real-reference"
-    )
 
     async def terminal_evidence() -> tuple[str, int, int]:
         async with db_sessionmaker() as session:
@@ -592,9 +585,7 @@ def test_explicit_public_applicant_rejection_is_terminal_and_revokes_access(
     assert invalid_mutation.status_code == http_status.HTTP_404_NOT_FOUND
     assert invalid_mutation.json()["error"]["code"] == "ONBOARDING_ACCESS_INVALID"
     assert queue.json()["total"] == 0
-    assert terminal_public_status.status_code == unknown_public_status.status_code == 200
-    assert terminal_public_status.json() == unknown_public_status.json()
-    assert terminal_public_status.json()["status"] == "pending"
+    # REQ-315: the public status-by-reference checks went with the deleted route.
     assert terminal_audits == 1
 
 

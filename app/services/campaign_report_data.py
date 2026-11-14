@@ -369,7 +369,6 @@ async def _campaign_snapshot(session, *, campaign, start, end, settings, storage
             public_origin=settings.public_origin,
         ),
         "note": "Some days hidden." if any(d.status != "released" for d in daily) else "",
-        "areas_label": "Full weeks only",
     }
 
 

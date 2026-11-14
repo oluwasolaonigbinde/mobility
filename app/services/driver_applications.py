@@ -28,7 +28,6 @@ from app.services.audit import create_audit_event
 from app.services.users import _lock_users, get_user_by_email
 
 PUBLIC_APPLICATION_MESSAGE = "Application received for review."
-PUBLIC_STATUS_MESSAGE = "Application status is pending review."
 PUBLIC_NOT_FOUND_MESSAGE = "Application status is unavailable."
 
 
@@ -508,17 +507,3 @@ async def list_driver_applications(
         .offset(offset)
     )
     return list(result.scalars().all()), int(total or 0)
-
-
-async def application_status_exists(session: AsyncSession, reference: str) -> bool:
-    """Check the digest without changing the deliberately generic response."""
-
-    digest = status_reference_hash(reference)
-    return bool(
-        await session.scalar(
-            select(DriverApplication.id).where(
-                DriverApplication.status_reference_sha256 == digest,
-                DriverApplication.status == DriverApplicationStatus.PENDING.value,
-            )
-        )
-    )

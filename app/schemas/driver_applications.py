@@ -8,8 +8,6 @@ from app.models.driver_application import DriverApplicationStatus
 from app.schemas.driver_onboarding import (
     AdminPersonPayeeStageRead,
     AdminVehicleStageRead,
-    PersonPayeeStageRead,
-    VehicleStageRead,
 )
 from app.services.users import normalize_email
 
@@ -70,15 +68,6 @@ class DriverApplicationSubmitResponse(BaseModel):
     status: Literal[DriverApplicationStatus.PENDING.value] = DriverApplicationStatus.PENDING.value
     message: str
     application_reference: str
-
-
-class DriverApplicationStatusResponse(BaseModel):
-    status: Literal[DriverApplicationStatus.PENDING.value] = DriverApplicationStatus.PENDING.value
-    message: str
-    person_payee: PersonPayeeStageRead = Field(
-        default_factory=lambda: PersonPayeeStageRead(status="not_submitted")
-    )
-    vehicle: VehicleStageRead = Field(default_factory=VehicleStageRead)
 
 
 class DriverApplicationAdminRead(BaseModel):

@@ -38,7 +38,6 @@ GROUPS = (
 EXACT_GROUPS = {"/api/v1/me", "/api/v1/campaign-enquiries", "/health"}
 REQUIRED_ONBOARDING_ROUTES = frozenset(
     {
-        "/api/v1/auth/driver-application-status/{reference}",
         "/api/v1/auth/driver-onboarding/files/uploads",
         "/api/v1/auth/driver-onboarding/files/uploads/{upload_id}/confirm",
         "/api/v1/auth/driver-onboarding/files/{file_id}/status",

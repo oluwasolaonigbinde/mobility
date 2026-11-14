@@ -72,35 +72,6 @@
         "title": "AccountNameCheckRead",
         "type": "object"
       },
-      "ActiveCampaignAssignmentResponse": {
-        "properties": {
-          "assignment": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CampaignAssignmentRead"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "photo_status": {
-            "default": "unavailable",
-            "enum": [
-              "ready",
-              "installation_required",
-              "unavailable"
-            ],
-            "title": "Photo Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "assignment"
-        ],
-        "title": "ActiveCampaignAssignmentResponse",
-        "type": "object"
-      },
       "AdminApplicantRead": {
         "properties": {
           "application_id": {
@@ -9933,6 +9904,35 @@
         "title": "DriverAccountSetupRead",
         "type": "object"
       },
+      "DriverActiveCampaignAssignment": {
+        "properties": {
+          "assignment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DriverCampaignAssignmentRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "photo_status": {
+            "default": "unavailable",
+            "enum": [
+              "ready",
+              "installation_required",
+              "unavailable"
+            ],
+            "title": "Photo Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assignment"
+        ],
+        "title": "DriverActiveCampaignAssignment",
+        "type": "object"
+      },
       "DriverApplicationAdminListResponse": {
         "properties": {
           "applicants": {
@@ -10136,31 +10136,6 @@
         "title": "DriverApplicationStatus",
         "type": "string"
       },
-      "DriverApplicationStatusResponse": {
-        "properties": {
-          "message": {
-            "title": "Message",
-            "type": "string"
-          },
-          "person_payee": {
-            "$ref": "#/components/schemas/PersonPayeeStageRead"
-          },
-          "status": {
-            "const": "pending",
-            "default": "pending",
-            "title": "Status",
-            "type": "string"
-          },
-          "vehicle": {
-            "$ref": "#/components/schemas/VehicleStageRead"
-          }
-        },
-        "required": [
-          "message"
-        ],
-        "title": "DriverApplicationStatusResponse",
-        "type": "object"
-      },
       "DriverApplicationSubmitResponse": {
         "properties": {
           "application_reference": {
@@ -10183,6 +10158,317 @@
           "application_reference"
         ],
         "title": "DriverApplicationSubmitResponse",
+        "type": "object"
+      },
+      "DriverCampaignActivationEventRead": {
+        "description": "A job event as the driver sees it: no staff actor or internal metadata.",
+        "properties": {
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "event_type": {
+            "$ref": "#/components/schemas/CampaignActivationEventType"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "new_status": {
+            "title": "New Status",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "offer_terms_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Terms Sha256"
+          },
+          "previous_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Status"
+          }
+        },
+        "required": [
+          "id",
+          "assignment_id",
+          "event_type",
+          "previous_status",
+          "new_status",
+          "occurred_at"
+        ],
+        "title": "DriverCampaignActivationEventRead",
+        "type": "object"
+      },
+      "DriverCampaignAssignmentListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DriverCampaignAssignmentRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "DriverCampaignAssignmentListResponse",
+        "type": "object"
+      },
+      "DriverCampaignAssignmentRead": {
+        "description": "A job as the driver sees it: no staff notes, metadata, assigner or activity flags.",
+        "properties": {
+          "accepted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepted At"
+          },
+          "activated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
+          "campaign": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssignmentCampaignSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "cancelled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelled At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "deactivated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deactivated At"
+          },
+          "declined_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Declined At"
+          },
+          "driver_profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssignmentDriverProfileSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "events": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DriverCampaignActivationEventRead"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Events"
+          },
+          "expired_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expired At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "offer_terms": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CampaignAssignmentOfferTerms"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "offer_terms_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Terms Sha256"
+          },
+          "offered_at": {
+            "format": "date-time",
+            "title": "Offered At",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CampaignAssignmentStatus"
+              },
+              {
+                "const": "finished",
+                "type": "string"
+              }
+            ],
+            "title": "Status"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "vehicle": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssignmentVehicleSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vehicle_id": {
+            "format": "uuid",
+            "title": "Vehicle Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "campaign_id",
+          "driver_profile_id",
+          "vehicle_id",
+          "status",
+          "offered_at",
+          "expires_at",
+          "accepted_at",
+          "declined_at",
+          "expired_at",
+          "activated_at",
+          "deactivated_at",
+          "cancelled_at",
+          "offer_terms_sha256",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "DriverCampaignAssignmentRead",
         "type": "object"
       },
       "DriverContactStateRead": {
@@ -10235,7 +10521,7 @@
           "assignment": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/CampaignAssignmentRead"
+                "$ref": "#/components/schemas/DriverCampaignAssignmentRead"
               },
               {
                 "type": "null"
@@ -10859,6 +11145,146 @@
           "body"
         ],
         "title": "DriverFraudHoldReason",
+        "type": "object"
+      },
+      "DriverInstallationEvidenceList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DriverInstallationEvidenceRead"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "DriverInstallationEvidenceList",
+        "type": "object"
+      },
+      "DriverInstallationEvidenceRead": {
+        "description": "Installation photos as the driver sees them: no reviewing staff ID.",
+        "properties": {
+          "approved_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved Until"
+          },
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "photos": {
+            "items": {
+              "$ref": "#/components/schemas/InstallationEvidencePhotoRead"
+            },
+            "title": "Photos",
+            "type": "array"
+          },
+          "rejection_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejection Reason"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/InstallationEvidenceStatus"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          },
+          "submitted_by_user_id": {
+            "format": "uuid",
+            "title": "Submitted By User Id",
+            "type": "string"
+          },
+          "vehicle_id": {
+            "format": "uuid",
+            "title": "Vehicle Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "assignment_id",
+          "campaign_id",
+          "driver_profile_id",
+          "vehicle_id",
+          "submitted_by_user_id",
+          "revision",
+          "device_id",
+          "captured_at",
+          "status",
+          "rejection_reason",
+          "reviewed_at",
+          "approved_until",
+          "photos",
+          "metadata",
+          "submitted_at"
+        ],
+        "title": "DriverInstallationEvidenceRead",
         "type": "object"
       },
       "DriverKycSubmissionCreate": {
@@ -13872,6 +14298,8 @@
         "type": "object"
       },
       "InvoiceCorrectionCreate": {
+        "additionalProperties": false,
+        "description": "Staff enter the net change only; the server derives its VAT (REQ-314).",
         "properties": {
           "correction_reference": {
             "maxLength": 128,
@@ -13897,25 +14325,12 @@
           "reason": {
             "title": "Reason",
             "type": "string"
-          },
-          "tax_amount": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              }
-            ],
-            "title": "Tax Amount"
           }
         },
         "required": [
           "correction_reference",
           "correction_type",
           "net_amount",
-          "tax_amount",
           "reason"
         ],
         "title": "InvoiceCorrectionCreate",
@@ -34426,48 +34841,6 @@
         ]
       }
     },
-    "/api/v1/auth/driver-application-status/{reference}": {
-      "get": {
-        "operationId": "driver_application_status_api_v1_auth_driver_application_status__reference__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "reference",
-            "required": true,
-            "schema": {
-              "title": "Reference",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DriverApplicationStatusResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "summary": "Check a driver application status",
-        "tags": [
-          "Auth"
-        ]
-      }
-    },
     "/api/v1/auth/driver-onboarding-access/request": {
       "post": {
         "operationId": "request_driver_onboarding_access_api_v1_auth_driver_onboarding_access_request_post",
@@ -35232,7 +35605,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignAssignmentListResponse"
+                  "$ref": "#/components/schemas/DriverCampaignAssignmentListResponse"
                 }
               }
             },
@@ -35268,7 +35641,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ActiveCampaignAssignmentResponse"
+                  "$ref": "#/components/schemas/DriverActiveCampaignAssignment"
                 }
               }
             },
@@ -35316,7 +35689,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignAssignmentRead"
+                  "$ref": "#/components/schemas/DriverCampaignAssignmentRead"
                 }
               }
             },
@@ -35374,7 +35747,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignAssignmentRead"
+                  "$ref": "#/components/schemas/DriverCampaignAssignmentRead"
                 }
               }
             },
@@ -35480,7 +35853,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignAssignmentRead"
+                  "$ref": "#/components/schemas/DriverCampaignAssignmentRead"
                 }
               }
             },
@@ -35538,7 +35911,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignAssignmentRead"
+                  "$ref": "#/components/schemas/DriverCampaignAssignmentRead"
                 }
               }
             },
@@ -35586,7 +35959,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/InstallationEvidenceList"
+                  "$ref": "#/components/schemas/DriverInstallationEvidenceList"
                 }
               }
             },
@@ -35642,7 +36015,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/InstallationEvidenceRead"
+                  "$ref": "#/components/schemas/DriverInstallationEvidenceRead"
                 }
               }
             },

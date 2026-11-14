@@ -373,10 +373,12 @@ class ReceiptReverse(BaseModel):
 
 
 class InvoiceCorrectionCreate(BaseModel):
+    """Staff enter the net change only; the server derives its VAT (REQ-314)."""
+
+    model_config = ConfigDict(extra="forbid")
     correction_reference: str = Field(min_length=8, max_length=128)
     correction_type: InvoiceCorrectionType
     net_amount: Decimal
-    tax_amount: Decimal
     reason: str
 
     @field_validator("correction_reference")

@@ -476,7 +476,6 @@ def test_campaign_commercial_api_exposes_derived_invoice_status(
                 correction_reference="billing-api-correction",
                 correction_type=InvoiceCorrectionType.CREDIT_NOTE,
                 net_amount="20.00",
-                tax_amount="0.00",
                 reason="approved scope reduction",
             )
             await session.commit()
@@ -538,7 +537,6 @@ def test_invoice_correction_http_retry_is_stable_and_conflicts_on_changed_payloa
         "correction_reference": "http-retry-reference-001",
         "correction_type": "credit_note",
         "net_amount": "10.00",
-        "tax_amount": "0.00",
         "reason": "approved correction",
     }
     first = db_client.post(

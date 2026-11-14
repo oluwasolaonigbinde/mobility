@@ -83,6 +83,33 @@ class InstallationEvidenceList(BaseModel):
     offset: int | None = None
 
 
+class DriverInstallationEvidenceRead(BaseModel):
+    """Installation photos as the driver sees them: no reviewing staff ID."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    assignment_id: UUID
+    campaign_id: UUID
+    driver_profile_id: UUID
+    vehicle_id: UUID
+    submitted_by_user_id: UUID
+    revision: int
+    device_id: UUID
+    captured_at: datetime
+    status: InstallationEvidenceStatus
+    rejection_reason: str | None
+    reviewed_at: datetime | None
+    approved_until: datetime | None
+    photos: list[InstallationEvidencePhotoRead]
+    metadata: dict[str, Any]
+    submitted_at: datetime
+
+
+class DriverInstallationEvidenceList(BaseModel):
+    items: list[DriverInstallationEvidenceRead]
+
+
 class InstallationEvidencePolicyRead(BaseModel):
     required_views: list[str]
     evidence_validity_hours: int

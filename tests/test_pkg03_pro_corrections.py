@@ -116,7 +116,6 @@ def test_invoice_correction_reference_replays_conflicts_and_appends(
                 "correction_reference": "retry-reference-001",
                 "correction_type": InvoiceCorrectionType.CREDIT_NOTE,
                 "net_amount": "10.00",
-                "tax_amount": "0.00",
                 "reason": "approved reduction",
             }
             first = await record_invoice_correction(session, **kwargs)
@@ -185,7 +184,6 @@ def test_concurrent_same_correction_reference_creates_one_delta(
                 correction_reference="concurrent-reference-001",
                 correction_type=InvoiceCorrectionType.CREDIT_NOTE,
                 net_amount="10.00",
-                tax_amount="0.00",
                 reason="one immutable request",
             )
             await session.commit()

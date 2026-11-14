@@ -136,6 +136,20 @@ class CampaignActivationEventRead(BaseModel):
     offer_terms_sha256: str | None = None
 
 
+class DriverCampaignActivationEventRead(BaseModel):
+    """A job event as the driver sees it: no staff actor or internal metadata."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    assignment_id: UUID
+    event_type: CampaignActivationEventType
+    previous_status: str | None
+    new_status: str
+    occurred_at: datetime
+    offer_terms_sha256: str | None = None
+
+
 class CampaignAssignmentRead(AssignmentLifecycleReadMixin, BaseModel):
     id: UUID
     campaign_id: UUID
@@ -162,6 +176,39 @@ class CampaignAssignmentRead(AssignmentLifecycleReadMixin, BaseModel):
     vehicle: AssignmentVehicleSummary | None = None
     events: list[CampaignActivationEventRead] | None = None
     activity_flags: list["AssignmentActivityFlagRead"] | None = None
+
+
+class DriverCampaignAssignmentRead(BaseModel):
+    """A job as the driver sees it: no staff notes, metadata, assigner or activity flags."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    campaign_id: UUID
+    driver_profile_id: UUID
+    vehicle_id: UUID
+    status: CampaignAssignmentStatus | Literal["finished"]
+    offered_at: datetime
+    expires_at: datetime | None
+    accepted_at: datetime | None
+    declined_at: datetime | None
+    expired_at: datetime | None
+    activated_at: datetime | None
+    deactivated_at: datetime | None
+    cancelled_at: datetime | None
+    offer_terms: CampaignAssignmentOfferTerms | None = None
+    offer_terms_sha256: str | None
+    created_at: datetime
+    updated_at: datetime
+    campaign: AssignmentCampaignSummary | None = None
+    driver_profile: AssignmentDriverProfileSummary | None = None
+    vehicle: AssignmentVehicleSummary | None = None
+    events: list[DriverCampaignActivationEventRead] | None = None
+
+    @classmethod
+    def from_staff(cls, read: CampaignAssignmentRead) -> "DriverCampaignAssignmentRead":
+        # The staff read already derived the display status; copy only driver-safe fields.
+        return cls.model_validate(read, from_attributes=True)
 
 
 class AssignmentActivityFlagRead(BaseModel):
@@ -222,6 +269,13 @@ class CampaignAssignmentRecommendationListResponse(BaseModel):
     offset: int
 
 
-class ActiveCampaignAssignmentResponse(BaseModel):
-    assignment: CampaignAssignmentRead | None
+class DriverCampaignAssignmentListResponse(BaseModel):
+    items: list[DriverCampaignAssignmentRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class DriverActiveCampaignAssignment(BaseModel):
+    assignment: DriverCampaignAssignmentRead | None
     photo_status: Literal["ready", "installation_required", "unavailable"] = "unavailable"

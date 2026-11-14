@@ -3072,23 +3072,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/auth/driver-application-status/{reference}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Check a driver application status */
-        get: operations["driver_application_status_api_v1_auth_driver_application_status__reference__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/auth/driver-onboarding-access/request": {
         parameters: {
             query?: never;
@@ -4389,16 +4372,6 @@ export interface components {
              * @enum {string}
              */
             outcome: "resolved" | "unavailable";
-        };
-        /** ActiveCampaignAssignmentResponse */
-        ActiveCampaignAssignmentResponse: {
-            assignment: components["schemas"]["CampaignAssignmentRead"] | null;
-            /**
-             * Photo Status
-             * @default unavailable
-             * @enum {string}
-             */
-            photo_status: "ready" | "installation_required" | "unavailable";
         };
         /** AdminApplicantRead */
         AdminApplicantRead: {
@@ -7972,6 +7945,16 @@ export interface components {
              */
             state: "pending" | "used" | "superseded";
         };
+        /** DriverActiveCampaignAssignment */
+        DriverActiveCampaignAssignment: {
+            assignment: components["schemas"]["DriverCampaignAssignmentRead"] | null;
+            /**
+             * Photo Status
+             * @default unavailable
+             * @enum {string}
+             */
+            photo_status: "ready" | "installation_required" | "unavailable";
+        };
         /** DriverApplicationAdminListResponse */
         DriverApplicationAdminListResponse: {
             /** Applicants */
@@ -8044,19 +8027,6 @@ export interface components {
          * @enum {string}
          */
         DriverApplicationStatus: "pending" | "approved" | "rejected";
-        /** DriverApplicationStatusResponse */
-        DriverApplicationStatusResponse: {
-            /** Message */
-            message: string;
-            person_payee?: components["schemas"]["PersonPayeeStageRead"];
-            /**
-             * Status
-             * @default pending
-             * @constant
-             */
-            status: "pending";
-            vehicle?: components["schemas"]["VehicleStageRead"];
-        };
         /** DriverApplicationSubmitResponse */
         DriverApplicationSubmitResponse: {
             /** Application Reference */
@@ -8069,6 +8039,110 @@ export interface components {
              * @constant
              */
             status: "pending";
+        };
+        /**
+         * DriverCampaignActivationEventRead
+         * @description A job event as the driver sees it: no staff actor or internal metadata.
+         */
+        DriverCampaignActivationEventRead: {
+            /**
+             * Assignment Id
+             * Format: uuid
+             */
+            assignment_id: string;
+            event_type: components["schemas"]["CampaignActivationEventType"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** New Status */
+            new_status: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Offer Terms Sha256 */
+            offer_terms_sha256?: string | null;
+            /** Previous Status */
+            previous_status: string | null;
+        };
+        /** DriverCampaignAssignmentListResponse */
+        DriverCampaignAssignmentListResponse: {
+            /** Items */
+            items: components["schemas"]["DriverCampaignAssignmentRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * DriverCampaignAssignmentRead
+         * @description A job as the driver sees it: no staff notes, metadata, assigner or activity flags.
+         */
+        DriverCampaignAssignmentRead: {
+            /** Accepted At */
+            accepted_at: string | null;
+            /** Activated At */
+            activated_at: string | null;
+            campaign?: components["schemas"]["AssignmentCampaignSummary"] | null;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Deactivated At */
+            deactivated_at: string | null;
+            /** Declined At */
+            declined_at: string | null;
+            driver_profile?: components["schemas"]["AssignmentDriverProfileSummary"] | null;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /** Events */
+            events?: components["schemas"]["DriverCampaignActivationEventRead"][] | null;
+            /** Expired At */
+            expired_at: string | null;
+            /** Expires At */
+            expires_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            offer_terms?: components["schemas"]["CampaignAssignmentOfferTerms"] | null;
+            /** Offer Terms Sha256 */
+            offer_terms_sha256: string | null;
+            /**
+             * Offered At
+             * Format: date-time
+             */
+            offered_at: string;
+            /** Status */
+            status: components["schemas"]["CampaignAssignmentStatus"] | "finished";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            vehicle?: components["schemas"]["AssignmentVehicleSummary"] | null;
+            /**
+             * Vehicle Id
+             * Format: uuid
+             */
+            vehicle_id: string;
         };
         /** DriverContactStateRead */
         DriverContactStateRead: {
@@ -8083,7 +8157,7 @@ export interface components {
         };
         /** DriverCurrentJob */
         DriverCurrentJob: {
-            assignment: components["schemas"]["CampaignAssignmentRead"] | null;
+            assignment: components["schemas"]["DriverCampaignAssignmentRead"] | null;
             /** Counts */
             counts: {
                 [key: string]: number;
@@ -8309,6 +8383,77 @@ export interface components {
              * @constant
              */
             version: "v1";
+        };
+        /** DriverInstallationEvidenceList */
+        DriverInstallationEvidenceList: {
+            /** Items */
+            items: components["schemas"]["DriverInstallationEvidenceRead"][];
+        };
+        /**
+         * DriverInstallationEvidenceRead
+         * @description Installation photos as the driver sees them: no reviewing staff ID.
+         */
+        DriverInstallationEvidenceRead: {
+            /** Approved Until */
+            approved_until: string | null;
+            /**
+             * Assignment Id
+             * Format: uuid
+             */
+            assignment_id: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Metadata */
+            metadata: {
+                [key: string]: unknown;
+            };
+            /** Photos */
+            photos: components["schemas"]["InstallationEvidencePhotoRead"][];
+            /** Rejection Reason */
+            rejection_reason: string | null;
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /** Revision */
+            revision: number;
+            status: components["schemas"]["InstallationEvidenceStatus"];
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /**
+             * Submitted By User Id
+             * Format: uuid
+             */
+            submitted_by_user_id: string;
+            /**
+             * Vehicle Id
+             * Format: uuid
+             */
+            vehicle_id: string;
         };
         /** DriverKycSubmissionCreate */
         DriverKycSubmissionCreate: {
@@ -9484,7 +9629,10 @@ export interface components {
             /** View */
             view: string;
         };
-        /** InvoiceCorrectionCreate */
+        /**
+         * InvoiceCorrectionCreate
+         * @description Staff enter the net change only; the server derives its VAT (REQ-314).
+         */
         InvoiceCorrectionCreate: {
             /** Correction Reference */
             correction_reference: string;
@@ -9493,8 +9641,6 @@ export interface components {
             net_amount: number | string;
             /** Reason */
             reason: string;
-            /** Tax Amount */
-            tax_amount: number | string;
         };
         /** InvoiceCorrectionRead */
         InvoiceCorrectionRead: {
@@ -19229,37 +19375,6 @@ export interface operations {
             };
         };
     };
-    driver_application_status_api_v1_auth_driver_application_status__reference__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                reference: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DriverApplicationStatusResponse"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     request_driver_onboarding_access_api_v1_auth_driver_onboarding_access_request_post: {
         parameters: {
             query?: never;
@@ -19817,7 +19932,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignAssignmentListResponse"];
+                    "application/json": components["schemas"]["DriverCampaignAssignmentListResponse"];
                 };
             };
             /** @description Request validation failed */
@@ -19846,7 +19961,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ActiveCampaignAssignmentResponse"];
+                    "application/json": components["schemas"]["DriverActiveCampaignAssignment"];
                 };
             };
             /** @description Request validation failed */
@@ -19877,7 +19992,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignAssignmentRead"];
+                    "application/json": components["schemas"]["DriverCampaignAssignmentRead"];
                 };
             };
             /** @description Request validation failed */
@@ -19912,7 +20027,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignAssignmentRead"];
+                    "application/json": components["schemas"]["DriverCampaignAssignmentRead"];
                 };
             };
             /** @description Request validation failed */
@@ -19978,7 +20093,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignAssignmentRead"];
+                    "application/json": components["schemas"]["DriverCampaignAssignmentRead"];
                 };
             };
             /** @description Request validation failed */
@@ -20013,7 +20128,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignAssignmentRead"];
+                    "application/json": components["schemas"]["DriverCampaignAssignmentRead"];
                 };
             };
             /** @description Request validation failed */
@@ -20044,7 +20159,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InstallationEvidenceList"];
+                    "application/json": components["schemas"]["DriverInstallationEvidenceList"];
                 };
             };
             /** @description Request validation failed */
@@ -20079,7 +20194,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InstallationEvidenceRead"];
+                    "application/json": components["schemas"]["DriverInstallationEvidenceRead"];
                 };
             };
             /** @description Request validation failed */

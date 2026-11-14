@@ -18,7 +18,7 @@ import {
   type VehicleAuthority,
 } from "./campaign-journey";
 
-type AssignmentStatus = components["schemas"]["CampaignAssignmentRead"]["status"];
+type AssignmentStatus = components["schemas"]["DriverCampaignAssignmentRead"]["status"];
 type CurrentJob = components["schemas"]["DriverCurrentJob"];
 
 export interface LoadedDriverCampaignJourney {

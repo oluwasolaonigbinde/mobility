@@ -122,6 +122,25 @@ describe("updateCampaignDetailsAction", () => {
     });
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
+
+  it("explains a budget below the accepted quotation in plain words", async () => {
+    mocks.patch.mockRejectedValue(
+      new ApiError(409, {
+        code: "CAMPAIGN_BUDGET_BELOW_ACCEPTED_TOTAL",
+        message: "raw backend text",
+        details: { accepted_total: "1075.00" },
+      }),
+    );
+
+    await expect(
+      updateCampaignDetailsAction({}, editForm({ budget_amount: "1000.00" })),
+    ).resolves.toEqual({
+      error:
+        "The total budget can't be less than the quotation you accepted. Enter at least the accepted total.",
+      values: { ...ORIGINAL, budget_amount: "1000.00" },
+    });
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
 });
 
 describe("submitCampaignForReviewAction", () => {
