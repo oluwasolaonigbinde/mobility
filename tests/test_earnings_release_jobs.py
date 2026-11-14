@@ -93,6 +93,7 @@ def test_release_review_sweep_pages_all_candidates_and_isolates_failures(monkeyp
         "escalation_candidates": 2,
         "escalated_flags": 1,
         "escalation_failed": 0,
+        "busy": 0,
     }
     assert len(captured) == 1
     assert len(sessionmaker.sessions) == 5

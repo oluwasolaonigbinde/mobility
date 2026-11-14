@@ -390,7 +390,7 @@ def test_activity_evidence_is_admin_only_and_sanitized(
     assert "evidence" not in admin_flag
     assert "analytics_source" not in admin_response.text
     assert driver_response.status_code == 200
-    assert driver_response.json()["items"][0]["activity_flags"] is None
+    assert "activity_flags" not in driver_response.json()["items"][0]
     assert "eligible_trip_count" not in driver_response.text
 
 

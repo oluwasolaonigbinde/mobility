@@ -211,16 +211,14 @@ def test_history_requires_existing_owned_assignment_before_read_audit(
         headers=admin_headers,
     )
     assert owned_driver.status_code == existing_admin.status_code == 200
-    assert (
-        owned_driver.json()
-        == existing_admin.json()
-        == {
-            "items": [],
-            "total": None,
-            "limit": None,
-            "offset": None,
-        }
-    )
+    # REQ-315 N5: the driver list is the driver-safe model, without admin paging fields.
+    assert owned_driver.json() == {"items": []}
+    assert existing_admin.json() == {
+        "items": [],
+        "total": None,
+        "limit": None,
+        "offset": None,
+    }
     assert asyncio.run(read_audit_count()) == before + 2
 
 
