@@ -232,6 +232,13 @@ export async function loadDriverCampaignJourney(): Promise<LoadedDriverCampaignJ
   const journey = projectDriverCampaignJourney(facts);
   const activationAssignment = activation.state === "available" ? activation.value : null;
   const currentTripSummary = trip.state === "available" ? trip.value : null;
+  // During a trip canStart is false only because a trip is running. With every other step
+  // still complete, keep the assignment so ending the trip offers Start straight away
+  // instead of "can't start yet" until a later refresh. The server still checks Start.
+  const startsNextTrip =
+    journey.canStart ||
+    (journey.hasCurrentTrip &&
+      journey.steps.every((step) => step.id === "tracking" || step.state === "complete"));
 
   return {
     journey,
@@ -240,7 +247,7 @@ export async function loadDriverCampaignJourney(): Promise<LoadedDriverCampaignJ
       activeAssignment.state === "available" ? activeAssignment.value.photo_status : "unavailable",
     activationAssignment,
     currentTrip: currentTripSummary,
-    trackerAssignment: journey.canStart ? activationAssignment : null,
+    trackerAssignment: startsNextTrip ? activationAssignment : null,
     visualAssignment:
       activeAssignment.state === "available" && activeAssignment.value.assignment
         ? {
