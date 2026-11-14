@@ -241,3 +241,56 @@ The backend suite costs roughly 8,300 seconds of test time split over six shards
 ## What I would not touch
 
 The integration-authority test model, the provider-neutral adapters, the frozen OpenAPI contract check and the delivery gates on money and privacy are all working and are why the codebase is clean. The goal above is to keep those guarantees while making a small change cost minutes instead of an afternoon.
+
+---
+
+## Reconciliation, 13 Nov 2026 (REQ-313)
+
+The reports above stay verbatim. This section was checked against master `2c0e4914`, eleven commits after the audit at `75c4cbaa`. None of findings 1–10 had been fixed there. Owner decisions, 13 Nov 2026: finding 2 and N3 are blocked; correction VAT is enforced at the invoice rate.
+
+The noted items carry these labels:
+
+- **N1:** a stale online checkout blocks new checkouts, and paying the old link over-collects (money-in "Noted").
+- **N2:** the Paystack webhook and verify payloads may differ in `payer_name`/`paid_at` (money-in "Uncertain").
+- **N3:** a draft budget can be lowered below the accepted quote (money-in "Uncertain").
+- **N4:** the public bank account-name lookup (access "Also noted").
+- **N5:** staff assignment notes and activation-event metadata are returned to the driver (access "Uncertain").
+- **N6:** free-form quotation line items reach advertisers (access "Uncertain").
+- **N7:** the must-change-password allow-list compares the exact path (access "Uncertain").
+- **N8:** application continuation links can be reused for 24 hours (addendum 2 "Uncertain or accepted").
+- **N9:** the frontend Sentry scrubber does not redact free-text emails (addendum 2).
+- **N10:** the advertiser artwork route has no storage-URL scheme check (addendum 2).
+
+| Item | Disposition |
+|---|---|
+| 1 | Fixed by REQ-314. Refundable cash and historical funding use the active-receipt basis. |
+| 2 | Fixed by REQ-314. A credit note that would take the obligation below active confirmed funding is refused. |
+| 3 | Fixed by REQ-314. The server derives correction VAT at the invoice tax rate, rounding half-up. |
+| 4 | Fixed by REQ-315. Every role must be ACTIVE to sign in or use a token. |
+| 5 | Fixed by REQ-315. The public reference-in-path status route is removed. The authenticated capability route is unchanged. |
+| 6 | Accepted. IDs are random v4 UUIDs, so they can't be guessed. An organisation filter alone would still leak through a key clash, and the real fix would change what a stored ID means. |
+| 7 | Accepted (informational). The 60-second lifetime is a fixed constant and is capped again where the URL is issued. |
+| 8 | Fixed by REQ-316. Reset and account-setup links carry the token in the fragment. |
+| 9 | Fixed by REQ-316. Dynamic BFF routes check the id is a UUID before calling the backend. |
+| 10 | Fixed by REQ-316. Pages map error codes to fixed text. |
+| N1 | Blocked on Paystack going live. What to do with an over-collected amount is an owner question. |
+| N2 | Blocked on live Paystack payload evidence. No double count is possible. |
+| N3 | Fixed by REQ-314. A draft budget below the accepted quote's gross is refused. |
+| N4 | Accepted risk. The lookup is limited to 3 per application and 10 per IP per hour. |
+| N5 | Fixed by REQ-315. Driver-facing assignment reads omit staff notes, metadata and actor IDs. |
+| N6 | Deferred. Line items are partly typed; typing the remaining free `metadata` field needs its own change. |
+| N7 | Not applicable. The backend is served at the root with no proxy path prefix, so the exact-path comparison matches. Revisit if a prefix is ever added. |
+| N8 | By design (D149). Changing it is an owner decision. |
+| N9 | Fixed by REQ-316. The frontend Sentry scrubber also redacts emails and phone numbers. |
+| N10 | Fixed by REQ-316. The advertiser artwork route has the same scheme and credentials check as the driver route. |
+
+The interim reliability report (R) proved no defect, so nothing follows from it.
+
+Follow-ups found during the reconciliation:
+
+- REQ-317 covers the worker lock-timeout noise.
+- REQ-318 removes the dead `areas_label` report field.
+- REQ-319 covers the GPS tracker test flakes.
+- REQ-320 and REQ-321 are tooling and the owner-selected extras.
+
+Open owner question: a receipt that bounces *after* a cancellation still leaves the frozen refund due. Closing that gap needs a reversal kind or settlement on `reverse_payment_receipt`.
