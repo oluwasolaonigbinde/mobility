@@ -257,6 +257,8 @@ const otherActions: Record<string, string> = {
   "billing.expedited_waiver.accepted": "Earlier production start accepted",
   "billing.financial_authority.recorded": "Campaign funding approval recorded",
   "billing.gateway_overpayment.recorded": "Online overpayment recorded",
+  "billing.gateway_payment_after_cancellation.recorded":
+    "Online payment after cancellation recorded",
   "billing.liability_reservation.recorded": "Campaign funds set aside",
   "billing.production.started": "Production started",
   "billing.refund.recorded": "Refund recorded",
@@ -328,6 +330,7 @@ const otherActions: Record<string, string> = {
   "billing.receipt.recorded": "Transfer recorded",
   "billing.receipt.confirmed": "Transfer confirmed",
   "billing.receipt.reversed": "Transfer reversed",
+  "billing.receipt.not_received": "Payment marked as not received",
   "billing.receipt.allocated": "Payment added to an invoice",
   "commercial.terms.accepted": "Quotation accepted",
   "driver.trip.started": "Trip started",
