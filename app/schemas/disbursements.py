@@ -278,11 +278,17 @@ class CancellationPositionRead(BaseModel):
     disposition: str
     currency: str
     refundable_amount: Money
-    refund_still_due: Money = Field(
-        description="Frozen refund less not-received counted cash and refunds of received cash."
+    refund_still_due: Money | None = Field(
+        description=(
+            "Frozen refund less not-received counted cash and refunds of received cash; "
+            "null when the cancellation snapshot predates its counted allocations."
+        )
     )
-    owed_back: Money = Field(
-        description="Refunds under this cancellation paid against payments not received."
+    owed_back: Money | None = Field(
+        description=(
+            "Refunds under this cancellation paid against payments not received; "
+            "null when the cancellation snapshot predates its counted allocations."
+        )
     )
 
 

@@ -71,6 +71,7 @@ from app.schemas.billing import (
     ReceiptReverse,
     RefundCreate,
     SettlementRead,
+    UnappliedReceiptRead,
     WaiverCopyRead,
     WaiverCreate,
     WaiverRead,
@@ -111,6 +112,7 @@ from app.services.billing.queries import (
     adjusted_invoice_obligation,
     billing_history,
     cancellation_refuses_payment,
+    unapplied_gateway_receipts,
 )
 from app.services.billing.quotes import (
     accept_quotation_revision,
@@ -454,6 +456,10 @@ async def admin_campaign_commercial(
     return AdminCampaignCommercialRead(
         **state.model_dump(),
         issuing_available=await configured_invoice_issuer(session, settings) is not None,
+        unapplied_receipts=[
+            UnappliedReceiptRead.model_validate(item)
+            for item in await unapplied_gateway_receipts(session, campaign_id=campaign_id)
+        ],
     )
 
 

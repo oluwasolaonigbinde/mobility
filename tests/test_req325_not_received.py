@@ -40,6 +40,7 @@ from app.models.campaign_cancellation import (
     CampaignCancellation,
     CampaignCancellationSettlementRevision,
 )
+from app.services.billing import settlements
 from app.services.billing.checkout import prepare_invoice_payment_checkout
 from app.services.billing.gateway import (
     ingest_payment_gateway_webhook,
@@ -55,7 +56,7 @@ from app.services.billing.receipts import (
 )
 from app.services.billing.settlements import record_invoice_correction, record_refund_settlement
 from app.services.campaign_cancellations import _digest
-from app.services.payout_rule_serialization import acquire_campaign_terms_lock
+from app.services.payout_rule_serialization import campaign_terms_lock_key
 
 REFUND = ReceiptReversalKind.REFUND
 NOT_RECEIVED = ReceiptReversalKind.NOT_RECEIVED
@@ -338,10 +339,11 @@ def test_a6d_receipt_reversed_before_cancellation_does_not_move_the_authority(
             await _reverse(session, admin, replacement.receipt_id, NOT_RECEIVED, "bounced")
             before = await _position(session, cancellation.id)
             assert before["refund_still_due"] == Decimal("0.00")
-            # Existing caps alone would allow this; the refund still due refuses it.
+            # The allocation and receipt caps alone would allow this; the receipt was not
+            # counted in the frozen refund, so it cannot be refunded under it.
             with pytest.raises(AppError) as capped:
                 await _refund(session, admin, terms, first.receipt_id, "100.00", "R325-D-RF")
-            assert capped.value.code == "REFUND_EXCEEDS_REFUND_STILL_DUE"
+            assert capped.value.code == "REFUND_RECEIPT_NOT_COUNTED"
             await record_receipt_not_received(
                 session,
                 receipt_id=first.receipt_id,
@@ -351,6 +353,233 @@ def test_a6d_receipt_reversed_before_cancellation_does_not_move_the_authority(
             assert await _position(session, cancellation.id) == before
 
     asyncio.run(scenario())
+
+
+# --- Refunds only from counted payments (money review finding 2) ------------------
+
+
+def test_refund_of_a_payment_reversed_before_cancellation_is_refused(db_sessionmaker, monkeypatch):
+    admin, owner, organization, campaign = _fixture(db_sessionmaker, "r325-counted")
+
+    async def scenario():
+        async with db_sessionmaker() as session:
+            terms, old, _ = await _funded_terms(
+                session,
+                admin=admin,
+                owner=owner,
+                organization=organization,
+                campaign=campaign,
+                reference="R325-CNT",
+            )
+            await _reverse(session, admin, old.receipt_id, REFUND, "first transfer returned")
+            new = await _pay(
+                session,
+                organization=organization,
+                admin=admin,
+                terms=terms,
+                reference="R325-CNT-NEW",
+                amount="100.00",
+                observed_at=datetime.now(UTC),
+            )
+            cancellation = await _cancel_for_refund(
+                session,
+                campaign=campaign,
+                admin=admin,
+                cutoff=_cutoff(),
+                monkeypatch=monkeypatch,
+                reason="cancel after a replacement payment",
+            )
+            revision = await session.scalar(
+                select(CampaignCancellationSettlementRevision).where(
+                    CampaignCancellationSettlementRevision.cancellation_id == cancellation.id
+                )
+            )
+            assert [item["receipt_id"] for item in revision.snapshot["counted_allocations"]] == [
+                str(new.receipt_id)
+            ]
+            assert cancellation.refundable_amount == Decimal("100.00")
+            with pytest.raises(AppError) as refused:
+                await _refund(session, admin, terms, old.receipt_id, "100.00", "R325-CNT-OLD")
+            assert refused.value.code == "REFUND_RECEIPT_NOT_COUNTED"
+            assert refused.value.status_code == 409
+            await _reverse(session, admin, new.receipt_id, REFUND)
+            await _refund(session, admin, terms, new.receipt_id, "100.00", "R325-CNT-NEW-RF")
+            assert await _position(session, cancellation.id) == {
+                "refundable_amount": Decimal("100.00"),
+                "not_received_counted": Decimal("0.00"),
+                "refunded_received": Decimal("100.00"),
+                "refund_still_due": Decimal("0.00"),
+                "owed_back": Decimal("0.00"),
+            }
+
+    asyncio.run(scenario())
+
+
+def test_uncounted_payment_refused_and_partial_refund_then_not_received(
+    db_sessionmaker, monkeypatch
+):
+    admin, owner, organization, campaign = _fixture(db_sessionmaker, "r325-partial")
+
+    async def scenario():
+        async with db_sessionmaker() as session:
+            terms = await _accepted_terms(
+                session,
+                campaign=campaign,
+                admin=admin,
+                owner=owner,
+                reference="R325-PART",
+                amount="100.00",
+                issued=True,
+            )
+            now = datetime.now(UTC)
+            pays = {}
+            for label, amount in (("R3", "40.00"), ("R1", "60.00"), ("R2", "40.00")):
+                pays[label] = await _pay(
+                    session,
+                    organization=organization,
+                    admin=admin,
+                    terms=terms,
+                    reference=f"R325-PART-{label}",
+                    amount=amount,
+                    observed_at=now,
+                )
+                if label == "R3":
+                    # Returned before the cancellation, so it is not counted in the freeze.
+                    await _reverse(session, admin, pays["R3"].receipt_id, REFUND, "returned")
+            r1, r2, r3 = pays["R1"], pays["R2"], pays["R3"]
+            cancellation = await _cancel_for_refund(
+                session,
+                campaign=campaign,
+                admin=admin,
+                cutoff=_cutoff(),
+                monkeypatch=monkeypatch,
+                reason="cancel a split-funded campaign",
+            )
+            assert cancellation.refundable_amount == Decimal("100.00")
+            with pytest.raises(AppError) as uncounted:
+                await _refund(session, admin, terms, r3.receipt_id, "40.00", "R325-PART-R3")
+            assert uncounted.value.code == "REFUND_RECEIPT_NOT_COUNTED"
+            await _reverse(session, admin, r1.receipt_id, REFUND)
+            await _refund(session, admin, terms, r1.receipt_id, "30.00", "R325-PART-R1")
+            await record_receipt_not_received(
+                session, receipt_id=r1.receipt_id, actor_user_id=admin.id, reason="chargeback"
+            )
+            position = await _position(session, cancellation.id)
+            assert position["owed_back"] == Decimal("30.00")
+            assert position["not_received_counted"] == Decimal("60.00")
+            assert position["refund_still_due"] == Decimal("40.00")
+            await _reverse(session, admin, r2.receipt_id, REFUND)
+            await _refund(session, admin, terms, r2.receipt_id, "25.00", "R325-PART-R2")
+            position = await _position(session, cancellation.id)
+            # refund still due = refundable - not-received counted - refunds on received cash
+            assert position["refunded_received"] == Decimal("25.00")
+            assert position["refund_still_due"] == Decimal("100.00") - Decimal("60.00") - Decimal(
+                "25.00"
+            )
+            assert position["owed_back"] == Decimal("30.00")
+
+    asyncio.run(scenario())
+
+
+# --- Older cancellation snapshots (finding 4) -----------------------------------
+
+
+def test_closeout_reads_an_older_snapshot_without_counted_allocations(
+    db_client, db_sessionmaker, monkeypatch
+):
+    admin, owner, organization, campaign = _fixture(db_sessionmaker, "r325-old-snap")
+
+    async def arrange():
+        async with db_sessionmaker() as session:
+            terms, allocation, _ = await _funded_terms(
+                session,
+                admin=admin,
+                owner=owner,
+                organization=organization,
+                campaign=campaign,
+                reference="R325-OLD",
+            )
+            cancellation = await _cancel_for_refund(
+                session,
+                campaign=campaign,
+                admin=admin,
+                cutoff=_cutoff(),
+                monkeypatch=monkeypatch,
+                reason="cancel before counted allocations were recorded",
+            )
+            await session.commit()
+        async with db_sessionmaker() as session:
+            # Simulate a snapshot written before counted allocations existed.
+            await session.execute(text("SET LOCAL session_replication_role = replica"))
+            await session.execute(
+                text(
+                    "UPDATE campaign_cancellation_settlement_revisions "
+                    "SET snapshot = (snapshot::jsonb - 'counted_allocations')::json "
+                    "WHERE cancellation_id = :id"
+                ),
+                {"id": cancellation.id},
+            )
+            await session.commit()
+        return terms, allocation.receipt_id
+
+    terms, receipt_id = asyncio.run(arrange())
+    read = db_client.get(
+        f"/api/v1/admin/payout-batches/campaigns/{campaign.id}/position",
+        headers=auth_headers(db_client, admin.email),
+    )
+    assert read.status_code == 200, read.text
+    closeout = read.json()["cancellation"]
+    assert closeout["disposition"] == "cash_refund_due"
+    assert closeout["refundable_amount"] == "100.00"
+    assert closeout["refund_still_due"] is None
+    assert closeout["owed_back"] is None
+
+    async def refund():
+        async with db_sessionmaker() as session:
+            await _reverse(session, admin, receipt_id, REFUND)
+            with pytest.raises(AppError) as incomplete:
+                await _refund(session, admin, terms, receipt_id, "100.00", "R325-OLD-RF")
+            assert incomplete.value.code == "CANCELLATION_SNAPSHOT_INCOMPLETE"
+            assert incomplete.value.status_code == 409
+
+    asyncio.run(refund())
+
+
+# --- Reason limits (security finding 6) -----------------------------------------
+
+
+def test_staff_reasons_are_limited_to_1000_characters(db_client, db_sessionmaker):
+    admin, owner, organization, campaign = _fixture(db_sessionmaker, "r325-reason")
+
+    async def arrange():
+        async with db_sessionmaker() as session:
+            _, allocation, _ = await _funded_terms(
+                session,
+                admin=admin,
+                owner=owner,
+                organization=organization,
+                campaign=campaign,
+                reference="R325-REASON",
+            )
+            await session.commit()
+            return allocation.receipt_id
+
+    receipt_id = asyncio.run(arrange())
+    headers = auth_headers(db_client, admin.email)
+    reverse = f"/api/v1/admin/receipts/{receipt_id}/reverse"
+    not_received = f"/api/v1/admin/receipts/{receipt_id}/not-received"
+    for path, body in (
+        (reverse, {"kind": "refund", "reason": "x" * 1001}),
+        (not_received, {"reason": "x" * 1001}),
+    ):
+        too_long = db_client.post(path, headers=headers, json=body)
+        assert too_long.status_code == 422, too_long.text
+    accepted = db_client.post(
+        reverse, headers=headers, json={"kind": "refund", "reason": "x" * 1000}
+    )
+    assert accepted.status_code == 200, accepted.text
+    marked = db_client.post(not_received, headers=headers, json={"reason": "y" * 1000})
+    assert marked.status_code == 200, marked.text
 
 
 # --- A6 (e) and A5 manual allocation ----------------------------------------------
@@ -485,11 +714,18 @@ def test_a6f_not_received_is_idempotent_and_needs_a_reversed_receipt(db_sessionm
 # --- A6 (g) -------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("first", ["mark_r1", "refund_r2"])
 def test_a6g_not_received_and_a_concurrent_refund_serialize_under_one_cancellation(
-    postgis_db_sessionmaker, monkeypatch
+    postgis_db_sessionmaker, monkeypatch, first
 ):
+    """Each order is forced: the second writer must wait for the first's locks.
+
+    With per-receipt counted caps the end state is the same in both orders, so the
+    test also proves the refund position is read while the cancellation row lock and
+    the campaign advisory lock are held.
+    """
     maker = postgis_db_sessionmaker
-    admin, owner, organization, campaign = _fixture(maker, "r325-g")
+    admin, owner, organization, campaign = _fixture(maker, f"r325-g-{first}")
 
     async def arrange():
         async with maker() as session:
@@ -503,42 +739,72 @@ def test_a6g_not_received_and_a_concurrent_refund_serialize_under_one_cancellati
             )
             await _reverse(session, admin, r1.receipt_id, REFUND)
             await _reverse(session, admin, r2.receipt_id, REFUND)
-            await _refund(session, admin, terms, r1.receipt_id, "30.00", "R325-G-R1")
+            await _refund(session, admin, terms, r1.receipt_id, "60.00", "R325-G-R1")
             await session.commit()
             return terms, r1, r2, cancellation
 
     terms, r1, r2, cancellation = asyncio.run(arrange())
+    lock_probes: list[tuple[bool, bool]] = []
+    original_position = settlements.cancellation_refund_position
 
-    async def mark_r1():
-        async with maker() as session:
-            await record_receipt_not_received(
-                session, receipt_id=r1.receipt_id, actor_user_id=admin.id, reason="chargeback"
+    async def probed_position(session, cancellation_row, **kwargs):
+        # From another connection: the campaign advisory lock and the cancellation row
+        # must both be held by the refund transaction while it reads the position.
+        async with maker() as probe:
+            advisory_free = await probe.scalar(
+                select(func.pg_try_advisory_xact_lock(campaign_terms_lock_key(campaign.id)))
             )
-            await session.commit()
-            return "marked"
+            try:
+                await probe.scalar(
+                    select(CampaignCancellation.id)
+                    .where(CampaignCancellation.id == cancellation_row.id)
+                    .with_for_update(nowait=True)
+                )
+                row_free = True
+            except DBAPIError:
+                row_free = False
+            await probe.rollback()
+        lock_probes.append((bool(advisory_free), row_free))
+        return await original_position(session, cancellation_row, **kwargs)
 
-    async def refund_r2():
+    monkeypatch.setattr(settlements, "cancellation_refund_position", probed_position)
+
+    async def mark_r1(session):
+        await record_receipt_not_received(
+            session, receipt_id=r1.receipt_id, actor_user_id=admin.id, reason="chargeback"
+        )
+        return "marked"
+
+    async def refund_r2(session):
+        await _refund(session, admin, terms, r2.receipt_id, "40.00", "R325-G-R2")
+        return "refunded"
+
+    operations = {"mark_r1": mark_r1, "refund_r2": refund_r2}
+    second = "refund_r2" if first == "mark_r1" else "mark_r1"
+
+    async def run_second():
         async with maker() as session:
             try:
-                await _refund(session, admin, terms, r2.receipt_id, "40.00", "R325-G-R2")
+                outcome = await operations[second](session)
                 await session.commit()
-                return "refunded"
+                return outcome
             except AppError as exc:
                 await session.rollback()
                 return exc.code
 
     async def race():
-        async with maker() as blocker:
-            await acquire_campaign_terms_lock(blocker, campaign.id)
-            tasks = [asyncio.create_task(mark_r1()), asyncio.create_task(refund_r2())]
+        async with maker() as leader:
+            first_outcome = await operations[first](leader)
+            waiter = asyncio.create_task(run_second())
             await asyncio.sleep(0.5)
-            # Both writers hold their own receipt row and wait on the campaign lock.
-            assert not any(task.done() for task in tasks)
-            await blocker.commit()
-            return await asyncio.wait_for(asyncio.gather(*tasks), timeout=15)
+            # The second writer waits on the campaign lock the first still holds.
+            assert not waiter.done()
+            await leader.commit()
+            return first_outcome, await asyncio.wait_for(waiter, timeout=15)
 
     outcomes = asyncio.run(race())
-    assert outcomes == ["marked", "refunded"]
+    assert sorted(outcomes) == ["marked", "refunded"]
+    assert lock_probes == [(False, False)]
 
     async def inspect():
         async with maker() as session:
@@ -553,7 +819,7 @@ def test_a6g_not_received_and_a_concurrent_refund_serialize_under_one_cancellati
         "not_received_counted": Decimal("60.00"),
         "refunded_received": Decimal("40.00"),
         "refund_still_due": Decimal("0.00"),
-        "owed_back": Decimal("30.00"),
+        "owed_back": Decimal("60.00"),
     }
 
 
@@ -861,9 +1127,9 @@ def test_a5_cash_refund_due_cancellation_refuses_checkout_and_parks_gateway_cash
                 "100.00"
             )
             await session.commit()
-            return attempt.receipt_id
+            return terms.id, attempt.receipt_id
 
-    receipt_id = asyncio.run(scenario())
+    terms_id, receipt_id = asyncio.run(scenario())
     [audit] = [
         event
         for event in fetch_audit_events(db_sessionmaker)
@@ -878,6 +1144,107 @@ def test_a5_cash_refund_due_cancellation_refuses_checkout_and_parks_gateway_cash
     )
     assert commercial.status_code == 200, commercial.text
     assert commercial.json()["accepts_payments"] is False
+    assert "unapplied_receipts" not in commercial.json()
+
+    # Staff see the late payment, return it outside Cardvert, then reverse it.
+    admin_headers = auth_headers(db_client, admin.email)
+    admin_read = f"/api/v1/admin/campaigns/{campaign.id}/commercial"
+    listed = db_client.get(admin_read, headers=admin_headers)
+    assert listed.status_code == 200, listed.text
+    [item] = listed.json()["unapplied_receipts"]
+    assert (item["receipt_id"], item["amount"], item["currency"], item["status"]) == (
+        str(receipt_id),
+        "25.00",
+        "NGN",
+        "confirmed",
+    )
+    assert item["observed_at"]
+    reversed_ = db_client.post(
+        f"/api/v1/admin/receipts/{receipt_id}/reverse",
+        headers=admin_headers,
+        json={"kind": "refund", "reason": "Returned through a Paystack refund"},
+    )
+    assert reversed_.status_code == 200, reversed_.text
+    [closed] = db_client.get(admin_read, headers=admin_headers).json()["unapplied_receipts"]
+    assert (closed["receipt_id"], closed["status"]) == (str(receipt_id), "reversed")
+    # It was never applied, so Cardvert records no refund against it.
+    refund = db_client.post(
+        "/api/v1/admin/refunds",
+        headers=admin_headers,
+        json={
+            "commercial_terms_id": str(terms_id),
+            "receipt_id": str(receipt_id),
+            "amount": "25.00",
+            "settlement_provider": "paystack",
+            "external_reference": "R325-A5-LATE-RF",
+            "reason": "returned late payment",
+        },
+    )
+    assert refund.status_code == 409, refund.text
+    assert refund.json()["error"]["code"] == "REFUND_ALLOCATION_REQUIRED"
+
+
+def test_a5_late_gateway_payment_after_cash_refund_not_due_still_allocates(
+    db_client, db_sessionmaker, monkeypatch
+):
+    admin, owner, organization, campaign = _fixture(db_sessionmaker, "r325-a5-late-ok")
+    fake = FakePaymentGatewayAdapter()
+
+    async def scenario():
+        async with db_sessionmaker() as session:
+            terms = await _accepted_terms(
+                session,
+                campaign=campaign,
+                admin=admin,
+                owner=owner,
+                reference="R325-A5-LATE-OK",
+                amount="100.00",
+                issued=True,
+            )
+            await _pay(
+                session,
+                organization=organization,
+                admin=admin,
+                terms=terms,
+                reference="R325-A5-LATE-OK-PART",
+                amount="60.00",
+                observed_at=datetime.now(UTC),
+            )
+            cancellation = await _cancel_for_refund(
+                session,
+                campaign=campaign,
+                admin=admin,
+                cutoff=_cutoff(),
+                monkeypatch=monkeypatch,
+                reason="cancel a part-paid campaign",
+            )
+            assert cancellation.disposition == "cash_refund_not_due"
+            body = _gateway_payload(terms.id, organization.id, event_id="r325-a5-late-ok")
+            event, _ = await ingest_payment_gateway_webhook(
+                session, adapter=fake, payload=body, signature=fake.sign_webhook(body)
+            )
+            attempt = await process_payment_gateway_event(session, event_id=event.id)
+            assert attempt.outcome == "confirmed"
+            allocation = await session.get(ReceiptAllocation, attempt.allocation_id)
+            assert allocation is not None
+            assert (allocation.commercial_terms_id, allocation.amount) == (
+                terms.id,
+                Decimal("25.00"),
+            )
+            await session.commit()
+
+    asyncio.run(scenario())
+    assert not [
+        event
+        for event in fetch_audit_events(db_sessionmaker)
+        if event.action == "billing.gateway_payment_after_cancellation.recorded"
+    ]
+    listed = db_client.get(
+        f"/api/v1/admin/campaigns/{campaign.id}/commercial",
+        headers=auth_headers(db_client, admin.email),
+    )
+    assert listed.status_code == 200, listed.text
+    assert listed.json()["unapplied_receipts"] == []
 
 
 def test_a5_no_settlement_cancellation_accepts_no_payment(db_client, db_sessionmaker, monkeypatch):
