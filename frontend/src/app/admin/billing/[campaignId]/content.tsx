@@ -613,12 +613,12 @@ export default async function AdminCampaignBillingPage({
       {commercial.unapplied_receipts.length ? (
         <Panel className="mt-6 p-6">
           <h2 className="font-display text-xl font-semibold">
-            Paid after the campaign was cancelled
+            Online payments not applied to this campaign
           </h2>
           <p className="text-muted mt-1 text-sm">
-            This payment arrived after the campaign was cancelled, so it wasn&apos;t applied. Return
-            it to the advertiser outside Cardvert (for example a Paystack refund), then reverse it
-            here as &apos;Returning it to the advertiser&apos;.
+            These online payments weren&apos;t applied to the campaign. Return each one to the
+            advertiser outside Cardvert (for example a Paystack refund), then reverse it here as
+            &apos;Returning it to the advertiser&apos;.
           </p>
           <ul className="mt-4 space-y-5">
             {commercial.unapplied_receipts.map((item) => (

@@ -132,7 +132,7 @@ const commercial = {
   waiver: null,
 };
 
-describe("payments that arrived after the campaign was cancelled", () => {
+describe("online payments not applied after a cancellation", () => {
   it("lists them, offers the reversal while unreturned and shows returned ones", async () => {
     get.mockImplementation(async (path: string) => {
       if (path.endsWith("/commercial"))
@@ -167,11 +167,11 @@ describe("payments that arrived after the campaign was cancelled", () => {
       }),
     );
     expect(
-      screen.getByRole("heading", { name: "Paid after the campaign was cancelled" }),
+      screen.getByRole("heading", { name: "Online payments not applied to this campaign" }),
     ).toBeVisible();
     expect(
       screen.getByText(
-        "This payment arrived after the campaign was cancelled, so it wasn't applied. Return it to the advertiser outside Cardvert (for example a Paystack refund), then reverse it here as 'Returning it to the advertiser'.",
+        "These online payments weren't applied to the campaign. Return each one to the advertiser outside Cardvert (for example a Paystack refund), then reverse it here as 'Returning it to the advertiser'.",
       ),
     ).toBeVisible();
     expect(screen.getByText("₦25.00")).toBeVisible();
@@ -201,7 +201,7 @@ describe("payments that arrived after the campaign was cancelled", () => {
         searchParams: Promise.resolve({}),
       }),
     );
-    expect(screen.queryByText("Paid after the campaign was cancelled")).toBeNull();
+    expect(screen.queryByText("Online payments not applied to this campaign")).toBeNull();
   });
 });
 

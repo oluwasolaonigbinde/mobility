@@ -534,12 +534,20 @@ doesn't yet record the repayment.
 After a cancellation where the advertiser is owed a refund or paid nothing,
 Cardvert refuses new payments on that campaign. Don't record a bank transfer
 that arrives after that; return it to the advertiser. A late online payment is
-kept unassigned and listed under **Paid after the campaign was cancelled** on
-the campaign's billing page. Return it outside Cardvert (for example a Paystack
-refund), then reverse it there as "Returning it to the advertiser".
+kept unassigned and listed under **Online payments not applied to this
+campaign** on the campaign's billing page. An earlier online overpayment that
+was never applied appears there too. Return each one outside Cardvert (for
+example a Paystack refund), then reverse it there as "Returning it to the
+advertiser".
 
 Refunds can only come from payments that counted towards the cancellation's
 refund, and each is capped at what that payment counted.
+
+Late GPS uploads are admitted before pay has been calculated for any affected
+Nigeria day. Otherwise the signed acknowledgement drops the batch and the
+audit records it, without storing its coordinates or repricing pay. There is
+no staff apply/discard step. Review pay-changing flags directly as confirmed
+or dismissed; confirmation keeps the hold and never creates an automatic debit.
 
 ## Paystack setup (REQ-324)
 
@@ -568,12 +576,6 @@ webhook signatures. There is no separate webhook secret.
   3. Check that the invoice shows the payment once.
 - **Payouts.** Transfers must be on in the Paystack account. Automatic payouts
   stay paused until finance enables them.
-
-Late GPS uploads are admitted before pay has been calculated for any affected
-Nigeria day. Otherwise the signed acknowledgement drops the batch and the
-audit records it, without storing its coordinates or repricing pay. There is
-no staff apply/discard step. Review pay-changing flags directly as confirmed
-or dismissed; confirmation keeps the hold and never creates an automatic debit.
 
 ## Location-ping data lifecycle (S4)
 
