@@ -263,7 +263,7 @@ The noted items carry these labels:
 
 | Item | Disposition |
 |---|---|
-| 1 | Fixed by REQ-314 for a reversal before cancellation. Refundable cash and historical funding use the active-receipt basis. A bounce after cancellation remains; it needs a reversal kind, which is the owner question below. |
+| 1 | Fixed by REQ-314 for a reversal before cancellation. Refundable cash and historical funding use the active-receipt basis. A bounce after cancellation is fixed by REQ-325 (D164), which adds a reversal kind and the refund-still-due position. |
 | 2 | Fixed by REQ-314. A credit note that would take the obligation below active confirmed funding is refused. |
 | 3 | Fixed by REQ-314. The server derives correction VAT at the invoice tax rate, rounding half-up. |
 | 4 | Fixed by REQ-315. Every role must be ACTIVE to sign in or use a token. |
@@ -293,4 +293,11 @@ Follow-ups found during the reconciliation:
 - REQ-319 covers the GPS tracker test flakes.
 - REQ-320 and REQ-321 are tooling and the owner-selected extras.
 
-Open owner question: a receipt that bounces *after* a cancellation still leaves the frozen refund due. Closing that gap needs a reversal kind or settlement on `reverse_payment_receipt`.
+Former open owner question, answered 15 Nov 2026: a receipt that bounces *after* a cancellation still left the frozen refund due. The owner chose to fix it now, and the fix is D164 / REQ-325:
+
+- Reversals record a kind, `refund` or `not_received`.
+- A not-received payment reduces the refund still due by the allocation it had counted.
+- A refund already paid from such a payment becomes an amount the advertiser owes back.
+- Cancelled campaigns refuse further payments where nothing more can be owed.
+
+Built in `6299ef5f`.

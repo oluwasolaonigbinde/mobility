@@ -239,11 +239,16 @@ Money can be recorded only against an issued invoice (owner, 27–29 October
 2026, D139 / REQ-255). Draft invoices reject allocation with
 `409 INVOICE_NOT_ISSUED`. Built in `6d4d6a95` on master.
 
-**Still open:** [REQ-051](requests.md) Paystack activation and developer admin
-access, [REQ-025](requests.md) password and two-step verification,
-[REQ-027](requests.md), [REQ-035](requests.md).
+The owner reports the Paystack account is approved (15 Nov 2026, REQ-324).
+Test Mode setup through a temporary public link comes first; live use still
+needs a hosted production domain, the live key and production approval.
+
+**Still open:** [REQ-051](requests.md) developer admin access (activation now
+reported approved), [REQ-025](requests.md) password, two-step verification and
+whether Transfers are on, [REQ-027](requests.md), [REQ-035](requests.md).
 
 **History:**
+- **2026-11-15** — Owner: "paystack has been approved now" (REQ-324). Previously the account was still awaiting activation and only test payments were possible.
 - **2026-11-04** - REQ-272: online payment availability is computed from the configured gateway and valid return URL before offering checkout. Built in `65a856e8`.
 - **2026-11-03** — Delivery accepted on master. Built in `6d4d6a95`; full CI passed on `1a6d563f`. See the [acceptance evidence](../issues/testing/req271-ci-acceptance-2026-11-03.md).
 - **2026-08-14** — Client confirmed payment timing and methods (Q2, Q3, D18).
@@ -280,7 +285,9 @@ facts or real payment instructions. Built in `3abcc85b` on master.
 - A credit note that would take the invoice below the cash already confirmed is refused.
 - A cancellation never treats a payment reversed before the cancellation as cash to refund.
 
-**Still open:** a payment that bounces *after* a cancellation still leaves the frozen refund due. Closing that needs an owner decision on recording a reversal kind; see `docs/audit-findings.md`, Reconciliation. [REQ-041](requests.md) OPay bank details;
+A payment that bounces *after* a cancellation is handled under [Cancellation and refunds](#cancellation-and-refunds) (D164 / REQ-325).
+
+**Still open:** [REQ-041](requests.md) OPay bank details;
 [REQ-042](requests.md) accountant's confirmation and [REQ-052](requests.md) someone to check the sample invoice.
 
 **History:**
@@ -381,7 +388,24 @@ Staff cancel a whole campaign from its page or cancellation-request thread,
 with a required reason and confirmation. The same financial cutoff rules apply;
 a linked request receives a fixed reply atomically and is not auto-resolved.
 
+**Payments that never arrived (Owner, 15 Nov 2026; D164 / REQ-325):**
+- When staff reverse a payment, they say why. "Returning it to the advertiser"
+  leads to the normal refund. "Money never arrived or was taken back" covers a
+  bounce, a mistaken record or a chargeback.
+- If a payment that counted towards a cancellation's refund never arrived, the
+  refund still due drops by that payment's share. Other payments can still be
+  refunded in full.
+- If a refund was already sent from a payment that is later found not to have
+  arrived, the advertiser is shown as owing that refund back. Staff recover it
+  outside Cardvert.
+- After a cancellation where the advertiser is owed a refund or nothing was
+  paid, Cardvert refuses further payments on that campaign. A late online payment
+  is kept unassigned, so staff can refund it. After a cancellation once work had
+  started, or on corporate credit, the advertiser can still see and pay any
+  remaining balance.
+
 **History:**
+- **2026-11-15** — Owner, 15 Nov 2026 (D164 / REQ-325): reversals now record whether the money is being returned or never arrived. Previously every reversal looked the same, so a bounce after a cancellation still left the frozen refund due and staff could record a refund of money never received. Cancelled campaigns could also take new payments. Built in `6299ef5f`.
 - **2026-11-03** — Plain-language preview instruction replaces the version-1 earlier-start consent with `advertiser-expedited-v2` and a new exact-wording hash (D153, REQ-288). The previous wording requested expedited production and described refund eligibility ending when it actually starts. The trigger remains actual production start; no migration or existing receipt rewrite.
 - **2026-08-14** — Client confirmed the window and waiver (Q24, D18, D20).
 - **2026-10-19** — Owner specifies D97's staff integration: reason1–1000, explicit effect confirmation, same request identity on retry and optional same-campaign cancellation thread; the backend performs the existing cutoff and atomic reply. The request itself and support resolution remain separate from cancellation. Phase 2 source/integration is in progress; no completion or deployment claim.

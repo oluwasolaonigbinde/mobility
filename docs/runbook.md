@@ -515,6 +515,55 @@ currency before allocation. Mismatches remain recorded. Budget checks retain
 D104's accepted-price exception, 80/95 warnings and strict-above-100 pause;
 resume requires a reason and changed funding/budget facts. No automatic resume.
 
+### Reversing a payment (REQ-325 / D164)
+
+When you reverse a receipt, choose why:
+
+- **Returning it to the advertiser.** The money is real, and you are sending it
+  back. Then record the refund with its bank or Paystack reference.
+- **Money never arrived or was taken back.** Use this for a bounced transfer, a
+  receipt recorded by mistake, or a lost card chargeback. Cardvert lowers the
+  cancellation's "Refund still due" by that payment's share. It refuses any
+  refund from it.
+
+If a chargeback arrives after you already refunded that payment, open the
+reversed receipt and use **Payment not received**. The closeout then shows the
+amount owed back by the advertiser. Recover it outside Cardvert. Cardvert
+doesn't yet record the repayment.
+
+After a cancellation where the advertiser is owed a refund or paid nothing,
+Cardvert refuses new payments on that campaign. A late online payment is kept
+unassigned, so you can reverse it as "Returning it to the advertiser" and
+refund it.
+
+## Paystack setup (REQ-324)
+
+Cardvert uses one Paystack **secret key** for checkout, payouts (Transfers) and
+webhook signatures. There is no separate webhook secret.
+
+- **Test or live key.** Settings refuse a live key (`sk_live_`) outside
+  `ENVIRONMENT=production`, and a test key (`sk_test_`) in production.
+- **Server settings.**
+  - `PAYSTACK_SECRET_KEY`.
+  - `PAYSTACK_CHECKOUT_RETURN_URL`, which must be `PUBLIC_ORIGIN` +
+    `/advertiser/billing/paystack/return` outside local.
+  - A blank key turns online payment and Paystack payouts off.
+- **Paystack dashboard → Settings → API Keys & Webhooks.**
+  - Set the webhook URL to `https://<public host>/api/v1/webhooks/paystack`.
+  - Set the callback URL to the same return URL.
+  - Test mode and live mode each have their own key and webhook URL.
+- **The webhook needs the API, not the website.** Paystack must reach
+  FastAPI's `/api/v1/webhooks/*`. In production, the Caddy edge forwards that
+  path to the API. A tunnel or proxy that points only at the website returns
+  404 to Paystack, and payments then confirm only when the advertiser comes
+  back to the site.
+- **Check after any change.**
+  1. Make one test payment with a Paystack test card.
+  2. In the dashboard, check that the webhook delivered with status 200.
+  3. Check that the invoice shows the payment once.
+- **Payouts.** Transfers must be on in the Paystack account. Automatic payouts
+  stay paused until finance enables them.
+
 Late GPS uploads are admitted before pay has been calculated for any affected
 Nigeria day. Otherwise the signed acknowledgement drops the batch and the
 audit records it, without storing its coordinates or repricing pay. There is

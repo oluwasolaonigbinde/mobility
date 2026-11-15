@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.169 — 2026-11-10. Canonical source of truth: current state AND target state.**
+**Version 1.171 — 2026-11-15. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1778,6 +1778,37 @@ dispositions and their valid pre-cancellation peers. Payout-v2/v3 and day
 correction still clip retained historical inputs to the exact cutoff. The existing W2-01D registry retains unique external refund references;
 this command records eligibility/disposition and never claims a provider
 transfer that has not been observed.
+
+**[BUILT — REQ-325 / D164] Payments that never arrived:**
+
+- **Reversal kind.** `POST /admin/receipts/{id}/reverse` requires `kind`
+  (`refund` | `not_received`). `not_received` also writes an append-only
+  `receipt_non_receipts` row in the same transaction (migration `0122`).
+- **Later not-received.** `POST /admin/receipts/{id}/not-received` adds that
+  row to a receipt already reversed with kind `refund`, for a chargeback after
+  the refund was paid.
+- **Freeze snapshot.** The revision-1 cancellation snapshot lists the
+  `counted_allocations` summed into `refundable_amount`.
+- **Refund position.** One shared helper in `billing/queries` gives
+  `refund_still_due` = max(0, refundable − counted not-received allocations −
+  refunds against received receipts) and `owed_back` (refunds against
+  not-received receipts, per cancellation). Both `record_refund_settlement`
+  and the admin settlement position read it.
+  - A refund against a not-received receipt is refused with
+    `REFUND_PAYMENT_NOT_RECEIVED`.
+  - A refund above the refund still due is refused with
+    `REFUND_EXCEEDS_REFUND_STILL_DUE`.
+- **Cancelled campaigns.** After a `cash_refund_due` or `no_settlement`
+  cancellation:
+  - checkout and manual allocation are refused with
+    `CAMPAIGN_CANCELLED_NO_PAYMENT`;
+  - a late gateway payment is recorded as `confirmed_unallocated`, with audit
+    `billing.gateway_payment_after_cancellation.recorded`.
+  - The commercial read's `accepts_payments` drives the advertiser "To pay"
+    list.
+- **Locks.** Not-received paths take the receipt row lock, then each
+  allocated campaign's advisory lock in sorted order, then that campaign's
+  row, terms and cancellation locks.
 
 **[BUILT — W2-03G]** Migration `0060` records assignment/trip-bound recurring
 display challenges, concurrent-session evidence and reasoned physical spot
@@ -4337,7 +4368,7 @@ Placement: app/services/disclosure.py shared closure and totals; daily/report/ar
 - A credit note is refused with 409 `INVOICE_CREDIT_BELOW_FUNDED` when the obligation after it would fall below the sum of active cash allocations. Equal is allowed.
 - A draft budget update takes the campaign-terms advisory lock before the row lock. It refuses a value below the accepted terms' gross, or a null value after acceptance, with 409 `CAMPAIGN_BUDGET_BELOW_ACCEPTED_TOTAL`.
 - All refusals are typed. The admin correction form states the VAT rule, and recorded corrections show the derived VAT. All three §9 baselines regenerate.
-- Open: a receipt that bounces after cancellation still leaves the frozen refund due. Closing that needs a reversal kind on `reverse_payment_receipt`.
+- The open item (a bounce after cancellation still leaving the frozen refund due) is closed by amendment 1.171 (REQ-325 / D164).
 
 **REQ-315 / D162, access and privacy (§8, §23):**
 - `get_current_user`, `login_with_password`, session refresh and change-password require ACTIVE for every role. `UserCreate` accepts only active drivers. Applicant onboarding services that act without a session are unchanged, and account setup still activates the user.
@@ -4358,3 +4389,19 @@ Placement: app/services/disclosure.py shared closure and totals; daily/report/ar
 **REQ-318:** removes the unused `areas_label` report snapshot field. Renderer output is identical.
 
 Money semantics outside D161 are unchanged. Launch gates are unchanged.
+
+## Amendment / changelog 1.171 - REQ-324 / REQ-325 / D164 (Paystack test setup and payments that never arrived, 15 Nov 2026)
+
+**REQ-325 / D164, billing (§15.6, RM13):**
+- Reversal `kind` and `receipt_non_receipts` (migration `0122`).
+- The counted-allocation freeze snapshot, and the shared refund position (`refund_still_due`, `owed_back`).
+- Refusal of payments after no-payment cancellations, and unallocated late gateway payments.
+- Detail is in §15.6. All three §9 baselines are regenerated, and the inventory moves to 17 migrations and 278 operations.
+- The admin campaign billing page asks for the reversal kind, and offers "Payment not received" on refund-kind reversals. The closeout shows the refund still due and the amount owed back. The advertiser billing page labels payments that never arrived, with any amount owed back.
+
+**REQ-324, Paystack (§15.3, §15.4):**
+- No code change. The owner reports that the account is approved.
+- Test Mode is proven through an isolated local stack. Its throwaway edge exposes only `/api/v1/webhooks/*` behind a temporary quick tunnel; the evidence is in `issues/testing/`.
+- Live use still needs the hosted production domain, the live key and production approval, so W2-01C stays blocked on those.
+
+Money semantics outside D164 are unchanged. Launch gates are unchanged.
