@@ -65,6 +65,8 @@ from app.schemas.billing import (
     QuoteRequestRead,
     QuoteRevisionCreate,
     QuoteRevisionRead,
+    ReceiptNonReceiptRead,
+    ReceiptNotReceivedCreate,
     ReceiptRead,
     ReceiptReverse,
     RefundCreate,
@@ -105,13 +107,21 @@ from app.services.billing.invoices import (
     issue_invoice,
     record_invoice_issuer_profile,
 )
-from app.services.billing.queries import adjusted_invoice_obligation, billing_history
+from app.services.billing.queries import (
+    adjusted_invoice_obligation,
+    billing_history,
+    cancellation_refuses_payment,
+)
 from app.services.billing.quotes import (
     accept_quotation_revision,
     record_quotation_revision,
     request_custom_quote,
 )
-from app.services.billing.receipts import process_manual_bank_transfer, reverse_payment_receipt
+from app.services.billing.receipts import (
+    process_manual_bank_transfer,
+    record_receipt_not_received,
+    reverse_payment_receipt,
+)
 from app.services.billing.settlements import (
     record_credit_contract_settlement,
     record_invoice_correction,
@@ -229,6 +239,7 @@ async def _campaign_commercial_state(
         production_start=production_start,
         settlements=settlements,
         budget_check=BudgetCheckRead.model_validate(budget_check) if budget_check else None,
+        accepts_payments=await cancellation_refuses_payment(session, campaign_id) is None,
     )
 
 
@@ -709,10 +720,31 @@ async def admin_reverse_receipt(
     session: SessionDependency,
 ) -> ReceiptRead:
     receipt = await reverse_payment_receipt(
-        session, receipt_id=receipt_id, actor_user_id=user.id, reason=payload.reason
+        session,
+        receipt_id=receipt_id,
+        actor_user_id=user.id,
+        kind=payload.kind,
+        reason=payload.reason,
     )
     await session.commit()
     return ReceiptRead.model_validate(receipt)
+
+
+@router.post(
+    "/admin/receipts/{receipt_id}/not-received",
+    response_model=ReceiptNonReceiptRead,
+)
+async def admin_record_receipt_not_received(
+    receipt_id: UUID,
+    payload: ReceiptNotReceivedCreate,
+    user: AdminUserDependency,
+    session: SessionDependency,
+) -> ReceiptNonReceiptRead:
+    non_receipt = await record_receipt_not_received(
+        session, receipt_id=receipt_id, actor_user_id=user.id, reason=payload.reason
+    )
+    await session.commit()
+    return ReceiptNonReceiptRead.model_validate(non_receipt)
 
 
 @router.post(

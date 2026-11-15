@@ -14,6 +14,7 @@ from app.models.billing import (
     PaymentClass,
     QuoteRequestSource,
     ReceiptMethod,
+    ReceiptReversalKind,
 )
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.user import UserRole
@@ -360,6 +361,7 @@ def test_all_fixed_lines_count_once_in_funding_and_never_warn_within_agreed_tota
                     session,
                     receipt_id=receipt.id,
                     actor_user_id=admin.id,
+                    kind=ReceiptReversalKind.REFUND,
                     reason="synthetic reversal",
                 )
             below = await enforce_campaign_budget(

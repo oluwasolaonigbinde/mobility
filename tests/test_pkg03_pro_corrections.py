@@ -23,6 +23,7 @@ from app.models.billing import (
     PaymentClass,
     QuoteRequestSource,
     ReceiptMethod,
+    ReceiptReversalKind,
 )
 from app.models.campaign import CampaignReviewEvent, CampaignStatus
 from app.models.user import UserRole
@@ -490,6 +491,7 @@ def test_split_receipt_refunds_conserve_each_allocation(db_sessionmaker, refund_
                 session,
                 receipt_id=receipt.id,
                 actor_user_id=admin.id,
+                kind=ReceiptReversalKind.REFUND,
                 reason="split refund",
             )
             amounts = {"first": "60.00", "second": "40.00"}

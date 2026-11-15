@@ -20,7 +20,10 @@ from app.models.billing import (
     ReceiptLifecycleEvent,
     ReceiptLifecycleStatus,
     ReceiptMethod,
+    ReceiptNonReceipt,
+    ReceiptReversalKind,
 )
+from app.models.campaign_cancellation import CampaignCancellation
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.billing.common import (
@@ -30,7 +33,11 @@ from app.services.billing.common import (
     _money,
     _stored_aware_utc,
 )
-from app.services.billing.queries import _receipt_status, effective_invoice_obligation
+from app.services.billing.queries import (
+    _receipt_status,
+    effective_invoice_obligation,
+    refuse_payment_after_cancellation,
+)
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 
 
@@ -350,6 +357,8 @@ async def allocate_payment_receipt(  # noqa: C901
     # campaign, terms and invoice order then matches correction and budget
     # transitions while serializing the obligation and its new funding fact.
     await _campaign(session, campaign_id, lock=True)
+    # REQ-325a: checked under the campaign advisory lock that the cancellation also takes.
+    await refuse_payment_after_cancellation(session, campaign_id)
     terms = await session.scalar(
         select(CommercialTerms).where(CommercialTerms.id == commercial_terms_id).with_for_update()
     )
@@ -484,9 +493,10 @@ async def allocate_payment_receipt(  # noqa: C901
     return allocation
 
 
-async def reverse_payment_receipt(
-    session: AsyncSession, *, receipt_id: UUID, actor_user_id: UUID, reason: str
-) -> PaymentReceipt:
+async def _lock_receipt_and_campaigns(
+    session: AsyncSession, receipt_id: UUID
+) -> tuple[PaymentReceipt | None, list[UUID]]:
+    """Receipt row first, then every allocated campaign's advisory lock in sorted order."""
     receipt = await session.scalar(
         select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
     )
@@ -505,11 +515,64 @@ async def reverse_payment_receipt(
     )
     for campaign_id in campaign_ids:
         await acquire_campaign_terms_lock(session, campaign_id)
+    return receipt, campaign_ids
+
+
+async def _lock_refund_authority_rows(session: AsyncSession, campaign_ids: list[UUID]) -> None:
+    """Campaign, terms and cancellation rows, per campaign as record_refund_settlement."""
+    for campaign_id in campaign_ids:
+        await _campaign(session, campaign_id, lock=True)
+        await session.scalar(
+            select(CommercialTerms)
+            .where(CommercialTerms.campaign_id == campaign_id)
+            .with_for_update()
+        )
+        await session.scalar(
+            select(CampaignCancellation)
+            .where(CampaignCancellation.campaign_id == campaign_id)
+            .with_for_update()
+        )
+
+
+def _required_reason(reason: str, code: str, message: str) -> str:
+    normalized = reason.strip()
+    if not normalized:
+        raise AppError(code, message, status_code=status.HTTP_400_BAD_REQUEST)
+    return normalized
+
+
+async def _existing_non_receipt(
+    session: AsyncSession, receipt_id: UUID
+) -> ReceiptNonReceipt | None:
+    return await session.scalar(
+        select(ReceiptNonReceipt).where(ReceiptNonReceipt.receipt_id == receipt_id)
+    )
+
+
+async def reverse_payment_receipt(
+    session: AsyncSession,
+    *,
+    receipt_id: UUID,
+    actor_user_id: UUID,
+    kind: ReceiptReversalKind,
+    reason: str,
+) -> PaymentReceipt:
+    receipt, campaign_ids = await _lock_receipt_and_campaigns(session, receipt_id)
     await require_active_admin(session, actor_user_id)
     if receipt is None:
         raise AppError("RECEIPT_NOT_FOUND", "Receipt was not found", status_code=404)
+    kind = ReceiptReversalKind(kind)
     current = await _receipt_status(session, receipt.id)
     if current == ReceiptLifecycleStatus.REVERSED:
+        if (
+            kind == ReceiptReversalKind.NOT_RECEIVED
+            and await _existing_non_receipt(session, receipt.id) is None
+        ):
+            raise AppError(
+                "RECEIPT_ALREADY_REVERSED",
+                "This receipt is already reversed; record that its payment was not received",
+                status_code=status.HTTP_409_CONFLICT,
+            )
         return receipt
     if current != ReceiptLifecycleStatus.CONFIRMED:
         raise AppError(
@@ -517,13 +580,11 @@ async def reverse_payment_receipt(
             "Only a confirmed receipt can be reversed",
             status_code=status.HTTP_409_CONFLICT,
         )
-    normalized_reason = reason.strip()
-    if not normalized_reason:
-        raise AppError(
-            "REVERSAL_REASON_REQUIRED",
-            "A reversal reason is required",
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
+    normalized_reason = _required_reason(
+        reason, "REVERSAL_REASON_REQUIRED", "A reversal reason is required"
+    )
+    if kind == ReceiptReversalKind.NOT_RECEIVED:
+        await _lock_refund_authority_rows(session, campaign_ids)
     now = await database_clock(session)
     await _append_receipt_event(
         session,
@@ -533,15 +594,70 @@ async def reverse_payment_receipt(
         occurred_at=now,
         reason=normalized_reason,
     )
+    if kind == ReceiptReversalKind.NOT_RECEIVED:
+        session.add(
+            ReceiptNonReceipt(
+                receipt_id=receipt.id,
+                reason=normalized_reason,
+                actor_user_id=actor_user_id,
+                recorded_at=now,
+            )
+        )
+        await session.flush()
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,
         action="billing.receipt.reversed",
         entity_type="payment_receipt",
         entity_id=str(receipt.id),
-        metadata={"reason": normalized_reason, "reversal_cutoff": now.isoformat()},
+        metadata={
+            "kind": kind.value,
+            "reason": normalized_reason,
+            "reversal_cutoff": now.isoformat(),
+        },
     )
     return receipt
+
+
+async def record_receipt_not_received(
+    session: AsyncSession, *, receipt_id: UUID, actor_user_id: UUID, reason: str
+) -> ReceiptNonReceipt:
+    """Mark an already refund-reversed receipt as never received (e.g. a later chargeback)."""
+    receipt, campaign_ids = await _lock_receipt_and_campaigns(session, receipt_id)
+    await require_active_admin(session, actor_user_id)
+    if receipt is None:
+        raise AppError("RECEIPT_NOT_FOUND", "Receipt was not found", status_code=404)
+    existing = await _existing_non_receipt(session, receipt.id)
+    if existing is not None:
+        return existing
+    if await _receipt_status(session, receipt.id) != ReceiptLifecycleStatus.REVERSED:
+        raise AppError(
+            "RECEIPT_NOT_REVERSED",
+            "Only a reversed receipt can be marked not received; reverse it as not received",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    normalized_reason = _required_reason(
+        reason, "NOT_RECEIVED_REASON_REQUIRED", "A reason is required"
+    )
+    await _lock_refund_authority_rows(session, campaign_ids)
+    now = await database_clock(session)
+    non_receipt = ReceiptNonReceipt(
+        receipt_id=receipt.id,
+        reason=normalized_reason,
+        actor_user_id=actor_user_id,
+        recorded_at=now,
+    )
+    session.add(non_receipt)
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="billing.receipt.not_received",
+        entity_type="payment_receipt",
+        entity_id=str(receipt.id),
+        metadata={"reason": normalized_reason, "non_receipt_id": str(non_receipt.id)},
+    )
+    return non_receipt
 
 
 async def process_manual_bank_transfer(

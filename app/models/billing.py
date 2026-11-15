@@ -58,6 +58,13 @@ class ReceiptLifecycleStatus(StrEnum):
     REVERSED = "reversed"
 
 
+class ReceiptReversalKind(StrEnum):
+    """Why a confirmed receipt is reversed (REQ-325)."""
+
+    REFUND = "refund"
+    NOT_RECEIVED = "not_received"
+
+
 class IssuerVerificationStatus(StrEnum):
     SYNTHETIC = "synthetic"
     VERIFIED = "verified"
@@ -402,6 +409,26 @@ class ReceiptAllocation(Base):
         ForeignKey("users.id", ondelete="RESTRICT")
     )
     allocated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ReceiptNonReceipt(Base):
+    """Append-only fact that a reversed receipt's money never arrived or was taken back.
+
+    It has no amount: what is owed back is derived from refunds against the receipt.
+    """
+
+    __tablename__ = "receipt_non_receipts"
+    __table_args__ = (UniqueConstraint("receipt_id", name="uq_receipt_non_receipts_receipt"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    receipt_id: Mapped[UUID] = mapped_column(
+        ForeignKey("payment_receipts.id", ondelete="RESTRICT"), nullable=False
+    )
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    actor_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class InvoiceIssuerProfile(Base):

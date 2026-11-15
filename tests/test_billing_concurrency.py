@@ -14,6 +14,7 @@ from app.models.billing import (
     IssuerVerificationStatus,
     ReceiptAllocation,
     ReceiptMethod,
+    ReceiptReversalKind,
 )
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.user import UserRole
@@ -393,6 +394,7 @@ def test_forced_overlap_receipt_allocation_reversal_and_numbering(
                 session,
                 receipt_id=reversal_receipt,
                 actor_user_id=admin.id,
+                kind=ReceiptReversalKind.REFUND,
                 reason="forced overlap",
             )
             await session.commit()
@@ -499,6 +501,7 @@ def test_concurrent_refund_reference_conflict_is_stable_across_campaigns(
                     session,
                     receipt_id=receipt.id,
                     actor_user_id=admin.id,
+                    kind=ReceiptReversalKind.REFUND,
                     reason="exercise global refund reference identity",
                 )
                 authorities.append((terms.id, receipt.id, refund_admins[index - 1].id))

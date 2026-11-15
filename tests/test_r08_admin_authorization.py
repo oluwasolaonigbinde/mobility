@@ -31,6 +31,7 @@ MIGRATED_CALL_SITES: dict[str, tuple[str, ...]] = {
         "confirm_payment_receipt",
         "allocate_payment_receipt",
         "reverse_payment_receipt",
+        "record_receipt_not_received",
     ),
     "billing.invoices": (
         "record_invoice_issuer_profile",
@@ -96,7 +97,7 @@ def _canonical_calls(
 
 
 def test_all_retained_sites_import_and_call_only_the_canonical_authority() -> None:
-    assert sum(map(len, MIGRATED_CALL_SITES.values())) == 37
+    assert sum(map(len, MIGRATED_CALL_SITES.values())) == 38
     for service_name, expected_functions in MIGRATED_CALL_SITES.items():
         tree = _service_tree(service_name)
         functions = _named_functions(tree)

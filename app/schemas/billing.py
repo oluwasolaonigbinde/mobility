@@ -11,6 +11,7 @@ from app.models.billing import (
     InvoiceCorrectionType,
     IssuerVerificationStatus,
     PaymentClass,
+    ReceiptReversalKind,
 )
 
 
@@ -174,6 +175,16 @@ class BillingHistoryEntry(BaseModel):
     events: list[ReceiptEventRead]
     allocations: list[ReceiptAllocationRead]
     current_status: str | None
+    not_received: bool = Field(
+        description="Staff recorded that this payment never arrived or was taken back."
+    )
+    not_received_reason: str | None
+    owed_back_amount: Decimal = Field(
+        description=(
+            "Refunds already paid against this receipt while its payment was not received, "
+            "in the receipt currency."
+        )
+    )
 
 
 class PaymentCheckoutRead(ORMRead):
@@ -369,7 +380,21 @@ class ProductionStartRead(ORMRead):
 
 
 class ReceiptReverse(BaseModel):
+    kind: ReceiptReversalKind
     reason: str
+
+
+class ReceiptNotReceivedCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str
+
+
+class ReceiptNonReceiptRead(ORMRead):
+    id: UUID
+    receipt_id: UUID
+    reason: str
+    actor_user_id: UUID
+    recorded_at: datetime
 
 
 class InvoiceCorrectionCreate(BaseModel):
@@ -462,6 +487,12 @@ class CampaignCommercialRead(BaseModel):
     production_start: ProductionStartRead | None
     settlements: list[SettlementRead]
     budget_check: BudgetCheckRead | None
+    accepts_payments: bool = Field(
+        description=(
+            "False once a cancellation leaves nothing more to owe; a cancelled campaign "
+            "with remaining debts still accepts payment."
+        )
+    )
 
 
 class AdminCampaignCommercialRead(CampaignCommercialRead):

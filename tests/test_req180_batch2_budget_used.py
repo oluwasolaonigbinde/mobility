@@ -16,7 +16,12 @@ from test_budget_enforcement_w2_01e import (
     raised_budget_in_production,
 )
 
-from app.models.billing import BudgetCampaignTransition, PaymentReceipt, ReceiptAllocation
+from app.models.billing import (
+    BudgetCampaignTransition,
+    PaymentReceipt,
+    ReceiptAllocation,
+    ReceiptReversalKind,
+)
 from app.models.complaint import Complaint, ComplaintReferenceType
 from app.models.notification import Notification
 from app.models.organization import OrganizationMembership
@@ -63,9 +68,7 @@ async def _staff_cancel(session, *, admin, campaign, reason="Advertiser asked Te
     )
 
 
-def test_budget_used_is_absent_from_every_advertiser_response(
-    db_client, db_sessionmaker, settings
-):
+def test_budget_used_is_absent_from_every_advertiser_response(db_client, db_sessionmaker, settings):
     admin, owner, organization, funded = _actors(db_sessionmaker, "used-read")
     usd = create_test_campaign(
         db_sessionmaker,
@@ -230,7 +233,11 @@ def test_cancelled_campaigns_keep_a_truthful_booked_amount_and_no_repeat_notices
                 .where(ReceiptAllocation.commercial_terms_id == early_terms.id)
             )
             await reverse_payment_receipt(
-                session, receipt_id=receipt.id, actor_user_id=admin.id, reason="refund"
+                session,
+                receipt_id=receipt.id,
+                actor_user_id=admin.id,
+                kind=ReceiptReversalKind.REFUND,
+                reason="refund",
             )
             await session.commit()
             return settled

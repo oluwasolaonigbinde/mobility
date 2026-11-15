@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
@@ -15,7 +16,9 @@ from app.models.billing import (
     IssuerVerificationStatus,
     PaymentClass,
     QuoteRequestSource,
+    ReceiptAllocation,
     ReceiptMethod,
+    ReceiptReversalKind,
 )
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.user import UserRole
@@ -442,23 +445,41 @@ def test_late_refund_booking_uses_frozen_cancellation_and_exact_retry_identity(
                 expected_amount="50.00",
                 expected_currency="NGN",
             )
-            await allocate_payment_receipt(
-                session,
-                receipt_id=later_receipt.id,
-                commercial_terms_id=terms.id,
-                actor_user_id=admin.id,
-                amount="50.00",
+            # REQ-325a: a cash-refund-due cancellation takes no further payment.
+            with pytest.raises(AppError) as late_allocation:
+                await allocate_payment_receipt(
+                    session,
+                    receipt_id=later_receipt.id,
+                    commercial_terms_id=terms.id,
+                    actor_user_id=admin.id,
+                    amount="50.00",
+                )
+            assert late_allocation.value.code == "CAMPAIGN_CANCELLED_NO_PAYMENT"
+            # Cash that still lands after the cutoff cannot widen the frozen authority.
+            session.add(
+                ReceiptAllocation(
+                    receipt_id=later_receipt.id,
+                    commercial_terms_id=terms.id,
+                    amount=Decimal("50.00"),
+                    currency="NGN",
+                    allocated_by_user_id=admin.id,
+                    allocation_source="manual",
+                    allocated_at=cancellation.cutoff_at + timedelta(minutes=5),
+                )
             )
+            await session.flush()
             await reverse_payment_receipt(
                 session,
                 receipt_id=allocation.receipt_id,
                 actor_user_id=admin.id,
+                kind=ReceiptReversalKind.REFUND,
                 reason="settle frozen cancellation",
             )
             await reverse_payment_receipt(
                 session,
                 receipt_id=later_receipt.id,
                 actor_user_id=admin.id,
+                kind=ReceiptReversalKind.REFUND,
                 reason="post-cancellation cash is outside frozen authority",
             )
 
@@ -523,6 +544,7 @@ def test_refund_rejects_missing_and_mismatched_cancellation_authority(
                 session,
                 receipt_id=allocation.receipt_id,
                 actor_user_id=admin.id,
+                kind=ReceiptReversalKind.REFUND,
                 reason="exercise frozen authority validation",
             )
             kwargs = {
@@ -630,6 +652,7 @@ def test_corrected_obligation_reanchors_window_without_rewriting_cash_authority(
                 session,
                 receipt_id=allocation.receipt_id,
                 actor_user_id=admin.id,
+                kind=ReceiptReversalKind.REFUND,
                 reason="advertiser cancellation",
             )
 
@@ -689,6 +712,7 @@ def test_frozen_refund_survives_wall_clock_and_waiver_acceptance_alone_does_not_
                 session,
                 receipt_id=allocation.receipt_id,
                 actor_user_id=admin.id,
+                kind=ReceiptReversalKind.REFUND,
                 reason="advertiser cancellation",
             )
 
@@ -838,6 +862,7 @@ def test_actual_expedited_start_closes_refund_eligibility(db_sessionmaker, monke
                 session,
                 receipt_id=allocation.receipt_id,
                 actor_user_id=admin.id,
+                kind=ReceiptReversalKind.REFUND,
                 reason="post-start correction",
             )
 
@@ -888,6 +913,7 @@ def test_concurrent_refunds_cannot_exceed_allocated_cash(postgis_db_sessionmaker
                 session,
                 receipt_id=allocation.receipt_id,
                 actor_user_id=admin.id,
+                kind=ReceiptReversalKind.REFUND,
                 reason="concurrent refund proof",
             )
             await session.commit()
@@ -1072,6 +1098,7 @@ def test_refund_requires_reversed_allocated_receipt_and_complete_record(
                 session,
                 receipt_id=spare.id,
                 actor_user_id=admin.id,
+                kind=ReceiptReversalKind.REFUND,
                 reason="returned unallocated funds",
             )
             with pytest.raises(AppError) as caught:

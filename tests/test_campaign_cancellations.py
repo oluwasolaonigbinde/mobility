@@ -19,6 +19,7 @@ from test_trip_analytics import BASE_TIME, add_pings, create_analytics_graph
 from test_trips import create_trip_ready_graph, ping_payload
 
 from app.core.errors import AppError
+from app.models.billing import ReceiptReversalKind
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_assignment import CampaignActivationEvent, CampaignAssignment
 from app.models.campaign_cancellation import (
@@ -189,6 +190,7 @@ def test_cash_cancellation_freezes_refund_due_before_exact_boundary(
                 session,
                 receipt_id=allocation.receipt_id,
                 actor_user_id=admin.id,
+                kind=ReceiptReversalKind.REFUND,
                 reason="settle the frozen cancellation",
             )
             await session.commit()

@@ -36,7 +36,9 @@ from app.services.billing.common import _campaign, _money, _stored_aware_utc, va
 from app.services.billing.queries import (
     _active_cash_allocations,
     _receipt_status,
+    cancellation_refund_position,
     effective_invoice_obligation,
+    not_received_receipt_ids,
 )
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 
@@ -388,6 +390,12 @@ async def record_refund_settlement(  # noqa: C901
             "Refund recording requires an append-only receipt reversal first",
             status_code=status.HTTP_409_CONFLICT,
         )
+    if await not_received_receipt_ids(session, {receipt.id}):
+        raise AppError(
+            "REFUND_PAYMENT_NOT_RECEIVED",
+            "This payment was not received, so it cannot be refunded",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     allocation = await session.scalar(
         select(ReceiptAllocation).where(
             ReceiptAllocation.receipt_id == receipt.id,
@@ -444,6 +452,13 @@ async def record_refund_settlement(  # noqa: C901
         raise AppError(
             "REFUND_EXCEEDS_CANCELLATION_AUTHORITY",
             "Refund cannot exceed the cancellation's frozen refundable amount",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    position = await cancellation_refund_position(session, cancellation)
+    if refund_amount > position["refund_still_due"]:
+        raise AppError(
+            "REFUND_EXCEEDS_REFUND_STILL_DUE",
+            "Refund cannot exceed the refund still due after payments not received",
             status_code=status.HTTP_409_CONFLICT,
         )
     production = (

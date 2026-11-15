@@ -28,6 +28,7 @@ from app.models.billing import (
     ProductionAuthorityBasis,
     QuoteRequestSource,
     ReceiptMethod,
+    ReceiptReversalKind,
 )
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
@@ -591,6 +592,7 @@ def test_new_work_revalidates_reversed_cash_and_expired_credit(
                 session,
                 receipt_id=allocation.receipt_id,
                 actor_user_id=cash_admin.id,
+                kind=ReceiptReversalKind.REFUND,
                 reason="bank reversal after production",
             )
             with pytest.raises(AppError) as reversed_error:

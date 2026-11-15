@@ -12,6 +12,7 @@ from app.models.billing import (
     CampaignLiabilityReservation,
     CommercialTerms,
     PaymentClass,
+    ReceiptAllocation,
 )
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_assignment import (
@@ -67,19 +68,17 @@ async def effective_trip_end(
     return min(end, cutoff) if cutoff is not None else end
 
 
-async def _cash_remaining_for_terms(session: AsyncSession, commercial_terms_id: UUID) -> Decimal:
+async def _cash_held_for_terms(
+    session: AsyncSession, commercial_terms_id: UUID
+) -> tuple[Decimal, list[ReceiptAllocation]]:
     """F1: only confirmed, unreversed receipts count as cash held.
 
     A refund is recorded only against a reversed receipt, which this basis already
-    excludes, so refunds are not subtracted a second time.
+    excludes, so refunds are not subtracted a second time. The allocations are
+    returned too, so the snapshot freezes exactly which ones were counted (REQ-325b).
     """
-    return sum(
-        (
-            Decimal(item.amount)
-            for item in await _active_cash_allocations(session, commercial_terms_id)
-        ),
-        Decimal("0.00"),
-    )
+    allocations = await _active_cash_allocations(session, commercial_terms_id)
+    return sum((Decimal(item.amount) for item in allocations), Decimal("0.00")), allocations
 
 
 async def _lock_cancellation_campaign(
@@ -170,6 +169,7 @@ async def request_campaign_cancellation(
     eligibility_ends_at = None
     production = None
     refundable_amount = Decimal("0.00")
+    counted_allocations: list[ReceiptAllocation] = []
     if terms is None:
         disposition = CampaignCancellationDisposition.NO_SETTLEMENT
     elif terms.payment_class == PaymentClass.APPROVED_CORPORATE_CREDIT.value:
@@ -178,7 +178,7 @@ async def request_campaign_cancellation(
         funding_authorized_at, eligibility_ends_at, production = await _refund_window(
             session, terms
         )
-        remaining_cash = await _cash_remaining_for_terms(session, terms.id)
+        remaining_cash, held_allocations = await _cash_held_for_terms(session, terms.id)
         if (
             funding_authorized_at is not None
             and eligibility_ends_at is not None
@@ -187,6 +187,7 @@ async def request_campaign_cancellation(
         ):
             disposition = CampaignCancellationDisposition.CASH_REFUND_DUE
             refundable_amount = remaining_cash
+            counted_allocations = held_allocations
         else:
             disposition = CampaignCancellationDisposition.CASH_REFUND_NOT_DUE
 
@@ -287,6 +288,15 @@ async def request_campaign_cancellation(
         "prior_status": prior_status,
         "disposition": disposition.value,
         "refundable_amount": str(refundable_amount),
+        # REQ-325b: exactly the allocations summed into refundable_amount.
+        "counted_allocations": [
+            {
+                "allocation_id": str(item.id),
+                "receipt_id": str(item.receipt_id),
+                "amount": f"{Decimal(item.amount):.2f}",
+            }
+            for item in counted_allocations
+        ],
         "currency": campaign.currency,
         "funding_authorized_at": (
             _aware(funding_authorized_at).isoformat() if funding_authorized_at is not None else None

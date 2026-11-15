@@ -12,7 +12,12 @@ from test_financial_authority import _fixture, _funded_terms
 from test_trips import create_trip_ready_graph
 
 from app.core.errors import AppError
-from app.models.billing import PaymentReceipt, ReceiptLifecycleEvent, ReceiptLifecycleStatus
+from app.models.billing import (
+    PaymentReceipt,
+    ReceiptLifecycleEvent,
+    ReceiptLifecycleStatus,
+    ReceiptReversalKind,
+)
 from app.models.campaign import CampaignReviewEvent, CampaignStatus
 from app.models.campaign_assignment import CampaignActivationEvent
 from app.models.payout import CampaignPayoutRuleRevision
@@ -49,6 +54,7 @@ async def _blocked_reversal(sessionmaker, *, receipt_id, admin_id, receipt_locke
             session,
             receipt_id=receipt_id,
             actor_user_id=admin_id,
+            kind=ReceiptReversalKind.REFUND,
             reason="forced serialization",
         )
         await session.commit()

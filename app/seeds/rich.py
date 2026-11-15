@@ -1445,7 +1445,12 @@ async def _seed_cancelled_campaign(session, *, graph, staff, campaign, state):
     if state != "cancelled":
         return
     name = campaign.name
-    from app.models.billing import CommercialTerms, PaymentReceipt, ReceiptAllocation
+    from app.models.billing import (
+        CommercialTerms,
+        PaymentReceipt,
+        ReceiptAllocation,
+        ReceiptReversalKind,
+    )
     from app.models.complaint import ComplaintReferenceType
     from app.models.user import User
     from app.schemas.campaign_cancellations import CampaignCancellationCreate
@@ -1494,6 +1499,7 @@ async def _seed_cancelled_campaign(session, *, graph, staff, campaign, state):
         session,
         receipt_id=receipt.id,
         actor_user_id=staff[0].id,
+        kind=ReceiptReversalKind.REFUND,
         reason="Return the campaign payment after the advertiser's cancellation.",
     )
     await record_refund_settlement(

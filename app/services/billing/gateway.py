@@ -32,6 +32,7 @@ from app.services.billing.common import MONEY_QUANTUM, _money, _stored_aware_utc
 from app.services.billing.queries import (
     _active_cash_allocations,
     _receipt_status,
+    cancellation_refuses_payment,
     effective_invoice_obligation,
 )
 from app.services.billing.receipts import (
@@ -281,6 +282,37 @@ async def _confirm_verified_gateway_receipt(
     )
 
 
+async def _audit_unallocated_gateway_cash(
+    session: AsyncSession,
+    *,
+    receipt_id: UUID,
+    terms_id: UUID,
+    event: PaymentGatewayEvent,
+    unallocated: Decimal,
+    refused_disposition: str | None,
+) -> None:
+    """Overpayment, or a payment after a no-payment cancellation (REQ-325a), stays visible."""
+    if unallocated <= 0:
+        return
+    metadata = {
+        "commercial_terms_id": str(terms_id),
+        "unallocated_amount": f"{unallocated:.2f}",
+        "currency": event.currency,
+    }
+    action = "billing.gateway_overpayment.recorded"
+    if refused_disposition is not None:
+        action = "billing.gateway_payment_after_cancellation.recorded"
+        metadata["cancellation_disposition"] = refused_disposition
+    await create_audit_event(
+        session,
+        actor_user_id=None,
+        action=action,
+        entity_type="payment_receipt",
+        entity_id=str(receipt_id),
+        metadata=metadata,
+    )
+
+
 async def process_payment_gateway_event(
     session: AsyncSession, *, event_id: UUID
 ) -> PaymentGatewayProcessingAttempt:
@@ -375,12 +407,18 @@ async def process_payment_gateway_event(
     )
     await _confirm_verified_gateway_receipt(session, receipt=receipt, event=event)
     await acquire_campaign_terms_lock(session, terms.campaign_id)
+    # REQ-325a: a payment arriving after a no-payment cancellation stays unallocated.
+    refused_disposition = await cancellation_refuses_payment(session, terms.campaign_id)
     obligation = await effective_invoice_obligation(session, commercial_terms_id=terms.id)
     allocated = sum(
         (Decimal(item.amount) for item in await _active_cash_allocations(session, terms.id)),
         Decimal("0.00"),
     )
-    remaining = max(Decimal("0.00"), obligation - allocated).quantize(MONEY_QUANTUM)
+    remaining = (
+        max(Decimal("0.00"), obligation - allocated).quantize(MONEY_QUANTUM)
+        if refused_disposition is None
+        else Decimal("0.00")
+    )
     allocation_amount = min(Decimal(event.amount), remaining).quantize(MONEY_QUANTUM)
     allocation = None
     if allocation_amount > 0:
@@ -392,20 +430,14 @@ async def process_payment_gateway_event(
             amount=allocation_amount,
             trusted_gateway_event_id=event.id,
         )
-    unallocated = (Decimal(event.amount) - allocation_amount).quantize(MONEY_QUANTUM)
-    if unallocated > 0:
-        await create_audit_event(
-            session,
-            actor_user_id=None,
-            action="billing.gateway_overpayment.recorded",
-            entity_type="payment_receipt",
-            entity_id=str(receipt.id),
-            metadata={
-                "commercial_terms_id": str(terms.id),
-                "unallocated_amount": f"{unallocated:.2f}",
-                "currency": event.currency,
-            },
-        )
+    await _audit_unallocated_gateway_cash(
+        session,
+        receipt_id=receipt.id,
+        terms_id=terms.id,
+        event=event,
+        unallocated=(Decimal(event.amount) - allocation_amount).quantize(MONEY_QUANTUM),
+        refused_disposition=refused_disposition,
+    )
     attempt = PaymentGatewayProcessingAttempt(
         gateway_event_id=event.id,
         attempt_number=attempt_number,

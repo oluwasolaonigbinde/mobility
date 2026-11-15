@@ -103,6 +103,7 @@ _TRANSITION_TERMS = frozenset(
         "end",
         "execute",
         "issue",
+        "not-received",
         "poll",
         "read",
         "read-all",

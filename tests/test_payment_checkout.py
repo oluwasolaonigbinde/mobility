@@ -26,6 +26,7 @@ from app.models.billing import (
     PaymentCheckoutIntent,
     PaymentGatewayEvent,
     PaymentReceipt,
+    ReceiptReversalKind,
 )
 from app.models.user import UserRole
 from app.services.billing.checkout import (
@@ -431,6 +432,7 @@ def test_issued_invoice_checkout_is_stable_and_verified_before_funding(
                     session,
                     receipt_id=receipt_id,
                     actor_user_id=admin.id,
+                    kind=ReceiptReversalKind.REFUND,
                     reason="synthetic gateway reversal",
                 )
                 await session.commit()

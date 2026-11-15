@@ -308,6 +308,7 @@ AUDITED = {
         "billing.production.started"
     ),
     ("POST", "/api/v1/admin/receipts/{receipt_id}/reverse"): ("billing.receipt.reversed"),
+    ("POST", "/api/v1/admin/receipts/{receipt_id}/not-received"): ("billing.receipt.not_received"),
     ("POST", "/api/v1/admin/invoices/{invoice_id}/corrections"): ("billing.invoice.corrected"),
     ("POST", "/api/v1/admin/refunds"): "billing.refund.recorded",
     ("POST", "/api/v1/admin/credit-settlements"): ("billing.credit_settlement.recorded"),

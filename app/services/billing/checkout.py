@@ -36,7 +36,10 @@ from app.models.user import User
 from app.services.audit import create_audit_event
 from app.services.billing.common import MONEY_QUANTUM
 from app.services.billing.invoices import invoice_payment_status
-from app.services.billing.queries import adjusted_invoice_obligation
+from app.services.billing.queries import (
+    adjusted_invoice_obligation,
+    refuse_payment_after_cancellation,
+)
 from app.services.campaigns import get_required_advertiser_context
 from app.services.payout_rule_serialization import database_clock
 
@@ -77,6 +80,7 @@ async def prepare_invoice_payment_checkout(  # noqa: C901
             "Corporate credit invoices are settled under their agreed credit terms",
             status_code=status.HTTP_409_CONFLICT,
         )
+    await refuse_payment_after_cancellation(session, terms.campaign_id)
     _, funded = await invoice_payment_status(session, invoice)
     obligation = await adjusted_invoice_obligation(session, invoice.id)
     amount = (obligation - funded).quantize(MONEY_QUANTUM)

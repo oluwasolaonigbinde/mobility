@@ -13,7 +13,13 @@ from test_financial_authority import _funded_terms
 from test_receipt_allocations import _accepted_terms
 
 from app.core.errors import AppError
-from app.models.billing import Invoice, InvoiceCorrection, InvoiceCorrectionType, ReceiptMethod
+from app.models.billing import (
+    Invoice,
+    InvoiceCorrection,
+    InvoiceCorrectionType,
+    ReceiptMethod,
+    ReceiptReversalKind,
+)
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.user import UserRole
 from app.services.billing import receipts as billing_receipts
@@ -82,6 +88,7 @@ def test_f1_reverse_then_cancel_records_no_cash_refund(db_sessionmaker, monkeypa
                 session,
                 receipt_id=allocation.receipt_id,
                 actor_user_id=admin.id,
+                kind=ReceiptReversalKind.REFUND,
                 reason="transfer returned before cancellation",
             )
             cancellation = await _cancel_for_refund(
@@ -127,6 +134,7 @@ def test_f1_refund_window_starts_at_the_replacement_receipt(db_sessionmaker, mon
                 session,
                 receipt_id=first.receipt_id,
                 actor_user_id=admin.id,
+                kind=ReceiptReversalKind.REFUND,
                 reason="first transfer bounced",
             )
             replaced_at = first.allocated_at + timedelta(hours=10)

@@ -278,6 +278,12 @@ class CancellationPositionRead(BaseModel):
     disposition: str
     currency: str
     refundable_amount: Money
+    refund_still_due: Money = Field(
+        description="Frozen refund less not-received counted cash and refunds of received cash."
+    )
+    owed_back: Money = Field(
+        description="Refunds under this cancellation paid against payments not received."
+    )
 
 
 class RecordedSettlementRead(BaseModel):

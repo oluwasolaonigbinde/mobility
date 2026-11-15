@@ -14,6 +14,7 @@ from app.models.billing import (
     ReceiptLifecycleEvent,
     ReceiptLifecycleStatus,
     ReceiptMethod,
+    ReceiptReversalKind,
 )
 from app.models.user import UserRole
 from app.services.billing.quotes import (
@@ -146,7 +147,11 @@ def test_receipt_lifecycle_and_allocation_are_canonical_and_idempotent(db_sessio
             )
             assert same.id == allocation.id
             await reverse_payment_receipt(
-                session, receipt_id=receipt.id, actor_user_id=admin.id, reason="bank reversal"
+                session,
+                receipt_id=receipt.id,
+                actor_user_id=admin.id,
+                kind=ReceiptReversalKind.REFUND,
+                reason="bank reversal",
             )
             await session.commit()
             statuses = list(
@@ -362,7 +367,11 @@ def test_receipt_refusals_and_retries_preserve_canonical_authority(db_sessionmak
                     expected_currency="NGN",
                 ),
                 lambda: reverse_payment_receipt(
-                    session, receipt_id=uuid4(), actor_user_id=admin.id, reason="missing"
+                    session,
+                    receipt_id=uuid4(),
+                    actor_user_id=admin.id,
+                    kind=ReceiptReversalKind.REFUND,
+                    reason="missing",
                 ),
             ):
                 await refuses(operation, "RECEIPT_NOT_FOUND")
@@ -381,7 +390,11 @@ def test_receipt_refusals_and_retries_preserve_canonical_authority(db_sessionmak
             )
             await refuses(
                 lambda: reverse_payment_receipt(
-                    session, receipt_id=receipt.id, actor_user_id=admin.id, reason="early"
+                    session,
+                    receipt_id=receipt.id,
+                    actor_user_id=admin.id,
+                    kind=ReceiptReversalKind.REFUND,
+                    reason="early",
                 ),
                 "RECEIPT_NOT_CONFIRMED",
             )
@@ -437,17 +450,29 @@ def test_receipt_refusals_and_retries_preserve_canonical_authority(db_sessionmak
             assert allocation.amount == 50
             await refuses(
                 lambda: reverse_payment_receipt(
-                    session, receipt_id=receipt.id, actor_user_id=admin.id, reason=" "
+                    session,
+                    receipt_id=receipt.id,
+                    actor_user_id=admin.id,
+                    kind=ReceiptReversalKind.REFUND,
+                    reason=" ",
                 ),
                 "REVERSAL_REASON_REQUIRED",
             )
             await reverse_payment_receipt(
-                session, receipt_id=receipt.id, actor_user_id=admin.id, reason="bank reversed"
+                session,
+                receipt_id=receipt.id,
+                actor_user_id=admin.id,
+                kind=ReceiptReversalKind.REFUND,
+                reason="bank reversed",
             )
             before = await counts()
             assert (
                 await reverse_payment_receipt(
-                    session, receipt_id=receipt.id, actor_user_id=admin.id, reason="bank reversed"
+                    session,
+                    receipt_id=receipt.id,
+                    actor_user_id=admin.id,
+                    kind=ReceiptReversalKind.REFUND,
+                    reason="bank reversed",
                 )
             ).id == receipt.id
             assert await counts() == before
