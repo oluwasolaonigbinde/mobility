@@ -297,6 +297,14 @@
               }
             ]
           },
+          "unapplied_receipts": {
+            "description": "Gateway payments for these terms that arrived after a no-payment cancellation and were not applied; staff return them outside Cardvert, then reverse them.",
+            "items": {
+              "$ref": "#/components/schemas/UnappliedReceiptRead"
+            },
+            "title": "Unapplied Receipts",
+            "type": "array"
+          },
           "waiver": {
             "anyOf": [
               {
@@ -320,7 +328,8 @@
           "settlements",
           "budget_check",
           "accepts_payments",
-          "issuing_available"
+          "issuing_available",
+          "unapplied_receipts"
         ],
         "title": "AdminCampaignCommercialRead",
         "type": "object"
@@ -8162,14 +8171,28 @@
             "type": "string"
           },
           "owed_back": {
-            "description": "Refunds under this cancellation paid against payments not received.",
-            "title": "Owed Back",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Refunds under this cancellation paid against payments not received; null when the cancellation snapshot predates its counted allocations.",
+            "title": "Owed Back"
           },
           "refund_still_due": {
-            "description": "Frozen refund less not-received counted cash and refunds of received cash.",
-            "title": "Refund Still Due",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Frozen refund less not-received counted cash and refunds of received cash; null when the cancellation snapshot predates its counted allocations.",
+            "title": "Refund Still Due"
           },
           "refundable_amount": {
             "title": "Refundable Amount",
@@ -18622,6 +18645,7 @@
         "additionalProperties": false,
         "properties": {
           "reason": {
+            "maxLength": 1000,
             "title": "Reason",
             "type": "string"
           }
@@ -18709,6 +18733,7 @@
             "$ref": "#/components/schemas/ReceiptReversalKind"
           },
           "reason": {
+            "maxLength": 1000,
             "title": "Reason",
             "type": "string"
           }
@@ -20677,6 +20702,43 @@
           "assignment_id"
         ],
         "title": "TripStartRequest",
+        "type": "object"
+      },
+      "UnappliedReceiptRead": {
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "receipt_id": {
+            "format": "uuid",
+            "title": "Receipt Id",
+            "type": "string"
+          },
+          "status": {
+            "description": "Latest receipt status: confirmed, or reversed once returned.",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "receipt_id",
+          "amount",
+          "currency",
+          "observed_at",
+          "status"
+        ],
+        "title": "UnappliedReceiptRead",
         "type": "object"
       },
       "UserCreate": {
