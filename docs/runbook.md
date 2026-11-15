@@ -515,6 +515,12 @@ currency before allocation. Mismatches remain recorded. Budget checks retain
 D104's accepted-price exception, 80/95 warnings and strict-above-100 pause;
 resume requires a reason and changed funding/budget facts. No automatic resume.
 
+Late GPS uploads are admitted before pay has been calculated for any affected
+Nigeria day. Otherwise the signed acknowledgement drops the batch and the
+audit records it, without storing its coordinates or repricing pay. There is
+no staff apply/discard step. Review pay-changing flags directly as confirmed
+or dismissed; confirmation keeps the hold and never creates an automatic debit.
+
 ### Reversing a payment (REQ-325 / D164)
 
 When you reverse a receipt, choose why:
@@ -542,12 +548,6 @@ advertiser".
 
 Refunds can only come from payments that counted towards the cancellation's
 refund, and each is capped at what that payment counted.
-
-Late GPS uploads are admitted before pay has been calculated for any affected
-Nigeria day. Otherwise the signed acknowledgement drops the batch and the
-audit records it, without storing its coordinates or repricing pay. There is
-no staff apply/discard step. Review pay-changing flags directly as confirmed
-or dismissed; confirmation keeps the hold and never creates an automatic debit.
 
 ## Paystack setup (REQ-324)
 
