@@ -2,6 +2,16 @@ import { ApiError } from "@/lib/api/errors";
 
 // Billing refusals reach the page as a code in the URL; only this fixed copy is shown.
 export const BILLING_ERROR_COPY = {
+  CAMPAIGN_CANCELLED_NO_PAYMENT: "This cancelled campaign cannot accept any more payments.",
+  REFUND_PAYMENT_NOT_RECEIVED: "This payment was not received, so it cannot be refunded.",
+  REFUND_EXCEEDS_REFUND_STILL_DUE: "Enter a refund no larger than the refund still due.",
+  RECEIPT_NOT_REVERSED: "Reverse this payment before marking it as not received.",
+  NOT_RECEIVED_REASON_REQUIRED: "Enter a reason why the payment was not received.",
+  RECEIPT_ALREADY_REVERSED:
+    "This payment has already been reversed. Refresh the page to see its current status.",
+  CANCELLATION_SNAPSHOT_INCOMPLETE:
+    "The cancellation's payment records are incomplete. Ask the team to check them before continuing.",
+  REVERSAL_KIND_REQUIRED: "Choose why you are reversing this payment.",
   INVOICE_NOT_ISSUED: "Payments can be recorded once the invoice is issued.",
   QUOTE_REFERENCE_CONFLICT: "This quote reference is already used. Enter a different reference.",
   FINANCIAL_AUTHORITY_REDUCTION_REQUIRES_GOVERNANCE:

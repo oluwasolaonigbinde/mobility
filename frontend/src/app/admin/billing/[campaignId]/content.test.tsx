@@ -22,9 +22,68 @@ vi.mock("./actions", () => ({
   recordRefundAction: vi.fn(),
   recordRevisionAction: vi.fn(),
   reverseReceiptAction: vi.fn(),
+  recordPaymentNotReceivedAction: vi.fn(),
 }));
 
 import AdminCampaignBillingPage from "./content";
+
+describe("receipt payment status controls", () => {
+  it.each([
+    ["confirmed", false],
+    ["reversed", false],
+    ["reversed", true],
+  ])("shows appropriate controls for %s, not received %s", async (status, notReceived) => {
+    get.mockImplementation(async (path: string) => {
+      if (path.endsWith("/commercial")) return { data: commercial };
+      if (path === "/api/v1/admin/billing")
+        return {
+          data: [
+            {
+              receipt: {
+                id: "receipt-1",
+                external_transaction_id: "TRF-1",
+                amount: "100.00",
+                currency: "NGN",
+              },
+              allocations: [{ commercial_terms_id: "terms-1" }],
+              current_status: status,
+              not_received: notReceived,
+              not_received_reason: notReceived ? "Bank took back the transfer" : null,
+              owed_back_amount: "0.00",
+            },
+          ],
+        };
+      return { data: campaign };
+    });
+    render(
+      await AdminCampaignBillingPage({
+        params: Promise.resolve({ campaignId: "campaign-1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    const radios = screen.queryAllByRole("radio");
+    expect(radios).toHaveLength(status === "confirmed" ? 2 : 0);
+    if (status === "confirmed") {
+      expect(screen.getByRole("radio", { name: "Returning it to the advertiser" })).toHaveAttribute(
+        "value",
+        "refund",
+      );
+      expect(
+        screen.getByRole("radio", { name: "Money never arrived or was taken back" }),
+      ).toHaveAttribute("value", "not_received");
+      for (const radio of radios) {
+        expect(radio).toBeRequired();
+        expect(radio).not.toBeChecked();
+      }
+    }
+    const canMark = status === "reversed" && !notReceived;
+    expect(Boolean(screen.queryByRole("button", { name: "Payment not received" }))).toBe(canMark);
+    expect(Boolean(screen.queryByRole("button", { name: "Record refund" }))).toBe(canMark);
+    if (canMark) expect(screen.getByLabelText("Why was the payment not received?")).toBeRequired();
+    if (notReceived)
+      expect(screen.getByText("Payment not received: Bank took back the transfer")).toBeVisible();
+  });
+});
 
 const campaign = {
   id: "campaign-1",

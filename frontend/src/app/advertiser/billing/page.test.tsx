@@ -72,11 +72,39 @@ function mockBilling(receipts: unknown[], invoices: unknown[] = []) {
         },
       };
     }
-    return { data: { terms: { id: TERMS_ID }, invoices, settlements: [] } };
+    return { data: { terms: { id: TERMS_ID }, accepts_payments: true, invoices, settlements: [] } };
   });
 }
 
 describe("AdvertiserBillingPage", () => {
+  it.each(["0.00", "60000.00"])(
+    "explains a payment not received and owed back %s without staff identity",
+    async (owedBack) => {
+      mockBilling([
+        {
+          receipt: receipt("r1", "TRF-001"),
+          current_status: "reversed",
+          not_received: true,
+          not_received_reason: "The bank took back this payment",
+          owed_back_amount: owedBack,
+          events: [{ actor_user_id: "private-staff-id", actor_name: "Private Staff" }],
+          allocations: [],
+        },
+      ]);
+      render(await AdvertiserBillingPage({}));
+      const payments = screen.getByRole("region", { name: "Payments" });
+      expect(within(payments).getByText("Payment not received")).toBeVisible();
+      expect(within(payments).getByText("The bank took back this payment")).toBeVisible();
+      expect(within(payments).queryByText(/Reversed/)).toBeNull();
+      expect(Boolean(within(payments).queryByText(/You owe back/))).toBe(owedBack !== "0.00");
+      if (owedBack !== "0.00")
+        expect(within(payments).getByText(/You owe back/)).toHaveTextContent(
+          "This payment didn't reach us, but a refund was already sent. You owe back ₦60,000.00.",
+        );
+      expect(payments).not.toHaveTextContent("private-staff-id");
+      expect(payments).not.toHaveTextContent("Private Staff");
+    },
+  );
   it("shows one bank-transfer instruction and no unavailable checkout", async () => {
     mockBilling(
       [],
@@ -266,7 +294,11 @@ describe("AdvertiserBillingPage money rules", () => {
   });
   const many = (from: number, count: number) =>
     Array.from({ length: count }, (_, index) => campaign(from + index));
-  function mockPages(pages: Page[], invoicesFor: (campaignId: string) => unknown[]) {
+  function mockPages(
+    pages: Page[],
+    invoicesFor: (campaignId: string) => unknown[],
+    acceptsPayments = true,
+  ) {
     get.mockImplementation(async (path?: string, options?: Options) => {
       if (path === "/api/v1/advertiser/billing") return { data: [] };
       if (path === "/api/v1/advertiser/campaigns") {
@@ -275,7 +307,12 @@ describe("AdvertiserBillingPage money rules", () => {
       }
       const campaignId = options!.params!.path!.campaign_id!;
       return {
-        data: { terms: { id: TERMS_ID }, invoices: invoicesFor(campaignId), settlements: [] },
+        data: {
+          terms: { id: TERMS_ID },
+          accepts_payments: acceptsPayments,
+          invoices: invoicesFor(campaignId),
+          settlements: [],
+        },
       };
     });
   }
@@ -300,13 +337,34 @@ describe("AdvertiserBillingPage money rules", () => {
     },
   );
 
-  it("leaves a cancelled campaign's invoice out of To pay but keeps it in history", async () => {
+  it.each(["active", "cancelled"])(
+    "leaves a %s campaign that refuses payments out of To pay but keeps it in history",
+    async (status) => {
+      mockPages([{ items: [campaign(1, status)], total: 1 }], (id) => [owed(id)], false);
+      render(await AdvertiserBillingPage({}));
+      expect(screen.getByText("Nothing to pay right now.")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Pay invoice online" })).toBeNull();
+      const history = screen.getByRole("region", { name: "Invoice history" });
+      expect(within(history).getByRole("link", { name: "Campaign 1" })).toBeInTheDocument();
+    },
+  );
+
+  it("includes a cancelled campaign that accepts payments and has a balance", async () => {
     mockPages([{ items: [campaign(1, "cancelled")], total: 1 }], (id) => [owed(id)]);
     render(await AdvertiserBillingPage({}));
-    expect(screen.getByText("Nothing to pay right now.")).toBeInTheDocument();
+    const toPay = screen.getByRole("region", { name: "To pay" });
+    expect(within(toPay).getByText("Campaign 1")).toBeVisible();
+    expect(within(toPay).getByText("₦150,000.00 left to pay")).toBeVisible();
+    expect(within(toPay).getByRole("button", { name: "Pay invoice online" })).toBeVisible();
+  });
+
+  it("excludes a cancelled campaign with no balance even if it accepts payments", async () => {
+    mockPages([{ items: [campaign(1, "cancelled")], total: 1 }], (id) => [
+      owed(id, { funded_amount: "250000.00", payment_status: "paid" }),
+    ]);
+    render(await AdvertiserBillingPage({}));
+    expect(screen.getByText("Nothing to pay right now.")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Pay invoice online" })).toBeNull();
-    const history = screen.getByRole("region", { name: "Invoice history" });
-    expect(within(history).getByRole("link", { name: "Campaign 1" })).toBeInTheDocument();
   });
 
   it("reads every campaign page, so a payable campaign on page 2 is shown", async () => {

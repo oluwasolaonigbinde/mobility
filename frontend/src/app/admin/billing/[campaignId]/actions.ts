@@ -145,9 +145,32 @@ export async function reverseReceiptAction(
   receiptId: string,
   formData: FormData,
 ) {
+  const kind = formData.get("kind");
+  if (kind !== "refund" && kind !== "not_received") {
+    redirect(`${path(campaignId)}?error=REVERSAL_KIND_REQUIRED#money`);
+  }
   try {
     const api = createApiClient(await getSessionToken());
     await api.POST("/api/v1/admin/receipts/{receipt_id}/reverse", {
+      params: { path: { receipt_id: receiptId } },
+      body: { kind, reason: String(formData.get("reason") ?? "").trim() },
+    });
+  } catch (error) {
+    unstable_rethrow(error);
+    fail(campaignId, error);
+  }
+  revalidatePath(path(campaignId));
+  redirect(`${path(campaignId)}?saved=reversal#money`);
+}
+
+export async function recordPaymentNotReceivedAction(
+  campaignId: string,
+  receiptId: string,
+  formData: FormData,
+) {
+  try {
+    const api = createApiClient(await getSessionToken());
+    await api.POST("/api/v1/admin/receipts/{receipt_id}/not-received", {
       params: { path: { receipt_id: receiptId } },
       body: { reason: String(formData.get("reason") ?? "").trim() },
     });
@@ -156,7 +179,7 @@ export async function reverseReceiptAction(
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
-  redirect(`${path(campaignId)}?saved=reversal#money`);
+  redirect(`${path(campaignId)}?saved=not_received#money`);
 }
 
 export async function recordRefundAction(

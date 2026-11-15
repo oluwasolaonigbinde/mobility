@@ -96,9 +96,9 @@ export default async function AdvertiserBillingPage({
     }
   }
   const payable = commercialHistory.flatMap(({ campaign, commercial }) =>
-    campaign.status === "cancelled"
-      ? []
-      : commercial.invoices.map((invoice) => ({ campaign, invoice })),
+    commercial.accepts_payments
+      ? commercial.invoices.map((invoice) => ({ campaign, invoice }))
+      : [],
   );
   // An unpaid invoice with unreadable amounts is unknown, never "Nothing to pay".
   if (
@@ -248,11 +248,23 @@ export default async function AdvertiserBillingPage({
                                 : "amber"
                           }
                         >
-                          {receiptStatusLabel[entry.current_status ?? "recorded"] ?? "Other"}
+                          {entry.not_received
+                            ? "Payment not received"
+                            : (receiptStatusLabel[entry.current_status ?? "recorded"] ?? "Other")}
                         </StatusChip>
                       </div>
                     </div>
-                    {entry.current_status === "reversed" ? (
+                    {entry.not_received ? (
+                      <div className="text-muted mt-3 space-y-1 text-sm">
+                        <p>{entry.not_received_reason}</p>
+                        {Number(entry.owed_back_amount) > 0 ? (
+                          <p>
+                            This payment didn&apos;t reach us, but a refund was already sent. You
+                            owe back {formatMoney(entry.owed_back_amount, entry.receipt.currency)}.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : entry.current_status === "reversed" ? (
                       <p className="text-muted mt-3 text-sm">
                         Reversed – this payment no longer counts towards any campaign.
                       </p>

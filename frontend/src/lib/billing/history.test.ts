@@ -18,6 +18,9 @@ function entry(receiptId: string, termsIds: string[]): BillingHistoryEntry {
       payer_name: "Advertiser",
       provider: "manual",
     },
+    not_received: false,
+    not_received_reason: null,
+    owed_back_amount: "0.00",
     current_status: "confirmed",
     events: [],
     allocations: termsIds.map((commercialTermsId, index) => ({

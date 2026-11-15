@@ -20,9 +20,87 @@ import {
   recordInvoiceCorrectionAction,
   recordManualTransferAction,
   recordRevisionAction,
+  reverseReceiptAction,
+  recordPaymentNotReceivedAction,
 } from "./actions";
 import { billingErrorCopy } from "./billing-errors";
 import { ApiError } from "@/lib/api/errors";
+
+describe("receipt reversal and payment not received", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    post.mockResolvedValue({ data: {} });
+  });
+  it.each(["refund", "not_received"])("sends the selected reversal kind %s", async (kind) => {
+    const form = new FormData();
+    form.set("kind", kind);
+    form.set("reason", " Bank confirmation ");
+    await expect(reverseReceiptAction("campaign-1", "receipt-1", form)).rejects.toThrow(
+      "redirect:/admin/campaigns/campaign-1?saved=reversal#money",
+    );
+    expect(post).toHaveBeenCalledWith("/api/v1/admin/receipts/{receipt_id}/reverse", {
+      params: { path: { receipt_id: "receipt-1" } },
+      body: { kind, reason: "Bank confirmation" },
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/campaigns/campaign-1");
+  });
+  it.each(["", "other"])("requires a valid explicit kind (%s)", async (kind) => {
+    const form = new FormData();
+    if (kind) form.set("kind", kind);
+    await expect(reverseReceiptAction("campaign-1", "receipt-1", form)).rejects.toThrow(
+      "?error=REVERSAL_KIND_REQUIRED#money",
+    );
+    expect(post).not.toHaveBeenCalled();
+    expect(billingErrorCopy("REVERSAL_KIND_REQUIRED")).toBe(
+      "Choose why you are reversing this payment.",
+    );
+  });
+  it("marks a reversed payment not received through its receipt endpoint", async () => {
+    const form = new FormData();
+    form.set("reason", " Chargeback confirmed ");
+    await expect(recordPaymentNotReceivedAction("campaign-1", "receipt-1", form)).rejects.toThrow(
+      "redirect:/admin/campaigns/campaign-1?saved=not_received#money",
+    );
+    expect(post).toHaveBeenCalledWith("/api/v1/admin/receipts/{receipt_id}/not-received", {
+      params: { path: { receipt_id: "receipt-1" } },
+      body: { reason: "Chargeback confirmed" },
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/campaigns/campaign-1");
+  });
+  it.each([
+    ["CAMPAIGN_CANCELLED_NO_PAYMENT", "This cancelled campaign cannot accept any more payments."],
+    ["REFUND_PAYMENT_NOT_RECEIVED", "This payment was not received, so it cannot be refunded."],
+    ["REFUND_EXCEEDS_REFUND_STILL_DUE", "Enter a refund no larger than the refund still due."],
+    ["RECEIPT_NOT_REVERSED", "Reverse this payment before marking it as not received."],
+    ["NOT_RECEIVED_REASON_REQUIRED", "Enter a reason why the payment was not received."],
+    [
+      "RECEIPT_ALREADY_REVERSED",
+      "This payment has already been reversed. Refresh the page to see its current status.",
+    ],
+    [
+      "CANCELLATION_SNAPSHOT_INCOMPLETE",
+      "The cancellation's payment records are incomplete. Ask the team to check them before continuing.",
+    ],
+  ])("redirects %s with friendly fixed copy", async (code, copy) => {
+    post.mockRejectedValueOnce(new ApiError(409, { code, message: "private backend detail" }));
+    await expect(
+      recordPaymentNotReceivedAction("campaign-1", "receipt-1", new FormData()),
+    ).rejects.toThrow(`redirect:/admin/campaigns/campaign-1?error=${code}#money`);
+    expect(billingErrorCopy(code)).toBe(copy);
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+  it("keeps reversal API errors in the existing redirect pattern", async () => {
+    post.mockRejectedValueOnce(
+      new ApiError(409, { code: "RECEIPT_ALREADY_REVERSED", message: "private" }),
+    );
+    const form = new FormData();
+    form.set("kind", "refund");
+    await expect(reverseReceiptAction("campaign-1", "receipt-1", form)).rejects.toThrow(
+      "?error=RECEIPT_ALREADY_REVERSED#money",
+    );
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
 
 describe("recordRevisionAction", () => {
   beforeEach(() => vi.clearAllMocks());

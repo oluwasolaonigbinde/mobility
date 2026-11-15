@@ -28,6 +28,7 @@ import {
   recordManualTransferAction,
   recordProductionStartAction,
   recordRefundAction,
+  recordPaymentNotReceivedAction,
   reverseReceiptAction,
 } from "./actions";
 import { billingErrorCopy } from "./billing-errors";
@@ -524,11 +525,28 @@ export default async function AdminCampaignBillingPage({
                   {adminStatus(receiptEntry.current_status ?? "recorded", "receipt")}
                 </StatusChip>
               </div>
-              {receiptEntry.current_status !== "reversed" ? (
+              {receiptEntry.not_received ? (
+                <p className="text-muted mt-3 text-sm">
+                  Payment not received: {receiptEntry.not_received_reason}
+                </p>
+              ) : receiptEntry.current_status !== "reversed" ? (
                 <form
                   action={reverseReceiptAction.bind(null, campaignId, receiptEntry.receipt.id)}
-                  className="mt-5 flex flex-col gap-3 sm:flex-row"
+                  className="mt-5 grid gap-3"
                 >
+                  <fieldset className="space-y-2 text-sm">
+                    <legend className="mb-2 font-medium">
+                      Why are you reversing this payment?
+                    </legend>
+                    <label className="flex items-center gap-2">
+                      <input type="radio" name="kind" value="refund" required />
+                      Returning it to the advertiser
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input type="radio" name="kind" value="not_received" required />
+                      Money never arrived or was taken back
+                    </label>
+                  </fieldset>
                   <input
                     name="reason"
                     required
@@ -540,23 +558,38 @@ export default async function AdminCampaignBillingPage({
                   </Button>
                 </form>
               ) : (
-                <form
-                  action={recordRefundAction.bind(
-                    null,
-                    campaignId,
-                    termsId,
-                    receiptEntry.receipt.id,
-                  )}
-                  className="mt-5 grid gap-3 md:grid-cols-2"
-                >
-                  <Field name="amount" label="Refund amount" required />
-                  <Field name="settlement_provider" label="Paid back through" required />
-                  <Field name="external_reference" label="Reference" required />
-                  <Field name="reason" label="Settlement reason" required />
-                  <div className="md:col-span-2">
-                    <Button type="submit">Record refund</Button>
-                  </div>
-                </form>
+                <>
+                  <form
+                    action={recordRefundAction.bind(
+                      null,
+                      campaignId,
+                      termsId,
+                      receiptEntry.receipt.id,
+                    )}
+                    className="mt-5 grid gap-3 md:grid-cols-2"
+                  >
+                    <Field name="amount" label="Refund amount" required />
+                    <Field name="settlement_provider" label="Paid back through" required />
+                    <Field name="external_reference" label="Reference" required />
+                    <Field name="reason" label="Settlement reason" required />
+                    <div className="md:col-span-2">
+                      <Button type="submit">Record refund</Button>
+                    </div>
+                  </form>
+                  <form
+                    action={recordPaymentNotReceivedAction.bind(
+                      null,
+                      campaignId,
+                      receiptEntry.receipt.id,
+                    )}
+                    className="mt-5 grid gap-3"
+                  >
+                    <Field name="reason" label="Why was the payment not received?" required />
+                    <Button type="submit" variant="danger">
+                      Payment not received
+                    </Button>
+                  </form>
+                </>
               )}
             </Panel>
           ))}
