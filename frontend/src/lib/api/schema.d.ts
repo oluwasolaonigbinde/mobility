@@ -4468,6 +4468,11 @@ export interface components {
             /** Settlements */
             settlements: components["schemas"]["SettlementRead"][];
             terms: components["schemas"]["CommercialTermsRead"] | null;
+            /**
+             * Unapplied Receipts
+             * @description Gateway payments for these terms that arrived after a no-payment cancellation and were not applied; staff return them outside Cardvert, then reverse them.
+             */
+            unapplied_receipts: components["schemas"]["UnappliedReceiptRead"][];
             waiver: components["schemas"]["WaiverRead"] | null;
         };
         /** AdminCampaignListItemRead */
@@ -7398,14 +7403,14 @@ export interface components {
             disposition: string;
             /**
              * Owed Back
-             * @description Refunds under this cancellation paid against payments not received.
+             * @description Refunds under this cancellation paid against payments not received; null when the cancellation snapshot predates its counted allocations.
              */
-            owed_back: string;
+            owed_back: string | null;
             /**
              * Refund Still Due
-             * @description Frozen refund less not-received counted cash and refunds of received cash.
+             * @description Frozen refund less not-received counted cash and refunds of received cash; null when the cancellation snapshot predates its counted allocations.
              */
-            refund_still_due: string;
+            refund_still_due: string | null;
             /** Refundable Amount */
             refundable_amount: string;
         };
@@ -12237,6 +12242,28 @@ export interface components {
             metadata?: {
                 [key: string]: unknown;
             };
+        };
+        /** UnappliedReceiptRead */
+        UnappliedReceiptRead: {
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /**
+             * Receipt Id
+             * Format: uuid
+             */
+            receipt_id: string;
+            /**
+             * Status
+             * @description Latest receipt status: confirmed, or reversed once returned.
+             */
+            status: string;
         };
         /** UserCreate */
         UserCreate: {

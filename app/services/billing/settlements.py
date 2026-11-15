@@ -36,6 +36,7 @@ from app.services.billing.common import _campaign, _money, _stored_aware_utc, va
 from app.services.billing.queries import (
     _active_cash_allocations,
     _receipt_status,
+    cancellation_counted_allocations,
     cancellation_refund_position,
     effective_invoice_obligation,
     not_received_receipt_ids,
@@ -408,6 +409,15 @@ async def record_refund_settlement(  # noqa: C901
             "Only allocated cash can be refunded",
             status_code=status.HTTP_409_CONFLICT,
         )
+    # REQ-325: only payments counted into the frozen refund can be refunded under it.
+    counted = await cancellation_counted_allocations(session, cancellation)
+    counted_amounts = [item["amount"] for item in counted if item["receipt_id"] == receipt.id]
+    if not counted_amounts:
+        raise AppError(
+            "REFUND_RECEIPT_NOT_COUNTED",
+            "This payment was not counted in the cancellation's refund",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     prior = Decimal(
         await session.scalar(
             select(func.coalesce(func.sum(RefundSettlement.amount), 0)).where(
@@ -454,7 +464,23 @@ async def record_refund_settlement(  # noqa: C901
             "Refund cannot exceed the cancellation's frozen refundable amount",
             status_code=status.HTTP_409_CONFLICT,
         )
-    position = await cancellation_refund_position(session, cancellation)
+    counted_refunded = Decimal(
+        await session.scalar(
+            select(func.coalesce(func.sum(RefundSettlement.amount), 0)).where(
+                RefundSettlement.receipt_id == receipt.id,
+                RefundSettlement.cancellation_id == cancellation.id,
+                RefundSettlement.disposition == SettlementDisposition.REFUND_RECORDED,
+            )
+        )
+        or 0
+    )
+    if counted_refunded + refund_amount > sum(counted_amounts, Decimal("0.00")):
+        raise AppError(
+            "REFUND_EXCEEDS_COUNTED_PAYMENT",
+            "Refund cannot exceed the amount of this payment counted in the cancellation",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    position = await cancellation_refund_position(session, cancellation, counted=counted)
     if refund_amount > position["refund_still_due"]:
         raise AppError(
             "REFUND_EXCEEDS_REFUND_STILL_DUE",

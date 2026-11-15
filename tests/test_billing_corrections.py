@@ -520,7 +520,8 @@ def test_late_refund_booking_uses_frozen_cancellation_and_exact_retry_identity(
                     external_reference="REFUND-FROZEN-CANCEL-OVER-CAP",
                     reason="must not expand frozen cancellation authority",
                 )
-            assert aggregate_cap.value.code == "REFUND_EXCEEDS_CANCELLATION_AUTHORITY"
+            # REQ-325: cash allocated after the cutoff was not counted in the frozen refund.
+            assert aggregate_cap.value.code == "REFUND_RECEIPT_NOT_COUNTED"
 
     asyncio.run(scenario())
 

@@ -33,6 +33,40 @@ import {
 } from "./actions";
 import { billingErrorCopy } from "./billing-errors";
 
+const ADVERTISER_SEES_REASON = "The advertiser sees this reason.";
+
+function ReverseReceiptForm({ campaignId, receiptId }: { campaignId: string; receiptId: string }) {
+  return (
+    <form
+      action={reverseReceiptAction.bind(null, campaignId, receiptId)}
+      className="mt-5 grid gap-3"
+    >
+      <fieldset className="space-y-2 text-sm">
+        <legend className="mb-2 font-medium">Why are you reversing this payment?</legend>
+        <label className="flex items-center gap-2">
+          <input type="radio" name="kind" value="refund" required />
+          Returning it to the advertiser
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="radio" name="kind" value="not_received" required />
+          Money never arrived or was taken back
+        </label>
+      </fieldset>
+      <input
+        name="reason"
+        required
+        maxLength={1000}
+        placeholder="Reversal reason"
+        className="border-edge bg-raised h-11 flex-1 rounded-lg border px-3.5 text-sm"
+      />
+      <p className="micro text-muted">{ADVERTISER_SEES_REASON}</p>
+      <Button type="submit" variant="danger">
+        Record reversal
+      </Button>
+    </form>
+  );
+}
+
 export default async function AdminCampaignBillingPage({
   params,
   searchParams,
@@ -530,33 +564,7 @@ export default async function AdminCampaignBillingPage({
                   Payment not received: {receiptEntry.not_received_reason}
                 </p>
               ) : receiptEntry.current_status !== "reversed" ? (
-                <form
-                  action={reverseReceiptAction.bind(null, campaignId, receiptEntry.receipt.id)}
-                  className="mt-5 grid gap-3"
-                >
-                  <fieldset className="space-y-2 text-sm">
-                    <legend className="mb-2 font-medium">
-                      Why are you reversing this payment?
-                    </legend>
-                    <label className="flex items-center gap-2">
-                      <input type="radio" name="kind" value="refund" required />
-                      Returning it to the advertiser
-                    </label>
-                    <label className="flex items-center gap-2">
-                      <input type="radio" name="kind" value="not_received" required />
-                      Money never arrived or was taken back
-                    </label>
-                  </fieldset>
-                  <input
-                    name="reason"
-                    required
-                    placeholder="Reversal reason"
-                    className="border-edge bg-raised h-11 flex-1 rounded-lg border px-3.5 text-sm"
-                  />
-                  <Button type="submit" variant="danger">
-                    Record reversal
-                  </Button>
-                </form>
+                <ReverseReceiptForm campaignId={campaignId} receiptId={receiptEntry.receipt.id} />
               ) : (
                 <>
                   <form
@@ -584,7 +592,13 @@ export default async function AdminCampaignBillingPage({
                     )}
                     className="mt-5 grid gap-3"
                   >
-                    <Field name="reason" label="Why was the payment not received?" required />
+                    <Field
+                      name="reason"
+                      label="Why was the payment not received?"
+                      maxLength={1000}
+                      required
+                    />
+                    <p className="micro text-muted">{ADVERTISER_SEES_REASON}</p>
                     <Button type="submit" variant="danger">
                       Payment not received
                     </Button>
@@ -594,6 +608,37 @@ export default async function AdminCampaignBillingPage({
             </Panel>
           ))}
         </div>
+      ) : null}
+
+      {commercial.unapplied_receipts.length ? (
+        <Panel className="mt-6 p-6">
+          <h2 className="font-display text-xl font-semibold">
+            Paid after the campaign was cancelled
+          </h2>
+          <p className="text-muted mt-1 text-sm">
+            This payment arrived after the campaign was cancelled, so it wasn&apos;t applied. Return
+            it to the advertiser outside Cardvert (for example a Paystack refund), then reverse it
+            here as &apos;Returning it to the advertiser&apos;.
+          </p>
+          <ul className="mt-4 space-y-5">
+            {commercial.unapplied_receipts.map((item) => (
+              <li key={item.receipt_id} className="border-edge border-t pt-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <p className="text-sm">
+                    <span className="font-mono">{formatMoney(item.amount, item.currency)}</span> ·
+                    Paid {formatDate(item.observed_at)}
+                  </p>
+                  <StatusChip tone={item.status === "reversed" ? "green" : "amber"}>
+                    {item.status === "reversed" ? "Returned" : "Not returned yet"}
+                  </StatusChip>
+                </div>
+                {item.status !== "reversed" ? (
+                  <ReverseReceiptForm campaignId={campaignId} receiptId={item.receipt_id} />
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </Panel>
       ) : null}
 
       {commercial.settlements.length ? (

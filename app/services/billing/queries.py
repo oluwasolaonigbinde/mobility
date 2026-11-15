@@ -13,6 +13,7 @@ from app.models.billing import (
     Invoice,
     InvoiceCorrection,
     InvoiceCorrectionType,
+    PaymentGatewayEvent,
     PaymentReceipt,
     ReceiptAllocation,
     ReceiptLifecycleEvent,
@@ -68,10 +69,10 @@ async def not_received_receipt_ids(session: AsyncSession, receipt_ids) -> set[UU
     )
 
 
-async def cancellation_counted_allocations(
+async def _snapshot_counted_allocations(
     session: AsyncSession, cancellation: CampaignCancellation
-) -> list[dict]:
-    """The allocations frozen into ``refundable_amount`` by the revision-1 snapshot."""
+) -> list[dict] | None:
+    """The revision-1 counted allocations, or None for a snapshot that predates them."""
     snapshot = await session.scalar(
         select(CampaignCancellationSettlementRevision.snapshot).where(
             CampaignCancellationSettlementRevision.cancellation_id == cancellation.id,
@@ -79,11 +80,7 @@ async def cancellation_counted_allocations(
         )
     )
     if snapshot is None or "counted_allocations" not in snapshot:
-        raise AppError(
-            "CANCELLATION_SNAPSHOT_INCOMPLETE",
-            "The cancellation snapshot does not record its counted allocations",
-            status_code=status.HTTP_409_CONFLICT,
-        )
+        return None
     return [
         {
             "allocation_id": UUID(item["allocation_id"]),
@@ -94,12 +91,30 @@ async def cancellation_counted_allocations(
     ]
 
 
-async def cancellation_refund_position(
+async def cancellation_counted_allocations(
     session: AsyncSession, cancellation: CampaignCancellation
+) -> list[dict]:
+    """The allocations frozen into ``refundable_amount`` by the revision-1 snapshot."""
+    counted = await _snapshot_counted_allocations(session, cancellation)
+    if counted is None:
+        raise AppError(
+            "CANCELLATION_SNAPSHOT_INCOMPLETE",
+            "The cancellation snapshot does not record its counted allocations",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    return counted
+
+
+async def cancellation_refund_position(
+    session: AsyncSession,
+    cancellation: CampaignCancellation,
+    *,
+    counted: list[dict] | None = None,
 ) -> dict[str, Decimal]:
     """REQ-325b: one refund position shared by refund recording and the closeout read."""
     zero = Decimal("0.00")
-    counted = await cancellation_counted_allocations(session, cancellation)
+    if counted is None:
+        counted = await cancellation_counted_allocations(session, cancellation)
     refunds = (
         await session.execute(
             select(RefundSettlement.receipt_id, func.sum(RefundSettlement.amount))
@@ -140,14 +155,20 @@ async def campaign_settlement_position(
     )
     cancellation_read = None
     if cancellation is not None:
-        position = await cancellation_refund_position(session, cancellation)
+        # An older snapshot without counted allocations leaves the refund position unknown.
+        counted = await _snapshot_counted_allocations(session, cancellation)
+        position = (
+            await cancellation_refund_position(session, cancellation, counted=counted)
+            if counted is not None
+            else None
+        )
         cancellation_read = {
             "cutoff_at": cancellation.cutoff_at,
             "disposition": cancellation.disposition,
             "currency": cancellation.currency,
             "refundable_amount": cancellation.refundable_amount,
-            "refund_still_due": position["refund_still_due"],
-            "owed_back": position["owed_back"],
+            "refund_still_due": position["refund_still_due"] if position else None,
+            "owed_back": position["owed_back"] if position else None,
         }
     query = select(RefundSettlement).where(RefundSettlement.campaign_id == campaign_id)
     total = await session.scalar(select(func.count()).select_from(query.subquery()))
@@ -172,6 +193,45 @@ async def campaign_settlement_position(
         ],
         "settlements_total": total,
     }
+
+
+async def unapplied_gateway_receipts(session: AsyncSession, *, campaign_id: UUID) -> list[dict]:
+    """REQ-325a: gateway payments for this campaign's terms left unapplied by a cancellation.
+
+    Staff return them outside Cardvert and then reverse them; reversed ones stay listed.
+    """
+    if await cancellation_refuses_payment(session, campaign_id) is None:
+        return []
+    terms = await _commercial_terms_for_campaign(session, campaign_id)
+    if terms is None:
+        return []
+    receipts = await session.scalars(
+        select(PaymentReceipt)
+        .join(
+            ReceiptLifecycleEvent,
+            (ReceiptLifecycleEvent.receipt_id == PaymentReceipt.id)
+            & (ReceiptLifecycleEvent.status == ReceiptLifecycleStatus.CONFIRMED),
+        )
+        .join(
+            PaymentGatewayEvent, PaymentGatewayEvent.id == ReceiptLifecycleEvent.provider_event_id
+        )
+        .where(
+            PaymentReceipt.organization_id == terms.organization_id,
+            func.lower(PaymentGatewayEvent.commercial_terms_reference) == str(terms.id),
+            ~exists().where(ReceiptAllocation.receipt_id == PaymentReceipt.id),
+        )
+        .order_by(PaymentReceipt.observed_at, PaymentReceipt.id)
+    )
+    return [
+        {
+            "receipt_id": receipt.id,
+            "amount": receipt.amount,
+            "currency": receipt.currency,
+            "observed_at": receipt.observed_at,
+            "status": await _receipt_status(session, receipt.id),
+        }
+        for receipt in receipts
+    ]
 
 
 async def _receipt_status(session: AsyncSession, receipt_id: UUID) -> str | None:

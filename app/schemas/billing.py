@@ -381,12 +381,12 @@ class ProductionStartRead(ORMRead):
 
 class ReceiptReverse(BaseModel):
     kind: ReceiptReversalKind
-    reason: str
+    reason: str = Field(max_length=1000)
 
 
 class ReceiptNotReceivedCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    reason: str
+    reason: str = Field(max_length=1000)
 
 
 class ReceiptNonReceiptRead(ORMRead):
@@ -495,8 +495,22 @@ class CampaignCommercialRead(BaseModel):
     )
 
 
+class UnappliedReceiptRead(BaseModel):
+    receipt_id: UUID
+    amount: Decimal
+    currency: str
+    observed_at: datetime
+    status: str = Field(description="Latest receipt status: confirmed, or reversed once returned.")
+
+
 class AdminCampaignCommercialRead(CampaignCommercialRead):
     issuing_available: bool
+    unapplied_receipts: list[UnappliedReceiptRead] = Field(
+        description=(
+            "Gateway payments for these terms that arrived after a no-payment cancellation "
+            "and were not applied; staff return them outside Cardvert, then reverse them."
+        )
+    )
 
 
 class PaymentWebhookReceipt(BaseModel):
