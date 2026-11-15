@@ -93,6 +93,7 @@ def payable_graph(*, invoice_status=InvoiceStatus.ISSUED.value, payment_class=No
     terms = SimpleNamespace(
         id=uuid4(),
         organization_id=organization.id,
+        campaign_id=uuid4(),
         payment_class=payment_class or PaymentClass.STANDARD_PREPAID.value,
         currency=currency,
     )
@@ -125,7 +126,14 @@ async def install_prepare_dependencies(
     async def audit(*_args, **_kwargs):
         return None
 
+    async def payable_after_cancellation(*_args, **_kwargs):
+        # The cancellation refusal is exercised against PostgreSQL in test_req325_not_received.
+        return None
+
     monkeypatch.setattr(billing_checkout, "get_required_advertiser_context", context)
+    monkeypatch.setattr(
+        billing_checkout, "refuse_payment_after_cancellation", payable_after_cancellation
+    )
     monkeypatch.setattr(billing_checkout, "invoice_payment_status", payment_status)
     monkeypatch.setattr(billing_checkout, "adjusted_invoice_obligation", adjusted)
     monkeypatch.setattr(billing_checkout, "database_clock", clock)

@@ -307,7 +307,7 @@ def test_every_migrated_call_site_has_bounded_disable_write_serialization(
                 monkeypatch=monkeypatch,
             )
 
-    assert len(CALL_SITE_IDS) == 37
+    assert len(CALL_SITE_IDS) == 38
     asyncio.run(asyncio.wait_for(scenario(), timeout=120))
 
 
