@@ -2099,6 +2099,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/receipts/{receipt_id}/not-received": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Record Receipt Not Received */
+        post: operations["admin_record_receipt_not_received_api_v1_admin_receipts__receipt_id__not_received_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/receipts/{receipt_id}/reverse": {
         parameters: {
             query?: never;
@@ -4432,6 +4449,11 @@ export interface components {
         };
         /** AdminCampaignCommercialRead */
         AdminCampaignCommercialRead: {
+            /**
+             * Accepts Payments
+             * @description False once a cancellation leaves nothing more to owe; a cancelled campaign with remaining debts still accepts payment.
+             */
+            accepts_payments: boolean;
             budget_check: components["schemas"]["BudgetCheckRead"] | null;
             expedited_waiver_copy: components["schemas"]["WaiverCopyRead"];
             financial_authority: components["schemas"]["FinancialAuthorityRead"] | null;
@@ -5424,6 +5446,11 @@ export interface components {
         };
         /** AdvertiserCampaignCommercialRead */
         AdvertiserCampaignCommercialRead: {
+            /**
+             * Accepts Payments
+             * @description False once a cancellation leaves nothing more to owe; a cancelled campaign with remaining debts still accepts payment.
+             */
+            accepts_payments: boolean;
             budget_check: components["schemas"]["BudgetCheckRead"] | null;
             expedited_waiver_copy: components["schemas"]["WaiverCopyRead"];
             financial_authority: components["schemas"]["AdvertiserFinancialAuthorityRead"] | null;
@@ -6185,6 +6212,18 @@ export interface components {
             current_status: string | null;
             /** Events */
             events: components["schemas"]["ReceiptEventRead"][];
+            /**
+             * Not Received
+             * @description Staff recorded that this payment never arrived or was taken back.
+             */
+            not_received: boolean;
+            /** Not Received Reason */
+            not_received_reason: string | null;
+            /**
+             * Owed Back Amount
+             * @description Refunds already paid against this receipt while its payment was not received, in the receipt currency.
+             */
+            owed_back_amount: string;
             receipt: components["schemas"]["ReceiptRead"];
         };
         /** BudgetCheckRead */
@@ -7357,6 +7396,16 @@ export interface components {
             cutoff_at: string;
             /** Disposition */
             disposition: string;
+            /**
+             * Owed Back
+             * @description Refunds under this cancellation paid against payments not received.
+             */
+            owed_back: string;
+            /**
+             * Refund Still Due
+             * @description Frozen refund less not-received counted cash and refunds of received cash.
+             */
+            refund_still_due: string;
             /** Refundable Amount */
             refundable_amount: string;
         };
@@ -11347,6 +11396,36 @@ export interface components {
             /** Status */
             status: string;
         };
+        /** ReceiptNonReceiptRead */
+        ReceiptNonReceiptRead: {
+            /**
+             * Actor User Id
+             * Format: uuid
+             */
+            actor_user_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Reason */
+            reason: string;
+            /**
+             * Receipt Id
+             * Format: uuid
+             */
+            receipt_id: string;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+        };
+        /** ReceiptNotReceivedCreate */
+        ReceiptNotReceivedCreate: {
+            /** Reason */
+            reason: string;
+        };
         /** ReceiptRead */
         ReceiptRead: {
             /** Amount */
@@ -11379,8 +11458,15 @@ export interface components {
             /** Provider */
             provider: string;
         };
+        /**
+         * ReceiptReversalKind
+         * @description Why a confirmed receipt is reversed (REQ-325).
+         * @enum {string}
+         */
+        ReceiptReversalKind: "refund" | "not_received";
         /** ReceiptReverse */
         ReceiptReverse: {
+            kind: components["schemas"]["ReceiptReversalKind"];
             /** Reason */
             reason: string;
         };
@@ -17006,6 +17092,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuoteRevisionRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_record_receipt_not_received_api_v1_admin_receipts__receipt_id__not_received_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                receipt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptNotReceivedCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptNonReceiptRead"];
                 };
             };
             /** @description Request validation failed */

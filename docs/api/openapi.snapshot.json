@@ -214,6 +214,11 @@
       },
       "AdminCampaignCommercialRead": {
         "properties": {
+          "accepts_payments": {
+            "description": "False once a cancellation leaves nothing more to owe; a cancelled campaign with remaining debts still accepts payment.",
+            "title": "Accepts Payments",
+            "type": "boolean"
+          },
           "budget_check": {
             "anyOf": [
               {
@@ -314,6 +319,7 @@
           "production_start",
           "settlements",
           "budget_check",
+          "accepts_payments",
           "issuing_available"
         ],
         "title": "AdminCampaignCommercialRead",
@@ -2975,6 +2981,11 @@
       },
       "AdvertiserCampaignCommercialRead": {
         "properties": {
+          "accepts_payments": {
+            "description": "False once a cancellation leaves nothing more to owe; a cancelled campaign with remaining debts still accepts payment.",
+            "title": "Accepts Payments",
+            "type": "boolean"
+          },
           "budget_check": {
             "anyOf": [
               {
@@ -3070,7 +3081,8 @@
           "waiver",
           "production_start",
           "settlements",
-          "budget_check"
+          "budget_check",
+          "accepts_payments"
         ],
         "title": "AdvertiserCampaignCommercialRead",
         "type": "object"
@@ -4984,6 +4996,28 @@
             "title": "Events",
             "type": "array"
           },
+          "not_received": {
+            "description": "Staff recorded that this payment never arrived or was taken back.",
+            "title": "Not Received",
+            "type": "boolean"
+          },
+          "not_received_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Not Received Reason"
+          },
+          "owed_back_amount": {
+            "description": "Refunds already paid against this receipt while its payment was not received, in the receipt currency.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Owed Back Amount",
+            "type": "string"
+          },
           "receipt": {
             "$ref": "#/components/schemas/ReceiptRead"
           }
@@ -4992,7 +5026,10 @@
           "receipt",
           "events",
           "allocations",
-          "current_status"
+          "current_status",
+          "not_received",
+          "not_received_reason",
+          "owed_back_amount"
         ],
         "title": "BillingHistoryEntry",
         "type": "object"
@@ -8124,6 +8161,16 @@
             "title": "Disposition",
             "type": "string"
           },
+          "owed_back": {
+            "description": "Refunds under this cancellation paid against payments not received.",
+            "title": "Owed Back",
+            "type": "string"
+          },
+          "refund_still_due": {
+            "description": "Frozen refund less not-received counted cash and refunds of received cash.",
+            "title": "Refund Still Due",
+            "type": "string"
+          },
           "refundable_amount": {
             "title": "Refundable Amount",
             "type": "string"
@@ -8133,7 +8180,9 @@
           "cutoff_at",
           "disposition",
           "currency",
-          "refundable_amount"
+          "refundable_amount",
+          "refund_still_due",
+          "owed_back"
         ],
         "title": "CancellationPositionRead",
         "type": "object"
@@ -18532,6 +18581,57 @@
         "title": "ReceiptEventRead",
         "type": "object"
       },
+      "ReceiptNonReceiptRead": {
+        "properties": {
+          "actor_user_id": {
+            "format": "uuid",
+            "title": "Actor User Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "receipt_id": {
+            "format": "uuid",
+            "title": "Receipt Id",
+            "type": "string"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "receipt_id",
+          "reason",
+          "actor_user_id",
+          "recorded_at"
+        ],
+        "title": "ReceiptNonReceiptRead",
+        "type": "object"
+      },
+      "ReceiptNotReceivedCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "ReceiptNotReceivedCreate",
+        "type": "object"
+      },
       "ReceiptRead": {
         "properties": {
           "amount": {
@@ -18594,14 +18694,27 @@
         "title": "ReceiptRead",
         "type": "object"
       },
+      "ReceiptReversalKind": {
+        "description": "Why a confirmed receipt is reversed (REQ-325).",
+        "enum": [
+          "refund",
+          "not_received"
+        ],
+        "title": "ReceiptReversalKind",
+        "type": "string"
+      },
       "ReceiptReverse": {
         "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ReceiptReversalKind"
+          },
           "reason": {
             "title": "Reason",
             "type": "string"
           }
         },
         "required": [
+          "kind",
           "reason"
         ],
         "title": "ReceiptReverse",
@@ -30682,6 +30795,64 @@
           }
         ],
         "summary": "Admin Record Quote Revision",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/receipts/{receipt_id}/not-received": {
+      "post": {
+        "operationId": "admin_record_receipt_not_received_api_v1_admin_receipts__receipt_id__not_received_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Receipt Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiptNotReceivedCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptNonReceiptRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Record Receipt Not Received",
         "tags": [
           "Commercial billing"
         ]
