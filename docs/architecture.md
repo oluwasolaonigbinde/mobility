@@ -1798,12 +1798,22 @@ transfer that has not been observed.
     `REFUND_PAYMENT_NOT_RECEIVED`.
   - A refund above the refund still due is refused with
     `REFUND_EXCEEDS_REFUND_STILL_DUE`.
+  - A refund from a receipt the freeze didn't count is refused with
+    `REFUND_RECEIPT_NOT_COUNTED`.
+  - Refunds from one receipt above its counted amount are refused with
+    `REFUND_EXCEEDS_COUNTED_PAYMENT`.
+  - An older snapshot without the counted list shows no refund position and
+    refuses refunds with `CANCELLATION_SNAPSHOT_INCOMPLETE`.
 - **Cancelled campaigns.** After a `cash_refund_due` or `no_settlement`
   cancellation:
   - checkout and manual allocation are refused with
     `CAMPAIGN_CANCELLED_NO_PAYMENT`;
   - a late gateway payment is recorded as `confirmed_unallocated`, with audit
-    `billing.gateway_payment_after_cancellation.recorded`.
+    `billing.gateway_payment_after_cancellation.recorded`;
+  - the admin commercial read lists it under `unapplied_receipts`. Staff
+    return it outside Cardvert and reverse it as `refund`. It can't be refunded
+    inside Cardvert, because a refund settlement needs allocation and window
+    authority, as with the N1 overpayment.
   - The commercial read's `accepts_payments` drives the advertiser "To pay"
     list.
 - **Locks.** Not-received paths take the receipt row lock, then each

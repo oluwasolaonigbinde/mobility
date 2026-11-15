@@ -532,9 +532,14 @@ amount owed back by the advertiser. Recover it outside Cardvert. Cardvert
 doesn't yet record the repayment.
 
 After a cancellation where the advertiser is owed a refund or paid nothing,
-Cardvert refuses new payments on that campaign. A late online payment is kept
-unassigned, so you can reverse it as "Returning it to the advertiser" and
-refund it.
+Cardvert refuses new payments on that campaign. Don't record a bank transfer
+that arrives after that; return it to the advertiser. A late online payment is
+kept unassigned and listed under **Paid after the campaign was cancelled** on
+the campaign's billing page. Return it outside Cardvert (for example a Paystack
+refund), then reverse it there as "Returning it to the advertiser".
+
+Refunds can only come from payments that counted towards the cancellation's
+refund, and each is capped at what that payment counted.
 
 ## Paystack setup (REQ-324)
 

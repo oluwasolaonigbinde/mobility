@@ -400,7 +400,8 @@ a linked request receives a fixed reply atomically and is not auto-resolved.
   outside Cardvert.
 - After a cancellation where the advertiser is owed a refund or nothing was
   paid, Cardvert refuses further payments on that campaign. A late online payment
-  is kept unassigned, so staff can refund it. After a cancellation once work had
+  is kept unassigned and shown to staff, who return it outside Cardvert and then
+  mark it returned. After a cancellation once work had
   started, or on corporate credit, the advertiser can still see and pay any
   remaining balance.
 
