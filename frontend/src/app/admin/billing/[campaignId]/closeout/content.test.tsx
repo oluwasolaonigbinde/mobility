@@ -40,6 +40,23 @@ describe("recorded campaign money position", () => {
         expect(screen.getByText("Owed back by the advertiser: ₦60.00")).toBeVisible();
     },
   );
+  it("says the refund position is not available for an older cancellation", async () => {
+    api.mockResolvedValue({
+      ...position,
+      cancellation: {
+        cutoff_at: "2026-09-14T10:00:00Z",
+        disposition: "cash_refund_due",
+        currency: "NGN",
+        refundable_amount: "100.00",
+        refund_still_due: null,
+        owed_back: null,
+      },
+    });
+    render(await MoneyCloseoutPage(props));
+    expect(screen.getByText("Recorded refundable amount: ₦100.00")).toBeVisible();
+    expect(screen.getByText("Refund still due: Not available for this cancellation")).toBeVisible();
+    expect(screen.queryByText(/Owed back by the advertiser/)).toBeNull();
+  });
   beforeEach(() => vi.resetAllMocks());
   it("does not infer cancellation, settlements or completion from an empty position", async () => {
     api.mockResolvedValue(position);

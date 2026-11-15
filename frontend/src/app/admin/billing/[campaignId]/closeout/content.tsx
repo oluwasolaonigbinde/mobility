@@ -48,12 +48,15 @@ export default async function MoneyCloseoutPage({
             </p>
             <p>
               Refund still due:{" "}
-              {formatMoneyExact(
-                position.cancellation.refund_still_due,
-                position.cancellation.currency,
-              )}
+              {position.cancellation.refund_still_due === null
+                ? "Not available for this cancellation"
+                : formatMoneyExact(
+                    position.cancellation.refund_still_due,
+                    position.cancellation.currency,
+                  )}
             </p>
-            {Number(position.cancellation.owed_back) > 0 ? (
+            {position.cancellation.owed_back !== null &&
+            Number(position.cancellation.owed_back) > 0 ? (
               <p>
                 Owed back by the advertiser:{" "}
                 {formatMoneyExact(position.cancellation.owed_back, position.cancellation.currency)}

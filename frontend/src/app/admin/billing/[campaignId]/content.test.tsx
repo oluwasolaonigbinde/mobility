@@ -80,6 +80,10 @@ describe("receipt payment status controls", () => {
     expect(Boolean(screen.queryByRole("button", { name: "Payment not received" }))).toBe(canMark);
     expect(Boolean(screen.queryByRole("button", { name: "Record refund" }))).toBe(canMark);
     if (canMark) expect(screen.getByLabelText("Why was the payment not received?")).toBeRequired();
+    // Both staff reason fields warn that the advertiser reads the reason.
+    expect(screen.queryAllByText("The advertiser sees this reason.")).toHaveLength(
+      status === "confirmed" || canMark ? 1 : 0,
+    );
     if (notReceived)
       expect(screen.getByText("Payment not received: Bank took back the transfer")).toBeVisible();
   });
@@ -122,10 +126,84 @@ const commercial = {
     },
   ],
   settlements: [],
+  unapplied_receipts: [] as unknown[],
   financial_authority: null,
   production_start: null,
   waiver: null,
 };
+
+describe("payments that arrived after the campaign was cancelled", () => {
+  it("lists them, offers the reversal while unreturned and shows returned ones", async () => {
+    get.mockImplementation(async (path: string) => {
+      if (path.endsWith("/commercial"))
+        return {
+          data: {
+            ...commercial,
+            unapplied_receipts: [
+              {
+                receipt_id: "late-1",
+                amount: "25.00",
+                currency: "NGN",
+                observed_at: "2026-11-10T09:00:00Z",
+                status: "confirmed",
+              },
+              {
+                receipt_id: "late-2",
+                amount: "40.00",
+                currency: "NGN",
+                observed_at: "2026-11-11T09:00:00Z",
+                status: "reversed",
+              },
+            ],
+          },
+        };
+      if (path === "/api/v1/admin/billing") return { data: [] };
+      return { data: campaign };
+    });
+    render(
+      await AdminCampaignBillingPage({
+        params: Promise.resolve({ campaignId: "campaign-1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Paid after the campaign was cancelled" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        "This payment arrived after the campaign was cancelled, so it wasn't applied. Return it to the advertiser outside Cardvert (for example a Paystack refund), then reverse it here as 'Returning it to the advertiser'.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("₦25.00")).toBeVisible();
+    expect(screen.getByText("Not returned yet")).toBeVisible();
+    expect(screen.getByText("Returned")).toBeVisible();
+    // Only the unreturned payment gets the reversal form.
+    expect(screen.getAllByRole("button", { name: "Record reversal" })).toHaveLength(1);
+    expect(screen.getByRole("radio", { name: "Returning it to the advertiser" })).toHaveAttribute(
+      "value",
+      "refund",
+    );
+    expect(screen.getByPlaceholderText("Reversal reason")).toHaveAttribute("maxlength", "1000");
+    expect(screen.getByText("The advertiser sees this reason.")).toBeVisible();
+  });
+
+  it("shows no section when nothing arrived after the cancellation", async () => {
+    get.mockImplementation(async (path: string) =>
+      path.endsWith("/commercial")
+        ? { data: commercial }
+        : path === "/api/v1/admin/billing"
+          ? { data: [] }
+          : { data: campaign },
+    );
+    render(
+      await AdminCampaignBillingPage({
+        params: Promise.resolve({ campaignId: "campaign-1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    expect(screen.queryByText("Paid after the campaign was cancelled")).toBeNull();
+  });
+});
 
 describe("admin campaign billing page", () => {
   it.each(["107500.00", "50000.00"])("shows the true balance after %s paid", async (funded) => {
