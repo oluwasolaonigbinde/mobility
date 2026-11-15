@@ -6,12 +6,12 @@
   },
   "critical": {
     "backend": {
-      "branch_covered": 6267,
-      "branch_percent": 84.2112,
-      "branch_total": 7442,
-      "line_covered": 29590,
-      "line_percent": 94.5126,
-      "line_total": 31308,
+      "branch_covered": 6286,
+      "branch_percent": 84.3079,
+      "branch_total": 7456,
+      "line_covered": 29664,
+      "line_percent": 94.5406,
+      "line_total": 31377,
       "paths": [
         "app/__init__.py",
         "app/adapters/banks.py",
@@ -318,12 +318,12 @@
       ]
     },
     "frontend": {
-      "branch_covered": 7929,
-      "branch_percent": 81.2148,
-      "branch_total": 9763,
-      "line_covered": 7541,
-      "line_percent": 87.5639,
-      "line_total": 8612,
+      "branch_covered": 7992,
+      "branch_percent": 81.5177,
+      "branch_total": 9804,
+      "line_covered": 7647,
+      "line_percent": 88.3433,
+      "line_total": 8656,
       "paths": [
         "frontend/src/app/admin/advertisers/[organizationId]/company/actions.ts",
         "frontend/src/app/admin/advertisers/[organizationId]/invite-actions.ts",
@@ -346,6 +346,7 @@
         "frontend/src/app/admin/assignments/cancel-button.tsx",
         "frontend/src/app/admin/assignments/new/assignment-form.tsx",
         "frontend/src/app/admin/billing/[campaignId]/actions.ts",
+        "frontend/src/app/admin/billing/[campaignId]/billing-errors.ts",
         "frontend/src/app/admin/billing/[campaignId]/closeout/content.tsx",
         "frontend/src/app/admin/billing/[campaignId]/content.tsx",
         "frontend/src/app/admin/billing/[campaignId]/invoices/[invoiceId]/content.tsx",
@@ -541,6 +542,7 @@
         "frontend/src/app/driver-account-setup/actions.ts",
         "frontend/src/app/driver-account-setup/page.tsx",
         "frontend/src/app/driver-account-setup/setup-form.tsx",
+        "frontend/src/app/driver-account-setup/setup-link.tsx",
         "frontend/src/app/driver/(portal)/assignments/actions.ts",
         "frontend/src/app/driver/(portal)/assignments/assignment-actions.tsx",
         "frontend/src/app/driver/(portal)/assignments/installation-evidence-actions.tsx",
@@ -588,6 +590,7 @@
         "frontend/src/app/reset-password/actions.ts",
         "frontend/src/app/reset-password/page.tsx",
         "frontend/src/app/reset-password/reset-form.tsx",
+        "frontend/src/app/reset-password/reset-link.tsx",
         "frontend/src/components/auth/change-password-form.tsx",
         "frontend/src/components/brand/portal-icon.tsx",
         "frontend/src/components/brand/van-preview.tsx",
@@ -656,6 +659,7 @@
         "frontend/src/instrumentation.ts",
         "frontend/src/lib/advertiser/budget-display.ts",
         "frontend/src/lib/advertiser/campaign-visuals.ts",
+        "frontend/src/lib/advertiser/company-profile-errors.ts",
         "frontend/src/lib/advertiser/company-profile.ts",
         "frontend/src/lib/advertiser/engagement.ts",
         "frontend/src/lib/advertiser/page-data.ts",
@@ -667,6 +671,7 @@
         "frontend/src/lib/api/mutation-boundary.ts",
         "frontend/src/lib/api/navigation.ts",
         "frontend/src/lib/api/public-action-error.ts",
+        "frontend/src/lib/api/route-params.ts",
         "frontend/src/lib/api/route-response.ts",
         "frontend/src/lib/apply/application-link.ts",
         "frontend/src/lib/apply/continuation.ts",
@@ -734,28 +739,31 @@
       ]
     }
   },
-  "eligible_inventory_sha256": "d587760779aab7fa6794dd981dd8a9e29284f31157eebb56d43ed30c4a5d9bfd",
+  "eligible_inventory_sha256": "3a12170d31da7c3507947a736e900ca2970b9e605e1725a530b05fecc17e9f10",
   "global": {
-    "branch_covered": 14196,
-    "branch_percent": 82.5109,
-    "branch_total": 17205,
-    "line_covered": 37131,
-    "line_percent": 93.0135,
-    "line_total": 39920
+    "branch_covered": 14278,
+    "branch_percent": 82.7231,
+    "branch_total": 17260,
+    "line_covered": 37311,
+    "line_percent": 93.2006,
+    "line_total": 40033
   },
   "policy_sha256": "f4346d9fa3f4116f842cd17d853cd0ad0079121d9ffac691da19a93e8ef5ec33",
   "refresh": {
     "inventory_changes": {
       "added": [
-        "app/jobs/demo_live_car.py",
-        "app/seeds/live_car.py"
+        "frontend/src/app/admin/billing/[campaignId]/billing-errors.ts",
+        "frontend/src/app/driver-account-setup/setup-link.tsx",
+        "frontend/src/app/reset-password/reset-link.tsx",
+        "frontend/src/lib/advertiser/company-profile-errors.ts",
+        "frontend/src/lib/api/route-params.ts"
       ],
       "removed": []
     },
-    "previous_baseline_sha256": "911055d354acd75edd1c53317002b32c089841de3217fd180e487659653a2ee4",
-    "reason": "REQ-312: demo live car refresher and release contract changed eligible files"
+    "previous_baseline_sha256": "faeafce16a83b5dda4395ad258e30ec8a3c2d2961a5e3f5253915bc158870822",
+    "reason": "REQ-313 to REQ-321 audit wrap-up: money, access, link and worker fixes; CI run 43655965974 on f15a7ab6"
   },
-  "source_parent_sha": "f1756b8f1631de6ed53a6afb75b6f4dc707e33a7",
-  "source_sha256": "d0549080304082aad3f0662255c04b961af8b7a5666cd16187e7732f038551a6",
+  "source_parent_sha": "f15a7ab66d977aefc18dd39e73f14cdbf37bcf6d",
+  "source_sha256": "29f98102f4d161d5f1e0b2ad91287d569555f24c830bfcf2c121909a16e88137",
   "version": 3
 }
