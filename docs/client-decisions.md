@@ -406,7 +406,7 @@ a linked request receives a fixed reply atomically and is not auto-resolved.
   remaining balance.
 
 **History:**
-- **2026-11-15** — Owner, 15 Nov 2026 (D164 / REQ-325): reversals now record whether the money is being returned or never arrived. Previously every reversal looked the same, so a bounce after a cancellation still left the frozen refund due and staff could record a refund of money never received. Cancelled campaigns could also take new payments. Built in `6299ef5f`.
+- **2026-11-15** — Owner, 15 Nov 2026 (D164 / REQ-325): reversals now record whether the money is being returned or never arrived. Previously every reversal looked the same, so a bounce after a cancellation still left the frozen refund due and staff could record a refund of money never received. Cancelled campaigns could also take new payments. Built in `6299ef5f`, with review fixes in `ab68f4a0`, `c2b3693a` and `ed719ef3`.
 - **2026-11-03** — Plain-language preview instruction replaces the version-1 earlier-start consent with `advertiser-expedited-v2` and a new exact-wording hash (D153, REQ-288). The previous wording requested expedited production and described refund eligibility ending when it actually starts. The trigger remains actual production start; no migration or existing receipt rewrite.
 - **2026-08-14** — Client confirmed the window and waiver (Q24, D18, D20).
 - **2026-10-19** — Owner specifies D97's staff integration: reason1–1000, explicit effect confirmation, same request identity on retry and optional same-campaign cancellation thread; the backend performs the existing cutoff and atomic reply. The request itself and support resolution remain separate from cancellation. Phase 2 source/integration is in progress; no completion or deployment claim.

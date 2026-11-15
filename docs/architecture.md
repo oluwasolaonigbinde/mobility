@@ -4411,7 +4411,7 @@ Money semantics outside D161 are unchanged. Launch gates are unchanged.
 
 **REQ-324, Paystack (§15.3, §15.4):**
 - No code change. The owner reports that the account is approved.
-- Test Mode is proven through an isolated local stack. Its throwaway edge exposes only `/api/v1/webhooks/*` behind a temporary quick tunnel; the evidence is in `issues/testing/`.
+- The Test Mode public-webhook proof is still pending. It is planned on an isolated local stack whose throwaway edge exposes only `/api/v1/webhooks/paystack` behind a temporary quick tunnel. It is waiting for the owner to set the dashboard's test webhook URL, which needs the account's emailed sign-in code.
 - Live use still needs the hosted production domain, the live key and production approval, so W2-01C stays blocked on those.
 
 Money semantics outside D164 are unchanged. Launch gates are unchanged.
