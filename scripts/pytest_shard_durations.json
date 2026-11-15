@@ -1,487 +1,499 @@
 {
   "execution_sha256": {
-    "r17-backend-shard-0": "2b173e43679b5d1d50d4224189024e6dbe1e53fde7d6e5a154157a4718f06f71",
-    "r17-backend-shard-1": "df412fb5cf36915de453000144df6111deefa3a2a21c041b040a84017c64d3b5",
-    "r17-backend-shard-2": "e716a9a6bca7f36aa3fdb6b04e076a00cf45fca89c2e33ded5bd9d2f504fb9dc",
-    "r17-backend-shard-3": "7fe37fb76f9d3c9ede89cae8d6bd5120691eb60f98852210a47efe917f762df4",
-    "r17-backend-shard-4": "7431e000d99b5e5155687fc1249290dc3f10396ba9b510ac1e238d71318b627b",
-    "r17-backend-shard-5": "9411bc8a4fa501627b18ceed9fbcb0dc9fed4a94415f70cb423d7aa61db4b3e8"
+    "r17-backend-shard-0": "cde29dfa06298d47ed37a76b33ab8d27b92dc209d2d4cd39f32e39dff9e0ace3",
+    "r17-backend-shard-1": "1f11b7f43d3f9c14f5e67934ac715da136a4086a24d4b2adcd646b70e4ad9750",
+    "r17-backend-shard-2": "50c8a7a31e7ab2e8c64ec49835522d0510b4cf0dd2818c2c767a55801295f527",
+    "r17-backend-shard-3": "550fcd63abdc7e7dcfab475669168afaa12dea1719a4ba03a235ef4c62743324",
+    "r17-backend-shard-4": "4ff84a17fff55ac2fa0a615fd28b013aa889a621918b241362e78c79c9b8e3e1",
+    "r17-backend-shard-5": "ac24f33009866b5a73992784e50f3b334ef41ddc834ccdba2ec333476c609134"
   },
   "files": {
     "tests/test_admin_company_directory.py": {
-      "seconds": 20.676999999999996,
+      "seconds": 19.916999999999998,
       "test_count": 9
     },
     "tests/test_admin_hub_reads.py": {
-      "seconds": 24.53,
+      "seconds": 23.784,
       "test_count": 8
     },
     "tests/test_admin_trip_review_reads.py": {
-      "seconds": 60.97700000000001,
+      "seconds": 54.3,
       "test_count": 15
     },
     "tests/test_admin_users.py": {
-      "seconds": 87.04000000000002,
+      "seconds": 92.663,
       "test_count": 34
     },
     "tests/test_admin_worklist_reads.py": {
-      "seconds": 13.626999999999999,
+      "seconds": 13.089,
       "test_count": 4
+    },
+    "tests/test_advertiser_payment_privacy.py": {
+      "seconds": 5.985,
+      "test_count": 1
     },
     "tests/test_advertiser_reports.py": {
-      "seconds": 22.813,
-      "test_count": 4
+      "seconds": 6.381,
+      "test_count": 2
     },
     "tests/test_architecture_current_state.py": {
-      "seconds": 24.810000000000002,
+      "seconds": 15.978,
       "test_count": 4
     },
     "tests/test_assignment_activity.py": {
-      "seconds": 33.503,
+      "seconds": 35.693999999999996,
       "test_count": 9
     },
     "tests/test_assignment_payout_freeze.py": {
-      "seconds": 35.43,
+      "seconds": 28.695,
       "test_count": 9
     },
     "tests/test_audit_events.py": {
-      "seconds": 15.865,
+      "seconds": 12.283,
       "test_count": 8
     },
     "tests/test_audit_route_coverage.py": {
-      "seconds": 14.994,
+      "seconds": 13.870000000000001,
       "test_count": 6
     },
     "tests/test_audit_subjects.py": {
-      "seconds": 72.376,
-      "test_count": 42
+      "seconds": 71.60099999999998,
+      "test_count": 43
     },
     "tests/test_auth.py": {
-      "seconds": 79.171,
+      "seconds": 63.388,
       "test_count": 47
     },
     "tests/test_auth_command_races_r09.py": {
-      "seconds": 75.467,
+      "seconds": 80.13000000000002,
       "test_count": 36
     },
     "tests/test_authorization_denial_matrix.py": {
-      "seconds": 129.086,
+      "seconds": 110.56900000000003,
       "test_count": 18
     },
     "tests/test_automatic_payouts.py": {
-      "seconds": 347.284,
-      "test_count": 68
+      "seconds": 338.942,
+      "test_count": 72
     },
     "tests/test_backup_retention.py": {
-      "seconds": 0.033,
+      "seconds": 0.039,
       "test_count": 2
     },
     "tests/test_bank_capture.py": {
-      "seconds": 0.193,
+      "seconds": 0.131,
       "test_count": 23
     },
     "tests/test_billing_api.py": {
-      "seconds": 16.179000000000002,
-      "test_count": 5
+      "seconds": 18.941,
+      "test_count": 9
     },
     "tests/test_billing_concurrency.py": {
-      "seconds": 9.524,
+      "seconds": 8.713000000000001,
       "test_count": 3
     },
     "tests/test_billing_corrections.py": {
-      "seconds": 36.370999999999995,
+      "seconds": 36.77,
       "test_count": 15
     },
     "tests/test_budget_enforcement.py": {
-      "seconds": 4.284000000000001,
+      "seconds": 4.746,
       "test_count": 10
     },
     "tests/test_budget_enforcement_w2_01e.py": {
-      "seconds": 7.9110000000000005,
+      "seconds": 6.568,
       "test_count": 3
     },
     "tests/test_business_health.py": {
-      "seconds": 27.448,
-      "test_count": 18
+      "seconds": 52.814,
+      "test_count": 27
     },
     "tests/test_campaign_assignments.py": {
-      "seconds": 249.48699999999997,
+      "seconds": 231.82900000000004,
       "test_count": 50
     },
     "tests/test_campaign_cancellations.py": {
-      "seconds": 28.261,
+      "seconds": 25.891000000000002,
       "test_count": 7
     },
     "tests/test_campaign_changes.py": {
-      "seconds": 33.572,
+      "seconds": 32.437,
       "test_count": 12
     },
     "tests/test_campaign_creatives.py": {
-      "seconds": 25.015,
+      "seconds": 23.9,
       "test_count": 7
     },
     "tests/test_campaign_engagement.py": {
-      "seconds": 0.095,
+      "seconds": 0.065,
       "test_count": 18
     },
     "tests/test_campaign_enquiries.py": {
-      "seconds": 19.569999999999997,
-      "test_count": 28
+      "seconds": 14.120000000000001,
+      "test_count": 29
     },
     "tests/test_campaign_ingestion_locks.py": {
-      "seconds": 14.577000000000002,
+      "seconds": 12.274999999999999,
       "test_count": 4
     },
     "tests/test_campaign_live_positions.py": {
-      "seconds": 81.80000000000001,
-      "test_count": 21
+      "seconds": 133.35800000000003,
+      "test_count": 36
     },
     "tests/test_campaign_managed_creatives.py": {
-      "seconds": 19.819,
+      "seconds": 21.942999999999998,
       "test_count": 6
     },
     "tests/test_campaign_managed_creatives_local_integration.py": {
-      "seconds": 3.81,
+      "seconds": 3.572,
       "test_count": 1
     },
     "tests/test_campaign_qr_links.py": {
-      "seconds": 56.05200000000001,
+      "seconds": 58.238,
       "test_count": 14
     },
     "tests/test_campaign_resume.py": {
-      "seconds": 39.155,
+      "seconds": 39.440000000000005,
       "test_count": 11
     },
     "tests/test_campaign_zones.py": {
-      "seconds": 46.918000000000006,
+      "seconds": 42.65800000000001,
       "test_count": 14
     },
     "tests/test_campaigns.py": {
-      "seconds": 87.419,
+      "seconds": 77.19200000000001,
       "test_count": 32
     },
     "tests/test_changed_coverage_policy.py": {
-      "seconds": 8.571,
-      "test_count": 37
+      "seconds": 13.01399999999999,
+      "test_count": 96
     },
     "tests/test_ci_integration_authority_r02.py": {
-      "seconds": 22.751000000000023,
-      "test_count": 35
+      "seconds": 18.678000000000026,
+      "test_count": 36
     },
     "tests/test_ci_runtime_dependencies.py": {
-      "seconds": 0.011000000000000001,
+      "seconds": 0.01,
       "test_count": 4
     },
     "tests/test_clamav_adapter.py": {
-      "seconds": 0.007,
+      "seconds": 0.004,
       "test_count": 2
     },
     "tests/test_commercial_terms.py": {
-      "seconds": 25.182,
+      "seconds": 25.339,
       "test_count": 10
     },
     "tests/test_company_profiles.py": {
-      "seconds": 11.76,
+      "seconds": 9.42,
       "test_count": 5
     },
     "tests/test_complaints.py": {
-      "seconds": 153.44100000000003,
+      "seconds": 156.599,
       "test_count": 26
     },
     "tests/test_complaints_service.py": {
-      "seconds": 31.097,
+      "seconds": 26.009,
       "test_count": 7
     },
     "tests/test_config.py": {
-      "seconds": 1.1240000000000003,
+      "seconds": 1.0260000000000005,
       "test_count": 91
     },
     "tests/test_contacts_and_recovery.py": {
-      "seconds": 66.119,
+      "seconds": 68.61000000000001,
       "test_count": 30
     },
     "tests/test_corrected_reports.py": {
-      "seconds": 22.356,
+      "seconds": 18.080000000000002,
       "test_count": 8
     },
     "tests/test_create_staff.py": {
-      "seconds": 5.944,
+      "seconds": 4.484,
       "test_count": 3
     },
     "tests/test_creative_reviews.py": {
-      "seconds": 18.916,
+      "seconds": 16.453000000000003,
       "test_count": 4
     },
     "tests/test_crypto_envelope.py": {
-      "seconds": 0.024000000000000007,
+      "seconds": 0.023000000000000007,
       "test_count": 19
     },
     "tests/test_data_lifecycle_jobs.py": {
-      "seconds": 106.09199999999998,
+      "seconds": 102.94999999999999,
       "test_count": 26
     },
     "tests/test_database_baseline.py": {
-      "seconds": 75.408,
+      "seconds": 53.128,
       "test_count": 5
     },
     "tests/test_deploy_templates.py": {
-      "seconds": 2.1790000000000003,
+      "seconds": 1.7359999999999995,
       "test_count": 22
     },
     "tests/test_deployed_security_boundary.py": {
-      "seconds": 0.017,
+      "seconds": 0.013,
       "test_count": 5
     },
     "tests/test_development_preview.py": {
-      "seconds": 25.039,
+      "seconds": 19.278000000000002,
       "test_count": 2
     },
     "tests/test_disbursement_worker.py": {
-      "seconds": 168.157,
+      "seconds": 140.654,
       "test_count": 8
     },
     "tests/test_disclosure_composition.py": {
-      "seconds": 6.6240000000000006,
+      "seconds": 5.132,
       "test_count": 3
     },
     "tests/test_disclosure_control.py": {
-      "seconds": 123.49600000000001,
-      "test_count": 33
+      "seconds": 51.611000000000004,
+      "test_count": 26
     },
     "tests/test_document_review_outcomes.py": {
       "seconds": 0.008,
       "test_count": 7
     },
     "tests/test_driver_account_setup.py": {
-      "seconds": 76.631,
+      "seconds": 76.694,
       "test_count": 11
     },
     "tests/test_driver_agreement.py": {
-      "seconds": 17.892,
+      "seconds": 14.15,
       "test_count": 10
     },
     "tests/test_driver_agreement_retirement.py": {
-      "seconds": 7.099,
+      "seconds": 5.765,
       "test_count": 2
     },
     "tests/test_driver_applications.py": {
-      "seconds": 32.082,
+      "seconds": 29.140000000000004,
       "test_count": 16
     },
     "tests/test_driver_earnings_days.py": {
-      "seconds": 6.175,
-      "test_count": 15
+      "seconds": 13.043000000000001,
+      "test_count": 28
     },
     "tests/test_driver_earnings_presentation.py": {
-      "seconds": 0.06499999999999999,
+      "seconds": 0.057,
       "test_count": 15
     },
     "tests/test_driver_onboarding_query_plans.py": {
-      "seconds": 5.314,
+      "seconds": 3.739,
       "test_count": 1
     },
     "tests/test_driver_person_payee_onboarding.py": {
-      "seconds": 39.369,
+      "seconds": 29.461999999999996,
       "test_count": 12
     },
     "tests/test_driver_person_payee_review_corrections.py": {
-      "seconds": 65.555,
+      "seconds": 56.361000000000004,
       "test_count": 14
     },
     "tests/test_driver_profiles.py": {
-      "seconds": 38.172999999999995,
+      "seconds": 33.50900000000001,
       "test_count": 12
     },
     "tests/test_driver_vehicle_approval.py": {
-      "seconds": 129.442,
+      "seconds": 103.246,
       "test_count": 21
     },
     "tests/test_earnings_release_jobs.py": {
       "seconds": 0.002,
       "test_count": 1
     },
+    "tests/test_email_availability.py": {
+      "seconds": 21.631,
+      "test_count": 8
+    },
     "tests/test_email_delivery.py": {
-      "seconds": 29.257,
-      "test_count": 15
+      "seconds": 26.73899999999998,
+      "test_count": 41
     },
     "tests/test_errors.py": {
-      "seconds": 67.32900000000002,
+      "seconds": 52.17199999999998,
       "test_count": 34
     },
     "tests/test_evidence_verification.py": {
-      "seconds": 9.896999999999998,
+      "seconds": 7.6129999999999995,
       "test_count": 2
     },
     "tests/test_exclusivity_conflicts.py": {
-      "seconds": 77.881,
+      "seconds": 66.88199999999999,
       "test_count": 17
     },
     "tests/test_exposure_scores.py": {
-      "seconds": 0.006,
+      "seconds": 0.005,
       "test_count": 3
     },
     "tests/test_file_kyc_lifecycle.py": {
-      "seconds": 31.456,
+      "seconds": 24.204,
       "test_count": 11
     },
     "tests/test_file_scanning.py": {
-      "seconds": 42.019999999999996,
+      "seconds": 32.034,
       "test_count": 12
     },
     "tests/test_financial_authority.py": {
-      "seconds": 37.322,
-      "test_count": 10
+      "seconds": 30.807000000000002,
+      "test_count": 18
     },
     "tests/test_fraud_assessments.py": {
-      "seconds": 18.235,
+      "seconds": 14.080000000000002,
       "test_count": 6
     },
     "tests/test_fraud_disputes.py": {
-      "seconds": 32.117999999999995,
+      "seconds": 30.697000000000003,
       "test_count": 8
     },
     "tests/test_fraud_holds.py": {
-      "seconds": 21.746000000000002,
+      "seconds": 20.763,
       "test_count": 7
     },
     "tests/test_fraud_reviews_api.py": {
-      "seconds": 18.503,
+      "seconds": 16.244,
       "test_count": 4
     },
     "tests/test_health.py": {
-      "seconds": 10.452000000000002,
+      "seconds": 7.954000000000001,
       "test_count": 5
     },
     "tests/test_heatmaps.py": {
-      "seconds": 34.202999999999996,
+      "seconds": 26.402,
       "test_count": 10
     },
     "tests/test_impression_estimates.py": {
-      "seconds": 65.194,
-      "test_count": 14
+      "seconds": 45.772000000000006,
+      "test_count": 12
     },
     "tests/test_installation_evidence.py": {
-      "seconds": 53.703,
+      "seconds": 42.215,
       "test_count": 10
     },
     "tests/test_integrity.py": {
-      "seconds": 12.002,
+      "seconds": 10.49,
       "test_count": 33
     },
     "tests/test_invoices.py": {
-      "seconds": 20.177,
-      "test_count": 9
+      "seconds": 17.080000000000002,
+      "test_count": 10
     },
     "tests/test_kyc.py": {
-      "seconds": 25.381000000000004,
+      "seconds": 20.413,
       "test_count": 9
     },
     "tests/test_kyc_local_integration.py": {
-      "seconds": 4.986,
+      "seconds": 3.895,
       "test_count": 1
     },
     "tests/test_kyc_retention_authority.py": {
-      "seconds": 29.01,
+      "seconds": 26.755000000000003,
       "test_count": 5
     },
     "tests/test_logout_r11.py": {
-      "seconds": 8.046,
+      "seconds": 6.678,
       "test_count": 4
     },
     "tests/test_manual_bank_transfers.py": {
-      "seconds": 5.175000000000001,
-      "test_count": 2
+      "seconds": 5.884,
+      "test_count": 3
     },
     "tests/test_measurement_methodology.py": {
-      "seconds": 0.136,
+      "seconds": 0.114,
       "test_count": 3
     },
     "tests/test_measurement_runs.py": {
-      "seconds": 5.366000000000004,
+      "seconds": 4.9760000000000035,
       "test_count": 23
     },
     "tests/test_mny03a_earnings_release.py": {
-      "seconds": 78.19500000000001,
+      "seconds": 76.40300000000002,
       "test_count": 22
     },
     "tests/test_money_adapter_boundaries.py": {
-      "seconds": 0.014,
+      "seconds": 0.012,
       "test_count": 5
     },
+    "tests/test_money_alert_context.py": {
+      "seconds": 8.249,
+      "test_count": 2
+    },
     "tests/test_money_authority_boundaries.py": {
-      "seconds": 7.243999999999999,
+      "seconds": 6.387999999999998,
       "test_count": 65
     },
     "tests/test_mvp_hardening.py": {
-      "seconds": 33.364999999999995,
-      "test_count": 10
+      "seconds": 23.708,
+      "test_count": 8
     },
     "tests/test_notification_feed.py": {
-      "seconds": 58.025000000000006,
+      "seconds": 56.10099999999999,
       "test_count": 28
     },
     "tests/test_notifications.py": {
-      "seconds": 3.019,
+      "seconds": 2.47,
       "test_count": 1
     },
     "tests/test_onboarding_approval_convergence.py": {
-      "seconds": 29.457,
+      "seconds": 22.988,
       "test_count": 4
     },
     "tests/test_openapi.py": {
-      "seconds": 33.43,
+      "seconds": 27.666999999999998,
       "test_count": 4
     },
     "tests/test_operator_queues.py": {
-      "seconds": 34.378,
+      "seconds": 33.586,
       "test_count": 8
     },
     "tests/test_operator_refusals.py": {
-      "seconds": 19.511000000000003,
+      "seconds": 15.659,
       "test_count": 8
     },
     "tests/test_organizations.py": {
-      "seconds": 18.767000000000003,
+      "seconds": 20.436999999999998,
       "test_count": 9
     },
     "tests/test_payee_accounts.py": {
-      "seconds": 18.86,
+      "seconds": 15.889,
       "test_count": 10
     },
     "tests/test_payees_api.py": {
-      "seconds": 7.8790000000000004,
+      "seconds": 8.714,
       "test_count": 3
     },
     "tests/test_payment_checkout.py": {
-      "seconds": 25.907000000000004,
+      "seconds": 22.874000000000002,
       "test_count": 9
     },
     "tests/test_payment_checkout_failures.py": {
-      "seconds": 0.11500000000000006,
+      "seconds": 0.08800000000000004,
       "test_count": 36
     },
     "tests/test_payment_gateway.py": {
-      "seconds": 24.786,
+      "seconds": 24.301000000000002,
       "test_count": 10
     },
     "tests/test_payout_batches.py": {
-      "seconds": 64.167,
+      "seconds": 59.269,
       "test_count": 19
     },
     "tests/test_payout_batches_api.py": {
-      "seconds": 6.6739999999999995,
+      "seconds": 5.071,
       "test_count": 2
     },
     "tests/test_payout_correction_adjacent_days.py": {
-      "seconds": 10.521,
+      "seconds": 7.898000000000001,
       "test_count": 2
     },
     "tests/test_payout_corrections.py": {
-      "seconds": 66.967,
-      "test_count": 14
+      "seconds": 71.99200000000002,
+      "test_count": 20
     },
     "tests/test_payout_eligibility.py": {
-      "seconds": 0.788,
+      "seconds": 0.74,
       "test_count": 23
     },
     "tests/test_payout_event_enqueue.py": {
@@ -489,51 +501,55 @@
       "test_count": 4
     },
     "tests/test_payout_operations_api.py": {
-      "seconds": 5.695,
-      "test_count": 1
+      "seconds": 31.923,
+      "test_count": 8
     },
     "tests/test_payout_ordering.py": {
-      "seconds": 20.917,
+      "seconds": 21.729,
       "test_count": 5
     },
     "tests/test_payout_provider_event_validation.py": {
-      "seconds": 0.03600000000000002,
+      "seconds": 0.03800000000000001,
       "test_count": 18
     },
     "tests/test_payout_readiness.py": {
-      "seconds": 16.012,
+      "seconds": 11.106000000000002,
       "test_count": 5
     },
     "tests/test_payout_reconciliation.py": {
-      "seconds": 23.491,
+      "seconds": 19.063000000000002,
       "test_count": 6
     },
     "tests/test_payout_reconciliation_api.py": {
-      "seconds": 5.944,
+      "seconds": 5.532,
       "test_count": 1
     },
+    "tests/test_payout_recoveries.py": {
+      "seconds": 45.71,
+      "test_count": 18
+    },
     "tests/test_payout_replacement_review.py": {
-      "seconds": 26.375000000000004,
+      "seconds": 27.596,
       "test_count": 6
     },
     "tests/test_payout_rule_revisions.py": {
-      "seconds": 6.336,
+      "seconds": 4.913,
       "test_count": 3
     },
     "tests/test_payout_selection.py": {
-      "seconds": 32.339999999999996,
+      "seconds": 26.490000000000002,
       "test_count": 10
     },
     "tests/test_payouts.py": {
-      "seconds": 28.050000000000004,
+      "seconds": 25.667,
       "test_count": 5
     },
     "tests/test_payouts_v4.py": {
-      "seconds": 55.85099999999998,
+      "seconds": 51.666,
       "test_count": 35
     },
     "tests/test_paystack_adapters.py": {
-      "seconds": 0.5350000000000003,
+      "seconds": 0.30800000000000016,
       "test_count": 79
     },
     "tests/test_paystack_destination_resolver.py": {
@@ -541,19 +557,19 @@
       "test_count": 4
     },
     "tests/test_paystack_webhook_api.py": {
-      "seconds": 48.009,
+      "seconds": 47.129999999999995,
       "test_count": 19
     },
     "tests/test_pilot_gate_evaluator.py": {
-      "seconds": 2.4109999999999996,
-      "test_count": 13
+      "seconds": 2.454999999999999,
+      "test_count": 16
     },
     "tests/test_pkg03_pro_corrections.py": {
-      "seconds": 26.988,
+      "seconds": 27.956999999999997,
       "test_count": 11
     },
     "tests/test_pkg03_reversal_serialization.py": {
-      "seconds": 12.941,
+      "seconds": 10.938,
       "test_count": 3
     },
     "tests/test_prepare_account_setup_application.py": {
@@ -561,7 +577,7 @@
       "test_count": 14
     },
     "tests/test_preprod_operations.py": {
-      "seconds": 2.9849999999999994,
+      "seconds": 2.203,
       "test_count": 33
     },
     "tests/test_privacy_operating_model.py": {
@@ -569,451 +585,503 @@
       "test_count": 2
     },
     "tests/test_pytest_shard.py": {
-      "seconds": 2.7619999999999987,
+      "seconds": 2.535,
       "test_count": 39
     },
     "tests/test_r08_admin_authorization.py": {
-      "seconds": 5.409000000000001,
+      "seconds": 4.228,
       "test_count": 5
     },
     "tests/test_r08_admin_authorization_postgres.py": {
-      "seconds": 47.675,
+      "seconds": 47.074999999999996,
       "test_count": 4
     },
     "tests/test_r18_money_authority_postgresql.py": {
-      "seconds": 9.615,
+      "seconds": 7.358,
       "test_count": 1
     },
     "tests/test_r20_disbursement_postgresql.py": {
-      "seconds": 31.912,
+      "seconds": 29.686,
       "test_count": 8
     },
     "tests/test_r21_final_authorization_postgresql.py": {
-      "seconds": 77.42799999999998,
+      "seconds": 75.49099999999999,
       "test_count": 21
     },
     "tests/test_r22_conservation_postgresql.py": {
-      "seconds": 39.896,
+      "seconds": 32.925,
       "test_count": 9
     },
     "tests/test_r29_active_driver_postgresql.py": {
-      "seconds": 7.95,
+      "seconds": 8.341999999999999,
       "test_count": 4
     },
     "tests/test_r31_frozen_window_postgresql.py": {
-      "seconds": 17.309,
+      "seconds": 12.956,
       "test_count": 4
     },
     "tests/test_r32_driver_application_terminal_lifecycle.py": {
-      "seconds": 34.339,
+      "seconds": 31.863,
       "test_count": 12
     },
     "tests/test_r59_real_stack_contract.py": {
-      "seconds": 0.022000000000000006,
+      "seconds": 0.019000000000000003,
       "test_count": 10
     },
     "tests/test_rate_limit.py": {
-      "seconds": 6.061000000000001,
+      "seconds": 5.6240000000000006,
       "test_count": 28
     },
     "tests/test_readiness.py": {
-      "seconds": 1.7429999999999997,
+      "seconds": 1.8049999999999995,
       "test_count": 16
     },
     "tests/test_receipt_allocations.py": {
-      "seconds": 11.849,
-      "test_count": 5
+      "seconds": 13.261,
+      "test_count": 6
     },
     "tests/test_recovery_database_budgets.py": {
-      "seconds": 30.383,
+      "seconds": 31.911,
       "test_count": 12
     },
     "tests/test_recovery_diagnostics.py": {
-      "seconds": 5.816,
+      "seconds": 3.2939999999999996,
       "test_count": 17
     },
     "tests/test_recovery_diagnostics_real_server.py": {
-      "seconds": 4.156,
+      "seconds": 3.486,
       "test_count": 3
     },
     "tests/test_recovery_environment_smtp.py": {
-      "seconds": 41.623,
+      "seconds": 37.20900000000002,
       "test_count": 34
     },
     "tests/test_recovery_readiness_authority.py": {
-      "seconds": 2.0099999999999985,
+      "seconds": 4.152999999999999,
       "test_count": 60
     },
     "tests/test_recovery_smtp_tls.py": {
-      "seconds": 0.41200000000000003,
+      "seconds": 0.407,
       "test_count": 4
     },
     "tests/test_recovery_workload_budgets.py": {
-      "seconds": 13.544,
+      "seconds": 12.612,
       "test_count": 3
     },
     "tests/test_rel005_frontend_image.py": {
-      "seconds": 115.73299999999999,
+      "seconds": 150.967,
       "test_count": 6
     },
     "tests/test_report_issuances.py": {
-      "seconds": 13.759,
+      "seconds": 11.158000000000001,
       "test_count": 5
     },
     "tests/test_report_storage_local_integration.py": {
-      "seconds": 16.137999999999998,
+      "seconds": 15.062,
       "test_count": 7
     },
     "tests/test_req180_backend.py": {
-      "seconds": 14.483,
+      "seconds": 11.799,
       "test_count": 21
     },
     "tests/test_req180_batch2_applicant_state.py": {
-      "seconds": 14.306000000000001,
+      "seconds": 11.855,
       "test_count": 3
     },
     "tests/test_req180_batch2_artwork.py": {
-      "seconds": 133.40300000000002,
+      "seconds": 126.38799999999998,
       "test_count": 33
     },
     "tests/test_req180_batch2_budget.py": {
-      "seconds": 17.857999999999997,
+      "seconds": 16.965,
       "test_count": 7
     },
     "tests/test_req180_batch2_budget_used.py": {
-      "seconds": 19.340999999999998,
+      "seconds": 17.528,
       "test_count": 4
     },
     "tests/test_req180_batch2_cancellation_support.py": {
-      "seconds": 25.693,
+      "seconds": 19.958000000000002,
       "test_count": 3
     },
     "tests/test_req180_batch2_continuation.py": {
-      "seconds": 11.872,
+      "seconds": 9.129,
       "test_count": 4
     },
     "tests/test_req180_batch2_enquiries.py": {
-      "seconds": 4.409,
+      "seconds": 3.487,
       "test_count": 1
     },
     "tests/test_req180_batch2_reporting_flow.py": {
-      "seconds": 9.885,
+      "seconds": 8.768,
       "test_count": 1
     },
     "tests/test_req180_batch2_schema.py": {
-      "seconds": 6.953,
+      "seconds": 5.53,
       "test_count": 1
     },
     "tests/test_req180_batch2_staff_cancel.py": {
-      "seconds": 63.977999999999994,
+      "seconds": 46.80200000000001,
       "test_count": 10
     },
     "tests/test_req180_navigation.py": {
-      "seconds": 22.753,
-      "test_count": 4
+      "seconds": 28.641999999999996,
+      "test_count": 8
     },
     "tests/test_req180_review_notifications.py": {
-      "seconds": 32.667,
-      "test_count": 6
+      "seconds": 55.06100000000001,
+      "test_count": 12
     },
     "tests/test_req208_driver_messages.py": {
       "seconds": 0.013,
       "test_count": 1
     },
     "tests/test_req208_list_reads.py": {
-      "seconds": 7.495,
+      "seconds": 5.869,
       "test_count": 2
     },
     "tests/test_req210_pay_parity.py": {
-      "seconds": 97.278,
+      "seconds": 89.809,
       "test_count": 1
     },
     "tests/test_req213_late_data.py": {
-      "seconds": 25.587000000000003,
+      "seconds": 23.956,
       "test_count": 5
     },
     "tests/test_req213_manual_money.py": {
-      "seconds": 52.036,
+      "seconds": 43.75,
       "test_count": 19
     },
     "tests/test_req213_replacement_cash.py": {
-      "seconds": 10.682,
+      "seconds": 6.9510000000000005,
       "test_count": 2
     },
     "tests/test_req213_shared_batch_locks.py": {
-      "seconds": 9.066,
+      "seconds": 8.59,
       "test_count": 1
     },
     "tests/test_req214_pilot_scope.py": {
-      "seconds": 9.111999999999997,
+      "seconds": 6.487000000000003,
       "test_count": 8
     },
     "tests/test_req215_artwork_lock.py": {
-      "seconds": 14.024000000000001,
+      "seconds": 14.336000000000002,
       "test_count": 4
     },
     "tests/test_req215_photo_activation.py": {
-      "seconds": 67.44800000000001,
+      "seconds": 60.763,
       "test_count": 10
     },
     "tests/test_req215_schema_simplification.py": {
-      "seconds": 8.54,
+      "seconds": 6.497999999999999,
       "test_count": 2
     },
     "tests/test_req216_email_queue.py": {
-      "seconds": 9.179,
+      "seconds": 9.185,
       "test_count": 4
     },
     "tests/test_req216_fixed_limits.py": {
-      "seconds": 0.6160000000000004,
+      "seconds": 0.4250000000000002,
       "test_count": 47
     },
     "tests/test_req217_activation_concurrency.py": {
-      "seconds": 18.083,
+      "seconds": 16.405,
       "test_count": 2
     },
     "tests/test_req217_daily_series.py": {
-      "seconds": 0.004,
+      "seconds": 0.003,
       "test_count": 3
     },
     "tests/test_req217_finished.py": {
-      "seconds": 6.598,
+      "seconds": 6.3580000000000005,
       "test_count": 2
     },
     "tests/test_req217_report_failures.py": {
-      "seconds": 45.166,
+      "seconds": 43.655,
       "test_count": 11
     },
     "tests/test_req217_reports.py": {
-      "seconds": 32.181,
-      "test_count": 8
+      "seconds": 30.081000000000003,
+      "test_count": 16
     },
     "tests/test_req231_campaign_repairs.py": {
-      "seconds": 17.494,
+      "seconds": 14.698,
       "test_count": 5
     },
     "tests/test_req231_enquiry_queue.py": {
-      "seconds": 3.043,
+      "seconds": 2.59,
       "test_count": 1
     },
     "tests/test_req231_installation_review_schema.py": {
-      "seconds": 7.036000000000001,
+      "seconds": 5.086,
       "test_count": 17
     },
     "tests/test_req232_advertiser_invites.py": {
-      "seconds": 57.026,
-      "test_count": 23
+      "seconds": 55.46300000000001,
+      "test_count": 26
     },
     "tests/test_req234_report_ready.py": {
-      "seconds": 27.069,
+      "seconds": 24.238,
       "test_count": 10
     },
+    "tests/test_req252_lock_scopes.py": {
+      "seconds": 29.234,
+      "test_count": 8
+    },
+    "tests/test_req259_fresh_device_trip.py": {
+      "seconds": 20.485,
+      "test_count": 4
+    },
+    "tests/test_req264_auto_end.py": {
+      "seconds": 28.963,
+      "test_count": 5
+    },
+    "tests/test_req310_reporting_boundaries.py": {
+      "seconds": 0.11300000000000004,
+      "test_count": 24
+    },
+    "tests/test_req310_reporting_worker.py": {
+      "seconds": 207.533,
+      "test_count": 1
+    },
+    "tests/test_req311_attacks.py": {
+      "seconds": 126.18200000000002,
+      "test_count": 25
+    },
+    "tests/test_req311_cells.py": {
+      "seconds": 210.925,
+      "test_count": 11
+    },
+    "tests/test_req312_live_car.py": {
+      "seconds": 667.694,
+      "test_count": 7
+    },
+    "tests/test_req314_money_fixes.py": {
+      "seconds": 15.802000000000001,
+      "test_count": 9
+    },
+    "tests/test_req315_access_privacy.py": {
+      "seconds": 73.38600000000001,
+      "test_count": 18
+    },
+    "tests/test_req317_lock_busy.py": {
+      "seconds": 5.698,
+      "test_count": 2
+    },
+    "tests/test_req318_report_snapshot.py": {
+      "seconds": 3.422,
+      "test_count": 1
+    },
     "tests/test_request_id.py": {
-      "seconds": 0.05,
+      "seconds": 0.038,
       "test_count": 2
     },
     "tests/test_review_notifications.py": {
-      "seconds": 20.938,
+      "seconds": 14.751999999999999,
       "test_count": 5
     },
     "tests/test_route_replay.py": {
-      "seconds": 86.549,
+      "seconds": 71.774,
       "test_count": 41
     },
     "tests/test_schema_billing_corrections_refunds.py": {
-      "seconds": 5.06,
+      "seconds": 3.384,
       "test_count": 1
     },
     "tests/test_schema_budget_notifications_recovery.py": {
-      "seconds": 3.932,
+      "seconds": 4.398,
       "test_count": 1
     },
     "tests/test_schema_campaign_cancellations.py": {
-      "seconds": 3.981,
+      "seconds": 3.375,
       "test_count": 1
     },
     "tests/test_schema_campaign_changes.py": {
-      "seconds": 4.449,
+      "seconds": 4.448,
       "test_count": 1
     },
     "tests/test_schema_campaign_review_lifecycle.py": {
-      "seconds": 4.138,
+      "seconds": 4.438,
       "test_count": 1
     },
     "tests/test_schema_canonical_receipts_allocations.py": {
-      "seconds": 3.757,
+      "seconds": 3.229,
       "test_count": 1
     },
     "tests/test_schema_commercial_quotation_terms.py": {
-      "seconds": 3.527,
+      "seconds": 3.227,
       "test_count": 1
     },
     "tests/test_schema_creative_review.py": {
-      "seconds": 3.479,
+      "seconds": 2.693,
       "test_count": 1
     },
     "tests/test_schema_driver_person_payee_review.py": {
-      "seconds": 3.612,
+      "seconds": 5.31,
       "test_count": 1
     },
     "tests/test_schema_exposure_scores.py": {
-      "seconds": 3.54,
+      "seconds": 3.3,
       "test_count": 1
     },
     "tests/test_schema_installation_evidence.py": {
-      "seconds": 3.455,
+      "seconds": 3.218,
       "test_count": 1
     },
     "tests/test_schema_kyc_key_custody.py": {
-      "seconds": 3.638,
+      "seconds": 2.688,
       "test_count": 1
     },
     "tests/test_schema_measurement_runs.py": {
-      "seconds": 3.639,
+      "seconds": 2.809,
       "test_count": 1
     },
     "tests/test_schema_notification_outbox.py": {
-      "seconds": 3.764,
+      "seconds": 4.052,
       "test_count": 1
     },
     "tests/test_schema_payment_gateway_events.py": {
-      "seconds": 3.605,
+      "seconds": 3.627,
       "test_count": 1
     },
     "tests/test_schema_report_issuances.py": {
-      "seconds": 3.91,
+      "seconds": 3.282,
       "test_count": 1
     },
     "tests/test_schema_stored_object_deletions.py": {
-      "seconds": 7.766,
+      "seconds": 6.518,
       "test_count": 2
     },
     "tests/test_schema_trip_evidence_manifest.py": {
-      "seconds": 16.269000000000002,
+      "seconds": 12.544999999999998,
       "test_count": 3
     },
     "tests/test_schema_vat_itemised_invoices.py": {
-      "seconds": 3.453,
+      "seconds": 2.715,
       "test_count": 1
     },
     "tests/test_seed_demo.py": {
-      "seconds": 695.6880000000001,
-      "test_count": 41
+      "seconds": 646.978,
+      "test_count": 46
+    },
+    "tests/test_seed_offer_artwork.py": {
+      "seconds": 6.675000000000001,
+      "test_count": 2
     },
     "tests/test_seed_smoke.py": {
-      "seconds": 206.447,
+      "seconds": 261.454,
       "test_count": 2
     },
     "tests/test_storage_csp_origin.py": {
-      "seconds": 4.422,
+      "seconds": 5.766,
       "test_count": 8
     },
     "tests/test_stored_files.py": {
-      "seconds": 54.472999999999985,
-      "test_count": 28
+      "seconds": 41.688999999999986,
+      "test_count": 29
     },
     "tests/test_target_area_coverage.py": {
-      "seconds": 33.631,
+      "seconds": 26.639,
       "test_count": 22
     },
     "tests/test_time_boundaries.py": {
-      "seconds": 10.984000000000002,
+      "seconds": 12.439000000000002,
       "test_count": 22
     },
     "tests/test_trip_analytics.py": {
-      "seconds": 49.629999999999995,
+      "seconds": 44.421,
       "test_count": 11
     },
     "tests/test_trip_deactivation_drain_r37.py": {
-      "seconds": 48.748000000000005,
+      "seconds": 45.294,
       "test_count": 9
     },
     "tests/test_trip_enqueue.py": {
-      "seconds": 17.016000000000002,
+      "seconds": 14.555,
       "test_count": 5
     },
     "tests/test_trip_evidence_r34.py": {
-      "seconds": 39.025000000000006,
+      "seconds": 32.461,
       "test_count": 13
     },
     "tests/test_trip_partial_disposition_r36.py": {
-      "seconds": 27.061999999999998,
+      "seconds": 23.405,
       "test_count": 6
     },
     "tests/test_trip_processing.py": {
-      "seconds": 154.61300000000003,
+      "seconds": 113.98499999999999,
       "test_count": 39
     },
     "tests/test_trip_seal.py": {
-      "seconds": 47.844,
+      "seconds": 35.215,
       "test_count": 8
     },
     "tests/test_trips.py": {
-      "seconds": 180.36199999999997,
+      "seconds": 135.449,
       "test_count": 33
     },
     "tests/test_upload_policy.py": {
-      "seconds": 0.021000000000000005,
+      "seconds": 0.015000000000000006,
       "test_count": 11
     },
     "tests/test_validate_progress.py": {
-      "seconds": 8.827,
+      "seconds": 6.230000000000002,
       "test_count": 49
     },
     "tests/test_validate_w403c_pilot_preparation.py": {
-      "seconds": 0.28900000000000003,
+      "seconds": 0.23099999999999996,
       "test_count": 9
     },
     "tests/test_validate_w404a_training.py": {
-      "seconds": 0.8600000000000001,
+      "seconds": 0.5760000000000001,
       "test_count": 7
     },
     "tests/test_validate_w404b_handover_preparation.py": {
-      "seconds": 1.9450000000000003,
+      "seconds": 1.4420000000000002,
       "test_count": 15
     },
     "tests/test_vehicles.py": {
-      "seconds": 35.79899999999999,
-      "test_count": 10
+      "seconds": 108.65499999999997,
+      "test_count": 33
     },
     "tests/test_w2c_renewals.py": {
-      "seconds": 178.71800000000002,
-      "test_count": 35
+      "seconds": 160.62699999999995,
+      "test_count": 36
     },
     "tests/test_w2c_reverse_phone.py": {
-      "seconds": 63.41200000000001,
+      "seconds": 67.39399999999999,
       "test_count": 40
     },
     "tests/test_w403a_release_preparation.py": {
-      "seconds": 15.533000000000051,
-      "test_count": 333
+      "seconds": 12.232999999999983,
+      "test_count": 335
     },
     "tests/test_w403b_load_reproducibility.py": {
-      "seconds": 1.1829999999999998,
+      "seconds": 0.9849999999999999,
       "test_count": 10
     },
     "tests/test_w403b_synthetic_path.py": {
-      "seconds": 29.402,
+      "seconds": 27.924,
       "test_count": 1
     },
     "tests/test_w403b_synthetic_runner.py": {
-      "seconds": 0.422,
+      "seconds": 0.342,
       "test_count": 8
     },
     "tests/test_worker_jobs.py": {
-      "seconds": 69.82700000000001,
+      "seconds": 56.213,
       "test_count": 22
     },
     "tests/test_worker_process_recovery.py": {
-      "seconds": 51.398,
+      "seconds": 41.048,
       "test_count": 4
     },
     "tests/test_worker_substrate.py": {
-      "seconds": 4.222,
+      "seconds": 3.065,
       "test_count": 14
     }
   },
-  "source_run": "https://github.com/oluwasolaonigbinde/mobility/actions/runs/40309956920",
-  "source_sha": "72a0f0847177b14e330a3e916cd7e38dfc1dbbb2",
+  "source_run": "https://github.com/oluwasolaonigbinde/mobility/actions/runs/43659370973",
+  "source_sha": "632e4e7b0ccf0d00ab9b13f3ba6fe7a3d092e6e9",
   "version": 1
 }
