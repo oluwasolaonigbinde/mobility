@@ -176,7 +176,7 @@ describe("payments that arrived after the campaign was cancelled", () => {
     ).toBeVisible();
     expect(screen.getByText("₦25.00")).toBeVisible();
     expect(screen.getByText("Not returned yet")).toBeVisible();
-    expect(screen.getByText("Returned")).toBeVisible();
+    expect(screen.getByText("Closed")).toBeVisible();
     // Only the unreturned payment gets the reversal form.
     expect(screen.getAllByRole("button", { name: "Record reversal" })).toHaveLength(1);
     expect(screen.getByRole("radio", { name: "Returning it to the advertiser" })).toHaveAttribute(

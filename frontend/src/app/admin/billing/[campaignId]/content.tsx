@@ -629,7 +629,7 @@ export default async function AdminCampaignBillingPage({
                     Paid {formatDate(item.observed_at)}
                   </p>
                   <StatusChip tone={item.status === "reversed" ? "green" : "amber"}>
-                    {item.status === "reversed" ? "Returned" : "Not returned yet"}
+                    {item.status === "reversed" ? "Closed" : "Not returned yet"}
                   </StatusChip>
                 </div>
                 {item.status !== "reversed" ? (

@@ -5,6 +5,10 @@ export const BILLING_ERROR_COPY = {
   CAMPAIGN_CANCELLED_NO_PAYMENT: "This cancelled campaign cannot accept any more payments.",
   REFUND_PAYMENT_NOT_RECEIVED: "This payment was not received, so it cannot be refunded.",
   REFUND_EXCEEDS_REFUND_STILL_DUE: "Enter a refund no larger than the refund still due.",
+  REFUND_RECEIPT_NOT_COUNTED:
+    "This payment didn't count towards the cancellation's refund, so it can't be refunded under it.",
+  REFUND_EXCEEDS_COUNTED_PAYMENT:
+    "Enter a refund no larger than what this payment counted towards the refund.",
   RECEIPT_NOT_REVERSED: "Reverse this payment before marking it as not received.",
   NOT_RECEIVED_REASON_REQUIRED: "Enter a reason why the payment was not received.",
   RECEIPT_ALREADY_REVERSED:
