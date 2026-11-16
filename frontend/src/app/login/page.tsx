@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser, roleHome } from "@/lib/auth/current-user";
 import { Panel } from "@/components/ui/panel";
 import { env } from "@/lib/env";
+import { LoginBackdrop } from "./login-backdrop";
 import { LoginForm } from "./login-form";
 import { demoLoginRoleFromPath } from "./demo-role";
 
@@ -24,13 +25,13 @@ export default async function LoginPage({
   const demoLoginRole = config.DEMO_LOGIN_ENABLED ? role : undefined;
 
   return (
-    <main className="bg-atmosphere relative flex flex-1 items-center justify-center overflow-hidden p-6">
-      <div className="bg-grid pointer-events-none absolute inset-0" aria-hidden />
+    <main className="relative flex flex-1 items-center justify-center overflow-hidden bg-[#fbfcfa] p-6">
+      <LoginBackdrop />
 
       <div className="animate-rise relative w-full max-w-sm">
-        <p className="micro text-amber mb-3">Cardvert by Terrax Media</p>
+        <p className="micro text-amber mb-3 font-semibold">Cardvert by Terrax Media</p>
         <h1 className="font-display text-4xl font-semibold tracking-tight">Sign in</h1>
-        <p className="text-muted mt-3 mb-8 text-sm">Welcome to Cardvert</p>
+        <p className="text-ink/80 mt-3 mb-8 text-sm font-medium">Welcome to Cardvert</p>
 
         <Panel className="p-6">
           <LoginForm
