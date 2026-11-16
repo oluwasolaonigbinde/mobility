@@ -6,12 +6,12 @@
   },
   "critical": {
     "backend": {
-      "branch_covered": 6286,
-      "branch_percent": 84.3079,
-      "branch_total": 7456,
-      "line_covered": 29664,
-      "line_percent": 94.5406,
-      "line_total": 31377,
+      "branch_covered": 6325,
+      "branch_percent": 84.3783,
+      "branch_total": 7496,
+      "line_covered": 29816,
+      "line_percent": 94.5669,
+      "line_total": 31529,
       "paths": [
         "app/__init__.py",
         "app/adapters/banks.py",
@@ -318,12 +318,12 @@
       ]
     },
     "frontend": {
-      "branch_covered": 7992,
-      "branch_percent": 81.5177,
-      "branch_total": 9804,
-      "line_covered": 7647,
-      "line_percent": 88.3433,
-      "line_total": 8656,
+      "branch_covered": 8042,
+      "branch_percent": 81.7443,
+      "branch_total": 9838,
+      "line_covered": 7689,
+      "line_percent": 88.5727,
+      "line_total": 8681,
       "paths": [
         "frontend/src/app/admin/advertisers/[organizationId]/company/actions.ts",
         "frontend/src/app/admin/advertisers/[organizationId]/invite-actions.ts",
@@ -581,6 +581,7 @@
         "frontend/src/app/layout.tsx",
         "frontend/src/app/login/actions.ts",
         "frontend/src/app/login/demo-role.ts",
+        "frontend/src/app/login/login-backdrop.tsx",
         "frontend/src/app/login/login-form.tsx",
         "frontend/src/app/login/page.tsx",
         "frontend/src/app/not-found.tsx",
@@ -739,31 +740,27 @@
       ]
     }
   },
-  "eligible_inventory_sha256": "3a12170d31da7c3507947a736e900ca2970b9e605e1725a530b05fecc17e9f10",
+  "eligible_inventory_sha256": "541df08df7a7d8e864a637ff5fb8d8dca61cf18ce5f5e5ec33ec9f1823037960",
   "global": {
-    "branch_covered": 14278,
-    "branch_percent": 82.7231,
-    "branch_total": 17260,
-    "line_covered": 37311,
-    "line_percent": 93.2006,
-    "line_total": 40033
+    "branch_covered": 14367,
+    "branch_percent": 82.8834,
+    "branch_total": 17334,
+    "line_covered": 37505,
+    "line_percent": 93.2728,
+    "line_total": 40210
   },
   "policy_sha256": "f4346d9fa3f4116f842cd17d853cd0ad0079121d9ffac691da19a93e8ef5ec33",
   "refresh": {
     "inventory_changes": {
       "added": [
-        "frontend/src/app/admin/billing/[campaignId]/billing-errors.ts",
-        "frontend/src/app/driver-account-setup/setup-link.tsx",
-        "frontend/src/app/reset-password/reset-link.tsx",
-        "frontend/src/lib/advertiser/company-profile-errors.ts",
-        "frontend/src/lib/api/route-params.ts"
+        "frontend/src/app/login/login-backdrop.tsx"
       ],
       "removed": []
     },
-    "previous_baseline_sha256": "faeafce16a83b5dda4395ad258e30ec8a3c2d2961a5e3f5253915bc158870822",
-    "reason": "REQ-313 to REQ-321 audit wrap-up: money, access, link and worker fixes; CI run 43655965974 on f15a7ab6"
+    "previous_baseline_sha256": "d738d7a6dd694c8c1d90cd6a184624adcf7c6493365ccc3256243d409e7469cc",
+    "reason": "REQ-326: add the decorative sign-in backdrop and its page test to the frontend inventory"
   },
-  "source_parent_sha": "f15a7ab66d977aefc18dd39e73f14cdbf37bcf6d",
-  "source_sha256": "29f98102f4d161d5f1e0b2ad91287d569555f24c830bfcf2c121909a16e88137",
+  "source_parent_sha": "0b37a9fa69bae191b4fceacc583b37c378cf02c1",
+  "source_sha256": "ef978b7d46da5b9c4dd439cbd2723ec31a265960c87ca232c1dccd2021d07ddc",
   "version": 3
 }
