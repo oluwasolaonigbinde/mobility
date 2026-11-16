@@ -240,7 +240,9 @@ Money can be recorded only against an issued invoice (owner, 27–29 October
 `409 INVOICE_NOT_ISSUED`. Built in `6d4d6a95` on master.
 
 The owner reports the Paystack account is approved (15 Nov 2026, REQ-324).
-Test Mode setup through a temporary public link comes first; live use still
+Test Mode was proven through a temporary public link on 16 Nov 2026:
+checkout, webhook delivery and replay work. The test payout couldn't run on
+the placeholder bank details, so it waits for a real account. Live use still
 needs a hosted production domain, the live key and production approval.
 
 **Still open:** [REQ-051](requests.md) developer admin access (activation now
@@ -248,6 +250,7 @@ reported approved), [REQ-025](requests.md) password, two-step verification and
 whether Transfers are on, [REQ-027](requests.md), [REQ-035](requests.md).
 
 **History:**
+- **2026-11-16** — Test Mode run (REQ-324). Checkout, public webhook delivery and replay passed. The one test transfer was refused because Paystack couldn't verify the placeholder bank account, and Cardvert stopped it safely. The owner chose to prove payouts later. See the [run evidence](../issues/testing/req324-paystack-test-mode-2026-11-16.md).
 - **2026-11-15** — Owner: "paystack has been approved now" (REQ-324). Previously the account was still awaiting activation and only test payments were possible.
 - **2026-11-04** - REQ-272: online payment availability is computed from the configured gateway and valid return URL before offering checkout. Built in `65a856e8`.
 - **2026-11-03** — Delivery accepted on master. Built in `6d4d6a95`; full CI passed on `1a6d563f`. See the [acceptance evidence](../issues/testing/req271-ci-acceptance-2026-11-03.md).

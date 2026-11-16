@@ -4411,7 +4411,10 @@ Money semantics outside D161 are unchanged. Launch gates are unchanged.
 
 **REQ-324, Paystack (§15.3, §15.4):**
 - No code change. The owner reports that the account is approved.
-- The Test Mode public-webhook proof is still pending. It is planned on an isolated local stack whose throwaway edge exposes only `/api/v1/webhooks/paystack` behind a temporary quick tunnel. It is waiting for the owner to set the dashboard's test webhook URL, which needs the account's emailed sign-in code.
-- Live use still needs the hosted production domain, the live key and production approval, so W2-01C stays blocked on those.
+- Test Mode was proven on 16 Nov 2026 through an isolated local stack. Its throwaway edge exposed only `/api/v1/webhooks/paystack` behind a temporary quick tunnel.
+  - Checkout, public webhook delivery and replay all pass: the replay is accepted as a duplicate and counted once.
+  - The one test transfer failed safely: Paystack cannot verify the seeded placeholder bank account, and the intent became query-only.
+  - See [the run evidence](../issues/testing/req324-paystack-test-mode-2026-11-16.md).
+- W2-01C stays blocked. It still needs a transfer to a real, verifiable account, the hosted production domain, the live key and production approval.
 
 Money semantics outside D164 are unchanged. Launch gates are unchanged.
