@@ -22,7 +22,8 @@ function minorUnits(value: string): bigint {
 export function outstandingInvoices(invoices: Invoice[]) {
   const totals = new Map<string, bigint>();
   for (const invoice of invoices) {
-    if (invoice.status !== "issued") continue;
+    // A cancelled campaign's invoice is closed: nothing on it is owed.
+    if (invoice.status !== "issued" || invoice.payment_status === "cancelled") continue;
     if (!/^[A-Z]{3}$/.test(invoice.currency)) throw new Error("Invalid invoice currency");
     const obligation = minorUnits(invoice.effective_obligation_amount);
     const funded = minorUnits(invoice.funded_amount);

@@ -112,6 +112,8 @@ export default async function AdminCampaignBillingPage({
   const invoice = commercial.invoices.at(-1);
   const termsId = commercial.terms?.id;
   const receiptEntries = receiptsAllocatedToTerms(history ?? [], termsId);
+  const note = commercial.quote_request?.request_details?.notes;
+  const requestNote = typeof note === "string" ? note.trim() : "";
   const revisionAction = commercial.quote_request
     ? recordRevisionAction.bind(null, campaignId, commercial.quote_request.id)
     : undefined;
@@ -158,6 +160,12 @@ export default async function AdminCampaignBillingPage({
                     : "No request"}
             </StatusChip>
           </div>
+          {requestNote ? (
+            <div className="mb-4 text-sm">
+              <p className="micro text-muted">Advertiser&apos;s note</p>
+              <p className="mt-1 whitespace-pre-line">{requestNote}</p>
+            </div>
+          ) : null}
           {latest ? (
             <dl className="space-y-3 text-sm">
               <div>
@@ -444,8 +452,9 @@ export default async function AdminCampaignBillingPage({
                         const total = moneyMinor(invoice.effective_obligation_amount);
                         const funded = moneyMinor(invoice.funded_amount);
                         if (total === null || funded === null) return "—";
+                        const owed = invoice.payment_status !== "cancelled" && total > funded;
                         return formatMoney(
-                          minorDecimal(total > funded ? total - funded : BigInt(0)),
+                          minorDecimal(owed ? total - funded : BigInt(0)),
                           invoice.currency,
                         );
                       })()}
@@ -460,7 +469,9 @@ export default async function AdminCampaignBillingPage({
                   <div>
                     <p className="micro text-muted">Payment status</p>
                     <p className="mt-1 text-sm">
-                      {invoice.status === "issued" ? adminStatus(invoice.payment_status) : "—"}
+                      {invoice.status === "issued"
+                        ? adminStatus(invoice.payment_status, "invoice")
+                        : "—"}
                     </p>
                   </div>
                 </div>

@@ -105,6 +105,18 @@ VEHICLE_DETAILS = (
     ("Honda", "Civic", "Blue", VehicleType.CAR),
     ("Suzuki", "Swift", "Silver", VehicleType.CAR),
 )
+# Abuja (FCT) area-council plate codes: the demo is set in Abuja, not Lagos.
+RICH_DRIVER_PLATES = (
+    "ABJ-219-XY",
+    "KUJ-637-BD",
+    "GWA-824-CN",
+    "BWR-315-HG",
+    "ABC-926-KL",
+    "KWL-458-PQ",
+    "ABJ-763-RS",
+    "GWA-592-TV",
+    "BWR-681-WZ",
+)
 
 CAMPAIGN_SPECS = (
     ("Aster Vale Foods — Garki Deliveries", CampaignStatus.ACTIVE, "rolling"),
@@ -225,17 +237,7 @@ async def _upsert_driver(session: AsyncSession, *, index: int, settings: Setting
         session.add(profile)
         await session.flush()
 
-    plate = (
-        "LSR-219-XY",
-        "KJA-637-BD",
-        "FKJ-824-CN",
-        "LND-315-HG",
-        "EPE-926-KL",
-        "AKD-458-PQ",
-        "MUS-763-RS",
-        "SMK-592-TV",
-        "AAA-681-WZ",
-    )[index - 1]
+    plate = RICH_DRIVER_PLATES[index - 1]
     normalized_plate = normalize_plate_number(plate)
     vehicle = await session.scalar(
         select(Vehicle).where(
@@ -1340,10 +1342,10 @@ async def ensure_golden_contributors(session, *, graph, settings):
     )
 
     people = (
-        ("Yewande Afolabi", "yewande.afolabi@demo.mobility.local", "KRD-347-JM"),
-        ("Obinna Onyekachi", "obinna.onyekachi@demo.mobility.local", "LSR-528-HP"),
-        ("Fatima Adamu", "fatima.adamu@demo.mobility.local", "KJA-916-NB"),
-        ("Chukwudi Agu", "chukwudi.agu@demo.mobility.local", "FKJ-204-NP"),
+        ("Yewande Afolabi", "yewande.afolabi@demo.mobility.local", "ABJ-347-JM"),
+        ("Obinna Onyekachi", "obinna.onyekachi@demo.mobility.local", "BWR-528-HP"),
+        ("Fatima Adamu", "fatima.adamu@demo.mobility.local", "KUJ-916-NB"),
+        ("Chukwudi Agu", "chukwudi.agu@demo.mobility.local", "GWA-204-NP"),
     )
     for person_index, (name, email, plate) in enumerate(people, start=1):
         driver = await upsert_user(
@@ -1584,15 +1586,24 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
         key = uuid5(NAMESPACE_URL, f"cardvert-preview:campaign:{name}")
         campaign = await session.get(Campaign, key)
         if campaign is None:
+            # Q16: Wuse Weekend Catering's accepting drivers' cars run Abuja Lunch
+            # Routes, so it starts the day after that ends.
+            start_at = max(
+                now + timedelta(days=7),
+                graph.campaign.end_at + timedelta(days=1)
+                if "Wuse Weekend Catering" in name
+                else now,
+            )
             campaign = Campaign(
                 id=key,
                 organization_id=organization.id,
                 created_by_user_id=advertiser.id,
                 name=name,
                 description=description,
-                status="approved" if state == "cancelled" else state,
-                start_at=now + timedelta(days=7),
-                end_at=now + timedelta(days=45),
+                # Every status is reached through the production review services below.
+                status="draft",
+                start_at=start_at,
+                end_at=start_at + timedelta(days=38),
                 budget_amount=Decimal("1000000.00"),
                 daily_budget_amount=Decimal("50000.00"),
                 currency="NGN",
@@ -1620,7 +1631,34 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
             creative.checksum = stored.checksum_sha256
             creative.status = "draft"
             await session.flush()
+            # A campaign needs its target area before it can be submitted for review.
+            await upsert_zones(
+                session,
+                campaign=campaign,
+                advertiser=advertiser,
+                settings=settings,
+                zone_specs=[
+                    (
+                        "Garki offices"
+                        if "Garki Office Lunch" in name
+                        else {
+                            "draft": "Utako bookshops",
+                            "pending_review": "Garki offices",
+                            "approved": "Wuse II shops",
+                            "rejected": "Maitama homes",
+                        }[state],
+                        "target",
+                        portal_zone_geometry(state),
+                    )
+                ]
+                if state != "cancelled"
+                else None,
+            )
             from app.seeds.history import initial_action_history
+            from app.services.campaigns import (
+                decide_campaign_review,
+                submit_campaign_for_review,
+            )
 
             with initial_action_history(session, campaign.created_at + timedelta(hours=2)) as clock:
                 if state != "draft":
@@ -1629,6 +1667,9 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
                         user_id=advertiser.id,
                         campaign_id=campaign.id,
                         creative_id=creative.id,
+                    )
+                    await submit_campaign_for_review(
+                        session, user_id=advertiser.id, campaign_id=campaign.id
                     )
                 if state in {"approved", "rejected", "cancelled"}:
                     clock[0] += timedelta(hours=1)
@@ -1640,6 +1681,17 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
                         if state == "cancelled"
                         else CreativeStatus(state),
                         rejection_reason="Please enlarge the phone number before printing."
+                        if state == "rejected"
+                        else None,
+                    )
+                    await decide_campaign_review(
+                        session,
+                        admin_user_id=staff[2].id,
+                        campaign_id=campaign.id,
+                        target_status=CampaignStatus.REJECTED
+                        if state == "rejected"
+                        else CampaignStatus.APPROVED,
+                        rejection_reason="Please choose areas that match the furniture showroom."
                         if state == "rejected"
                         else None,
                     )
@@ -1680,28 +1732,6 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
                         "cancelled": "issued",
                     }[state],
                 )
-            await upsert_zones(
-                session,
-                campaign=campaign,
-                advertiser=advertiser,
-                settings=settings,
-                zone_specs=[
-                    (
-                        "Garki offices"
-                        if "Garki Office Lunch" in name
-                        else {
-                            "draft": "Utako bookshops",
-                            "pending_review": "Garki offices",
-                            "approved": "Wuse II shops",
-                            "rejected": "Maitama homes",
-                        }[state],
-                        "target",
-                        portal_zone_geometry(state),
-                    )
-                ]
-                if state != "cancelled"
-                else None,
-            )
             await _seed_cancelled_campaign(
                 session, graph=graph, staff=staff, campaign=campaign, state=state
             )

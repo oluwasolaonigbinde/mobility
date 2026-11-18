@@ -148,7 +148,38 @@ describe("loginAction", () => {
     formData.set("password", "valid-password");
 
     await expect(loginAction({}, formData)).resolves.toEqual({
+      email: "advertiser@example.com",
       error: "Sign-in is temporarily unavailable. Please try again.",
     });
+  });
+
+  it("keeps the typed email and never returns the password after a wrong password", async () => {
+    mocks.post.mockRejectedValue(new ApiError(401, { code: "UNAUTHORIZED", message: "no" }));
+    const formData = new FormData();
+    formData.set("email", " Person@Example.test ");
+    formData.set("password", "wrong-password");
+
+    const state = await loginAction({}, formData);
+    expect(state).toEqual({
+      email: " Person@Example.test ",
+      error: "Invalid email or password, or the account is not active.",
+    });
+    expect(JSON.stringify(state)).not.toContain("wrong-password");
+  });
+});
+
+describe("demoLoginAction failures", () => {
+  it("does not echo the configured demo email", async () => {
+    vi.clearAllMocks();
+    mocks.env.mockReturnValue({
+      DEMO_LOGIN_ENABLED: true,
+      DEMO_LOGIN_ADMIN_EMAIL: "admin@example.com",
+      DEMO_LOGIN_ADMIN_PASSWORD: "admin-password",
+      LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER: false,
+    });
+    mocks.post.mockRejectedValue(new ApiError(401, { code: "UNAUTHORIZED", message: "no" }));
+    const state = await demoLoginAction("admin", {}, new FormData());
+    expect(state.email).toBeUndefined();
+    expect(JSON.stringify(state)).not.toContain("admin@example.com");
   });
 });

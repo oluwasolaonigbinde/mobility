@@ -79,6 +79,19 @@ class QuoteRequestRead(ORMRead):
     requested_at: datetime
 
 
+class OpenQuoteRequestRead(BaseModel):
+    id: UUID
+    campaign_id: UUID
+    campaign_name: str
+    organization_name: str
+    requested_at: datetime
+
+
+class OpenQuoteRequestPage(BaseModel):
+    items: list[OpenQuoteRequestRead]
+    total: int
+
+
 class QuoteRevisionCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     quote_reference: str

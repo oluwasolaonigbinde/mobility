@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.172 — 2026-11-17. Canonical source of truth: current state AND target state.**
+**Version 1.173 — 2026-11-18. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -4427,4 +4427,13 @@ Money semantics outside D164 are unchanged. Launch gates are unchanged.
 - No code or schema change: the details go into the verified issuer profile at deployment. Real issuance still needs the accountant's sign-off (REQ-042).
 - The synthetic demo issuer is renamed Moniepoint and keeps the unroutable number `0000000000`.
 - **REQ-328 / D166:** corporate credit stays as built (§15). The owner answered COM-008: a per-campaign credit amount and due date with no company cap, drivers paid regardless of company payment, and one admin may record and approve. No code change.
+- Launch gates are unchanged.
+
+## Amendment / changelog 1.173 - REQ-331 / D167 (walkthrough fixes and quote requests in the Work queue, 18 Nov 2026)
+
+- **D167:** open custom-quotation requests (no quotation yet, campaign not cancelled) are a staff Work queue source (`quotes`, Campaigns area) in `services/navigation.py`, counted in the badge and listed by `GET /admin/quote-requests/open` (`services/billing/quotes.py`). Each item links to the campaign's money section, which now shows the advertiser's request note. Quotation pricing and approval are unchanged.
+- The demo seed takes portal campaigns through the real submission and review services, so seeded review history matches each campaign's status and seeded pending campaigns can be approved.
+- Q16 (one active campaign per vehicle) is enforced when a driver accepts an offer that overlaps another active assignment for the same car.
+- Admin artwork previews load through the app (blob or stream) like the other artwork views; the CSP `img-src` stays without the storage origin (§19.2).
+- An invoice that is not fully paid on a campaign whose cancellation refuses payment has payment status `cancelled` ("Cancelled – nothing to pay" on admin and advertiser screens) and is left out of outstanding totals, matching the existing rule that nothing more is owed after such a cancellation. A fully paid invoice stays "Paid" while its refund is due. Amounts, ledger, refunds and payouts are unchanged.
 - Launch gates are unchanged.

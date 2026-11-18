@@ -15859,6 +15859,63 @@
         "title": "NotificationUnreadCountRead",
         "type": "object"
       },
+      "OpenQuoteRequestPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OpenQuoteRequestRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "OpenQuoteRequestPage",
+        "type": "object"
+      },
+      "OpenQuoteRequestRead": {
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "campaign_name": {
+            "title": "Campaign Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "organization_name": {
+            "title": "Organization Name",
+            "type": "string"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "campaign_id",
+          "campaign_name",
+          "organization_name",
+          "requested_at"
+        ],
+        "title": "OpenQuoteRequestRead",
+        "type": "object"
+      },
       "OrganizationMembershipRead": {
         "properties": {
           "role": {
@@ -30799,6 +30856,78 @@
           }
         ],
         "summary": "Admin Record External Quote Acceptance",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/quote-requests/open": {
+      "get": {
+        "description": "D167: quote requests staff haven't answered yet, for the Work queue.",
+        "operationId": "admin_open_quote_requests_api_v1_admin_quote_requests_open_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "oldest_first",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Oldest First",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenQuoteRequestPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Open Quote Requests",
         "tags": [
           "Commercial billing"
         ]

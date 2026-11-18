@@ -2082,6 +2082,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/quote-requests/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Open Quote Requests
+         * @description D167: quote requests staff haven't answered yet, for the Work queue.
+         */
+        get: operations["admin_open_quote_requests_api_v1_admin_quote_requests_open_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/quote-requests/{quote_request_id}/revisions": {
         parameters: {
             query?: never;
@@ -10240,6 +10260,35 @@ export interface components {
             /** Unread Count */
             unread_count: number;
         };
+        /** OpenQuoteRequestPage */
+        OpenQuoteRequestPage: {
+            /** Items */
+            items: components["schemas"]["OpenQuoteRequestRead"][];
+            /** Total */
+            total: number;
+        };
+        /** OpenQuoteRequestRead */
+        OpenQuoteRequestRead: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Campaign Name */
+            campaign_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Organization Name */
+            organization_name: string;
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+        };
         /** OrganizationMembershipRead */
         OrganizationMembershipRead: {
             role: components["schemas"]["MembershipRole"];
@@ -17084,6 +17133,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommercialTermsRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_open_quote_requests_api_v1_admin_quote_requests_open_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                oldest_first?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenQuoteRequestPage"];
                 };
             };
             /** @description Request validation failed */

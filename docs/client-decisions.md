@@ -209,9 +209,12 @@ temporary password that must be changed at first sign-in (REQ-208).
 package catalogue. Quote lines, terms and revisions are data, and each accepted
 campaign keeps an unchangeable copy of its quotation (Q1, D18). Prices such as
 the service fee, printing, installation, permits and design are entered per
-campaign by Terrax.
+campaign by Terrax. An advertiser's open quote request shows in the staff
+Work queue and links to the campaign's money section, which shows the
+advertiser's note (Owner, 18 Nov 2026; D167 / REQ-331).
 
 **History:**
+- **2026-11-18** — Owner (D167 / REQ-331): open quote requests appear in the staff Work queue. Previously they showed only on the admin billing page, and the advertiser's note was not displayed there.
 - **2026-08-14** — Client confirmed custom quotations (Q1, D18).
 - **2026-09-24** — Client supplied sample figures (10 % service charge, printing and installation ₦100,000, AMAC permit ₦100,000, optional APCON ₦50,000, optional ads ₦300,000/month, optional design ₦70,000, professional services ₦700,000; sample total ₦1,000,000). Treated as Terrax's own quotation inputs, not a price list (client answers item 2).
 
@@ -931,7 +934,7 @@ since 18 Nov 2026.
 [REQ-043](requests.md) domain connection; [REQ-033](requests.md) which address (for example app.terraxmedia.com); [REQ-032](requests.md) residency and legal prerequisites.
 
 **History:**
-- **2026-11-18** — Preview deployed on the shared Contabo VPS from master `9485d03d` with capped memory. Release-template faults it found are logged as REQ-330. Built on the server only; no repo commit.
+- **2026-11-18** — Preview deployed on the shared Contabo VPS from master `9485d03d` with capped memory. Release-template faults it found are logged as REQ-330, Built in `e7b027de`. Built on the server only; no repo commit.
 - **2026-11-17** — Owner: preview on the owner's Contabo VPS until a Hetzner CX33 is available (REQ-329). Previously there was no hosted preview, and Hetzner had no account access.
 - **2026-11-04** - REQ-286: process findings and preview prerequisites are recorded in the host/seed amendments Built in `d98e72b9` and specialist trace/corrections Built in `10e006fb`. REQ-287 explicitly opted-in staging seeding is Built in `d98e72b9`. REQ-283 remains a host-only TODO; this records no trusted-IP deployment verification.
 - **2026-10-25** — Owner-approved recovery hardening (D133, REQ-239/240): every process must explicitly identify its environment, and nonlocal email transport verifies the server certificate and hostname. Useful bounded diagnostics remain available without an error-tracking account; scan personal data stays excluded. Earlier startup silently selected local mode, SMTP had no explicit verifying context, and local exception diagnostics were absent or unsafe. Implementation/verification is in progress; no external delivery or deployment is authorized.

@@ -1,12 +1,7 @@
 "use client";
-import { useEffect, useRef, useState, useTransition } from "react";
-import Image from "next/image";
-import {
-  searchOperatorOptions,
-  previewOperatorArtwork,
-  type SelectionKind,
-  type SelectionOption,
-} from "./queue-options";
+import { useRef, useState, useTransition } from "react";
+import { searchOperatorOptions, type SelectionKind, type SelectionOption } from "./queue-options";
+import { useArtworkPreview } from "./use-artwork-preview";
 
 export function SearchSelect({
   kind,
@@ -32,12 +27,12 @@ export function SearchSelect({
   }>();
   const [offset, setOffset] = useState(0);
   const [pending, start] = useTransition();
-  const [preview, setPreview] = useState<{ url?: string; error?: string }>();
-  useEffect(() => {
-    if (!preview?.url) return;
-    const timer = window.setTimeout(() => setPreview(undefined), 60_000);
-    return () => window.clearTimeout(timer);
-  }, [preview]);
+  const {
+    preview,
+    loading: previewLoading,
+    open: openPreview,
+    clear: clearPreview,
+  } = useArtworkPreview();
   const request = useRef(0);
   function search(nextOffset: number) {
     const id = ++request.current;
@@ -62,21 +57,28 @@ export function SearchSelect({
         <button
           type="button"
           className="text-cyan mb-2 text-sm underline"
-          disabled={pending}
-          onClick={() =>
-            start(async () => setPreview(await previewOperatorArtwork(selected.fileId!)))
-          }
+          disabled={previewLoading}
+          onClick={() => openPreview(selected.fileId!)}
         >
-          Preview selected artwork
+          {previewLoading ? "Opening artwork…" : "Preview selected artwork"}
         </button>
       ) : null}
-      {preview?.url ? (
-        <Image
+      {preview?.url && preview.isPdf ? (
+        <a
+          href={preview.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-cyan mb-2 block text-sm underline"
+        >
+          Open PDF artwork
+        </a>
+      ) : preview?.url ? (
+        /* eslint-disable-next-line @next/next/no-img-element -- private blob: artwork cannot use the image optimizer */
+        <img
           src={preview.url}
           alt="Selected campaign artwork"
           width={320}
           height={240}
-          unoptimized
           className="max-w-full rounded object-contain"
         />
       ) : null}
@@ -117,7 +119,7 @@ export function SearchSelect({
                   disabled={!!option.unavailable}
                   onClick={() => {
                     setSelected(option);
-                    setPreview(undefined);
+                    clearPreview();
                     onSelect?.(option.id);
                   }}
                   className="border-edge w-full rounded border p-2 text-left disabled:opacity-60"

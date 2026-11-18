@@ -79,6 +79,7 @@ SYNTHETIC_ISSUER_FACTS = {
     "bank_account_name": "Terrax Media Company Ltd",
     "bank_account_number": "0000000000",
 }
+SEED_PLANNED_INVOICES = "cardvert_seed_planned_invoices"
 
 
 async def managed_seed_image(
@@ -180,7 +181,8 @@ async def prepare_daily_offer(
             campaign_id=campaign.id,
             payout_rule_id=rule.id,
             revision_number=1,
-            effective_from=campaign.start_at - timedelta(days=7),
+            # Terms must be in force when the offer is made, even for a campaign weeks away.
+            effective_from=min(campaign.start_at - timedelta(days=7), offered_at),
             daily_rate_naira=Decimal("10000.00"),
             daily_target_miles=Decimal("70"),
             shortfall_strategy="proportional",
@@ -304,7 +306,6 @@ async def seed_campaign_financials(
         FinancialAuthorizationAllocation,
         Invoice,
         InvoiceIssuerProfile,
-        InvoiceNumberSequence,
         PaymentReceipt,
         ReceiptAllocation,
         ReceiptLifecycleEvent,
@@ -481,33 +482,14 @@ async def seed_campaign_financials(
         )
         session.add(issuer)
         await session.flush()
-    invoice_number = None
-    if invoice_status != "draft":
-        from app.services.billing.invoices import _acquire_invoice_number_lock
-
-        year = max(2020, at.year - 1)
-        await _acquire_invoice_number_lock(session, "TXM", year)
-        sequence = await session.scalar(
-            select(InvoiceNumberSequence)
-            .where(
-                InvoiceNumberSequence.number_prefix == "TXM",
-                InvoiceNumberSequence.calendar_year == year,
-            )
-            .with_for_update()
-        )
-        if sequence is None:
-            sequence = InvoiceNumberSequence(number_prefix="TXM", calendar_year=year, next_number=1)
-            session.add(sequence)
-            await session.flush()
-        invoice_number = f"TXM-{year}-{sequence.next_number:06d}"
-        sequence.next_number += 1
-    session.add(
+    # Issued invoices are immutable, and the seed reaches campaigns out of date order, so
+    # invoices are written together at the end, numbered in issue-date order.
+    session.info.setdefault(SEED_PLANNED_INVOICES, []).append(
         Invoice(
             commercial_terms_id=terms.id,
             campaign_id=campaign.id,
             organization_id=campaign.organization_id,
             issuer_profile_id=issuer.id if invoice_status != "draft" else None,
-            invoice_number=invoice_number,
             status=invoice_status,
             customer_snapshot=_customer_snapshot(organization),
             issuer_snapshot=None
@@ -525,7 +507,38 @@ async def seed_campaign_financials(
             created_at=at + timedelta(hours=2),
         )
     )
-    await session.flush()
+
+
+async def write_planned_seed_invoices(session) -> None:
+    """Write the seed's invoices, numbered by issue date in their issue year (as issuing does)."""
+    from app.models.billing import InvoiceNumberSequence
+    from app.services.billing.invoices import LAGOS_TZ, _acquire_invoice_number_lock
+
+    planned = session.info.pop(SEED_PLANNED_INVOICES, [])
+    for invoice in sorted(
+        planned, key=lambda row: (row.issued_at or row.created_at, str(row.campaign_id))
+    ):
+        if invoice.issued_at is not None:
+            year = invoice.issued_at.astimezone(LAGOS_TZ).year
+            await _acquire_invoice_number_lock(session, "TXM", year)
+            sequence = await session.scalar(
+                select(InvoiceNumberSequence)
+                .where(
+                    InvoiceNumberSequence.number_prefix == "TXM",
+                    InvoiceNumberSequence.calendar_year == year,
+                )
+                .with_for_update()
+            )
+            if sequence is None:
+                sequence = InvoiceNumberSequence(
+                    number_prefix="TXM", calendar_year=year, next_number=1
+                )
+                session.add(sequence)
+                await session.flush()
+            invoice.invoice_number = f"TXM-{year}-{sequence.next_number:06d}"
+            sequence.next_number += 1
+        session.add(invoice)
+        await session.flush()
 
 
 class StartAuthorityGraph(Protocol):

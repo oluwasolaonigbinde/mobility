@@ -143,6 +143,52 @@ it("offers a named bank list only for rejected bank details", async () => {
   expect(screen.queryByLabelText("NIN")).toBeNull();
   expect(screen.queryByLabelText(/Replace/)).toBeNull();
 });
+it.each([
+  [{ status: "approved", bank_account_verified: true }, "Bank account verified."],
+  [
+    { status: "approved", bank_account_verified: false },
+    "Terrax Media is checking your bank account.",
+  ],
+  [
+    { status: "pending_review", bank_account_verified: false },
+    "Terrax Media is checking your bank account.",
+  ],
+  [{ status: "not_submitted", bank_account_verified: false }, "Bank account not added yet."],
+  [
+    { status: "rejected", bank_account_verified: false },
+    "Your bank account will be checked when you send your updated details.",
+  ],
+])("shows the bank status line for %o", async (stage, line) => {
+  fetchMock.mockResolvedValue(
+    Response.json({
+      person_payee: {
+        agreement_version: "1",
+        agreement_accepted_at: "2026-10-12T12:00:00Z",
+        documents: {},
+        ...stage,
+      },
+      vehicles: [],
+    }),
+  );
+  render(<DocumentRenewals driverId="driver" />);
+  const heading = await screen.findByRole("heading", { name: "Identity and bank details" });
+  expect(heading.parentElement).toHaveTextContent(line);
+});
+
+it("leaves rejected bank details to the replacement message", async () => {
+  fetchMock.mockImplementation(async (url: string) =>
+    url.includes("/banks")
+      ? Response.json([])
+      : Response.json({
+          person_payee: { ...documents.person_payee, replace_bank: true, documents: {} },
+          vehicles: [],
+        }),
+  );
+  render(<DocumentRenewals driverId="driver" />);
+  expect(await screen.findByText(/Bank details did not match/)).toBeVisible();
+  expect(screen.queryByText(/Bank account verified|checking your bank account/)).toBeNull();
+});
+
 it("handles loading failure and retry", async () => {
   fetchMock.mockRejectedValueOnce(new Error("offline"));
   render(<DocumentRenewals driverId="driver" />);

@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.billing import CommercialQuoteRequest
 from app.models.campaign import Campaign, CampaignCreative
 from app.models.campaign_assignment import CampaignAssignment
 from app.models.campaign_change import CampaignChangeRequest
@@ -14,6 +15,7 @@ from app.models.installation_evidence import InstallationEvidenceSubmission
 from app.models.payout import PayoutCorrectionOrder
 from app.models.trip_analytics import FraudFlag
 from app.models.vehicle import Vehicle
+from app.services.billing.quotes import open_quote_request_clause
 from app.services.campaign_enquiries import staff_enquiries
 from app.services.contacts import list_manual_driver_contact_tasks
 from app.services.vehicles import pending_vehicle_review_clause
@@ -37,6 +39,7 @@ SOURCE_AREAS = {
     "disputes": "support",
     "changes": "campaigns",
     "paused": "campaigns",
+    "quotes": "campaigns",
 }
 
 
@@ -83,6 +86,7 @@ async def admin_badge_summary(session: AsyncSession, *, actor_user_id: UUID) -> 
         "disputes": count(FraudDispute, FraudDispute.status == "open"),
         "changes": count(CampaignChangeRequest, CampaignChangeRequest.status == "pending_admin"),
         "paused": count(Campaign, Campaign.status == "paused"),
+        "quotes": count(CommercialQuoteRequest, open_quote_request_clause()),
     }
     row = (
         await session.execute(select(*(query.label(key) for key, query in queries.items())))

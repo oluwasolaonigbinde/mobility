@@ -59,7 +59,7 @@ describe("Bounded Work queue", () => {
     const queue = await collectWorkQueue(api, 1);
     expect(queue.Operations!.total).toBe(120);
     expect(get.mock.calls.every(([, o]) => o.params.query.limit === 1)).toBe(true);
-    expect(get).toHaveBeenCalledTimes(15);
+    expect(get).toHaveBeenCalledTimes(16);
     expect(get.mock.calls.some(([path]) => path.endsWith("/campaign-assignments"))).toBe(false);
   });
 
@@ -167,7 +167,43 @@ describe("Bounded Work queue", () => {
       get.mock.calls.find(([p]) => p.endsWith("/fraud-flags"))?.[1].params.query,
     ).toMatchObject({ group_by_trip: true, unresolved_only: true });
   });
-  it("retains failure instead of inventing an empty list or zero badge", async () => {
+  it("lists open quote requests in Finance, linking to the campaign's billing", async () => {
+    get.mockImplementation(async (path) =>
+      path.endsWith("/quote-requests/open")
+        ? {
+            data: {
+              items: [
+                {
+                  id: "quote-1",
+                  campaign_id: "campaign-1",
+                  campaign_name: "Marula Kitchens — Gwarinpa Weekend Lunch",
+                  organization_name: "Marula Kitchens",
+                  requested_at: date,
+                },
+              ],
+              total: 1,
+            },
+          }
+        : { data: { items: [], total: 0 } },
+    );
+    const queue = await collectWorkQueue(api);
+    expect(queue.Finance!.total).toBe(1);
+    expect(queue.Finance![0]!.area).toBe("campaigns");
+    expect(await queue.Finance![0]!.describe()).toEqual({
+      name: "Marula Kitchens — Gwarinpa Weekend Lunch",
+      reason: "Quote requested by Marula Kitchens",
+      href: "/admin/campaigns/campaign-1#money",
+    });
+    expect(
+      get.mock.calls.find(([p]) => p.endsWith("/quote-requests/open"))?.[1].params.query,
+    ).toMatchObject({ limit: 5, offset: 0, oldest_first: true });
+    render(await page());
+    expect(
+      within(screen.getByRole("region", { name: "Finance" })).getByRole("link", {
+        name: /Quote requested by Marula Kitchens/,
+      }),
+    ).toHaveAttribute("href", "/admin/campaigns/campaign-1#money");
+  });  it("retains failure instead of inventing an empty list or zero badge", async () => {
     get.mockImplementation(async (path) => {
       if (path.endsWith("/vehicles")) throw new Error("offline");
       return { data: { items: [], total: 0 } };

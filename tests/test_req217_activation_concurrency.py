@@ -58,6 +58,15 @@ def test_cross_campaign_activation_serializes_and_finished_job_cannot_revive(
     ]
     staff_headers = auth_headers(db_client, admin.email, PASSWORD)
     identities = []
+
+    # Q16 now refuses the second overlapping acceptance; let both through so the
+    # activation guard behind it is still exercised on its own.
+    async def skip_acceptance_date_check(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(
+        assignments, "ensure_vehicle_free_for_campaign_dates", skip_acceptance_date_check
+    )
     for index, campaign in enumerate(campaigns):
 
         async def set_budget(campaign=campaign):

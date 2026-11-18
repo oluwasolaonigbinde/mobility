@@ -17,6 +17,7 @@ const credentialsSchema = z.object({
 });
 
 export interface LoginState {
+  email?: string;
   error?: string;
   fieldErrors?: Partial<Record<"email" | "password", string>>;
 }
@@ -62,10 +63,18 @@ export async function demoLoginAction(
   credentials.set("password", selected.password);
   const from = _formData.get("from");
   if (typeof from === "string") credentials.set("from", from);
-  return loginAction({}, credentials);
+  // The configured demo email is never echoed back to the browser.
+  return signIn(credentials);
 }
 
 export async function loginAction(_prev: LoginState, formData: FormData): Promise<LoginState> {
+  const state = await signIn(formData);
+  // Keep the typed email after a failed attempt; the password is never returned.
+  const email = formData.get("email");
+  return typeof email === "string" ? { ...state, email: email.slice(0, 320) } : state;
+}
+
+async function signIn(formData: FormData): Promise<LoginState> {
   const parsed = credentialsSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),

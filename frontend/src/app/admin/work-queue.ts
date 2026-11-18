@@ -421,6 +421,28 @@ export const sources: Source[] = [
         `/admin/campaigns/${r.id}#overview`,
       ),
   ),
+  source(
+    "quotes",
+    "Finance",
+    "campaigns",
+    "Quotes to send",
+    "/admin?department=Finance&source=quotes",
+    (api, limit, offset) =>
+      api.GET("/api/v1/admin/quote-requests/open", {
+        params: { query: { limit, offset, oldest_first: true } },
+      }),
+    (r) =>
+      task(
+        `quote:${r.id}`,
+        "campaigns",
+        r.requested_at,
+        "Requested",
+        r.campaign_name,
+        `Quote requested by ${present(r.organization_name)}`,
+        // The billing section lives on the campaign page; /admin/billing has no route.
+        `/admin/campaigns/${r.campaign_id}#money`,
+      ),
+  ),
 ];
 export const readQueueSource = cache(async (id: string, limit: number, offset = 0) =>
   sources.find((s) => s.id === id)?.read(createApiClient(await getSessionToken()), limit, offset),

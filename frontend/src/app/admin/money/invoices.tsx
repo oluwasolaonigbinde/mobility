@@ -16,6 +16,7 @@ function cents(value: string) {
 }
 export function invoiceState(invoice: Invoice) {
   if (invoice.status !== "issued") return invoice.status;
+  if (invoice.payment_status === "cancelled") return "cancelled";
   const due = cents(invoice.effective_obligation_amount),
     funded = cents(invoice.funded_amount);
   return funded >= due ? "paid" : funded > 0n ? "part_paid" : "unpaid";

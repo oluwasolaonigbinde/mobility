@@ -71,7 +71,8 @@ test("named search narrows driver, vehicle and assignment work lists", async ({ 
   await page.goto("/admin/drivers?source=cars");
   await search(page, "ABJ-603-MR");
   await expect(main.getByText("ABJ-603-MR")).toBeVisible();
-  await expect(main.getByText("MUS-763-RS")).toHaveCount(0);
+  // Another seeded Abuja plate: a shared "ABJ" prefix must not match.
+  await expect(main.getByText("ABJ-763-RS")).toHaveCount(0);
 
   await page.goto("/admin/drivers?tab=active");
   await search(page, "Tunde");

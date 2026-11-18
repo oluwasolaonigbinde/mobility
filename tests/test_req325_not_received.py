@@ -1334,6 +1334,85 @@ def test_a5b_cash_refund_not_due_cancellation_stays_payable(
     assert invoice["payment_status"] != "paid"
 
 
+def test_req331_cancelled_invoice_is_owed_nowhere_and_live_unpaid_stays_unpaid(
+    db_client, db_sessionmaker, monkeypatch
+):
+    from app.services.billing.invoices import invoice_payment_status, outstanding_invoice_totals
+
+    admin, owner, organization, campaign = _fixture(db_sessionmaker, "r331-a4")
+    _, live_owner, live_organization, live_campaign = _fixture(db_sessionmaker, "r331-a4-live")
+
+    async def scenario():
+        async with db_sessionmaker() as session:
+            terms, _, _ = await _funded_terms(
+                session,
+                admin=admin,
+                owner=owner,
+                organization=organization,
+                campaign=campaign,
+                reference="R331-A4",
+            )
+            invoice = await session.scalar(
+                select(Invoice).where(Invoice.commercial_terms_id == terms.id)
+            )
+            cancellation = await _cancel_for_refund(
+                session,
+                campaign=campaign,
+                admin=admin,
+                cutoff=_cutoff(),
+                monkeypatch=monkeypatch,
+                reason="cancel a fully paid campaign",
+            )
+            assert cancellation.disposition == "cash_refund_due"
+            # Fully paid: the money is held for refund, so it still reads as paid.
+            assert (await invoice_payment_status(session, invoice))[0] == "paid"
+            # The balance this leaves is what admin used to show as owed.
+            await record_invoice_correction(
+                session,
+                invoice_id=invoice.id,
+                actor_user_id=admin.id,
+                correction_reference="r331-a4-debit",
+                correction_type=InvoiceCorrectionType.DEBIT_NOTE,
+                net_amount="25.00",
+                reason="late extra",
+            )
+            live_terms = await _accepted_terms(
+                session,
+                campaign=live_campaign,
+                admin=admin,
+                owner=live_owner,
+                reference="R331-A4-LIVE",
+                amount="100.00",
+                issued=True,
+            )
+            live_invoice = await session.scalar(
+                select(Invoice).where(Invoice.commercial_terms_id == live_terms.id)
+            )
+            assert (await invoice_payment_status(session, invoice))[0] == "cancelled"
+            assert (await invoice_payment_status(session, live_invoice))[0] == "unpaid"
+            totals = await outstanding_invoice_totals(
+                session, [organization.id, live_organization.id]
+            )
+            assert totals[organization.id] == []
+            assert totals[live_organization.id] == [{"currency": "NGN", "amount": "100.00"}]
+            await session.commit()
+
+    asyncio.run(scenario())
+    for path, email in (
+        (f"/api/v1/advertiser/campaigns/{campaign.id}/commercial", owner.email),
+        (f"/api/v1/admin/campaigns/{campaign.id}/commercial", admin.email),
+    ):
+        read = db_client.get(path, headers=auth_headers(db_client, email))
+        assert read.status_code == 200, read.text
+        [invoice] = read.json()["invoices"]
+        assert invoice["payment_status"] == "cancelled"
+    live = db_client.get(
+        f"/api/v1/advertiser/campaigns/{live_campaign.id}/commercial",
+        headers=auth_headers(db_client, live_owner.email),
+    )
+    assert [row["payment_status"] for row in live.json()["invoices"]] == ["unpaid"]
+
+
 # --- A7 -----------------------------------------------------------------------
 
 

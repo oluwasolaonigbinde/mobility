@@ -24,6 +24,12 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockResolvedValue(new Response(JSON.stringify(empty)));
 });
+it("lets the latest selectable report day be yesterday, since today's figures aren't ready", () => {
+  show();
+  expect(screen.getByLabelText("To")).toHaveAttribute("max", "2026-10-20");
+  expect(screen.getByLabelText("From")).toHaveAttribute("max", "2026-10-20");
+  expect(screen.getByLabelText("To")).toHaveValue("2026-10-20");
+});
 afterEach(() => {
   cleanup();
   client?.clear();

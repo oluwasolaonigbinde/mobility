@@ -122,6 +122,20 @@ describe("CommercialHistory", () => {
     expect(screen.queryByRole("button", { name: "Pay invoice online" })).not.toBeInTheDocument();
   });
 
+  it("shows a cancelled campaign's invoice as closed, with nothing to pay", () => {
+    render(
+      <CommercialHistory
+        invoices={[{ ...invoice, payment_status: "cancelled", funded_amount: "0.00" }]}
+        settlements={[]}
+        showPayment
+      />,
+    );
+    expect(screen.getByText("Cancelled – nothing to pay")).toBeInTheDocument();
+    expect(screen.queryByText("Not paid")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pay invoice online" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/bank transfer/)).not.toBeInTheDocument();
+  });
+
   it.each([
     ["fully funded", { funded_amount: "96.75" }],
     ["over funded", { funded_amount: "100.00" }],

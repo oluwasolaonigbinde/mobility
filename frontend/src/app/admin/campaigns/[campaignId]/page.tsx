@@ -11,7 +11,13 @@ import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
-import { adminActor, adminActivity, adminStatus, adminTone } from "@/lib/status/admin";
+import {
+  adminActor,
+  adminActivity,
+  adminStatus,
+  adminTone,
+  campaignSpendLabel,
+} from "@/lib/status/admin";
 import { formatDate, formatDateRange, formatMoneyExact } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -325,7 +331,7 @@ export default async function CampaignHub({
       {percentage !== undefined ? (
         <div className="mb-5">
           <label htmlFor="campaign-budget" className="text-muted text-sm">
-            Budget used: {formatMoneyExact(spent, campaign.currency)} of{" "}
+            {campaignSpendLabel(campaign.status)}: {formatMoneyExact(spent, campaign.currency)} of{" "}
             {formatMoneyExact(budget, campaign.currency)}
           </label>
           <progress

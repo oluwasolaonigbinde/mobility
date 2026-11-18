@@ -3,7 +3,17 @@ import { resolve, join } from "node:path";
 import { expect, it } from "vitest";
 import { adminStatus, adminTone, paymentRunStatus } from "./admin";
 import { advertiserStatus } from "./advertiser";
-import { adminActivity } from "./admin";
+import { adminActivity, campaignSpendLabel } from "./admin";
+
+it.each([
+  ["draft", "Paid so far"],
+  ["pending_review", "Paid so far"],
+  ["approved", "Paid so far"],
+  ["active", "Budget used"],
+  ["paused", "Budget used"],
+])("names a %s campaign's budget figure truthfully", (status, label) =>
+  expect(campaignSpendLabel(status)).toBe(label),
+);
 
 it.each([
   ["stored_file.read", "Private document viewed"],

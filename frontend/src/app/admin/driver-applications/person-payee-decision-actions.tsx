@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/format";
 import { SensitiveReview } from "./sensitive-review";
@@ -181,7 +181,19 @@ export function PersonPayeeDecisionActions({
       ))}
       <h3 className="mt-4 font-medium">Identity and bank decision</h3>
       {status === "pending_review" && submissionId && bankAccountVersionId ? (
-        <form action={action} className="flex flex-col gap-2">
+        <form
+          onSubmit={(event) => {
+            // Submitting through onSubmit keeps the reviewer's ticks, outcomes and dates
+            // after a refused decision; a form `action` would reset them.
+            event.preventDefault();
+            const formData = new FormData(event.currentTarget);
+            const submitter = (event.nativeEvent as SubmitEvent).submitter;
+            if (submitter instanceof HTMLButtonElement && submitter.name)
+              formData.set(submitter.name, submitter.value);
+            startTransition(() => action(formData));
+          }}
+          className="flex flex-col gap-2"
+        >
           <input type="hidden" name="application_id" value={applicationId} />
           {driverProfileId ? (
             <input type="hidden" name="driver_profile_id" value={driverProfileId} />

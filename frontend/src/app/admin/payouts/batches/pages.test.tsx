@@ -75,7 +75,11 @@ describe("bounded payout pages", () => {
     );
     const row = screen.getByRole("row", { name: /₦125.10/ });
     expect(within(row).getByText("Saved, not sent yet")).toBeVisible();
-    expect(within(row).getByText("Waiting for approval")).toBeVisible();
+    // One status per row: the run status already says it has not been approved and sent.
+    expect(within(row).queryByText("Waiting for approval")).toBeNull();
+    // The sr-only "Open" header is absolutely positioned; a positioned scroll box keeps it
+    // from widening the page past a 390 px phone screen.
+    expect(screen.getByRole("table").parentElement).toHaveClass("relative", "overflow-x-auto");
     expect(within(row).getByText("Waiting to send: 2")).toBeVisible();
     expect(within(row).getByRole("link", { name: "Review run" })).toHaveAttribute(
       "href",

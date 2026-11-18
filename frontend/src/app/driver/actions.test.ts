@@ -745,3 +745,14 @@ it("keeps staff approval instructions out of driver Accept and Start refusals", 
   expect(await startTripAction(assignmentId)).toEqual({ error: expected, outcome: "failed" });
   expect(expected).not.toContain("Use the car document review");
 });
+
+it("tells a driver plainly when their car is already booked for those dates", async () => {
+  const message =
+    "This car is already booked on another campaign for some of these dates. A car can only run one campaign at a time.";
+  mocks.post.mockRejectedValue(
+    new ApiError(409, { code: "VEHICLE_BOOKED_FOR_THESE_DATES", message }),
+  );
+  const assignmentId = "10000000-0000-4000-8000-000000000001";
+  expect((await legacyAssignmentAction({ assignmentId, action: "accept" })).error).toBe(message);
+  expect((await portalAssignmentAction({ assignmentId, action: "accept" })).error).toBe(message);
+});

@@ -38,6 +38,20 @@ export interface DriverApplicationState {
     Record<"email" | "full_name" | "phone" | "service_city" | "country_code", string>
   >;
   submitted?: boolean;
+  /** Typed contact details kept after a failed send so the form doesn't clear. */
+  values?: Partial<Record<ContactField, string>>;
+}
+
+const CONTACT_FIELDS = ["full_name", "email", "phone", "service_city"] as const;
+type ContactField = (typeof CONTACT_FIELDS)[number];
+
+function typedValues(formData: FormData): DriverApplicationState["values"] {
+  return Object.fromEntries(
+    CONTACT_FIELDS.map((name) => {
+      const value = formData.get(name);
+      return [name, typeof value === "string" ? value.slice(0, 255) : ""];
+    }),
+  );
 }
 
 export interface DriverOnboardingAccessState {
@@ -67,6 +81,7 @@ export async function submitDriverApplicationAction(
         service_city: fields.service_city?.[0],
         country_code: fields.country_code?.[0],
       },
+      values: typedValues(formData),
     };
   }
 
@@ -75,11 +90,15 @@ export async function submitDriverApplicationAction(
       body: parsed.data,
     });
     if (!data)
-      return { error: "We couldn't send your application right now. Please try again later." };
+      return {
+        error: "We couldn't send your application right now. Please try again later.",
+        values: typedValues(formData),
+      };
     return { submitted: true };
   } catch (error) {
     unstable_rethrow(error);
     return {
+      values: typedValues(formData),
       error:
         error instanceof ApiError
           ? publicActionError(

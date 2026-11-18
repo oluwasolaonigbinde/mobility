@@ -33,7 +33,10 @@ from app.services.billing.common import (
     LAGOS_TZ,
     MONEY_QUANTUM,
 )
-from app.services.billing.queries import effective_invoice_obligation
+from app.services.billing.queries import (
+    cancellation_refuses_payment,
+    effective_invoice_obligation,
+)
 from app.services.payout_rule_serialization import database_clock
 
 
@@ -412,6 +415,9 @@ async def invoice_payment_status(session: AsyncSession, invoice: Invoice) -> tup
     )
     if obligation == 0:
         return "paid", funded
+    if funded < obligation and await cancellation_refuses_payment(session, invoice.campaign_id):
+        # REQ-331: after this cancellation nothing more is owed; any refund shows in history.
+        return "cancelled", funded
     if funded <= 0:
         return "unpaid", funded
     if funded < obligation:
@@ -440,7 +446,9 @@ async def outstanding_invoice_totals(
         obligation = await effective_invoice_obligation(
             session, commercial_terms_id=invoice.commercial_terms_id
         )
-        _, funded = await invoice_payment_status(session, invoice)
+        payment_status, funded = await invoice_payment_status(session, invoice)
+        if payment_status == "cancelled":
+            continue
         by_currency = totals[invoice.organization_id]
         by_currency[invoice.currency] = by_currency.get(invoice.currency, Decimal(0)) + max(
             obligation - funded, Decimal(0)

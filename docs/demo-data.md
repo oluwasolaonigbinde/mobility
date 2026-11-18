@@ -255,7 +255,7 @@ This one table lists persisted names and human-written fields, including frozen 
 | `vehicles.color` | Black<br>Blue<br>Grey<br>Red<br>Silver<br>White |
 | `vehicles.make` | Honda<br>Hyundai<br>Kia<br>Nissan<br>Suzuki<br>Toyota |
 | `vehicles.model` | Accord<br>Camry<br>Civic<br>Corolla<br>Elantra<br>Every<br>Rio<br>Sienna<br>Urvan |
-| `vehicles.plate_number` | AAA-681-WZ<br>ABJ-482-KD<br>ABJ-603-MR<br>ABJ-715-FM<br>AKD-458-PQ<br>EPE-926-KL<br>FKJ-204-NP<br>FKJ-824-CN<br>KJA-637-BD<br>KJA-916-NB<br>KRD-347-JM<br>LND-315-HG<br>LSR-219-XY<br>LSR-528-HP<br>MUS-763-RS<br>SMK-592-TV |
+| `vehicles.plate_number` | ABC-926-KL<br>ABJ-219-XY<br>ABJ-347-JM<br>ABJ-482-KD<br>ABJ-603-MR<br>ABJ-715-FM<br>ABJ-763-RS<br>BWR-315-HG<br>BWR-528-HP<br>BWR-681-WZ<br>GWA-204-NP<br>GWA-592-TV<br>GWA-824-CN<br>KUJ-637-BD<br>KUJ-916-NB<br>KWL-458-PQ |
 | `whatsapp_consents.purpose` | Installation and trip updates |
 | Artwork and installation photo text | Marula Kitchens; Lunch delivered.; Good Food Brighter Days; each fictional business name above; Closer to your neighbourhood; Lagos • Abuja |
 | Applicant document artwork | Driver licence; Portrait; Vehicle advertising agreement; Vehicle registration; Insurance; Vehicle photo; each applicant's full name above; Abuja; I agree to keep the panels fitted and report any damage promptly.; Signed; ABJ-2024-58219; ABJ-603-MR; Toyota Corolla White 2020 |

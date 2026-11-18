@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 from starlette import status
 
 from app.core import clock
@@ -240,6 +241,43 @@ async def ensure_no_other_active_assignment_for_driver(
         raise AppError(
             "ACTIVE_ASSIGNMENT_EXISTS_FOR_DRIVER",
             "Another assignment is already active for this driver",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+
+async def ensure_vehicle_free_for_campaign_dates(
+    session: AsyncSession,
+    *,
+    vehicle_id: UUID,
+    assignment_id: UUID,
+    campaign: Campaign,
+) -> None:
+    """Q16: one campaign per car; refuse a second booking whose dates overlap."""
+    booked = aliased(Campaign)
+    overlap = [
+        CampaignAssignment.vehicle_id == vehicle_id,
+        CampaignAssignment.id != assignment_id,
+        CampaignAssignment.status.in_(
+            {CampaignAssignmentStatus.ACCEPTED.value, CampaignAssignmentStatus.ACTIVE.value}
+        ),
+        booked.status != CampaignStatus.CANCELLED.value,
+        booked.end_at.is_(None) | (booked.end_at > func.now()),
+    ]
+    if campaign.end_at is not None:
+        overlap.append(booked.start_at.is_(None) | (booked.start_at < campaign.end_at))
+    if campaign.start_at is not None:
+        overlap.append(booked.end_at.is_(None) | (booked.end_at > campaign.start_at))
+    existing = await session.scalar(
+        select(CampaignAssignment.id)
+        .join(booked, booked.id == CampaignAssignment.campaign_id)
+        .where(*overlap)
+        .limit(1)
+    )
+    if existing is not None:
+        raise AppError(
+            "VEHICLE_BOOKED_FOR_THESE_DATES",
+            "This car is already booked on another campaign for some of these dates. "
+            "A car can only run one campaign at a time.",
             status_code=status.HTTP_409_CONFLICT,
         )
 
@@ -1707,6 +1745,10 @@ async def accept_driver_assignment(  # noqa: C901
         vehicle=vehicle,
         now=now,
         lock=True,
+    )
+    # Serialized by the vehicle row lock and work-eligibility lock taken above.
+    await ensure_vehicle_free_for_campaign_dates(
+        session, vehicle_id=vehicle.id, assignment_id=assignment.id, campaign=campaign
     )
     previous_status = assignment.status
     assignment.status = CampaignAssignmentStatus.ACCEPTED.value

@@ -70,6 +70,29 @@ it.each([
       (expected as string[]).includes(status),
     );
 });
+it("never calls a paused campaign running: the tab says running or paused", async () => {
+  mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "advertiser" } });
+  mocks.get.mockResolvedValue({
+    data: {
+      items: ["active", "active", "paused"].map((status, i) => ({
+        id: `c${i}`,
+        name: `Campaign ${i}`,
+        status,
+        currency: "NGN",
+        budget_amount: "100",
+        start_at: null,
+        end_at: null,
+      })),
+      total: 3,
+    },
+  });
+  render(await CampaignsPage({ searchParams: Promise.resolve({}) }));
+  const filters = screen.getByRole("navigation", { name: "Campaign groups" });
+  expect(filters.querySelector('[aria-current="page"]')).toHaveTextContent("Running or paused");
+  expect(screen.getByText("3 campaigns · Running or paused")).toBeInTheDocument();
+  const pausedRow = screen.getByRole("link", { name: "Campaign 2" }).closest("tr")!;
+  expect(pausedRow).toHaveTextContent("Paused");
+});
 it("reads the complete population before applying a group filter", async () => {
   mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "advertiser" } });
   mocks.get

@@ -243,6 +243,51 @@ it("requires a chosen reason only for Reject and posts the selected reason", asy
   expect(payload.get("reason_code")).toBe("identity_mismatch");
 });
 
+it("keeps the reviewer's ticks, outcomes and dates after a refused Approve", async () => {
+  const user = userEvent.setup();
+  mocks.decide.mockResolvedValue({ error: "Check the bank details for payouts before approving." });
+  render(<PersonPayeeDecisionActions {...props} />);
+  await user.click(screen.getByLabelText("Identity matches"));
+  await user.click(screen.getByLabelText("Account matches"));
+  await user.click(screen.getByLabelText("Documents readable"));
+  const outcomes = screen.getAllByLabelText("Outcome");
+  await user.selectOptions(outcomes[0]!, "accepted");
+  await user.selectOptions(outcomes[1]!, "replace");
+  fireEvent.change(screen.getByLabelText("Driving licence expiry (if recorded)"), {
+    target: { value: "2027-05-01" },
+  });
+  await user.click(screen.getByRole("button", { name: "Approve" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Check the bank details");
+  const payload = mocks.decide.mock.calls[0]![1] as FormData;
+  expect(payload.get("intent")).toBe("approve");
+  expect(payload.get("identity_match_confirmed")).toBe("on");
+  expect(screen.getByLabelText("Identity matches")).toBeChecked();
+  expect(screen.getByLabelText("Account matches")).toBeChecked();
+  expect(screen.getByLabelText("Documents readable")).toBeChecked();
+  expect(screen.getAllByLabelText("Outcome")[0]).toHaveValue("accepted");
+  expect(screen.getAllByLabelText("Outcome")[1]).toHaveValue("replace");
+  expect(screen.getByLabelText("Driving licence expiry (if recorded)")).toHaveValue("2027-05-01");
+});
+
+it("keeps viewed evidence and decision choices when a bank check refreshes the page", async () => {
+  const user = userEvent.setup();
+  mocks.verify.mockResolvedValue({ done: "These bank details have been checked for payouts." });
+  const { rerender } = render(<PersonPayeeDecisionActions {...props} />);
+  const nin = within(screen.getByRole("region", { name: "Identity (NIN)" }));
+  await user.click(nin.getByRole("button", { name: "Show NIN" }));
+  await nin.findByText("protected current identity");
+  await user.click(screen.getByLabelText("Identity matches"));
+  await user.selectOptions(screen.getAllByLabelText("Outcome")[0]!, "accepted");
+  const bank = within(screen.getByRole("region", { name: "Bank account" }));
+  await user.type(bank.getByLabelText("Test-transfer reference from your bank"), "REF-0001");
+  await user.click(bank.getByRole("button", { name: "Check bank details" }));
+  await waitFor(() => expect(mocks.verify).toHaveBeenCalledTimes(1));
+  rerender(<PersonPayeeDecisionActions {...props} bankAccountVerified />);
+  expect(nin.getByText("protected current identity")).toBeInTheDocument();
+  expect(screen.getByLabelText("Identity matches")).toBeChecked();
+  expect(screen.getAllByLabelText("Outcome")[0]).toHaveValue("accepted");
+});
+
 it("shows the accepted agreement version and date without a document read", () => {
   render(
     <PersonPayeeDecisionActions
