@@ -6,12 +6,12 @@
   },
   "critical": {
     "backend": {
-      "branch_covered": 6325,
-      "branch_percent": 84.3783,
-      "branch_total": 7496,
-      "line_covered": 29816,
-      "line_percent": 94.5669,
-      "line_total": 31529,
+      "branch_covered": 6339,
+      "branch_percent": 84.4075,
+      "branch_total": 7510,
+      "line_covered": 29890,
+      "line_percent": 94.6186,
+      "line_total": 31590,
       "paths": [
         "app/__init__.py",
         "app/adapters/banks.py",
@@ -318,12 +318,12 @@
       ]
     },
     "frontend": {
-      "branch_covered": 8042,
-      "branch_percent": 81.7443,
-      "branch_total": 9838,
-      "line_covered": 7689,
-      "line_percent": 88.5727,
-      "line_total": 8681,
+      "branch_covered": 8120,
+      "branch_percent": 81.9292,
+      "branch_total": 9911,
+      "line_covered": 7773,
+      "line_percent": 88.7227,
+      "line_total": 8761,
       "paths": [
         "frontend/src/app/admin/advertisers/[organizationId]/company/actions.ts",
         "frontend/src/app/admin/advertisers/[organizationId]/invite-actions.ts",
@@ -437,6 +437,7 @@
         "frontend/src/app/admin/trip-checks/page.tsx",
         "frontend/src/app/admin/trip-checks/reads.ts",
         "frontend/src/app/admin/trip-checks/route-map.tsx",
+        "frontend/src/app/admin/use-artwork-preview.ts",
         "frontend/src/app/admin/users/actions.ts",
         "frontend/src/app/admin/users/new/create-user-form.tsx",
         "frontend/src/app/admin/users/user-status-menu.tsx",
@@ -740,27 +741,27 @@
       ]
     }
   },
-  "eligible_inventory_sha256": "541df08df7a7d8e864a637ff5fb8d8dca61cf18ce5f5e5ec33ec9f1823037960",
+  "eligible_inventory_sha256": "0b2f7eff89933e1b52e31d8ec9a3710938117298d836144b46d9a45068fe8468",
   "global": {
-    "branch_covered": 14367,
-    "branch_percent": 82.8834,
-    "branch_total": 17334,
-    "line_covered": 37505,
-    "line_percent": 93.2728,
-    "line_total": 40210
+    "branch_covered": 14459,
+    "branch_percent": 82.9975,
+    "branch_total": 17421,
+    "line_covered": 37663,
+    "line_percent": 93.3385,
+    "line_total": 40351
   },
   "policy_sha256": "f4346d9fa3f4116f842cd17d853cd0ad0079121d9ffac691da19a93e8ef5ec33",
   "refresh": {
     "inventory_changes": {
       "added": [
-        "frontend/src/app/login/login-backdrop.tsx"
+        "frontend/src/app/admin/use-artwork-preview.ts"
       ],
       "removed": []
     },
-    "previous_baseline_sha256": "d738d7a6dd694c8c1d90cd6a184624adcf7c6493365ccc3256243d409e7469cc",
-    "reason": "REQ-326: add the decorative sign-in backdrop and its page test to the frontend inventory"
+    "previous_baseline_sha256": "5453deeb775700b11d9c2ed065aabe55e91a8c0f7228737e24f90a5d0bef36f8",
+    "reason": "REQ-327..332: new admin artwork-preview hook, quote-request Work queue source, audit checker rewrite; CI run 44295084880 coverage"
   },
-  "source_parent_sha": "0b37a9fa69bae191b4fceacc583b37c378cf02c1",
-  "source_sha256": "ef978b7d46da5b9c4dd439cbd2723ec31a265960c87ca232c1dccd2021d07ddc",
+  "source_parent_sha": "9485d03d46059c493b58a5c3537e1e3a7d7bf98d",
+  "source_sha256": "194bffa9af4b8c8ecc25a5b08ae60ec0316c308c9c7c3a540471be7de1b61a95",
   "version": 3
 }
