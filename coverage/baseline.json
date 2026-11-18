@@ -750,16 +750,16 @@
     "line_percent": 93.3385,
     "line_total": 40351
   },
-  "policy_sha256": "897fe914e770fef17117cdd01646545985ff01d7e708bac1c4b2ef76cb39eb5a",
+  "policy_sha256": "a9c855e61beb9ace90dcb0372073ee743405ba1a1736725acfe502a1cc36ce99",
   "refresh": {
     "inventory_changes": {
       "added": [],
       "removed": []
     },
-    "previous_baseline_sha256": "0dff72e1b9a7c472c112d98215b41d16cecc04a49e952e8c493387783220627f",
-    "reason": "REQ-333 / D169: backend shards 6 -> 10 change the measurement policy; refreshed from PR #43 run 44312619023 on 77b64c31"
+    "previous_baseline_sha256": "dc6e2cde4566527d5ce596440331334cbb5ffdc575d1003afcb075578de83f61",
+    "reason": "REQ-334: security dependency updates change the measurement policy; refreshed from PR #45 run 44329453315 on 008395ff"
   },
-  "source_parent_sha": "5f1857134f76a0379dad8d09719757c4269f39c2",
+  "source_parent_sha": "424057796adf0980ab48f757d3ee59a346ea8c09",
   "source_sha256": "194bffa9af4b8c8ecc25a5b08ae60ec0316c308c9c7c3a540471be7de1b61a95",
   "version": 3
 }

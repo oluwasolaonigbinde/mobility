@@ -1026,7 +1026,7 @@ other check is unchanged.
 - **Before 2026-10-05** — The frontend audit rejected every high or critical advisory without exceptions.
 - **2026-10-05** — Owner approved this one expiring advisory exception while finishing REQ-106, preserving all other high/critical checks and prohibiting npm's forced lint-package downgrade (D59, REQ-107). Built in `69655e2`.
 - **2026-11-18** — Owner approved a 30-day exception for the unfixed picomatch advisory on lint, test and build tools ("the ci check yes go aheaad"; D168, REQ-332). Previously CI allowed only the D59 braces exception, which expired on 5 Nov 2026; it is now removed.
-- **2026-11-18** — Owner approved faster CI ("yes yes, dependabot im neevr paying for anything so its a temporrary fix but sure why not ig"; D169, REQ-333). Previously CI ran on every branch push as well as on pull requests (REQ-108), in six backend groups, and Dependabot also opened weekly version updates.
+- **2026-11-18** — Owner approved faster CI ("yes yes, dependabot im neevr paying for anything so its a temporrary fix but sure why not ig"; D169, REQ-333). Previously CI ran on every branch push as well as on pull requests (REQ-108), in six backend groups, and Dependabot also opened weekly version updates. Built in `77b64c31`; PR #43 full CI passed and merged as `42405779`.
 
 ### Money and privacy verification
 
