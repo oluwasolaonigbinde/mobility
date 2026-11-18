@@ -750,18 +750,16 @@
     "line_percent": 93.3385,
     "line_total": 40351
   },
-  "policy_sha256": "f4346d9fa3f4116f842cd17d853cd0ad0079121d9ffac691da19a93e8ef5ec33",
+  "policy_sha256": "897fe914e770fef17117cdd01646545985ff01d7e708bac1c4b2ef76cb39eb5a",
   "refresh": {
     "inventory_changes": {
-      "added": [
-        "frontend/src/app/admin/use-artwork-preview.ts"
-      ],
+      "added": [],
       "removed": []
     },
-    "previous_baseline_sha256": "5453deeb775700b11d9c2ed065aabe55e91a8c0f7228737e24f90a5d0bef36f8",
-    "reason": "REQ-327..332: new admin artwork-preview hook, quote-request Work queue source, audit checker rewrite; CI run 44295084880 coverage"
+    "previous_baseline_sha256": "0dff72e1b9a7c472c112d98215b41d16cecc04a49e952e8c493387783220627f",
+    "reason": "REQ-333 / D169: backend shards 6 -> 10 change the measurement policy; refreshed from PR #43 run 44312619023 on 77b64c31"
   },
-  "source_parent_sha": "9485d03d46059c493b58a5c3537e1e3a7d7bf98d",
+  "source_parent_sha": "5f1857134f76a0379dad8d09719757c4269f39c2",
   "source_sha256": "194bffa9af4b8c8ecc25a5b08ae60ec0316c308c9c7c3a540471be7de1b61a95",
   "version": 3
 }
