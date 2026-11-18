@@ -5,10 +5,10 @@ import logging
 from typing import Literal
 from uuid import UUID
 
-from arq.connections import ArqRedis, RedisSettings, create_pool
+from arq.connections import ArqRedis, create_pool
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import Settings
+from app.core.config import Settings, arq_redis_settings
 
 JobKind = Literal["scan_file", "deliver_email", "generate_campaign_report"]
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ async def enqueue_outbox_jobs(settings: Settings, jobs: set[tuple[JobKind, UUID]
         assert settings.redis_url is not None
         pool = _pools.get(settings.redis_url)
         if pool is None:
-            config = RedisSettings.from_dsn(settings.redis_url)
+            config = arq_redis_settings(settings.redis_url)
             config.conn_timeout = 1
             config.conn_retries = 1
             pool = await create_pool(config)

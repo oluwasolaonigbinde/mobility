@@ -47,6 +47,10 @@ def test_production_render_has_one_public_edge_and_no_development_mounts() -> No
     assert services["api"]["read_only"] is True
     assert services["worker"]["read_only"] is True
     assert services["frontend"]["read_only"] is True
+    assert services["frontend"]["tmpfs"] == [
+        "/tmp:rw,noexec,nosuid,size=32m",
+        "/app/.next/cache:rw,noexec,nosuid,size=64m,mode=1777",
+    ]
     assert services["frontend"]["environment"]["LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER"] == "true"
     assert services["api"]["environment"]["LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER"] == "true"
     assert (

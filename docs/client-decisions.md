@@ -263,7 +263,7 @@ once the due date passes unpaid. One admin may record and approve credit.
 
 **History:**
 - **2026-11-17** — Owner kept corporate credit and answered the parked COM-008 questions, confirming the built behaviour (D166 / REQ-328). Previously the credit limit, driver liability and approver separation were open.
-- **2026-11-17** — Client, relayed by the owner (D165 / REQ-327): Terrax's account is Moniepoint 8246017023, Terrax Media Company Ltd. Previously Paystack was to settle to OPay (client answers item 7).
+- **2026-11-17** — Client, relayed by the owner (D165 / REQ-327): Terrax's account is Moniepoint 8246017023, Terrax Media Company Ltd. Previously Paystack was to settle to OPay (client answers item 7). Built in `5798e79b`.
 - **2026-11-16** — Test Mode run (REQ-324). Checkout, public webhook delivery and replay passed. The one test transfer was refused because Paystack couldn't verify the placeholder bank account, and Cardvert stopped it safely. The owner chose to prove payouts later. See the [run evidence](../issues/testing/req324-paystack-test-mode-2026-11-16.md).
 - **2026-11-15** — Owner: "paystack has been approved now" (REQ-324). Previously the account was still awaiting activation and only test payments were possible.
 - **2026-11-04** - REQ-272: online payment availability is computed from the configured gateway and valid return URL before offering checkout. Built in `65a856e8`.

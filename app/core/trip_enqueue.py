@@ -3,9 +3,9 @@ import logging
 from typing import Protocol
 from uuid import UUID
 
-from arq.connections import ArqRedis, RedisSettings, create_pool
+from arq.connections import ArqRedis, create_pool
 
-from app.core.config import Settings
+from app.core.config import Settings, arq_redis_settings
 
 logger = logging.getLogger(__name__)
 _enqueuers: dict[str, "RedisTripProcessingEnqueuer"] = {}
@@ -36,7 +36,7 @@ class RedisTripProcessingEnqueuer:
         # Only a successfully created pool is cached; a failed attempt leaves
         # _pool unset so the next request retries within the same time budget.
         if self._pool is None:
-            redis_settings = RedisSettings.from_dsn(self.redis_url)
+            redis_settings = arq_redis_settings(self.redis_url)
             redis_settings.conn_timeout = 1
             redis_settings.conn_retries = 1
             self._pool = await create_pool(redis_settings)
