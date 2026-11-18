@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.174 — 2026-11-18. Canonical source of truth: current state AND target state.**
+**Version 1.175 — 2026-11-18. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1122,21 +1122,22 @@ operator provisioning descriptions are superseded by this amendment.
 
 ### 10.3 CI **[BUILT]**
 
-One workflow: `.github/workflows/ci.yml`. REQ-108 selects all changes on push
-except `dependabot/**`, whose pull requests provide CI; all other branch pushes
-retain D41 evidence. Pull requests have no path filters. Master runs never cancel
+One workflow: `.github/workflows/ci.yml`. D169/REQ-333 runs it on pull
+requests and on pushes to `master` only; a branch push without a pull request
+runs nothing, and the pull request's run on its exact head SHA is the D41
+pre-merge evidence. Pull requests have no path filters. Master runs never cancel
 one another; other refs retain cancellation. Every job has an explicit timeout
 and uses the workspace-root local composite action to verify the candidate SHA.
 
 - Job `backend_static` owns delivery/OpenAPI drift, Ruff, type and
-  pre-production static verification. Six `backend_tests` shards use
+  pre-production static verification. Ten `backend_tests` shards (D169) use
   **postgis/postgis:16-3.4 + redis:7-alpine services** plus real MinIO; planned
   scanner consumers also start ClamAV. Browser/Caddy provisioning remains
   file-selected. Whole files are balanced by the committed JUnit-duration
   snapshot, with collected test count × median per-test time for unseen files.
   Historical timings only guide scheduling: exact complete/disjoint inventory,
   zero-skip execution and artifact/hash verification remain mandatory. Job
-  `backend` fails closed on either prerequisite and verifies all six artifacts
+  `backend` fails closed on either prerequisite and verifies all ten artifacts
   before combining LCOV. The LCOV artifact includes a hash-bound
   producer sidecar recording the exact SHA, Python implementation/major-minor
   and coverage.py version.
@@ -1156,13 +1157,16 @@ and uses the workspace-root local composite action to verify the candidate SHA.
   existing findings (78 newly exposed, 14 stale entries removed), and the
   complexity baseline once for three files added after Lane 1 branched.
   Python and frontend dependency audits
-  and weekly Dependabot updates supplement those checks; they do not replace
+  and Dependabot security updates supplement those checks; they do not replace
   test, coverage or provider gates.
 - D168/REQ-332 permits exactly the high-severity picomatch advisory GHSA-fc5q-39xc-vjpf until 2026-12-18T00:00:00Z, replacing the D59/REQ-107 braces exception that expired on 2026-11-05. Reason: no picomatch release fixes it, and exposure is confined to lint, test and build tooling. `scripts/check_frontend_audit.mjs` reads npm's JSON report and rejects malformed ones: unknown references, advisories without a name and URL, or advisories rated above the entry that lists them. It waives a high entry only if the only high-severity cause in its `via` closure is that advisory on picomatch's own entry, and every audit `via` link follows a real lockfile dependency edge. Every entry traversed must list real installed nodes of the named package. Every entry in the closure that reaches the advisory, cycles included, must itself be rated high, and its nodes must be reached only through the allowlisted lockfile edges observed on 18 Nov 2026. Lower-severity branches that don't reach it only need real nodes. The allowlisted edges are the dev eslint-config-next lint tree, the dev vite/vitest test tree (including the vitest/@vitest/coverage-v8 peer cycle), and the production `@sentry/nextjs` dependency only through `@rollup/plugin-commonjs`. In the locked `@sentry/nextjs` 10.75.2 (tarball checked against the lockfile integrity hash; re-check when Sentry is upgraded), that plugin is loaded only by Sentry's webpack wrapping loader, which `withSentryConfig` registers at build time; the server, browser and edge runtime entry points do not import it. Lower-severity advisories may share a closure, since they never fail this gate. Critical ratings, other high advisories, other paths, malformed reports and audit errors fail. Only the frontend vulnerability-audit workflow step changes; dependency versions, lint rules and other CI gates remain.
-- Pip/npm group minor/patch version updates and leave major upgrades to manual
-  work; Docker base pins include original tags alongside unchanged digests.
+- D169: `.github/dependabot.yml` sets `open-pull-requests-limit: 0` on its pip,
+  npm and GitHub Actions entries, so Dependabot opens only security-fix pull
+  requests (including major-version fixes) and no routine version updates;
+  other upgrades are manual work. Docker base pins include original tags
+  alongside unchanged digests and are updated manually.
   Ordinary `e2e` and `r59_real_stack` start independently of `quality`, accepting
-  wasted runs on lint failure. Full branch CI still must pass before merge.
+  wasted runs on lint failure. Full pull-request CI still must pass before merge.
 - D49 records a one-off owner-directed local L2-1a target of at least 70% changed lines and branches. Remaining criteria are reported explicitly. This does not change the CI checker, trusted baselines, D33 refresh prerequisites or ordinary D32 thresholds.
 - **D79/REQ-160 is a one-off delivery exception for the agreement/bank change:**
   run 38383211511 on a84eff23 failed five stale test/schema cases. After affected
@@ -4441,4 +4445,11 @@ Money semantics outside D164 are unchanged. Launch gates are unchanged.
 ## Amendment / changelog 1.174 - REQ-332 / D168 (picomatch audit exception, 18 Nov 2026)
 
 - §10.3: the frontend dependency audit waives only GHSA-fc5q-39xc-vjpf (picomatch, no patched release) on the observed lint, test and Sentry build-plugin paths until 2026-12-18T00:00:00Z. The expired D59 braces exception is removed. Every other high or critical finding still fails CI.
+- Launch gates are unchanged.
+
+## Amendment / changelog 1.175 - REQ-333 / D169 (faster CI, 18 Nov 2026)
+
+- §10.3: CI runs on pull requests and pushes to `master` only, so one commit no longer runs twice (branch push plus pull request). D41's pre-merge evidence is the pull request's full CI on its exact head SHA.
+- §10.3: backend tests run in ten shards instead of six, balanced by the existing duration snapshot. Shard membership is part of the D33 measurement policy, so this change carries one controlled coverage-baseline refresh.
+- §10.3: Dependabot opens security-fix pull requests only; routine version updates and the Docker entries are removed. Test, coverage, audit and provider gates are unchanged.
 - Launch gates are unchanged.

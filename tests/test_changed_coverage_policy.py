@@ -932,7 +932,7 @@ def test_frontend_measurement_configuration_and_tool_closure_are_bound(tmp_path:
     ("npm run test -- --coverage", "npm run test -- --coverage --pool=threads"),
     ('python-version: "3.12.14"', 'python-version: "3.13.0"'),
     ('REQUIRE_REAL_INTEGRATIONS: "1"', 'REQUIRE_REAL_INTEGRATIONS: "0"'),
-    ("shard: [0, 1, 2, 3, 4, 5]", "shard: [0, 1, 2, 3, 4]"),
+    ("shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]", "shard: [0, 1, 2, 3, 4, 5, 6, 7, 8]"),
     ("image: redis:7-alpine", "image: redis:8-alpine"),
     ("coverage combine", "echo mutate >> $GITHUB_ENV\n          coverage combine"),
 ])

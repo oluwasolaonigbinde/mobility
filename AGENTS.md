@@ -85,9 +85,10 @@ decisions. For each piece of work:
    `NEEDS ANSWER` request.
 3. Apply the delivery gates below. Locally, run only the
    test files the change touches.
-4. **Merge only after full CI passes (D41).** With the owner's approval, push
-   the branch and merge it into `master` only after the full GitHub CI run on
-   that branch passes. Merge without squashing so the implementing commit keeps
+4. **Merge only after full CI passes (D41, D169).** With the owner's approval,
+   push the branch, open a pull request (a draft is fine) and merge it into
+   `master` only after the pull request's full GitHub CI run passes on the
+   exact head SHA being merged. Merge without squashing so the implementing commit keeps
    its SHA. D135 permits a strictly receipt-only final commit to reuse the exact
    measured source candidate's completed CI after independent equivalence
    proof: all noncoverage jobs must pass, and a sole stale-receipt guard failure
