@@ -42,7 +42,7 @@ full CI and merge remain pending. This setup does not authorize a deployment.
      "external_input_reference": "cardvert-synthetic-issuer",
      "contact_phone": "07074200080",
      "contact_email": "terraxmediacompany@gmail.com",
-     "bank_name": "OPay",
+     "bank_name": "Moniepoint",
      "bank_account_name": "Terrax Media Company Ltd",
      "bank_account_number": "0000000000",
      "verification_status": "synthetic"
@@ -169,8 +169,9 @@ Budget alerts use the client's fixed 80/95/100 rule (D92); no budget policy or
 ratio environment knobs are needed. Publishing/automatic payout switches, invoice issuer
 sign-off, retention and unresolved evidence policies stay blank/off. Never
 substitute template values for client/legal answers. D43 supplied TIN
-2521515778093 and RC 8688553; real issuance still needs OPay bank details and
-accountant confirmation (D42, REQ-041/042). External payment, deployment,
+2521515778093 and RC 8688553. D165 supplied the bank details for the verified
+profile: Moniepoint, account 8246017023, Terrax Media Company Ltd (REQ-327).
+Real issuance still needs the accountant's confirmation (D42, REQ-042). External payment, deployment,
 legal, device and pilot gates remain unchanged.
 
 W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117, wording REQ-112 → REQ-116, D62 → D68, architecture v1.117 → v1.125. Master identifiers retain their meanings.

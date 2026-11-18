@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.171 — 2026-11-15. Canonical source of truth: current state AND target state.**
+**Version 1.172 — 2026-11-17. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1551,7 +1551,9 @@ production) is unset; issuance also rechecks completeness, and the issued
 snapshot carries the six new facts. **[BUILT — D141 / REQ-263; integration
 awaiting full CI/merge]** Local, test and staging may instead select a synthetic
 profile with `cardvert-synthetic-issuer`: realistic Terrax Media Company Ltd
-facts and OPay account `0000000000`. Rehearsal and production never accept that
+facts and Moniepoint account `0000000000` (bank name per D165). Terrax's real
+bank details for the verified profile are Moniepoint 8246017023, Terrax Media
+Company Ltd (**[DECIDED — D165 / REQ-327]**). Rehearsal and production never accept that
 exception and still require D42/Q28 verified facts. Synthetic and verified
 profiles share one number series per prefix; no `TEST-` prefix or Test invoice
 label is rendered. The gate evaluator treats a set issuer reference as the Q28
@@ -3854,7 +3856,7 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 | Notifications | §20 | `services/notifications.py`, `jobs/`, `adapters/messaging/` | notifications (new) | inline provider calls | Q34 confirmed; provider is parameter |
 | In-app complaints and Customer Service inbox | §20.4 | `services/complaints.py`, `api/v1/complaints.py` + driver/advertiser Help and admin Customer Service pages | complaints, complaint_messages (append-only), notifications | new staff roles; message text in audit/notification payloads/email; manual contact tasks for drivers | [BUILT] D39(d); categories, response time, driver channel, company-wide visibility and erasure are open client questions |
 | Billing / accepted terms / invoices / payments | §15 | `services/billing.py`, `adapters/payments/` | commercial_terms, invoices, payments (new) | report/cost-summary logic | Q1–Q3, Q14, Q28 confirmed; external provider/company facts for live use |
-| Invoice layout and issuer facts (D42) | §15.2 | `services/billing.py` + `lib/billing/invoice-document.tsx` + advertiser/admin invoice pages | invoice_issuer_profiles contact/bank columns (`0095`); quotation line quantity and campaign dates | VAT computation, numbering, issued-invoice immutability | REQ-019 (RC or TIN), bank details and accountant sign-off for real invoices |
+| Invoice layout and issuer facts (D42) | §15.2 | `services/billing.py` + `lib/billing/invoice-document.tsx` + advertiser/admin invoice pages | invoice_issuer_profiles contact/bank columns (`0095`); quotation line quantity and campaign dates | VAT computation, numbering, issued-invoice immutability | Accountant sign-off for real invoices (REQ-042); bank details supplied by D165 |
 | Deployment templates (Render, AWS) | §25 | `deploy/render/`, `deploy/aws/`, `docs/deployment-templates.md` | — | applying them, accounts, provider calls | REQ-028 accounts, REQ-033 domain, the listed go-live gaps |
 | Payment checkout and Paystack webhooks | §15.3/§15.4 | `services/billing.py`, `api/v1/billing.py`, `api/v1/webhooks.py`, payment adapter and worker | checkout intents (`0096`), payment events and queued payout-provider events (`0097`), overpayment/reversal evidence (`0098`) | browser-return proof; business logic in webhook handler | [BUILT, local sandbox checkout proven] public webhook/recovery proof and production approval remain `EXT-PAYMENT-PROVIDER` |
 | Budget enforcement | §15.5 | `jobs/` + `services/billing.py` + campaign status | campaign status | hard deletes | policy confirmation (Q9-adjacent, via decisions-log) |
@@ -4418,3 +4420,11 @@ Money semantics outside D161 are unchanged. Launch gates are unchanged.
 - W2-01C stays blocked. It still needs a transfer to a real, verifiable account, the hosted production domain, the live key and production approval.
 
 Money semantics outside D164 are unchanged. Launch gates are unchanged.
+
+## Amendment / changelog 1.172 - REQ-327 / D165 (Terrax's Moniepoint account, 17 Nov 2026)
+
+- Terrax's account is Moniepoint 8246017023, Terrax Media Company Ltd, replacing OPay. It is the bank detail for real invoices and advertiser payment instructions (§15.2), Paystack settlement and the payout float.
+- No code or schema change: the details go into the verified issuer profile at deployment. Real issuance still needs the accountant's sign-off (REQ-042).
+- The synthetic demo issuer is renamed Moniepoint and keeps the unroutable number `0000000000`.
+- **REQ-328 / D166:** corporate credit stays as built (§15). The owner answered COM-008: a per-campaign credit amount and due date with no company cap, drivers paid regardless of company payment, and one admin may record and approve. No code change.
+- Launch gates are unchanged.

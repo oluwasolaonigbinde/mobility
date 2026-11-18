@@ -75,7 +75,7 @@ SYNTHETIC_ISSUER_FACTS = {
     "external_input_reference": "cardvert-synthetic-issuer",
     "contact_phone": "07074200080",
     "contact_email": "terraxmediacompany@gmail.com",
-    "bank_name": "OPay",
+    "bank_name": "Moniepoint",
     "bank_account_name": "Terrax Media Company Ltd",
     "bank_account_number": "0000000000",
 }

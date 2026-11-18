@@ -186,7 +186,7 @@ def test_staging_issues_from_a_recorded_synthetic_issuer_but_production_refuses(
                 external_input_reference=reference,
                 contact_phone="07074200080",
                 contact_email="terraxmediacompany@gmail.com",
-                bank_name="OPay",
+                bank_name="Moniepoint",
                 bank_account_name="Terrax Media Company Ltd",
                 bank_account_number="0000000000",
                 settings=staging,
