@@ -1005,7 +1005,7 @@ The API image defaults to two configurable workers (D45).
 
 ### CI dependency security
 
-**Current rule:** CI fails on every high or critical dependency advisory except exactly GHSA-vfj7-8cjw-p6xm in the exclusively dev-only eslint-config-next lint chain, through 2026-11-04 UTC (D59, REQ-107). Reason: no patched braces release is available and exposure is confined to the development lint chain. The exception stops applying on 2026-11-05 UTC; malformed reports, audit errors and broader exposure fail closed. It does not change application behavior or authorize deployment.
+**Current rule:** CI fails on every high or critical dependency advisory except exactly the high-severity picomatch advisory GHSA-fc5q-39xc-vjpf, and only where every affected installed package is reached solely through the lint, test or build tooling paths observed on 18 Nov 2026 (the eslint-config-next lint tree, the vite/vitest test tree, and Sentry's build-time Rollup plugin), until 2026-12-18T00:00:00Z (D168, REQ-332). Reason: no picomatch release fixes it, and none of those tools runs in the app users load. A critical rating, any other high advisory, or any other path fails, and so do malformed reports and audit errors; lower-severity advisories never fail this check. It does not change application behaviour or authorise deployment.
 
 GitHub CI pins every Python setup location, including composite actions, to
 exactly 3.12.14 (owner instruction 2026-10-08, REQ-134). Exact shard and
@@ -1018,6 +1018,7 @@ aggregate runtime provenance and all coverage gates remain unchanged.
   REQ-134 records this delivery-only correction; no production runtime change. Built in `526acddd`; exact runtime provenance and full CI pass.
 - **Before 2026-10-05** — The frontend audit rejected every high or critical advisory without exceptions.
 - **2026-10-05** — Owner approved this one expiring advisory exception while finishing REQ-106, preserving all other high/critical checks and prohibiting npm's forced lint-package downgrade (D59, REQ-107). Built in `69655e2`.
+- **2026-11-18** — Owner approved a 30-day exception for the unfixed picomatch advisory on lint, test and build tools ("the ci check yes go aheaad"; D168, REQ-332). Previously CI allowed only the D59 braces exception, which expired on 5 Nov 2026; it is now removed.
 
 ### Money and privacy verification
 
