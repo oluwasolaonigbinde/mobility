@@ -1011,6 +1011,13 @@ GitHub CI pins every Python setup location, including composite actions, to
 exactly 3.12.14 (owner instruction 2026-10-08, REQ-134). Exact shard and
 aggregate runtime provenance and all coverage gates remain unchanged.
 
+CI runs on pull requests and on pushes to `master` only, and a branch is merged
+only after its pull request's full CI passes. Backend tests run in ten groups.
+Dependabot opens security-fix pull requests only (including major-version
+fixes), with no routine version updates (D169, REQ-333). Reason: fewer and
+faster CI runs at no cost; security fixes still arrive automatically and every
+other check is unchanged.
+
 **History:**
 - **2026-10-08** — Owner required the exact 3.12.14 pin after the combined run
   produced Python 3.12.14 and 3.12.15 shard manifests. Previously selectors used
@@ -1019,6 +1026,7 @@ aggregate runtime provenance and all coverage gates remain unchanged.
 - **Before 2026-10-05** — The frontend audit rejected every high or critical advisory without exceptions.
 - **2026-10-05** — Owner approved this one expiring advisory exception while finishing REQ-106, preserving all other high/critical checks and prohibiting npm's forced lint-package downgrade (D59, REQ-107). Built in `69655e2`.
 - **2026-11-18** — Owner approved a 30-day exception for the unfixed picomatch advisory on lint, test and build tools ("the ci check yes go aheaad"; D168, REQ-332). Previously CI allowed only the D59 braces exception, which expired on 5 Nov 2026; it is now removed.
+- **2026-11-18** — Owner approved faster CI ("yes yes, dependabot im neevr paying for anything so its a temporrary fix but sure why not ig"; D169, REQ-333). Previously CI ran on every branch push as well as on pull requests (REQ-108), in six backend groups, and Dependabot also opened weekly version updates.
 
 ### Money and privacy verification
 

@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches-ignore: ["dependabot/**"]
+    branches: [master]
   pull_request:
 
 concurrency:
@@ -62,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4, 5]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     defaults:
       run:
         working-directory: .
@@ -134,7 +134,7 @@ jobs:
           python scripts/pytest_shard.py plan \
             --candidate-sha "${{ github.event.pull_request.head.sha || github.sha }}" \
             --shard-index "${{ matrix.shard }}" \
-            --shard-count 6 \
+            --shard-count 10 \
             --timings scripts/pytest_shard_durations.json \
             --files-output "$shard_dir/files.txt" \
             --manifest-output "$shard_dir/manifest.json"
@@ -276,7 +276,7 @@ jobs:
         run: |
           python scripts/pytest_shard.py verify \
             --candidate-sha "${{ github.event.pull_request.head.sha || github.sha }}" \
-            --shard-count 6 \
+            --shard-count 10 \
             --artifacts-dir coverage/artifacts/backend \
             --receipt-output coverage/backend-shards.json
           coverage combine coverage/artifacts/backend/r17-backend-shard-*

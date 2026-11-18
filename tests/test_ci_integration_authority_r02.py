@@ -5,8 +5,8 @@ defect class is *silence*: a restrictive trigger or a removed service disarms ev
 downstream gate without any check turning red. The workflow cannot police itself, so
 the repository suite polices the workflow.
 
-Push selection (all branches except Dependabot) and pull-request selection are pinned by
-`tests/test_validate_progress.py::test_ci_runs_for_every_direct_branch_push_and_pull_request`.
+Push selection (master only) and pull-request selection (every pull request) are pinned by
+`tests/test_validate_progress.py::test_ci_runs_for_master_pushes_and_every_pull_request`.
 """
 
 from __future__ import annotations
@@ -85,7 +85,7 @@ def triggers(workflow: dict) -> dict:
 
 
 def test_all_changes_select_ci_without_path_filters(triggers: dict) -> None:
-    assert triggers["push"] == {"branches-ignore": ["dependabot/**"]}
+    assert triggers["push"] == {"branches": ["master"]}
     assert triggers["pull_request"] is None
 
 
@@ -293,14 +293,14 @@ def test_e2e_uploads_diagnostics_after_failure_or_cancellation(workflow: dict) -
     }
 
 
-def test_backend_matrix_is_six_disjoint_fail_complete_shards(workflow: dict) -> None:
+def test_backend_matrix_is_ten_disjoint_fail_complete_shards(workflow: dict) -> None:
     job = workflow["jobs"]["backend_tests"]
 
     assert job["strategy"]["fail-fast"] is False
-    assert job["strategy"]["matrix"]["shard"] == [0, 1, 2, 3, 4, 5]
+    assert job["strategy"]["matrix"]["shard"] == list(range(10))
     run = "\n".join(str(step.get("run", "")) for step in job["steps"])
     assert "scripts/pytest_shard.py plan" in run
-    assert "--shard-count 6" in run
+    assert "--shard-count 10" in run
     assert (
         'coverage run -m pytest --junitxml="$shard_dir/execution.xml" -- "${shard_files[@]}"' in run
     )
@@ -335,7 +335,7 @@ def test_backend_aggregate_verifies_manifests_before_combining_coverage(workflow
         step for step in steps if step.get("name") == "Verify and combine backend coverage shards"
     )["run"]
     assert combine.index("scripts/pytest_shard.py verify") < combine.index("coverage combine")
-    assert "--shard-count 6" in combine
+    assert "--shard-count 10" in combine
     provenance = next(
         step for step in steps if step.get("name") == "Record backend coverage producer provenance"
     )["run"]
@@ -480,19 +480,15 @@ def test_shared_candidate_action_checks_workspace_and_rejects_invalid_sha():
     assert "exit 1" in step["run"]
 
 
-def test_dependabot_groups_minor_patch_and_excludes_major():
+def test_dependabot_opens_security_updates_only():
     config = yaml.safe_load((REPO_ROOT / ".github/dependabot.yml").read_text())
-    for ecosystem in ("pip", "npm"):
-        update = next(u for u in config["updates"] if u["package-ecosystem"] == ecosystem)
-        assert update["ignore"] == [
-            {
-                "dependency-name": "*",
-                "update-types": ["version-update:semver-major"],
-            }
-        ]
-        assert update["groups"] == {
-            "minor-and-patch": {
-                "patterns": ["*"],
-                "update-types": ["minor", "patch"],
-            }
-        }
+    updates = config["updates"]
+    assert {u["package-ecosystem"] for u in updates} == {"pip", "npm", "github-actions"}
+    for update in updates:
+        # A zero limit disables version updates; security updates keep their own limit.
+        assert update["open-pull-requests-limit"] == 0
+        # An ignore rule would also suppress a security fix that needs that version.
+        assert "ignore" not in update
+        for group in update.get("groups", {}).values():
+            assert group["applies-to"] == "security-updates"
+            assert "update-types" not in group
