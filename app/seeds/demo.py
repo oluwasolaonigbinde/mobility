@@ -1750,6 +1750,9 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
             session, trip_id=trip.id, settings=settings, now=workday_processing_time(trip)
         )
     await ensure_portal_campaigns(session, graph=graph, staff=staff, settings=settings)
+    from app.seeds.demo_authority import write_planned_seed_invoices
+
+    await write_planned_seed_invoices(session)
     await ensure_offer_review_work(session, graph=graph, staff=staff, settings=settings)
     await ensure_trip_review_work(session, graph=graph, staff=staff, settings=settings)
     await ensure_completed_report_contributors(session, graph=graph, settings=settings)
@@ -1804,6 +1807,10 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
             delivery_claim_expires_at=None,
         )
     )
+    from app.seeds.demo_authority import SEED_PLANNED_INVOICES
+
+    if session.info.get(SEED_PLANNED_INVOICES):
+        raise RuntimeError("Seed invoices were planned after the invoice writer ran")
     return graph
 
 

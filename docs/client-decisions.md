@@ -209,9 +209,12 @@ temporary password that must be changed at first sign-in (REQ-208).
 package catalogue. Quote lines, terms and revisions are data, and each accepted
 campaign keeps an unchangeable copy of its quotation (Q1, D18). Prices such as
 the service fee, printing, installation, permits and design are entered per
-campaign by Terrax.
+campaign by Terrax. An advertiser's open quote request shows in the staff
+Work queue and links to the campaign's money section, which shows the
+advertiser's note (Owner, 18 Nov 2026; D167 / REQ-331).
 
 **History:**
+- **2026-11-18** — Owner (D167 / REQ-331): open quote requests appear in the staff Work queue. Previously they showed only on the admin billing page, and the advertiser's note was not displayed there.
 - **2026-08-14** — Client confirmed custom quotations (Q1, D18).
 - **2026-09-24** — Client supplied sample figures (10 % service charge, printing and installation ₦100,000, AMAC permit ₦100,000, optional APCON ₦50,000, optional ads ₦300,000/month, optional design ₦70,000, professional services ₦700,000; sample total ₦1,000,000). Treated as Terrax's own quotation inputs, not a price list (client answers item 2).
 
@@ -221,7 +224,8 @@ campaign by Terrax.
 installation; approved corporate advertisers may use invoice/credit terms (Q2).
 Advertisers can pay by bank transfer reconciled by an admin or through an
 online gateway, in one payment history (Q3). The gateway is **Paystack** in
-Terrax Media's name (card and bank transfer), settling to OPay; refunds are made
+Terrax Media's name (card and bank transfer), settling to Terrax's Moniepoint
+account 8246017023, Terrax Media Company Ltd (D165, REQ-327); refunds are made
 by the Finance officer (client answers item 7). The Paystack adapters and local
 Test Mode checkout are built and verified; production use stays off until the
 public webhook, transfer and production-provider gates pass (REQ-035).
@@ -245,11 +249,24 @@ checkout, webhook delivery and replay work. The test payout couldn't run on
 the placeholder bank details, so it waits for a real account. Live use still
 needs a hosted production domain, the live key and production approval.
 
+Dashboard check, 17 Nov 2026: Paystack already pays out to the Moniepoint
+account (next-day settlement), Transfers are available in Live mode, and the
+transfer balance is topped up manually. The test webhook URL is cleared.
+
 **Still open:** [REQ-051](requests.md) developer admin access (activation now
-reported approved), [REQ-025](requests.md) password, two-step verification and
-whether Transfers are on, [REQ-027](requests.md), [REQ-035](requests.md).
+reported approved), [REQ-025](requests.md) password, two-step verification,
+turning off the per-transfer OTP, who tops up the transfer balance, and the
+support/dispute email, [REQ-027](requests.md), [REQ-035](requests.md).
+
+**Corporate credit (owner, 17 Nov 2026; D166 / REQ-328):** credit stays. An
+admin approves it per campaign with an amount and a due date; there is no
+company-wide cap. Drivers are paid for work they have done even if the company
+never pays, so Terrax carries that loss, and the campaign takes no new work
+once the due date passes unpaid. One admin may record and approve credit.
 
 **History:**
+- **2026-11-17** — Owner kept corporate credit and answered the parked COM-008 questions, confirming the built behaviour (D166 / REQ-328). Previously the credit limit, driver liability and approver separation were open.
+- **2026-11-17** — Client, relayed by the owner (D165 / REQ-327): Terrax's account is Moniepoint 8246017023, Terrax Media Company Ltd. Previously Paystack was to settle to OPay (client answers item 7). Built in `5798e79b`.
 - **2026-11-16** — Test Mode run (REQ-324). Checkout, public webhook delivery and replay passed. The one test transfer was refused because Paystack couldn't verify the placeholder bank account, and Cardvert stopped it safely. The owner chose to prove payouts later. See the [run evidence](../issues/testing/req324-paystack-test-mode-2026-11-16.md).
 - **2026-11-15** — Owner: "paystack has been approved now" (REQ-324). Previously the account was still awaiting activation and only test payments were possible.
 - **2026-11-04** - REQ-272: online payment availability is computed from the configured gateway and valid return URL before offering checkout. Built in `65a856e8`.
@@ -274,11 +291,13 @@ details: Terrax Media Company Ltd, 73 Lome Crescent, Wuse Zone 7, FCT Abuja,
 lines, campaign duration, quantity (the number of advert campaigns) and bank
 details (client answers item 6). Advertiser and driver amounts use grouping and two decimal places; VAT shows
 its percentage and amount (D71, REQ-142). The invoice leads with the VAT-inclusive
-total; staff still enter prices before VAT. On VAT-entry screens, staff enter 0–100% with up to four decimal places. Conversion and saved percentage display use exact decimal strings; storage and calculation remain a rate from 0 to 1 with six places. Each save of a positive percentage below 1% requires one explicit confirmation showing the value, without a minimum tax rate (controller judgement under the owner's 3 Nov 2026 mandate, reported to the owner, REQ-279). Real invoice bank details stay
-unset until Terrax supplies them, and a real invoice cannot be issued without
-them or without the accountant's sign-off (D42). Owner, 27–29 October 2026
+total; staff still enter prices before VAT. On VAT-entry screens, staff enter 0–100% with up to four decimal places. Conversion and saved percentage display use exact decimal strings; storage and calculation remain a rate from 0 to 1 with six places. Each save of a positive percentage below 1% requires one explicit confirmation showing the value, without a minimum tax rate (controller judgement under the owner's 3 Nov 2026 mandate, reported to the owner, REQ-279). Real invoices carry Terrax's bank
+details: **Moniepoint, account 8246017023, Terrax Media Company Ltd** (D165,
+REQ-327). They go into the production issuer profile at deployment, and a real
+invoice still cannot be issued without the accountant's sign-off (D42). Owner, 27–29 October 2026
 (D141 / REQ-263), permits local, test and staging issuance from realistic
-synthetic issuer facts: Terrax Media Company Ltd and OPay account `0000000000`.
+synthetic issuer facts: Terrax Media Company Ltd and Moniepoint account
+`0000000000` (the bank name follows D165; the number stays synthetic).
 There is no `TEST-` prefix or "Test invoice" label. Synthetic and verified
 profiles share one number series per prefix. Production and rehearsal remain
 fail-closed until the D42/Q28 facts exist; synthetic facts never become verified
@@ -290,10 +309,10 @@ facts or real payment instructions. Built in `3abcc85b` on master.
 
 A payment that bounces *after* a cancellation is handled under [Cancellation and refunds](#cancellation-and-refunds) (D164 / REQ-325).
 
-**Still open:** [REQ-041](requests.md) OPay bank details;
-[REQ-042](requests.md) accountant's confirmation and [REQ-052](requests.md) someone to check the sample invoice.
+**Still open:** [REQ-042](requests.md) accountant's confirmation and [REQ-052](requests.md) someone to check the sample invoice.
 
 **History:**
+- **2026-11-17** — Client, relayed by the owner (D165 / REQ-327, answering REQ-041): invoice bank details are Moniepoint 8246017023, Terrax Media Company Ltd. Previously the bank slots stayed blank awaiting OPay details, and the synthetic demo issuer was named OPay.
 - **2026-11-13** — Owner, 13 Nov 2026 (D161 / REQ-314): correction VAT is derived at the invoice rate, and credit notes can't go below confirmed cash. Previously staff typed correction VAT freely; the system checked only that gross = net + VAT. A credit note was capped only at the invoice gross plus debits, so an overpayment could be hidden. Cancellation refundable cash also counted reversed receipts (a defect against RM13). Built in `a16ec79a`.
 - **2026-11-04** - REQ-276/281: exact invoice total/balance wording and duplicate-reference conflict handling with retained input are Built in `d98e72b9`. REQ-279: exact VAT percentage entry/confirmation is Built in `ca386df4`; REQ-294 attribution correction is Built in `68cdacfc`.
 - **2026-11-03** — Controller judgement under the owner's 3 Nov 2026 mandate, reported to the owner, replaces decimal-rate VAT entry (for example 0.075) with percentage entry (7.5), retaining the existing stored rate and server validation. Accept 0–100% to four decimal places using exact string arithmetic; confirm positive values below 1% once before each save. No minimum rate is introduced (REQ-279).
@@ -634,6 +653,10 @@ of days on hold. Paid money is never counted as on hold (REQ-208).
 
 **Current rule:** D111 fixes daily automatic payouts under Pause, clean earnings only, first new-bank payout human. D112 permits same admin for manual preparation/approval/reconciliation and corrections with reasons/audit and stale checks. D146 / REQ-262 takes actual overpaid cash from the next eligible payout(s), after computing the corrected trip worth under owner rule A; it supersedes D113's no-carry-forward direction. Fully offset credits settle without a batch, and any remaining cash uses the existing provider and reconciliation controls. Built in `98a86547` on master.
 
+Paystack Transfers are funded from Terrax's Moniepoint account 8246017023,
+Terrax Media Company Ltd (D165, REQ-327). How the balance is topped up is still
+open ([REQ-025](requests.md)).
+
 **Previous rule (ended 20 October 2026; retained history):** Drivers are paid by **automatic bank transfer** through an
 approved provider (Q27; Paystack Transfers funded from OPay, client answers
 item 8), **every day** (D43e). **Payouts are approved automatically** for clean
@@ -653,6 +676,7 @@ dashboard and statements show fees. Accepted work and the short-day calculation
 remain unchanged. Requested hardening: [REQ-036](requests.md), [REQ-040](requests.md).
 
 **History:**
+- **2026-11-17** — Client, relayed by the owner (D165 / REQ-327): payouts are funded from the Moniepoint account. Previously from OPay (client answers item 8).
 - **2026-11-04** - REQ-273/275: unavailable payment sending is hidden with saved/unsent guidance, and reserved closeout amounts have one truthful label. Built in `d98e72b9`. REQ-291 check-specific alert advice is Built in `57d3f94e`.
 - **2026-11-03** — Delivery accepted on master. Built in `98a86547`; full CI passed on `1a6d563f`. See the [acceptance evidence](../issues/testing/req271-ci-acceptance-2026-11-03.md).
 - **2026-10-05** — Client reversed the 1 Oct driver-deduction rule: Terrax bears the transfer fee and the driver receives full earnings, with no fee calculation, storage, display or setting in Cardvert (D67; REQ-053; owner W1-P brief; renumbered at merge from D59 on 6 Oct 2026). Locally verified on `w1/payouts`; evidence: `issues/testing/w1p-payouts-2026-10-05.md`. Built in `54662367`, with CI corrections in `f4261af4`; combined exact R branch CI and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass. The owner's one-time Wave 1 D41 exception remains historical in REQ-053.
@@ -898,10 +922,20 @@ Existing worker recovery redelivers only proven transient transaction aborts
 (`40P01`/`40001`) after rollback and session release, under the existing attempt
 ceiling; sanitized driver error codes keep failure diagnosis private.
 
-**Still open:** [REQ-050](requests.md) Hetzner, Postmark and MapTiler accounts;
+**Interim preview host (owner, 17 Nov 2026; REQ-329):** until the Hetzner server
+is bought, the client preview runs on the owner's personal Contabo VPS with demo
+data, Paystack test keys and email off. The Terrax Hetzner account exists; its
+8 GB CX33 is sold out, and the owner won't pay about $43 a month for the CPX32.
+The VPS also hosts the owner's other software, so Cardvert runs with capped memory.
+Its Caddy is the server's single public edge. Live at https://213-199-54-25.sslip.io
+since 18 Nov 2026.
+
+**Still open:** [REQ-050](requests.md) Postmark and MapTiler accounts (Hetzner now exists, no server yet);
 [REQ-043](requests.md) domain connection; [REQ-033](requests.md) which address (for example app.terraxmedia.com); [REQ-032](requests.md) residency and legal prerequisites.
 
 **History:**
+- **2026-11-18** — Preview deployed on the shared Contabo VPS from master `9485d03d` with capped memory. Release-template faults it found are logged as REQ-330, Built in `e7b027de`. Built on the server only; no repo commit.
+- **2026-11-17** — Owner: preview on the owner's Contabo VPS until a Hetzner CX33 is available (REQ-329). Previously there was no hosted preview, and Hetzner had no account access.
 - **2026-11-04** - REQ-286: process findings and preview prerequisites are recorded in the host/seed amendments Built in `d98e72b9` and specialist trace/corrections Built in `10e006fb`. REQ-287 explicitly opted-in staging seeding is Built in `d98e72b9`. REQ-283 remains a host-only TODO; this records no trusted-IP deployment verification.
 - **2026-10-25** — Owner-approved recovery hardening (D133, REQ-239/240): every process must explicitly identify its environment, and nonlocal email transport verifies the server certificate and hostname. Useful bounded diagnostics remain available without an error-tracking account; scan personal data stays excluded. Earlier startup silently selected local mode, SMTP had no explicit verifying context, and local exception diagnostics were absent or unsafe. Implementation/verification is in progress; no external delivery or deployment is authorized.
 - **2026-10-26** — Recovery source Built in `72a0f084` (including the preceding integrated commits); exact-head run40309956920 passes all runtime/static/browser/audit jobs, including real HTTPS revocation outage and bounded database recovery. Strict same-artifact D33 refresh/admission passes under D135; independent receipt/final review and master promotion are separate pending gates in the recovery record. No deployment, external delivery or production-load qualification is claimed.
@@ -971,7 +1005,7 @@ The API image defaults to two configurable workers (D45).
 
 ### CI dependency security
 
-**Current rule:** CI fails on every high or critical dependency advisory except exactly GHSA-vfj7-8cjw-p6xm in the exclusively dev-only eslint-config-next lint chain, through 2026-11-04 UTC (D59, REQ-107). Reason: no patched braces release is available and exposure is confined to the development lint chain. The exception stops applying on 2026-11-05 UTC; malformed reports, audit errors and broader exposure fail closed. It does not change application behavior or authorize deployment.
+**Current rule:** CI fails on every high or critical dependency advisory except exactly the high-severity picomatch advisory GHSA-fc5q-39xc-vjpf, and only where every affected installed package is reached solely through the lint, test or build tooling paths observed on 18 Nov 2026 (the eslint-config-next lint tree, the vite/vitest test tree, and Sentry's build-time Rollup plugin), until 2026-12-18T00:00:00Z (D168, REQ-332). Reason: no picomatch release fixes it, and none of those tools runs in the app users load. A critical rating, any other high advisory, or any other path fails, and so do malformed reports and audit errors; lower-severity advisories never fail this check. It does not change application behaviour or authorise deployment.
 
 GitHub CI pins every Python setup location, including composite actions, to
 exactly 3.12.14 (owner instruction 2026-10-08, REQ-134). Exact shard and
@@ -984,6 +1018,7 @@ aggregate runtime provenance and all coverage gates remain unchanged.
   REQ-134 records this delivery-only correction; no production runtime change. Built in `526acddd`; exact runtime provenance and full CI pass.
 - **Before 2026-10-05** — The frontend audit rejected every high or critical advisory without exceptions.
 - **2026-10-05** — Owner approved this one expiring advisory exception while finishing REQ-106, preserving all other high/critical checks and prohibiting npm's forced lint-package downgrade (D59, REQ-107). Built in `69655e2`.
+- **2026-11-18** — Owner approved a 30-day exception for the unfixed picomatch advisory on lint, test and build tools ("the ci check yes go aheaad"; D168, REQ-332). Previously CI allowed only the D59 braces exception, which expired on 5 Nov 2026; it is now removed.
 
 ### Money and privacy verification
 

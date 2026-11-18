@@ -20,10 +20,14 @@ const calendarDate = new Intl.DateTimeFormat("en-NG", {
   year: "numeric",
 });
 
+/** One wording, on admin and advertiser screens, for an invoice its cancellation closed. */
+export const CANCELLED_INVOICE_LABEL = "Cancelled – nothing to pay";
+
 const paymentStatusLabel: Record<string, string> = {
   unpaid: "Not yet paid",
   partially_paid: "Part paid",
   paid: "Paid",
+  cancelled: CANCELLED_INVOICE_LABEL,
 };
 
 const paymentClassLabel: Record<string, string> = {

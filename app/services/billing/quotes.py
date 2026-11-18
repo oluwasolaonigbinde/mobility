@@ -19,6 +19,8 @@ from app.models.billing import (
     PaymentClass,
     QuoteRequestSource,
 )
+from app.models.campaign import Campaign, CampaignStatus
+from app.models.organization import AdvertiserOrganization
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.billing.common import (
@@ -33,6 +35,66 @@ from app.services.billing.common import (
 from app.services.billing.queries import _commercial_terms_for_campaign
 from app.services.campaigns import get_required_advertiser_context
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
+
+
+def open_quote_request_clause():
+    """D167: a request staff haven't answered yet (no quotation revision) on a live campaign."""
+    answered = (
+        select(CommercialQuotationRevision.id)
+        .where(CommercialQuotationRevision.quote_request_id == CommercialQuoteRequest.id)
+        .correlate(CommercialQuoteRequest)
+        .exists()
+    )
+    cancelled = (
+        select(Campaign.id)
+        .where(
+            Campaign.id == CommercialQuoteRequest.campaign_id,
+            Campaign.status == CampaignStatus.CANCELLED.value,
+        )
+        .correlate(CommercialQuoteRequest)
+        .exists()
+    )
+    return ~answered & ~cancelled
+
+
+async def list_open_quote_requests(
+    session: AsyncSession, *, limit: int, offset: int, oldest_first: bool = False
+) -> tuple[list[dict], int]:
+    """Staff Work queue rows for open quote requests, with the campaign and company names."""
+    total = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(CommercialQuoteRequest)
+            .where(open_quote_request_clause())
+        )
+        or 0
+    )
+    order = (
+        CommercialQuoteRequest.requested_at.asc()
+        if oldest_first
+        else CommercialQuoteRequest.requested_at.desc()
+    )
+    rows = (
+        await session.execute(
+            select(
+                CommercialQuoteRequest.id,
+                CommercialQuoteRequest.campaign_id,
+                CommercialQuoteRequest.requested_at,
+                Campaign.name.label("campaign_name"),
+                AdvertiserOrganization.name.label("organization_name"),
+            )
+            .join(Campaign, Campaign.id == CommercialQuoteRequest.campaign_id)
+            .join(
+                AdvertiserOrganization,
+                AdvertiserOrganization.id == CommercialQuoteRequest.organization_id,
+            )
+            .where(open_quote_request_clause())
+            .order_by(order, CommercialQuoteRequest.id)
+            .limit(limit)
+            .offset(offset)
+        )
+    ).mappings()
+    return [dict(row) for row in rows], total
 
 
 async def request_custom_quote(

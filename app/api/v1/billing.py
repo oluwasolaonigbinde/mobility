@@ -56,6 +56,8 @@ from app.schemas.billing import (
     IssuerProfileRead,
     ManualTransferCreate,
     ManualTransferResult,
+    OpenQuoteRequestPage,
+    OpenQuoteRequestRead,
     PaymentCheckoutRead,
     PaymentWebhookReceipt,
     ProductionStartCreate,
@@ -116,6 +118,7 @@ from app.services.billing.queries import (
 )
 from app.services.billing.quotes import (
     accept_quotation_revision,
+    list_open_quote_requests,
     record_quotation_revision,
     request_custom_quote,
 )
@@ -346,6 +349,23 @@ async def admin_record_external_quote_request(
     )
     await session.commit()
     return QuoteRequestRead.model_validate(result)
+
+
+@router.get("/admin/quote-requests/open", response_model=OpenQuoteRequestPage)
+async def admin_open_quote_requests(
+    _user: AdminUserDependency,
+    session: SessionDependency,
+    limit: int = Query(default=25, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    oldest_first: bool = False,
+) -> OpenQuoteRequestPage:
+    """D167: quote requests staff haven't answered yet, for the Work queue."""
+    rows, total = await list_open_quote_requests(
+        session, limit=limit, offset=offset, oldest_first=oldest_first
+    )
+    return OpenQuoteRequestPage(
+        items=[OpenQuoteRequestRead.model_validate(row) for row in rows], total=total
+    )
 
 
 @router.post(

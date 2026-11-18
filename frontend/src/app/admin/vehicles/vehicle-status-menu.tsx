@@ -36,6 +36,12 @@ export function VehicleStatusMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const evidenceBlocked = Boolean(currentEvidenceStatus && currentEvidenceStatus !== "approved");
   const blocked = activationBlocked || evidenceBlocked;
+  const needsNewDocuments =
+    currentEvidenceStatus === "expired" || currentEvidenceStatus === "rejected";
+
+  // A pending car whose documents were rejected or expired has nothing to approve.
+  if (status === "pending" && needsNewDocuments)
+    return <p className="micro text-muted">Waiting for new car documents</p>;
 
   function run(to: VStatus, danger?: boolean, confirmed = false) {
     if (danger && !confirmed) {
@@ -61,7 +67,7 @@ export function VehicleStatusMenu({
             disabled={pending || (blocked && s.to === "active")}
             title={
               blocked && s.to === "active"
-                ? currentEvidenceStatus === "expired" || currentEvidenceStatus === "rejected"
+                ? needsNewDocuments
                   ? "This car needs a fresh document submission and approval before it can be made active."
                   : "Use the current car document review to approve or restore this car."
                 : undefined

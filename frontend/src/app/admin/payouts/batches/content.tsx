@@ -100,7 +100,9 @@ export default async function PaymentRuns({ searchParams }: { searchParams: Prom
       ) : (
         <>
           {summary.items.length ? (
-            <div className="overflow-x-auto">
+            // relative keeps the screen-reader-only column label inside this scroll box,
+            // so it cannot widen the page on a phone.
+            <div className="relative overflow-x-auto">
               <table className="w-full min-w-[640px] text-sm">
                 <thead>
                   <tr className="text-muted border-edge border-b text-left">
@@ -118,9 +120,6 @@ export default async function PaymentRuns({ searchParams }: { searchParams: Prom
                     <tr key={run.id} className="border-edge/60 border-b align-top last:border-0">
                       <td className="py-2">
                         {paymentRunStatus(run)}
-                        {run.status === "reserved" && !run.approved_at ? (
-                          <span className="text-muted block text-xs">Waiting for approval</span>
-                        ) : null}
                         {run.approval_mode === "automatic" ? (
                           <span className="text-muted block text-xs">Automatic</span>
                         ) : null}

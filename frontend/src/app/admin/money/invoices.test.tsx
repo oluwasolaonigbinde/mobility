@@ -27,6 +27,21 @@ describe("Money invoices", () => {
     expect(invoiceState(invoice("b") as never)).toBe("unpaid");
     expect(invoiceState(invoice("c", "100.00") as never)).toBe("paid");
   });
+  it("keeps a cancelled campaign's invoice out of Unpaid and labels it as on the advertiser side", async () => {
+    mocks.read.mockResolvedValue({
+      invoices: [
+        { invoice: { ...invoice("closed"), payment_status: "cancelled" }, campaign },
+        { invoice: { ...invoice("owed"), payment_status: "unpaid" }, campaign },
+      ],
+      settlements: [],
+    });
+    render(await Invoices({ query: { tab: "invoices", invoice_status: "unpaid" } }));
+    expect(screen.getByText("1 matching invoices")).toBeVisible();
+    expect(screen.getByRole("link", { name: "owed · City campaign" })).toBeVisible();
+    expect(screen.queryByRole("link", { name: "closed · City campaign" })).toBeNull();
+    render(await Invoices({ query: { tab: "invoices" } }));
+    expect(screen.getByText(/Named company · Cancelled – nothing to pay ·/)).toBeVisible();
+  });
   it("enumerates all company pages before filtering and pages without dropping query state", async () => {
     mocks.get
       .mockResolvedValueOnce({ data: { items: [{ id: "a" }], total: 2 } })

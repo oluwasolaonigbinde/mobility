@@ -2795,28 +2795,28 @@ def test_admin_activation_owns_final_transition(
         json=assignment_payload(second_campaign, profile, vehicle),
     ).json()["id"]
     headers = driver_headers(db_client)
-    for assignment_id in [first_assignment_id, second_assignment_id]:
-        accepted = db_client.post(
-            f"/api/v1/driver/campaign-assignments/{assignment_id}/accept",
-            headers=headers,
-            json={"metadata": {}},
-        )
-        assert accepted.status_code == http_status.HTTP_200_OK
+    accepted = db_client.post(
+        f"/api/v1/driver/campaign-assignments/{first_assignment_id}/accept",
+        headers=headers,
+        json={"metadata": {}},
+    )
+    assert accepted.status_code == http_status.HTTP_200_OK
+    # Q16: the same car cannot also take a campaign running on the same dates.
+    refused = db_client.post(
+        f"/api/v1/driver/campaign-assignments/{second_assignment_id}/accept",
+        headers=headers,
+        json={"metadata": {}},
+    )
+    assert refused.status_code == http_status.HTTP_409_CONFLICT
+    assert refused.json()["error"]["code"] == "VEHICLE_BOOKED_FOR_THESE_DATES"
     first_activate = db_client.post(
         f"/api/v1/admin/campaign-assignments/{first_assignment_id}/activate",
         headers=admin_headers(db_client),
         json={"metadata": {}},
     )
-    second_activate = db_client.post(
-        f"/api/v1/admin/campaign-assignments/{second_assignment_id}/activate",
-        headers=admin_headers(db_client),
-        json={"metadata": {}},
-    )
 
     assert first_activate.status_code == http_status.HTTP_409_CONFLICT
-    assert second_activate.status_code == http_status.HTTP_409_CONFLICT
     assert first_activate.json()["error"]["code"] == "CAMPAIGN_REVIEW_APPROVAL_REQUIRED"
-    assert second_activate.json()["error"]["code"] == "CAMPAIGN_REVIEW_APPROVAL_REQUIRED"
 
 
 def test_driver_cannot_accept_activate_or_deactivate_another_drivers_assignment(

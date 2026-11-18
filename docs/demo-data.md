@@ -55,7 +55,7 @@ No missing client answer is recorded as approved. These records are fictional an
 
 | Temporary input | Current value and location | Replacing answer |
 | --- | --- | --- |
-| Invoice issuer, bank and number prefix | Synthetic Terrax Media Company Ltd facts from `app/seeds/demo_authority.py` `SYNTHETIC_ISSUER_FACTS`; OPay, non-routable account `0000000000`, prefix `TXM`, reference `cardvert-synthetic-issuer`. Local, test and staging may issue with these facts, without a `TEST-` prefix or Test invoice label; one series per prefix is shared with verified profiles (owner, 27–29 Oct 2026, D141 / REQ-263). Built on integrate/req252-264 (`3abcc85b`); full CI and merge pending | REQ-041, REQ-042 and REQ-052; rehearsal and production require verified D42/Q28 facts and remain fail-closed |
+| Invoice issuer, bank and number prefix | Synthetic Terrax Media Company Ltd facts from `app/seeds/demo_authority.py` `SYNTHETIC_ISSUER_FACTS`; Moniepoint (Terrax's bank, D165), non-routable account `0000000000`, prefix `TXM`, reference `cardvert-synthetic-issuer`. Local, test and staging may issue with these facts, without a `TEST-` prefix or Test invoice label; one series per prefix is shared with verified profiles (owner, 27–29 Oct 2026, D141 / REQ-263). Built on integrate/req252-264 (`3abcc85b`); full CI and merge pending | REQ-042 and REQ-052 (the real bank details came in REQ-041/D165: Moniepoint 8246017023, Terrax Media Company Ltd); rehearsal and production require verified D42/Q28 facts and remain fail-closed |
 | Reach estimates | Abuja weekday: 240 contacts/km, 5/minute, road factor 1.15; Abuja office: 180/km, 4/minute, road factor 1; Abuja weekend: 140/km, 4/minute, road factor 1; morning/midday/evening/night factors 1.2/1/1.3/0.7; target/bonus/exclusion factors 1.2/1.35/0 | EXT-REPORT-METHOD: calculation, labels and limitations |
 | Report calculation inputs | Seeded traffic profiles, routes, impression estimates, exposure scores and frozen measurement snapshots; `impressions_v1` / `exposure_v1` identify the existing calculation | EXT-REPORT-METHOD; no revenue or conversion inputs are invented |
 | Commercial records | Campaign budgets and quotations, including ₦1,000,000 portal campaigns, ₦3,000,000 scopes for the three additional report contributor histories, ₦1,800,000 for Utako Office Lunch, partial funding of ₦500,000, 7.5% VAT, five-vehicle scopes and zero production-cost components | EXT-COMMERCIAL-VALUES: approved quotation components, production prices and commissions; each real campaign's accepted quotation replaces its seeded snapshot |
@@ -227,7 +227,7 @@ This one table lists persisted names and human-written fields, including frozen 
 | `invoice_issuer_profiles.registered_address` | 73 Lome Crescent, Wuse Zone 7, Abuja |
 | `invoices.customer_snapshot.name` | Aster Vale Foods<br>Beryl Lane Grocers<br>Cedar Bay Furnishings<br>Copper Finch Bakery<br>Dove Crescent Laundry<br>Juniper Court Pharmacy<br>Linden Harbour Clothing<br>Mango Grove Interiors<br>Marula Kitchens<br>Oriole Books |
 | `invoices.issuer_snapshot.bank_account_name` | Terrax Media Company Ltd |
-| `invoices.issuer_snapshot.bank_name` | OPay |
+| `invoices.issuer_snapshot.bank_name` | Moniepoint |
 | `invoices.issuer_snapshot.legal_name` | Terrax Media Company Ltd |
 | `invoices.line_items[].description` | Vehicle advertising on the agreed routes |
 | `manual_driver_contact_tasks.completion_note` | Amina can visit the Wuse office on Thursday.<br>Chinedu was driving; call again after six. |
@@ -255,7 +255,7 @@ This one table lists persisted names and human-written fields, including frozen 
 | `vehicles.color` | Black<br>Blue<br>Grey<br>Red<br>Silver<br>White |
 | `vehicles.make` | Honda<br>Hyundai<br>Kia<br>Nissan<br>Suzuki<br>Toyota |
 | `vehicles.model` | Accord<br>Camry<br>Civic<br>Corolla<br>Elantra<br>Every<br>Rio<br>Sienna<br>Urvan |
-| `vehicles.plate_number` | AAA-681-WZ<br>ABJ-482-KD<br>ABJ-603-MR<br>ABJ-715-FM<br>AKD-458-PQ<br>EPE-926-KL<br>FKJ-204-NP<br>FKJ-824-CN<br>KJA-637-BD<br>KJA-916-NB<br>KRD-347-JM<br>LND-315-HG<br>LSR-219-XY<br>LSR-528-HP<br>MUS-763-RS<br>SMK-592-TV |
+| `vehicles.plate_number` | ABC-926-KL<br>ABJ-219-XY<br>ABJ-347-JM<br>ABJ-482-KD<br>ABJ-603-MR<br>ABJ-715-FM<br>ABJ-763-RS<br>BWR-315-HG<br>BWR-528-HP<br>BWR-681-WZ<br>GWA-204-NP<br>GWA-592-TV<br>GWA-824-CN<br>KUJ-637-BD<br>KUJ-916-NB<br>KWL-458-PQ |
 | `whatsapp_consents.purpose` | Installation and trip updates |
 | Artwork and installation photo text | Marula Kitchens; Lunch delivered.; Good Food Brighter Days; each fictional business name above; Closer to your neighbourhood; Lagos • Abuja |
 | Applicant document artwork | Driver licence; Portrait; Vehicle advertising agreement; Vehicle registration; Insurance; Vehicle photo; each applicant's full name above; Abuja; I agree to keep the panels fitted and report any damage promptly.; Signed; ABJ-2024-58219; ABJ-603-MR; Toyota Corolla White 2020 |

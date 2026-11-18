@@ -1,37 +1,38 @@
 "use client";
-import Image from "next/image";
-import { useEffect, useState, useTransition } from "react";
-import { previewOperatorArtwork } from "../queue-options";
+import { useArtworkPreview } from "../use-artwork-preview";
 
 export function ArtworkPreview({ fileId, name }: { fileId: string; name: string }) {
-  const [result, setResult] = useState<{ url?: string; error?: string }>();
-  const [pending, start] = useTransition();
-  useEffect(() => {
-    if (!result?.url) return;
-    const timer = window.setTimeout(() => setResult(undefined), 60_000);
-    return () => window.clearTimeout(timer);
-  }, [result]);
+  const { preview, loading, open } = useArtworkPreview();
   return (
     <div className="my-3">
       <button
         type="button"
         className="text-cyan text-sm underline"
-        disabled={pending}
-        onClick={() => start(async () => setResult(await previewOperatorArtwork(fileId)))}
+        disabled={loading}
+        onClick={() => open(fileId)}
       >
-        {pending ? "Opening artwork…" : "View artwork"}
+        {loading ? "Opening artwork…" : "View artwork"}
       </button>
-      {result?.url ? (
-        <Image
-          src={result.url}
+      {preview?.url && preview.isPdf ? (
+        <a
+          href={preview.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-cyan mt-3 block text-sm underline"
+        >
+          Open PDF artwork
+        </a>
+      ) : preview?.url ? (
+        /* eslint-disable-next-line @next/next/no-img-element -- private blob: artwork cannot use the image optimizer */
+        <img
+          src={preview.url}
           alt={name}
           width={480}
           height={320}
-          unoptimized
           className="mt-3 max-w-full rounded object-contain"
         />
       ) : null}
-      {result?.error ? <p role="alert">{result.error}</p> : null}
+      {preview?.error ? <p role="alert">{preview.error}</p> : null}
     </div>
   );
 }

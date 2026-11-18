@@ -240,7 +240,7 @@ export default async function CompanyHub({
                       </Link>
                       <p className="text-muted text-sm">
                         {adminStatus(invoice.status, "invoice")} ·{" "}
-                        {adminStatus(invoice.payment_status)} ·{" "}
+                        {adminStatus(invoice.payment_status, "invoice")} ·{" "}
                         {formatDate(invoice.issued_at ?? invoice.created_at)}
                       </p>
                       <p className="mt-2 text-sm">

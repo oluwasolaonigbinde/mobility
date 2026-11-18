@@ -7,6 +7,7 @@ from functools import lru_cache
 from typing import Annotated, ClassVar
 from urllib.parse import parse_qsl, urlsplit
 
+from arq.connections import RedisSettings
 from pydantic import BeforeValidator, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from redis.connection import parse_url as parse_redis_url
@@ -129,6 +130,28 @@ def _validate_redis_url(value: str | None) -> None:
         or (cert_values and cert_values[0].lower() != "required")
     ):
         raise ValueError("REDIS_URL must use authenticated Redis TLS")
+
+
+def arq_redis_settings(redis_url: str) -> RedisSettings:
+    """Read host, port, db, credentials, TLS CA and cert requirement from
+    REDIS_URL the way redis-py's Redis.from_url does (REQ-330); other query
+    options are not passed to arq.
+
+    arq's RedisSettings.from_dsn drops ssl_ca_certs/ssl_cert_reqs and does not
+    percent-decode credentials, so a private Redis CA or an encoded password
+    would fail only in the worker and job enqueuers.
+    """
+    parsed = parse_redis_url(redis_url)
+    return RedisSettings(
+        host=parsed.get("host", "localhost"),
+        port=parsed.get("port", 6379),
+        database=parsed.get("db", 0),
+        username=parsed.get("username"),
+        password=parsed.get("password"),
+        ssl=urlsplit(redis_url).scheme == "rediss",
+        ssl_ca_certs=parsed.get("ssl_ca_certs"),
+        ssl_cert_reqs=parsed.get("ssl_cert_reqs", "required"),
+    )
 
 
 class Settings(BaseSettings):

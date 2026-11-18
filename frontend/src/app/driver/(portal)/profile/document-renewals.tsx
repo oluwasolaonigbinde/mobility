@@ -33,6 +33,16 @@ const reasons: Record<string, string> = {
   not_pilot_eligible: "contact Terrax Media about this car",
 };
 
+/** One plain bank line from the stage the page already loads; a rejected account has its own message. */
+function bankStatus(person: Documents["person_payee"]): string | undefined {
+  if (person.purged_at || person.replace_bank) return undefined;
+  if (person.bank_account_verified) return "Bank account verified.";
+  if (person.status === "not_submitted") return "Bank account not added yet.";
+  if (person.status === "pending_review" || person.status === "approved")
+    return "Terrax Media is checking your bank account.";
+  return "Your bank account will be checked when you send your updated details.";
+}
+
 function RenewalForm({
   driverId,
   submissionId,
@@ -318,11 +328,13 @@ function OwnedDocumentRenewals({ driverId }: { driverId: string }) {
       </Panel>
     );
   const person = documents.person_payee;
+  const bankLine = bankStatus(person);
   return (
     <Panel className="p-5">
       <h2 className="font-medium">Your documents</h2>
       <section className="mt-4">
         <h3 className="font-medium">Identity and bank details</h3>
+        {bankLine ? <p className="text-muted mt-2 text-sm">{bankLine}</p> : null}
         <DocumentStatus documents={person.documents ?? {}} />
         {person.purged_at ? (
           <p className="text-muted mt-3 text-sm">

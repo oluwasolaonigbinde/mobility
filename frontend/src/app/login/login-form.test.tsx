@@ -40,6 +40,16 @@ describe("LoginForm", () => {
     },
   );
 
+  it("shows the typed email again after a failed sign-in and leaves the password empty", () => {
+    actionState.state = {
+      email: "person@example.test",
+      error: "Invalid email or password, or the account is not active.",
+    };
+    render(<LoginForm />);
+    expect(screen.getByLabelText("Email")).toHaveValue("person@example.test");
+    expect(screen.getByLabelText("Password")).toHaveValue("");
+  });
+
   it.each([undefined, "advertiser"] as const)(
     "keeps sign-in errors and pending state visible for %s",
     (demoLoginRole) => {

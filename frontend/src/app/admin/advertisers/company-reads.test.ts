@@ -31,6 +31,14 @@ describe("company outstanding invoices", () => {
       { currency: "USD", amount: "4.99" },
     ]);
   });
+  it("owes nothing on an invoice its campaign's cancellation closed", () => {
+    expect(
+      outstandingInvoices([
+        invoice({ payment_status: "cancelled", funded_amount: "0.00" }),
+        invoice({ payment_status: "unpaid", funded_amount: "0.00" }),
+      ]),
+    ).toEqual([{ currency: "NGN", amount: "100.00" }]);
+  });
   it("retains exact cents above JavaScript safe integer limits", () => {
     const amount = outstandingInvoices([
       invoice({ effective_obligation_amount: "9007199254740993.01", funded_amount: "0.00" }),

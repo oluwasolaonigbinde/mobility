@@ -64,7 +64,7 @@ export function AdvertiserNavigation({ account }: { account: ReactNode }) {
         aria-haspopup="dialog"
         aria-controls="advertiser-menu"
         aria-label="Open menu"
-        className="border-edge fixed top-3 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-full border bg-white md:hidden"
+        className="border-edge absolute top-3 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-full border bg-white md:hidden"
         onClick={() => {
           if (dialog.current?.open) return;
           previousOverflow.current = document.body.style.overflow;

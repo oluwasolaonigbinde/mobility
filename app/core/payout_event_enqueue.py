@@ -3,9 +3,9 @@ import logging
 from typing import Protocol
 from uuid import UUID
 
-from arq.connections import ArqRedis, RedisSettings, create_pool
+from arq.connections import ArqRedis, create_pool
 
-from app.core.config import Settings
+from app.core.config import Settings, arq_redis_settings
 
 logger = logging.getLogger(__name__)
 PAYOUT_EVENT_JOB_NAME = "process_payout_provider_event"
@@ -32,7 +32,7 @@ class RedisPayoutEventEnqueuer:
 
     async def _get_pool(self) -> ArqRedis:
         if self._pool is None:
-            settings = RedisSettings.from_dsn(self.redis_url)
+            settings = arq_redis_settings(self.redis_url)
             settings.conn_timeout = 1
             settings.conn_retries = 1
             self._pool = await create_pool(settings)

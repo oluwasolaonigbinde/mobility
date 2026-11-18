@@ -1,3 +1,5 @@
+import { CANCELLED_INVOICE_LABEL } from "@/lib/billing/invoice-document";
+
 /** Staff vocabulary. Context matters: an applicant is not a waiting payment. */
 const common: Record<string, string> = {
   active: "Active",
@@ -104,7 +106,14 @@ const contexts: Record<string, Record<string, string>> = {
     stale: "Needs a new preview",
     executed: "Completed",
   },
-  invoice: { paid: "Paid", part_paid: "Part paid", unpaid: "Unpaid", void: "Voided" },
+  invoice: {
+    paid: "Paid",
+    part_paid: "Part paid",
+    partially_paid: "Part paid",
+    unpaid: "Unpaid",
+    void: "Voided",
+    cancelled: CANCELLED_INVOICE_LABEL,
+  },
   audience: {
     ready: "Ready",
     stale: "Needs refresh",
@@ -146,6 +155,15 @@ const contexts: Record<string, Record<string, string>> = {
 export function adminStatus(value: string | null | undefined, context = "record"): string {
   if (!value) return "Not recorded";
   return contexts[context]?.[value] ?? common[value] ?? "Unknown status";
+}
+/**
+ * Before a campaign starts, its budget check counts confirmed payments; once it runs,
+ * the amount it owes. Name the figure for what it is.
+ */
+export function campaignSpendLabel(status: string): string {
+  return ["draft", "pending_review", "approved", "rejected"].includes(status)
+    ? "Paid so far"
+    : "Budget used";
 }
 /** A run stays reserved until it is sent; approval is recorded separately (approved_at). */
 export function paymentRunStatus(run: { status: string; approved_at: string | null }): string {

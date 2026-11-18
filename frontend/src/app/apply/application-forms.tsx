@@ -29,6 +29,7 @@ export function DriverApplicationForms() {
               label="Full name"
               name="full_name"
               autoComplete="name"
+              defaultValue={state.values?.full_name}
               required
               error={state.fieldErrors?.full_name}
             />
@@ -37,6 +38,7 @@ export function DriverApplicationForms() {
               name="email"
               type="email"
               autoComplete="email"
+              defaultValue={state.values?.email}
               required
               error={state.fieldErrors?.email}
             />
@@ -46,6 +48,7 @@ export function DriverApplicationForms() {
                 name="phone"
                 type="tel"
                 autoComplete="tel"
+                defaultValue={state.values?.phone}
                 error={state.fieldErrors?.phone}
               />
               <Field
@@ -54,6 +57,7 @@ export function DriverApplicationForms() {
                 autoComplete="address-level2"
                 required
                 maxLength={128}
+                defaultValue={state.values?.service_city}
                 error={state.fieldErrors?.service_city}
               />
             </div>

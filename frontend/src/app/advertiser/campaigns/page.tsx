@@ -28,7 +28,8 @@ interface SearchParams {
 }
 
 const groups = {
-  running: { label: "Running", statuses: ["active", "paused"] },
+  // Paused campaigns are not running (the dashboard counts only running ones), so say so.
+  running: { label: "Running or paused", statuses: ["active", "paused"] },
   setup: {
     label: "Being set up",
     statuses: ["draft", "pending_review", "approved", "rejected"],
@@ -106,7 +107,7 @@ export default async function CampaignsPage({
         <EmptyState
           title={
             campaigns.length
-              ? `No campaigns ${group === "running" ? "running" : group === "setup" ? "being set up" : "finished"}`
+              ? `No campaigns ${group === "running" ? "running or paused" : group === "setup" ? "being set up" : "finished"}`
               : "No campaigns yet"
           }
           body={

@@ -111,6 +111,9 @@ it("keeps exact budget strings through draft save and final review", async () =>
   await user.click(screen.getByRole("button", { name: "Continue →" }));
   await user.click(screen.getByRole("button", { name: "Continue →" }));
   expect(screen.getByText("₦1,234,567.89")).toBeInTheDocument();
+  // A whole amount reads like every other budget in the portal, without ".00".
+  expect(screen.getByText("₦10,000")).toBeInTheDocument();
+  expect(screen.queryByText("₦10,000.00")).toBeNull();
   expect(mocks.create.mock.calls[0]![0].basics).toMatchObject({
     budget_amount: "1234567.89",
     daily_budget_amount: "10000.00",

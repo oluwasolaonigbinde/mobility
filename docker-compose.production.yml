@@ -265,6 +265,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=32m
+      # Next's image optimiser cache; the root filesystem is read-only (REQ-330).
+      - /app/.next/cache:rw,noexec,nosuid,size=64m,mode=1777
     cap_drop:
       - ALL
     security_opt:

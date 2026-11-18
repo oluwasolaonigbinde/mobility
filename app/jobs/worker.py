@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.adapters.disbursement.paystack import build_disbursement_adapter
 from app.adapters.storage import build_storage_provider
-from app.core.config import Settings, get_settings
+from app.core.config import Settings, arq_redis_settings, get_settings
 from app.core.observability import (
     begin_job_logging,
     configure_logging,
@@ -71,7 +71,7 @@ def build_redis_settings(settings: Settings | None = None) -> RedisSettings:
     settings = settings or get_settings()
     if not settings.redis_url:
         raise RuntimeError("REDIS_URL must be configured to run the arq worker")
-    return RedisSettings.from_dsn(settings.redis_url)
+    return arq_redis_settings(settings.redis_url)
 
 
 def _optional_redis_settings() -> RedisSettings | None:

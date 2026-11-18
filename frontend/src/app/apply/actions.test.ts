@@ -65,7 +65,34 @@ describe("driver application actions", () => {
 
     await expect(submitDriverApplicationAction({}, form)).resolves.toEqual({
       error: "We couldn't send your application right now. Please try again later.",
+      values: {
+        email: "driver@example.com",
+        full_name: "Driver Name",
+        phone: "",
+        service_city: "Lagos",
+      },
     });
+  });
+
+  it("keeps typed contact details after a validation error and never echoes ID or bank values", async () => {
+    const form = new FormData();
+    form.set("email", "not-an-email");
+    form.set("full_name", "Ada Driver");
+    form.set("phone", "+2348000000000");
+    form.set("service_city", "Abuja");
+    form.set("nin", "12345678901");
+    form.set("account_number", "0123456789");
+    const result = await submitDriverApplicationAction({}, form);
+    expect(result.fieldErrors?.email).toBeTruthy();
+    expect(result.values).toEqual({
+      email: "not-an-email",
+      full_name: "Ada Driver",
+      phone: "+2348000000000",
+      service_city: "Abuja",
+    });
+    expect(JSON.stringify(result)).not.toContain("12345678901");
+    expect(JSON.stringify(result)).not.toContain("0123456789");
+    expect(mocks.post).not.toHaveBeenCalled();
   });
 
   it.each([null, "", "   ", "a".repeat(129)])(

@@ -313,3 +313,90 @@ def test_current_job_counts_use_finished_read_status_and_driver_scope(
         )
         assert listed.status_code == 200, listed.text
         assert listed.json()["total"] == count
+
+
+def test_open_quote_requests_are_a_campaigns_work_source(db_client, db_sessionmaker):
+    """D167: unanswered quote requests count in the badge and list for the Work queue."""
+    from datetime import UTC
+    from decimal import Decimal
+
+    from app.models.billing import CommercialQuotationRevision, CommercialQuoteRequest
+
+    password = "quote-queue-password"
+    admin = create_test_user(db_sessionmaker, email="quote-admin@example.test", password=password)
+    org, _ = create_test_organization(db_sessionmaker, name="Quote Queue Foods")
+    open_campaign, answered_campaign, cancelled_campaign = (
+        create_test_campaign(
+            db_sessionmaker,
+            organization_id=org.id,
+            created_by_user_id=admin.id,
+            name=name,
+            campaign_status=status,
+        )
+        for name, status in (
+            ("Open quote", CampaignStatus.DRAFT),
+            ("Answered quote", CampaignStatus.DRAFT),
+            ("Cancelled quote", CampaignStatus.CANCELLED),
+        )
+    )
+
+    async def requests():
+        now = datetime.now(UTC)
+        async with db_sessionmaker() as session:
+            rows = {
+                campaign.id: CommercialQuoteRequest(
+                    campaign_id=campaign.id,
+                    organization_id=org.id,
+                    source="in_platform",
+                    request_details={"notes": "Please quote."},
+                    requested_by_user_id=admin.id,
+                    requested_at=now,
+                )
+                for campaign in (open_campaign, answered_campaign, cancelled_campaign)
+            }
+            session.add_all(rows.values())
+            await session.flush()
+            session.add(
+                CommercialQuotationRevision(
+                    quote_request_id=rows[answered_campaign.id].id,
+                    revision_number=1,
+                    created_by_user_id=admin.id,
+                    campaign_id=answered_campaign.id,
+                    organization_id=org.id,
+                    quote_reference="TX-ANSWERED",
+                    currency="NGN",
+                    line_items=[{"code": "media", "kind": "media", "amount": "100.00"}],
+                    production_scope={},
+                    production_cost_amount=Decimal("0"),
+                    payment_class="standard_prepaid",
+                    payment_terms={},
+                    standard_production_wait_hours=24,
+                    net_amount=Decimal("100.00"),
+                    tax_rate=Decimal("0.075"),
+                    tax_amount=Decimal("7.50"),
+                    gross_amount=Decimal("107.50"),
+                )
+            )
+            await session.commit()
+            return rows[open_campaign.id].id
+
+    open_request_id = asyncio.run(requests())
+    headers = auth_headers(db_client, admin.email, password)
+    badges = db_client.get("/api/v1/admin/badge-summary", headers=headers).json()
+    assert badges["source_counts"]["quotes"] == 1
+    assert badges["campaigns"] >= 1
+    assert badges["campaigns"] == sum(
+        badges["source_counts"][key]
+        for key in ("jobs", "campaigns", "artwork", "photos", "changes", "paused", "quotes")
+    )
+    listed = db_client.get(
+        "/api/v1/admin/quote-requests/open",
+        headers=headers,
+        params={"limit": 5, "oldest_first": "true"},
+    )
+    assert listed.status_code == 200, listed.text
+    assert listed.json()["total"] == 1
+    assert [
+        (row["id"], row["campaign_id"], row["campaign_name"], row["organization_name"])
+        for row in listed.json()["items"]
+    ] == [(str(open_request_id), str(open_campaign.id), "Open quote", "Quote Queue Foods")]

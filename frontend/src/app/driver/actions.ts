@@ -21,6 +21,8 @@ function toState(error: unknown): DriverActionState {
       error: publicActionError(error, {
         VEHICLE_APPROVAL_REQUIRED:
           "Your car isn't ready for this job. Check your documents in Profile or contact Terrax Media.",
+        VEHICLE_BOOKED_FOR_THESE_DATES:
+          "This car is already booked on another campaign for some of these dates. A car can only run one campaign at a time.",
       }),
     };
   return { error: "Could not reach the server. Please try again." };

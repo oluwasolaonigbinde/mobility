@@ -1,9 +1,16 @@
 "use client";
 
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+} from "react";
 import type { components } from "@/lib/api/schema";
 import { formatDateTime } from "@/lib/format";
 
@@ -122,9 +129,36 @@ export function NotificationCenter({
   compact?: boolean;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [phonePlacement, setPhonePlacement] = useState<{ top: number; right: number }>();
   const triggerRef = useRef<HTMLButtonElement>(null);
+  // A notice opened on one page must not stay over the next page.
+  const [shownPath, setShownPath] = useState(pathname);
+  if (shownPath !== pathname) {
+    setShownPath(pathname);
+    setOpen(false);
+  }
+  // On a phone the panel is fixed to the viewport; place it just under its trigger,
+  // right-aligned with it, and keep it inside the screen.
+  useEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const trigger = triggerRef.current?.getBoundingClientRect();
+      if (!trigger) return;
+      const width = Math.min(384, window.innerWidth - 32);
+      setPhonePlacement({
+        top: Math.round(trigger.bottom + 8),
+        right: Math.round(
+          Math.max(16, Math.min(window.innerWidth - trigger.right, window.innerWidth - 16 - width)),
+        ),
+      });
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [open]);
   const isVisible = useDocumentVisible();
   const isOnline = useNetworkOnline();
   const countKey = ["notifications", sessionScope, "unread-count"] as const;
@@ -270,7 +304,15 @@ export function NotificationCenter({
         <section
           id="notification-centre"
           aria-label="Notifications"
-          className="border-edge bg-panel fixed top-14 right-4 z-50 w-[min(24rem,calc(100vw-2rem))] rounded-lg border p-4 font-sans tracking-normal normal-case shadow-xl sm:absolute sm:top-full sm:right-0 sm:mt-2"
+          style={
+            phonePlacement
+              ? ({
+                  "--notification-top": `${phonePlacement.top}px`,
+                  "--notification-right": `${phonePlacement.right}px`,
+                } as CSSProperties)
+              : undefined
+          }
+          className="border-edge bg-panel fixed top-[var(--notification-top,3.5rem)] right-[var(--notification-right,1rem)] z-50 max-h-[calc(100dvh-var(--notification-top,3.5rem)-1rem)] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border p-4 font-sans tracking-normal normal-case shadow-xl sm:absolute sm:top-full sm:right-0 sm:mt-2 sm:max-h-none sm:overflow-visible"
         >
           <div className="flex items-center justify-between gap-3">
             <p className="micro text-base font-semibold">Notifications</p>

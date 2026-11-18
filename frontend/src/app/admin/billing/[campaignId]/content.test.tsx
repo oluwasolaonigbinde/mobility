@@ -237,6 +237,38 @@ describe("admin campaign billing page", () => {
       funded === "107500.00" ? "₦0.00" : "₦57,500.00",
     );
   });
+  it("shows nothing due on an invoice its campaign's cancellation closed", async () => {
+    get.mockImplementation(async (path: string) =>
+      path.endsWith("/commercial")
+        ? {
+            data: {
+              ...commercial,
+              accepts_payments: false,
+              invoices: [
+                {
+                  ...commercial.invoices[0],
+                  status: "issued",
+                  funded_amount: "0.00",
+                  payment_status: "cancelled",
+                },
+              ],
+            },
+          }
+        : path === "/api/v1/admin/billing"
+          ? { data: [] }
+          : { data: campaign },
+    );
+    render(
+      await AdminCampaignBillingPage({
+        params: Promise.resolve({ campaignId: "campaign-1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    expect(screen.getByText("Balance due").nextElementSibling).toHaveTextContent("₦0.00");
+    expect(screen.getByText("Payment status").nextElementSibling).toHaveTextContent(
+      "Cancelled – nothing to pay",
+    );
+  });
   beforeEach(() => {
     get.mockImplementation(async (path: string) => {
       if (path.endsWith("/commercial")) return { data: commercial };
@@ -493,3 +525,33 @@ it.each([
     ).toBe(!shown);
   },
 );
+
+describe("custom quotation request", () => {
+  it("shows staff the advertiser's note from the request", async () => {
+    get.mockImplementation(async (path: string) =>
+      path.endsWith("/commercial")
+        ? {
+            data: {
+              ...commercial,
+              terms: null,
+              invoices: [],
+              quote_request: {
+                id: "quote-1",
+                request_details: { notes: "Please quote for weekend lunch deliveries." },
+              },
+            },
+          }
+        : path === "/api/v1/admin/billing"
+          ? { data: [] }
+          : { data: campaign },
+    );
+    render(
+      await AdminCampaignBillingPage({
+        params: Promise.resolve({ campaignId: "campaign-1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    expect(screen.getByText("Advertiser's note")).toBeVisible();
+    expect(screen.getByText("Please quote for weekend lunch deliveries.")).toBeVisible();
+  });
+});

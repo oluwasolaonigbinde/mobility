@@ -39,8 +39,34 @@ it("confirms a suspension once and surfaces a refusal", async () => {
   expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
 });
 
-it.each(["pending", "suspended", "inactive"] as const)(
-  "blocks activation or Restore for %s with terminal evidence",
+it.each(["rejected", "expired"])(
+  "shows no Approve action for a pending car whose documents are %s",
+  (currentEvidenceStatus) => {
+    render(
+      <VehicleStatusMenu
+        vehicleId="car"
+        vehicleLabel="ABJ-603-MR"
+        status="pending"
+        currentEvidenceStatus={currentEvidenceStatus}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.getByText("Waiting for new car documents")).toBeVisible();
+  },
+);
+it("keeps a pending car's Approve tied to its current document review", () => {
+  render(
+    <VehicleStatusMenu
+      vehicleId="car"
+      vehicleLabel="ABJ-603-MR"
+      status="pending"
+      currentEvidenceStatus="pending_review"
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+});
+it.each(["suspended", "inactive"] as const)(
+  "blocks Restore for %s with terminal evidence",
   (status) => {
     render(
       <VehicleStatusMenu
@@ -50,9 +76,7 @@ it.each(["pending", "suspended", "inactive"] as const)(
         currentEvidenceStatus="expired"
       />,
     );
-    const button = screen.getByRole("button", {
-      name: status === "pending" ? "Approve" : "Restore",
-    });
+    const button = screen.getByRole("button", { name: "Restore" });
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute(
       "title",

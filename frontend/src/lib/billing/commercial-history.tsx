@@ -5,6 +5,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { startInvoicePayment } from "@/app/advertiser/billing/actions";
 import { moneyMinor } from "@/lib/advertiser/budget-display";
+import { CANCELLED_INVOICE_LABEL } from "@/lib/billing/invoice-document";
 
 type Invoice = components["schemas"]["InvoiceRead"];
 type Settlement = components["schemas"]["SettlementRead"];
@@ -13,6 +14,7 @@ const paymentLabel: Record<string, string> = {
   unpaid: "Not paid",
   partially_paid: "Part paid",
   paid: "Paid",
+  cancelled: CANCELLED_INVOICE_LABEL,
 };
 
 const correctionLabel: Record<string, string> = {
@@ -46,6 +48,7 @@ export function isOutstandingInvoice(invoice: Invoice) {
   return (
     invoice.status === "issued" &&
     invoice.payment_status !== "paid" &&
+    invoice.payment_status !== "cancelled" &&
     obligation !== null &&
     funded !== null &&
     obligation > funded
@@ -59,7 +62,8 @@ export function invoiceStatusLabel(invoice: Invoice) {
 }
 
 export function invoiceStatusTone(invoice: Invoice) {
-  if (invoice.status !== "issued") return "default" as const;
+  if (invoice.status !== "issued" || invoice.payment_status === "cancelled")
+    return "default" as const;
   return invoice.payment_status === "paid"
     ? ("green" as const)
     : invoice.payment_status === "partially_paid"

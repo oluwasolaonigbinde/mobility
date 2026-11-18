@@ -32,6 +32,12 @@ it("opens a native modal left menu, then closes after choosing a destination", (
   expect(document.body.style.overflow).toBe("");
   expect(screen.getByRole("button", { name: "Open menu" })).toHaveFocus();
 });
+it("keeps the phone menu button in the page header instead of floating over content", () => {
+  render(<AdvertiserNavigation account={<span>Account</span>} />);
+  const button = screen.getByRole("button", { name: "Open menu" });
+  expect(button).toHaveClass("absolute");
+  expect(button).not.toHaveClass("fixed");
+});
 it("restores body scrolling on unmount while the menu is open", () => {
   const view = render(<AdvertiserNavigation account={<span>Account</span>} />);
   fireEvent.click(screen.getByRole("button", { name: "Open menu" }));

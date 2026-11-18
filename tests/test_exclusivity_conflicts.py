@@ -1133,3 +1133,42 @@ def test_recommendation_create_locks_aggregate_inputs_postgis(
         await update_task
 
     asyncio.run(force_interleaving())
+
+
+def test_q16_car_cannot_accept_a_second_campaign_with_overlapping_dates(
+    postgis_db_sessionmaker, settings
+) -> None:
+    """REQ-331 / Q16: one campaign per car; non-overlapping dates stay allowed."""
+    from app.models.campaign import Campaign
+
+    admin, campaigns, driver, profile, vehicle = build_graph(
+        postgis_db_sessionmaker, "q16", campaign_count=3
+    )
+    first = create_offered_assignment(
+        postgis_db_sessionmaker, settings, admin, campaigns[0], profile, vehicle
+    )
+    accept_offered_assignment(postgis_db_sessionmaker, settings, driver.id, first)
+
+    async def move_after_first(campaign_id) -> None:
+        async with postgis_db_sessionmaker() as session:
+            await session.execute(
+                update(Campaign)
+                .where(Campaign.id == campaign_id)
+                .values(start_at=FUTURE + timedelta(days=1), end_at=FUTURE + timedelta(days=20))
+            )
+            await session.commit()
+
+    asyncio.run(move_after_first(campaigns[2].id))
+    overlapping = create_offered_assignment(
+        postgis_db_sessionmaker, settings, admin, campaigns[1], profile, vehicle
+    )
+    later = create_offered_assignment(
+        postgis_db_sessionmaker, settings, admin, campaigns[2], profile, vehicle
+    )
+    with pytest.raises(AppError) as refused:
+        accept_offered_assignment(postgis_db_sessionmaker, settings, driver.id, overlapping)
+    assert refused.value.code == "VEHICLE_BOOKED_FOR_THESE_DATES"
+    assert refused.value.status_code == 409
+    assert "one campaign at a time" in refused.value.message
+    accepted = accept_offered_assignment(postgis_db_sessionmaker, settings, driver.id, later)
+    assert accepted.status == CampaignAssignmentStatus.ACCEPTED.value

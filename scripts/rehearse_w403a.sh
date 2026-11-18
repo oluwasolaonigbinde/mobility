@@ -77,19 +77,13 @@ docker build --build-arg "VCS_REF=${PREVIOUS_REVISION}" \
   --build-arg "NEXT_PUBLIC_MAP_STYLE_URL=${MAP_STYLE_URL}" \
   -t "${PROJECT_NAME}-previous-frontend:local" "${previous_context}/frontend" >/dev/null
 
+docker tag "${PROJECT_NAME}-backend-app:local" "${PROJECT_NAME}-backend:local"
 trust_context="${TEMP_DIR}/backend-trust-context"
 mkdir -p "${trust_context}"
 install -m 644 "${tls_dir}/ca.crt" "${trust_context}/ca.crt"
-# Arq resolves Redis trust through the system store, so the synthetic one-day
-# CA belongs only in these disposable rehearsal images.
-cat >"${trust_context}/Dockerfile" <<EOF
-FROM ${PROJECT_NAME}-backend-app:local
-USER root
-COPY ca.crt /usr/local/share/ca-certificates/cardvert-w403a-rehearsal.crt
-RUN update-ca-certificates
-USER cardvert
-EOF
-docker build -t "${PROJECT_NAME}-backend:local" "${trust_context}" >/dev/null
+# The predecessor revision predates REQ-330: its arq clients ignore the
+# REDIS_URL CA and use the system store, so only that disposable rehearsal
+# image gets the synthetic one-day CA.
 cat >"${trust_context}/Dockerfile" <<EOF
 FROM ${PROJECT_NAME}-previous-backend-app:local
 USER root

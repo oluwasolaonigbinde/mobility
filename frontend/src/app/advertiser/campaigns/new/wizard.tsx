@@ -14,6 +14,7 @@ import { Panel } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import { cx } from "@/lib/cx";
 import { formatDate, formatMoney } from "@/lib/format";
+import { moneyMinor, wholeMoney } from "@/lib/advertiser/budget-display";
 import {
   uploadCreativeFile,
   CREATIVE_UPLOAD_PHASE_LABELS,
@@ -21,6 +22,14 @@ import {
 } from "@/lib/files/creative-upload";
 import { ZonesEditor } from "../[campaignId]/zones/zones-editor";
 import type { components } from "@/lib/api/schema";
+
+/** Whole budgets read like the rest of the portal (₦1,500,000); kobo shows only when entered. */
+function reviewMoney(value: string, currency: string) {
+  const minor = moneyMinor(value);
+  return minor !== null && minor % 100n === 0n
+    ? wholeMoney(minor, currency)
+    : formatMoney(value, currency);
+}
 
 const STEPS = ["Basics", "Areas", "Your advert design", "Review"] as const;
 
@@ -493,13 +502,13 @@ export function CampaignWizard({
                 [
                   "Budget",
                   values.basics.budget_amount
-                    ? formatMoney(values.basics.budget_amount, currency)
+                    ? reviewMoney(values.basics.budget_amount, currency)
                     : "not set",
                 ],
                 [
                   "Daily budget",
                   values.basics.daily_budget_amount
-                    ? formatMoney(values.basics.daily_budget_amount, currency)
+                    ? reviewMoney(values.basics.daily_budget_amount, currency)
                     : "not set",
                 ],
                 [campaignId ? "Campaign" : "Create as", "Draft"],

@@ -1089,19 +1089,7 @@ def fetch_rich_snapshot(sessionmaker: async_sessionmaker[AsyncSession]) -> dict:
                 "vehicles": int(
                     await session.scalar(
                         select(func.count(Vehicle.id)).where(
-                            Vehicle.plate_number.in_(
-                                [
-                                    "LSR-219-XY",
-                                    "KJA-637-BD",
-                                    "FKJ-824-CN",
-                                    "LND-315-HG",
-                                    "EPE-926-KL",
-                                    "AKD-458-PQ",
-                                    "MUS-763-RS",
-                                    "SMK-592-TV",
-                                    "AAA-681-WZ",
-                                ]
-                            )
+                            Vehicle.plate_number.in_(list(rich.RICH_DRIVER_PLATES))
                         )
                     )
                     or 0
@@ -2409,6 +2397,144 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert fetch_lifecycle_violation_count(postgis_db_sessionmaker) == 0
     assert fetch_drivers_with_several_live_assignments(postgis_db_sessionmaker) == []
     assert fetch_zero_amount_ledger_count(postgis_db_sessionmaker) == 0
+
+
+def test_seed_records_follow_production_rules(
+    postgis_db_sessionmaker, settings, monkeypatch, seed_private_storage
+):
+    """REQ-331: seeded states carry the history production would have written."""
+    from zoneinfo import ZoneInfo
+
+    from sqlalchemy.orm import aliased
+
+    from app.models.billing import Invoice
+    from app.models.campaign import CampaignReviewEvent, CampaignStatus
+    from app.services.campaigns import decide_campaign_review
+
+    monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
+    seed_demo_graph(postgis_db_sessionmaker, settings)
+
+    async def check():
+        async with postgis_db_sessionmaker() as session:
+            campaigns = list(await session.scalars(select(Campaign)))
+            events = list(await session.scalars(select(CampaignReviewEvent)))
+            created = {row.id: row.created_at for row in campaigns}
+            names = {row.name: row for row in campaigns}
+            [lugbe_id, lugbe_org] = [
+                names["Marula Kitchens — Lugbe Lunch Collection"].id,
+                names["Marula Kitchens — Lugbe Lunch Collection"].organization_id,
+            ]
+            # A1: a campaign awaiting review has the submission an admin decides on.
+            for campaign in campaigns:
+                if campaign.status != "pending_review":
+                    continue
+                mine = [row for row in events if row.campaign_id == campaign.id]
+                assert any(
+                    row.new_status == "pending_review" and row.reviewed_snapshot_sha256
+                    for row in mine
+                ), campaign.name
+            pending = [row for row in campaigns if row.status == "pending_review"]
+            assert len(pending) >= 2
+            admin = await session.scalar(
+                select(User).where(User.role == UserRole.ADMIN, User.status == "active")
+            )
+            for campaign in pending:
+                approved = await decide_campaign_review(
+                    session,
+                    admin_user_id=admin.id,
+                    campaign_id=campaign.id,
+                    target_status=CampaignStatus.APPROVED,
+                )
+                assert approved.status == "approved"
+            await session.rollback()
+
+            # A5: invoice numbers follow issue dates, in the issue year.
+            lagos = ZoneInfo("Africa/Lagos")
+            invoices = list(await session.scalars(select(Invoice)))
+            numbered = sorted(
+                (row for row in invoices if row.invoice_number),
+                key=lambda row: (row.issued_at, row.invoice_number),
+            )
+            assert len(numbered) >= 5
+            for invoice in numbered:
+                _, year, _ = invoice.invoice_number.split("-")
+                assert int(year) == invoice.issued_at.astimezone(lagos).year, invoice.invoice_number
+            assert [row.invoice_number for row in numbered] == sorted(
+                row.invoice_number for row in numbered
+            )
+            for invoice in invoices:
+                assert invoice.created_at >= created[invoice.campaign_id], invoice.invoice_number
+                if invoice.issued_at:
+                    assert invoice.issued_at >= created[invoice.campaign_id]
+
+            # A4: the cancelled Lugbe campaign's invoice is closed, not owed.
+            from app.services.billing.invoices import (
+                invoice_payment_status,
+                outstanding_invoice_totals,
+            )
+            from app.services.billing.queries import effective_invoice_obligation
+
+            [lugbe_invoice] = [row for row in invoices if row.campaign_id == lugbe_id]
+            status, funded = await invoice_payment_status(session, lugbe_invoice)
+            assert status == "cancelled" and funded == 0
+            org = lugbe_org
+            expected = Decimal(0)
+            for row in invoices:
+                if row.organization_id != org or row.status != "issued":
+                    continue
+                row_status, row_funded = await invoice_payment_status(session, row)
+                if row_status != "cancelled":
+                    obligation = await effective_invoice_obligation(
+                        session, commercial_terms_id=row.commercial_terms_id
+                    )
+                    expected += max(obligation - row_funded, Decimal(0))
+            listed = (await outstanding_invoice_totals(session, [org]))[org]
+            assert sum((Decimal(item["amount"]) for item in listed), Decimal(0)) == expected
+
+            # A8 / Q16: no car holds two live bookings with overlapping dates.
+            other, mine_campaign, theirs = (
+                aliased(CampaignAssignment),
+                aliased(Campaign),
+                aliased(Campaign),
+            )
+            live = ("accepted", "active")
+            overlapping = list(
+                await session.execute(
+                    select(CampaignAssignment.id, other.id)
+                    .join(mine_campaign, mine_campaign.id == CampaignAssignment.campaign_id)
+                    .join(
+                        other,
+                        (other.vehicle_id == CampaignAssignment.vehicle_id)
+                        & (other.id > CampaignAssignment.id),
+                    )
+                    .join(theirs, theirs.id == other.campaign_id)
+                    .where(
+                        CampaignAssignment.status.in_(live),
+                        other.status.in_(live),
+                        mine_campaign.status != "cancelled",
+                        theirs.status != "cancelled",
+                        mine_campaign.end_at > func.now(),
+                        theirs.end_at > func.now(),
+                        mine_campaign.start_at < theirs.end_at,
+                        theirs.start_at < mine_campaign.end_at,
+                    )
+                )
+            )
+            assert overlapping == []
+
+            # A9: an Abuja demo uses FCT plate codes.
+            plates = list(await session.scalars(select(Vehicle.plate_number)))
+            assert plates
+            assert {plate.split("-")[0] for plate in plates} <= {
+                "ABJ",
+                "ABC",
+                "BWR",
+                "GWA",
+                "KUJ",
+                "KWL",
+            }, plates
+
+    asyncio.run(check())
 
 
 def fetch_drivers_with_several_live_assignments(

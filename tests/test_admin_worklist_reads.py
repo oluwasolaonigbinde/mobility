@@ -41,6 +41,7 @@ READ_OPTIONS = {
     "/api/v1/admin/complaints": {"oldest_first": "true"},
     "/api/v1/admin/manual-driver-contact-tasks": {"open_only": "true", "oldest_first": "true"},
     "/api/v1/admin/fraud-disputes": {"oldest_first": "true"},
+    "/api/v1/admin/quote-requests/open": {"oldest_first": "true"},
 }
 
 
@@ -150,3 +151,45 @@ def test_unified_applicants_has_one_filtered_total_and_staff_identity(db_client,
     assert data["applicants"][0]["driver_profile_id"] == str(profile.id)
     assert data["applicants"][0]["application_id"] is None
     assert data["applicants"][0]["kind"] == "staff_added"
+
+
+def test_applicant_list_shows_the_account_phone_the_driver_page_shows(db_client, db_sessionmaker):
+    """REQ-331: an application without its own phone lists the linked account's phone."""
+    from app.models.driver_application import DriverApplication
+    from app.models.user import User
+
+    admin = create_test_user(db_sessionmaker, email="phone-list-admin@example.com")
+    driver = create_test_user(db_sessionmaker, email="phone-list@example.com", role=UserRole.DRIVER)
+    profile = create_test_driver_profile(
+        db_sessionmaker, user_id=driver.id, onboarding_status=DriverOnboardingStatus.PENDING
+    )
+
+    async def apply():
+        async with db_sessionmaker() as session:
+            (await session.get(User, driver.id)).phone = "+2348030000999"
+            session.add(
+                DriverApplication(
+                    user_id=driver.id,
+                    driver_profile_id=profile.id,
+                    status="pending",
+                    status_reference_sha256="a" * 64,
+                    email=driver.email,
+                    full_name="Phone List Applicant",
+                    service_city="Abuja",
+                    country_code="NG",
+                )
+            )
+            await session.commit()
+
+    asyncio.run(apply())
+    headers = auth_headers(db_client, admin.email, PASSWORD)
+    listed = db_client.get(
+        "/api/v1/admin/driver-applications",
+        headers=headers,
+        params={"include_staff_added": "true", "q": driver.email},
+    )
+    assert listed.status_code == 200, listed.text
+    detail = db_client.get(f"/api/v1/admin/drivers/{profile.id}", headers=headers)
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["phone"] == "+2348030000999"
+    assert [row["phone"] for row in listed.json()["applicants"]] == [detail.json()["phone"]]

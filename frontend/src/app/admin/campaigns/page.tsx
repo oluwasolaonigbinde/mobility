@@ -4,7 +4,7 @@ import Link from "next/link";
 import { campaignDay } from "@/lib/campaigns/day-progress";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
-import { adminStatus } from "@/lib/status/admin";
+import { adminStatus, campaignSpendLabel } from "@/lib/status/admin";
 import { formatDateRange, formatMoneyExact } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
@@ -339,7 +339,8 @@ async function CampaignList(
                       {percentage !== undefined ? (
                         <>
                           <p className="text-muted text-xs">
-                            Budget used: {formatMoneyExact(spent, campaign.currency)}
+                            {campaignSpendLabel(campaign.status)}:{" "}
+                            {formatMoneyExact(spent, campaign.currency)}
                           </p>
                           <progress
                             aria-label={`Booked for ${campaign.name}`}

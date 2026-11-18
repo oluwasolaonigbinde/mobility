@@ -1,4 +1,5 @@
 import asyncio
+import importlib
 import json
 import logging
 import os
@@ -6,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import pytest
 import sentry_sdk
@@ -148,6 +150,80 @@ def test_build_redis_settings_parses_dsn() -> None:
     assert redis_settings.host == "localhost"
     assert redis_settings.port == 6380
     assert redis_settings.database == 8
+    assert redis_settings.ssl is False
+
+
+DOCUMENTED_TLS_REDIS_URL = (
+    "rediss://:p%40ss%2Fw%2Bd%3D@redis:6379/0"
+    "?ssl_ca_certs=/run/secrets/redis_tls_ca&ssl_cert_reqs=required"
+)
+
+
+def test_build_redis_settings_keeps_documented_tls_ca_and_decodes_password() -> None:
+    redis_settings = build_redis_settings(Settings(redis_url=DOCUMENTED_TLS_REDIS_URL))
+
+    assert redis_settings.ssl is True
+    assert redis_settings.ssl_ca_certs == "/run/secrets/redis_tls_ca"
+    assert redis_settings.ssl_cert_reqs == "required"
+    assert redis_settings.password == "p@ss/w+d="
+    assert (redis_settings.host, redis_settings.port, redis_settings.database) == (
+        "redis",
+        6379,
+        0,
+    )
+
+
+@pytest.mark.parametrize(
+    ("module_name", "enqueue"),
+    [
+        (
+            "app.core.outbox_enqueue",
+            lambda module, url: module.enqueue_outbox_jobs(
+                Settings(redis_url=url), {("scan_file", uuid4())}
+            ),
+        ),
+        (
+            "app.core.payment_enqueue",
+            lambda module, url: module.RedisPaymentEventEnqueuer(url).enqueue_payment_event(
+                uuid4()
+            ),
+        ),
+        (
+            "app.core.payout_event_enqueue",
+            lambda module, url: module.RedisPayoutEventEnqueuer(url).enqueue_payout_event(uuid4()),
+        ),
+        (
+            "app.core.trip_enqueue",
+            lambda module, url: module.RedisTripProcessingEnqueuer(url).enqueue_trip_processing(
+                uuid4()
+            ),
+        ),
+    ],
+)
+def test_api_enqueuers_pass_the_documented_tls_ca_to_arq(monkeypatch, module_name, enqueue) -> None:
+    module = importlib.import_module(module_name)
+    captured: list[RedisSettings] = []
+
+    class Pool:
+        async def enqueue_job(self, *args: Any, **kwargs: Any) -> None:
+            return None
+
+    async def create_pool(settings: RedisSettings) -> Pool:
+        captured.append(settings)
+        return Pool()
+
+    monkeypatch.setattr(module, "create_pool", create_pool)
+    if hasattr(module, "_pools"):
+        monkeypatch.setattr(module, "_pools", {})
+
+    asyncio.run(enqueue(module, DOCUMENTED_TLS_REDIS_URL))
+
+    [settings] = captured
+    assert settings.ssl is True
+    assert settings.ssl_ca_certs == "/run/secrets/redis_tls_ca"
+    assert settings.ssl_cert_reqs == "required"
+    assert settings.password == "p@ss/w+d="
+    assert (settings.conn_timeout, settings.conn_retries) == (1, 1)
 
 
 def test_worker_entry_fails_before_worker_construction_without_redis_url(tmp_path: Path) -> None:

@@ -5,8 +5,9 @@ import { Providers } from "@/app/providers";
 import { NotificationCenter } from "./notification-center";
 
 const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
+const route = vi.hoisted(() => ({ pathname: "/advertiser" }));
 
-vi.mock("next/navigation", () => ({ useRouter: () => router }));
+vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => route.pathname }));
 
 function response(body: unknown) {
   return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
@@ -81,6 +82,57 @@ describe("NotificationCenter", () => {
     expect(link).toHaveAttribute("href", "/advertiser/campaigns/123");
     fireEvent.click(link);
     expect(screen.queryByRole("region", { name: "Notifications" })).not.toBeInTheDocument();
+  });
+
+  it("closes the panel when the page changes", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((path: string) =>
+        isList(path)
+          ? response({ items: [], total: 0, limit: 20, offset: 0 })
+          : response({ unread_count: 0 }),
+      ),
+    );
+    route.pathname = "/advertiser";
+    const view = renderCentre();
+    fireEvent.click(screen.getByRole("button", { name: /^notifications/i }));
+    expect(screen.getByRole("region", { name: "Notifications" })).toBeInTheDocument();
+    route.pathname = "/advertiser/billing";
+    view.rerender(
+      <Providers>
+        <NotificationCenter />
+      </Providers>,
+    );
+    expect(screen.queryByRole("region", { name: "Notifications" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^notifications/i })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    route.pathname = "/advertiser";
+  });
+
+  it("places the phone panel just under its trigger and inside a 390 px screen", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((path: string) =>
+        isList(path)
+          ? response({ items: [], total: 0, limit: 20, offset: 0 })
+          : response({ unread_count: 0 }),
+      ),
+    );
+    const width = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 });
+    renderCentre(false, true);
+    const trigger = screen.getByRole("button", { name: /^notifications/i });
+    trigger.getBoundingClientRect = () =>
+      ({ top: 20, bottom: 56, left: 334, right: 370, width: 36, height: 36 }) as DOMRect;
+    fireEvent.click(trigger);
+    const panel = screen.getByRole("region", { name: "Notifications" });
+    await waitFor(() => expect(panel.style.getPropertyValue("--notification-top")).toBe("64px"));
+    // 390 − 2 × 16 px gutter = a 358 px panel, so its right edge stays 16 px from the screen edge.
+    expect(panel.style.getPropertyValue("--notification-right")).toBe("16px");
+    expect(panel.className).toContain("w-[min(24rem,calc(100vw-2rem))]");
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
   });
 
   it("does not offer Open for notices without an authorized destination", async () => {

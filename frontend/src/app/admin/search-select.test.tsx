@@ -14,7 +14,10 @@ beforeEach(() => {
   search.mockReset();
   preview.mockReset();
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 async function clickWhenEnabled(
   user: { click: (element: Element) => Promise<void> },
@@ -138,6 +141,12 @@ describe("SearchSelect behaviour", () => {
       items: [{ id: "creative-1", label: "Rear art", detail: "approved", fileId: FILE }],
     });
     preview.mockResolvedValue({ url: "https://files.example.test/art.png" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("png", { headers: { "content-type": "image/png" } })),
+    );
+    const revokeObjectURL = vi.fn();
+    Object.assign(URL, { createObjectURL: () => "blob:http://localhost/rear", revokeObjectURL });
     render(<SearchSelect kind="creative" name="creative_id" label="Artwork" parentId={CAMPAIGN} />);
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Find artwork" })));
     await act(async () => fireEvent.click(screen.getByRole("button", { name: /Rear art/ })));
@@ -148,10 +157,11 @@ describe("SearchSelect behaviour", () => {
     expect(preview).toHaveBeenCalledWith(FILE);
     expect(screen.getByRole("img", { name: "Selected campaign artwork" })).toHaveAttribute(
       "src",
-      "https://files.example.test/art.png",
+      "blob:http://localhost/rear",
     );
     act(() => vi.advanceTimersByTime(60_000));
     expect(screen.queryByRole("img", { name: "Selected campaign artwork" })).toBeNull();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:http://localhost/rear");
   });
 
   it("explains an unavailable artwork preview", async () => {

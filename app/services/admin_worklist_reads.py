@@ -155,14 +155,19 @@ async def applicants(
             ),
             model.user_id,
             (model.full_name if model is DriverApplication else User.full_name).label("full_name"),
-            (model.phone if model is DriverApplication else User.phone).label("phone"),
+            # The driver page shows the account phone; an application's own is the fallback.
+            (
+                func.coalesce(User.phone, model.phone) if model is DriverApplication else User.phone
+            ).label("phone"),
             (model.email if model is DriverApplication else User.email).label("email"),
             model.service_city,
             model.created_at,
         )
 
-    submitted = select(*columns(DriverApplication, "application", DriverApplication.id)).where(
-        DriverApplication.status == "pending"
+    submitted = (
+        select(*columns(DriverApplication, "application", DriverApplication.id))
+        .outerjoin(User, DriverApplication.user_id == User.id)
+        .where(DriverApplication.status == "pending")
     )
     no_application = (
         ~select(DriverApplication.id)
@@ -182,6 +187,7 @@ async def applicants(
                 DriverApplication.full_name,
                 DriverApplication.email,
                 DriverApplication.phone,
+                User.phone,
                 DriverApplication.service_city,
             )
         )

@@ -183,7 +183,7 @@ export function Reports({
               type="date"
               required
               value={pending?.start_date || start}
-              max={end || today}
+              max={end || yesterday}
               disabled={locked || !!pending}
               onChange={(event) => setStart(event.target.value)}
             />
@@ -194,7 +194,8 @@ export function Reports({
               required
               value={pending?.end_date || end}
               min={start}
-              max={today}
+              // Today's figures aren't ready, so the latest day to report on is yesterday (WAT).
+              max={yesterday}
               disabled={locked || !!pending}
               onChange={(event) => setEnd(event.target.value)}
             />
