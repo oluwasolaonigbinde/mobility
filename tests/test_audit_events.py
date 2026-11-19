@@ -2,8 +2,15 @@ import asyncio
 import importlib
 import subprocess
 import sys
+from uuid import uuid4
 
-from conftest import auth_headers, create_test_user, fetch_auth_audit_events
+from conftest import (
+    auth_headers,
+    create_test_campaign,
+    create_test_organization,
+    create_test_user,
+    fetch_auth_audit_events,
+)
 from sqlalchemy import event as sqlalchemy_event
 from sqlalchemy import select
 
@@ -731,3 +738,72 @@ def test_audit_deep_cyclic_and_mixed_context_metadata_terminates_and_persists(
     )
     assert item["metadata"]["entity_id"] == "0123456789"
     assert item["metadata"]["status"] == "queued"
+
+
+def test_campaign_audit_filter_limits_related_types_and_returns_actor_names(
+    db_client, db_sessionmaker
+):
+    admin = create_test_user(
+        db_sessionmaker,
+        email="campaign-audit@example.com",
+        full_name="Campaign Audit Admin",
+        role=UserRole.ADMIN,
+    )
+    from test_receipt_allocations import _accepted_terms
+
+    owner = create_test_user(
+        db_sessionmaker, email="campaign-audit-owner@example.com", role=UserRole.ADVERTISER
+    )
+    organization, _ = create_test_organization(db_sessionmaker, owner_user_id=owner.id)
+    campaign = create_test_campaign(
+        db_sessionmaker, organization_id=organization.id, created_by_user_id=owner.id
+    )
+    campaign_id = str(campaign.id)
+    unrelated = str(uuid4())
+    historical_refund = str(uuid4())
+
+    async def seed():
+        async with db_sessionmaker() as session:
+            terms = await _accepted_terms(
+                session, campaign=campaign, admin=admin, owner=owner, reference="AUDIT-FILTER"
+            )
+            for entity_type, entity_id, metadata, actor in (
+                ("campaign", campaign_id, {}, admin.id),
+                ("campaign", unrelated, {"campaign_id": campaign_id}, admin.id),
+                ("campaign_cancellation", unrelated, {"campaign_id": campaign_id}, admin.id),
+                ("commercial_quote_request", unrelated, {"campaign_id": campaign_id}, None),
+                ("refund_settlement", unrelated, {"campaign_id": campaign_id}, admin.id),
+                ("payment_receipt", unrelated, {"campaign_id": campaign_id}, admin.id),
+                (
+                    "refund_settlement",
+                    historical_refund,
+                    {"commercial_terms_id": str(terms.id)},
+                    admin.id,
+                ),
+                ("campaign_cancellation", campaign_id, {"campaign_id": unrelated}, admin.id),
+            ):
+                await create_audit_event(
+                    session,
+                    actor_user_id=actor,
+                    action="test.campaign_activity",
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                    metadata=metadata,
+                )
+            await session.commit()
+
+    asyncio.run(seed())
+    response = db_client.get(
+        "/api/v1/admin/audit-events",
+        params={"campaign_id": campaign_id, "action": "test.campaign_activity"},
+        headers=auth_headers(db_client, admin.email),
+    )
+    assert response.status_code == 200
+    assert response.json()["total"] == 5
+    assert historical_refund in {row["entity_id"] for row in response.json()["items"]}
+    assert {row["entity_type"]: row["actor_name"] for row in response.json()["items"]} == {
+        "campaign": "Campaign Audit Admin",
+        "campaign_cancellation": "Campaign Audit Admin",
+        "commercial_quote_request": None,
+        "refund_settlement": "Campaign Audit Admin",
+    }

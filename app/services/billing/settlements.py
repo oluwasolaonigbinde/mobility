@@ -545,6 +545,7 @@ async def record_refund_settlement(  # noqa: C901
         entity_id=str(settlement.id),
         metadata={
             "commercial_terms_id": str(terms.id),
+            "campaign_id": str(terms.campaign_id),
             "receipt_id": str(receipt.id),
             "amount": f"{refund_amount:.2f}",
             "currency": terms.currency,
@@ -638,6 +639,7 @@ async def record_credit_contract_settlement(
         entity_id=str(settlement.id),
         metadata={
             "commercial_terms_id": str(terms.id),
+            "campaign_id": str(terms.campaign_id),
             "external_reference": reference,
         },
     )

@@ -4183,6 +4183,17 @@
             ],
             "title": "Actor Email"
           },
+          "actor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Name"
+          },
           "actor_user_id": {
             "anyOf": [
               {
@@ -4230,6 +4241,7 @@
           "id",
           "actor_user_id",
           "actor_email",
+          "actor_name",
           "action",
           "entity_type",
           "entity_id",
@@ -6683,6 +6695,10 @@
             "title": "In Flight",
             "type": "string"
           },
+          "not_released": {
+            "title": "Not Released",
+            "type": "string"
+          },
           "provider_verified_paid": {
             "description": "Total amount of verified successful payout lines, including duplicate transfers in a replacement chain.",
             "title": "Provider Verified Paid",
@@ -6707,6 +6723,7 @@
           "driver_name",
           "currency",
           "earned_net",
+          "not_released",
           "unbatched_available",
           "reserved",
           "in_flight",
@@ -22539,6 +22556,23 @@
                 }
               ],
               "title": "Actor User Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campaign_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaign Id"
             }
           },
           {
