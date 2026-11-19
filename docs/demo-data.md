@@ -248,7 +248,6 @@ This one table lists persisted names and human-written fields, including frozen 
 | `payment_receipts.payer_name` | Aster Vale Foods<br>Beryl Lane Grocers<br>Cedar Bay Furnishings<br>Copper Finch Bakery<br>Dove Crescent Laundry<br>Linden Harbour Clothing<br>Marula Kitchens<br>Oriole Books |
 | `payout_automatic_alerts.detail.reason` | provider_unavailable |
 | `payout_automatic_controls.reason` | Finance has checked the bank advice; transfers can continue. |
-| `payout_correction_orders.reason` | Please check the Wuse II distance after the route was corrected.<br>Please recheck the distance recorded near the fuel station.<br>The Wuse return leg needs a second review.<br>The route review is complete; please confirm the earnings. |
 | `payout_submission_intents.provider_name` | fake |
 | `quarantined_ping_batches.resolution_note` | The upload matches the route recorded that morning.<br>The upload repeats a point already recorded on this route. |
 | `receipt_lifecycle_events.reason` | First instalment received; the balance is due before printing.<br>Return the campaign payment after the advertiser's cancellation.<br>Transfer amount matches the accepted quotation. |

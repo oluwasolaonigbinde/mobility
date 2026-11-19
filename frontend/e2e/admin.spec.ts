@@ -197,7 +197,7 @@ test("corrections screen offers projection, draft creation and the order queue",
   // The retired direct recompute is replaced by a pointer to correction orders.
   await page.getByRole("link", { name: "Corrections", exact: true }).click();
   await page.waitForURL("**tab=corrections*");
-  await expect(page.locator('main a[href*="correction="]').first()).toBeVisible();
+  // REQ-335: the seed no longer stages ₦0 correction orders, so the queue may start empty.
   await page.getByText("Correct a driver's pay").click();
   await expect(page.getByRole("button", { name: "Create pay correction" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Correction status" })).toBeVisible();

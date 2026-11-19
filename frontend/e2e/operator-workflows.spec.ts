@@ -99,14 +99,11 @@ test("activation readiness never invites a second activation of active work", as
   await expectNoHorizontalOverflow(page);
   await page.goto("/admin/campaigns?tab=getting-ready&q=Airport");
   await page.getByRole("link", { name: "Sable Ridge Travel — Airport Arrivals" }).click();
-  await page
-    .locator("#drivers")
-    .getByRole("link", { name: "Installation photos and job details" })
-    .first()
-    .click();
+  // REQ-335: draft campaigns hold no job offers, so nothing here can be activated.
   await expect(
-    page.getByRole("dialog").getByRole("button", { name: /retry start|activate/i }),
-  ).toHaveCount(0);
+    page.getByRole("heading", { name: "Sable Ridge Travel — Airport Arrivals" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: /retry start|activate/i })).toHaveCount(0);
 });
 
 test("evidence and contact queues show recorded work and useful empty searches", async ({
@@ -156,7 +153,8 @@ test("payout selection explains ineligible credits and closeout keeps paid facts
 }) => {
   await loginAsAdmin(page);
 
-  await page.goto("/admin/money?tab=ready");
+  // Finance's set-aside example belongs to Amina; older released credits fill page one.
+  await page.goto("/admin/money?tab=ready&q=Amina+Bello");
   await expect(page.getByRole("heading", { name: "Available earnings" })).toBeVisible();
   await expect(
     page.getByText("Already set aside in a payment run or being sent").first(),
