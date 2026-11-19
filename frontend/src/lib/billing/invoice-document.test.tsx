@@ -139,6 +139,17 @@ describe("InvoiceDocument", () => {
     expect(document.body).not.toHaveTextContent("internal-correction-reference");
   });
 
+  it.each(["paid", "cancelled"] as const)(
+    "hides transfer details for an issued %s invoice",
+    (payment_status) => {
+      render(
+        <InvoiceDocument invoice={{ ...issued, payment_status }} terms={terms} campaignName="x" />,
+      );
+      expect(screen.queryByRole("heading", { name: "Payment details" })).toBeNull();
+      expect(screen.queryByText("TEST-ACCOUNT")).toBeNull();
+    },
+  );
+
   it("marks a draft, leaves unrecorded facts blank and shows no payments block", () => {
     const draft: Invoice = {
       ...issued,
@@ -158,8 +169,7 @@ describe("InvoiceDocument", () => {
     expect(fact("Invoice number (serial no.)")).toBe("Not yet recorded");
     expect(fact("Campaign duration")).toBe("Not yet recorded");
     expect(fact("Payment arrangement")).toBe("Not yet recorded");
-    expect(fact("Bank")).toBe("Not yet recorded");
-    expect(fact("Account number")).toBe("Not yet recorded");
+    expect(screen.queryByRole("heading", { name: "Payment details" })).toBeNull();
     expect(screen.queryByText("Corrections and payments")).not.toBeInTheDocument();
     expect(screen.getByText("For Terrax Media")).toBeVisible();
   });

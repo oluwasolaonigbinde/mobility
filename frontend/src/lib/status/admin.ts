@@ -163,12 +163,12 @@ export function adminStatus(value: string | null | undefined, context = "record"
 export function campaignSpendLabel(status: string): string {
   return ["draft", "pending_review", "approved", "rejected"].includes(status)
     ? "Paid so far"
-    : "Budget used";
+    : "Booked";
 }
 /** A run stays reserved until it is sent; approval is recorded separately (approved_at). */
 export function paymentRunStatus(run: { status: string; approved_at: string | null }): string {
   if (run.status !== "reserved") return adminStatus(run.status, "payment_run");
-  return run.approved_at ? "Approved — not sent yet" : "Saved, not sent yet";
+  return run.approved_at ? "Approved — not sent yet" : "Waiting for approval";
 }
 const documents: Record<string, string> = {
   driver_license: "driving licence",

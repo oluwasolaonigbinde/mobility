@@ -5,6 +5,7 @@ asserted by these synthetic fixtures. Existing immutable facts survive reruns.
 """
 
 import hashlib
+import io
 import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -83,15 +84,25 @@ SEED_PLANNED_INVOICES = "cardvert_seed_planned_invoices"
 
 
 async def managed_seed_image(
-    session, *, settings, subject, label, purpose, organization_id=None, identity="", at=None
+    session,
+    *,
+    settings,
+    subject,
+    label,
+    purpose,
+    organization_id=None,
+    identity="",
+    at=None,
+    data=None,
 ):
     """Persist the same real image bytes referenced by the private file record."""
     file_id = uuid5(NAMESPACE_URL, f"cardvert-preview:{subject.id}:{purpose}:{identity}:{label}")
     stored = await session.get(StoredFile, file_id)
     if stored is not None:
         return stored
-    asset = Path(__file__).with_name("assets") / f"{label.replace('_', '-')}.png"
-    data = asset.read_bytes()
+    if data is None:
+        asset = Path(__file__).with_name("assets") / f"{label.replace('_', '-')}.png"
+        data = asset.read_bytes()
 
     async def chunks():
         yield data
@@ -225,6 +236,7 @@ async def prepare_daily_offer(
 
         from app.models.audit import AuditEvent
         from app.models.campaign import CreativeReviewEvent, CreativeStatus
+        from app.models.notification import Notification
         from app.models.user import User
         from app.services.campaigns import decide_creative_review, submit_creative_for_review
 
@@ -238,6 +250,10 @@ async def prepare_daily_offer(
                 if isinstance(row, CreativeReviewEvent) and row.creative_id == creative.id:
                     row.created_at = review_at
                 elif isinstance(row, AuditEvent) and row.entity_id == str(creative.id):
+                    row.created_at = review_at
+                elif isinstance(row, Notification) and row.payload.get("creative_id") == str(
+                    creative.id
+                ):
                     row.created_at = review_at
 
         event.listen(session.sync_session, "before_flush", record_review_time)
@@ -327,6 +343,16 @@ async def seed_campaign_financials(
     organization.address_city = organization.address_city or "Abuja"
     organization.address_region = organization.address_region or "FCT"
     organization.address_country_code = organization.address_country_code or "NG"
+    if "planned_cars" not in campaign.campaign_metadata:
+        existing_jobs = await session.scalar(
+            select(func.count(CampaignAssignment.id)).where(
+                CampaignAssignment.campaign_id == campaign.id
+            )
+        )
+        campaign.campaign_metadata = {
+            **campaign.campaign_metadata,
+            "planned_cars": max(existing_jobs or 0, 1),
+        }
     at = financial_at or campaign.start_at - timedelta(days=8)
     gross = campaign.budget_amount
     net = (gross / Decimal("1.075")).quantize(Decimal("0.01"))
@@ -356,7 +382,7 @@ async def seed_campaign_financials(
         currency="NGN",
         line_items=lines,
         production_scope={
-            "vehicle_count": 5,
+            "vehicle_count": campaign.campaign_metadata["planned_cars"],
             "campaign_start_date": campaign.start_at.astimezone(ZoneInfo("Africa/Lagos"))
             .date()
             .isoformat(),
@@ -802,8 +828,25 @@ async def _ensure_applicant_vehicle(session, *, application, person, token, sett
     # Leave exactly one current car submission for staff to review in the preview.
 
 
-async def ensure_primary_demo_documents(session, *, driver, profile, vehicle, reviewer, settings):
-    """Normal fictional document submissions and audited reviews for the demo trip login."""
+def synthetic_driver_document(driver, kind):
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", (640, 360), "#eef3f7")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((18, 18, 622, 342), outline="#253b53", width=4)
+    draw.text((40, 44), "CARDVERT DEMO SAMPLE", fill="#253b53", font_size=26)
+    draw.text((40, 110), kind.replace("_", " ").title(), fill="#253b53", font_size=24)
+    draw.text((40, 168), driver.full_name, fill="#253b53", font_size=22)
+    draw.text((40, 222), f"Sample reference {driver.id.hex[:12]}", fill="#253b53", font_size=17)
+    draw.text((40, 276), "Fictional record for product testing", fill="#253b53", font_size=17)
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
+
+
+async def ensure_demo_documents(session, *, driver, profile, vehicle, reviewer, settings):
+    """Submit and approve fictional person, bank and vehicle evidence."""
+    primary_driver = driver.email == "driver@demo.mobility.local"
     from app.schemas.driver_onboarding import (
         DocumentReviewRead,
         PersonPayeeReviewDecisionCreate,
@@ -829,9 +872,10 @@ async def ensure_primary_demo_documents(session, *, driver, profile, vehicle, re
                     session,
                     settings=settings,
                     subject=driver,
-                    label=f"emeka-nwankwo-{kind.replace('_', '-')}",
+                    label=(f"emeka-nwankwo-{kind.replace('_', '-')}" if primary_driver else kind),
                     purpose=purpose,
                     identity="primary-demo-documents",
+                    data=None if primary_driver else synthetic_driver_document(driver, kind),
                 )
             ).id
             for kind in kinds
@@ -956,49 +1000,7 @@ async def ensure_primary_demo_documents(session, *, driver, profile, vehicle, re
         )
 
 
-async def ensure_demo_start_authority(
-    session: AsyncSession, *, graph: StartAuthorityGraph, settings: Settings
-) -> None:
-    from app.seeds.demo import ensure_seed_allowed
-
-    ensure_seed_allowed(
-        settings.model_copy(
-            update={"database_url": settings.database_url or str(session.get_bind().url)}
-        )
-    )
-    accepted_at = require_seed_value(graph.assignment.accepted_at, "assignment acceptance date")
-    activated_at = require_seed_value(graph.assignment.activated_at, "assignment activation date")
-    driver, admin, advertiser = graph.driver, graph.admin, graph.advertiser
-    from app.models.user import User
-
-    operations = await session.scalar(
-        select(User).where(User.email == "ibrahim.danjuma@terraxmedia.com")
-    )
-    finance = await session.scalar(select(User).where(User.email == "hauwa.sani@terraxmedia.com"))
-    compliance = await session.scalar(
-        select(User).where(User.email == "olumide.fashola@terraxmedia.com")
-    )
-    admin = operations or admin
-    profile, assignment, campaign, vehicle = (
-        graph.driver_profile,
-        graph.assignment,
-        graph.campaign,
-        graph.vehicle,
-    )
-    now = datetime.now(UTC)
-    await ensure_daily_terms(
-        session,
-        campaign=campaign,
-        assignment=assignment,
-        profile=profile,
-        admin=admin,
-        advertiser=advertiser,
-        settings=settings,
-    )
-    await seed_campaign_financials(
-        session, campaign=campaign, admin=finance or admin, advertiser=advertiser
-    )
-
+async def ensure_demo_verified_bank(session, *, driver, profile, admin, settings, verified_at):
     if not await session.scalar(
         select(Payee.id).where(
             Payee.tenant_id == driver.id,
@@ -1047,8 +1049,8 @@ async def ensure_demo_start_authority(
             encryption_algorithm="AES-256-GCM",
             encryption_key_version=bank_envelope.key_version,
             verification_reference_sha256=hashlib.sha256(bank.id.bytes).hexdigest(),
-            verified_at=assignment.accepted_at,
-            verified_by_user_id=(finance or admin).id,
+            verified_at=verified_at,
+            verified_by_user_id=admin.id,
         )
         session.add(bank_version)
         await session.flush()
@@ -1058,19 +1060,75 @@ async def ensure_demo_start_authority(
             PayeeBankAccountPayoutVerification(
                 bank_account_version_id=bank_version.id,
                 verification_reference_sha256=bank_version.verification_reference_sha256,
-                verified_by_user_id=(finance or admin).id,
-                created_at=assignment.accepted_at,
+                verified_by_user_id=admin.id,
+                created_at=verified_at,
             )
         )
-    if driver.email == "driver@demo.mobility.local":
-        await ensure_primary_demo_documents(
-            session,
-            driver=driver,
-            profile=profile,
-            vehicle=vehicle,
-            reviewer=compliance or admin,
-            settings=settings,
+
+
+async def ensure_demo_start_authority(
+    session: AsyncSession, *, graph: StartAuthorityGraph, settings: Settings
+) -> None:
+    from app.seeds.demo import ensure_seed_allowed
+
+    ensure_seed_allowed(
+        settings.model_copy(
+            update={"database_url": settings.database_url or str(session.get_bind().url)}
         )
+    )
+    accepted_at = require_seed_value(graph.assignment.accepted_at, "assignment acceptance date")
+    activated_at = require_seed_value(graph.assignment.activated_at, "assignment activation date")
+    driver, admin, advertiser = graph.driver, graph.admin, graph.advertiser
+    from app.models.user import User
+
+    operations = await session.scalar(
+        select(User).where(User.email == "ibrahim.danjuma@terraxmedia.com")
+    )
+    finance = await session.scalar(select(User).where(User.email == "hauwa.sani@terraxmedia.com"))
+    compliance = await session.scalar(
+        select(User).where(User.email == "olumide.fashola@terraxmedia.com")
+    )
+    admin = operations or admin
+    profile, assignment, campaign, vehicle = (
+        graph.driver_profile,
+        graph.assignment,
+        graph.campaign,
+        graph.vehicle,
+    )
+    now = datetime.now(UTC)
+    await ensure_daily_terms(
+        session,
+        campaign=campaign,
+        assignment=assignment,
+        profile=profile,
+        admin=admin,
+        advertiser=advertiser,
+        settings=settings,
+    )
+    await seed_campaign_financials(
+        session, campaign=campaign, admin=finance or admin, advertiser=advertiser
+    )
+
+    await ensure_demo_verified_bank(
+        session,
+        driver=driver,
+        profile=profile,
+        admin=finance or admin,
+        settings=settings,
+        verified_at=accepted_at,
+    )
+    if driver.email == "driver@demo.mobility.local":
+        from app.seeds.history import initial_action_history
+
+        with initial_action_history(session, accepted_at):
+            await ensure_demo_documents(
+                session,
+                driver=driver,
+                profile=profile,
+                vehicle=vehicle,
+                reviewer=compliance or admin,
+                settings=settings,
+            )
     image_revision = (
         await session.scalar(
             select(func.max(InstallationEvidenceSubmission.revision)).where(
@@ -1234,3 +1292,40 @@ async def ensure_demo_start_authority(
     await session.flush()
     if assignment.status == "active":
         await ensure_current_activation_snapshot(session, assignment=assignment, lock=True)
+
+
+async def ensure_job_driver_documents(session, *, reviewer, settings):
+    from app.seeds.history import initial_action_history
+
+    rows = await session.execute(
+        select(User, DriverProfile, Vehicle, func.min(Campaign.start_at))
+        .join(DriverProfile, DriverProfile.user_id == User.id)
+        .join(CampaignAssignment, CampaignAssignment.driver_profile_id == DriverProfile.id)
+        .join(Vehicle, Vehicle.id == CampaignAssignment.vehicle_id)
+        .join(Campaign, Campaign.id == CampaignAssignment.campaign_id)
+        .where(
+            User.id.in_(session.info.get("demo_seed_user_ids", set())),
+            Campaign.campaign_metadata["demo"].as_boolean().is_(True),
+        )
+        .group_by(User.id, DriverProfile.id, Vehicle.id)
+        .order_by(User.id, Vehicle.id)
+    )
+    for driver, profile, vehicle, first_job in rows:
+        recorded = (first_job or datetime.now(UTC)) - timedelta(days=2)
+        with initial_action_history(session, recorded):
+            await ensure_demo_verified_bank(
+                session,
+                driver=driver,
+                profile=profile,
+                admin=reviewer,
+                settings=settings,
+                verified_at=recorded,
+            )
+            await ensure_demo_documents(
+                session,
+                driver=driver,
+                profile=profile,
+                vehicle=vehicle,
+                reviewer=reviewer,
+                settings=settings,
+            )

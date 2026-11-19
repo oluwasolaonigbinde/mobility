@@ -60,7 +60,12 @@ describe("DailyRatePanel", () => {
       />,
     );
 
-    for (const label of ["Day rate (₦)", "Daily miles for a full day", "Starts on", "Reason"]) {
+    for (const label of [
+      "Day rate (₦)",
+      "Daily miles for a full day",
+      "Starts on (Nigeria time, WAT)",
+      "Reason",
+    ]) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
     expect(screen.queryByRole("combobox")).toBeNull();

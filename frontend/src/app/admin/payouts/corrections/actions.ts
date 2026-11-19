@@ -1,5 +1,6 @@
 "use server";
 
+import { lagosLocalToApi } from "@/lib/campaigns/schema";
 import { unstable_rethrow } from "next/navigation";
 
 import { publicActionError } from "@/lib/api/public-action-error";
@@ -95,9 +96,8 @@ export async function orderTransitionAction(
   const rawReleaseAt = String(formData.get("release_at") ?? "").trim();
   let release_at: string | null = null;
   if (rawReleaseAt) {
-    const date = new Date(rawReleaseAt);
-    if (Number.isNaN(date.getTime())) return { error: "Enter a valid release date and time" };
-    release_at = date.toISOString();
+    release_at = lagosLocalToApi(rawReleaseAt);
+    if (!release_at) return { error: "Enter a valid release date and time" };
   }
   const api = createApiClient(await getSessionToken());
   try {

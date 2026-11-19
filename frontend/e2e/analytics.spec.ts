@@ -37,7 +37,7 @@ test("report keeps issued CSV and PDF downloads for the golden campaign", async 
 test("coverage history shows the golden campaign's protected area results", async ({ page }) => {
   await loginAsAdvertiser(page);
   await openSeededCampaign(page);
-  await page.getByRole("link", { name: "View coverage history" }).click();
+  await page.getByRole("link", { name: "See your campaign areas" }).click();
   await page.waitForURL(/\/map$/);
 
   const campaignId = new URL(page.url()).pathname.split("/").at(-2);

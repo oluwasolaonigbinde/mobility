@@ -48,6 +48,17 @@ describe("publishDailyRateAction", () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns");
   });
 
+  it("sends midnight in Nigeria as 23:00 UTC the previous day", async () => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-11-18T22:00:00Z"));
+    mocks.post.mockResolvedValueOnce({ data: {} });
+    try {
+      await publishDailyRateAction({}, form({ effective_from: "2026-11-19T00:00" }));
+    } finally {
+      clock.mockRestore();
+    }
+    expect(mocks.post.mock.calls[0]?.[1].body.effective_from).toBe("2026-11-18T23:00:00.000Z");
+  });
+
   it("refuses invalid input without calling the API and keeps what was typed", async () => {
     const result = await publishDailyRateAction({}, form({ daily_target_miles: "" }));
     expect(result.field).toBe("daily_target_miles");
@@ -64,7 +75,7 @@ describe("publishDailyRateAction", () => {
     );
     const input = form();
     expect(await publishDailyRateAction({}, input)).toEqual({
-      error: "That didn't work. Please try again.",
+      error: "A pay change is already scheduled. New pay must start after it.",
       values: Object.fromEntries(input.entries()),
     });
 

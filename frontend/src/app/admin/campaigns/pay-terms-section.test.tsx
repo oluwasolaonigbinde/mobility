@@ -13,6 +13,9 @@ const current = {
   formula_version: "payout_v4",
   daily_rate_naira: "10000.00",
   daily_target_miles: "70.000",
+  shortfall_strategy: "proportional",
+  minimum_miles: "0",
+  outside_area_weight: "0",
   currency: "NGN",
 };
 function mock(version = "payout_v4", revision: Record<string, unknown> | undefined = current) {
@@ -26,8 +29,20 @@ function mock(version = "payout_v4", revision: Record<string, unknown> | undefin
     if (path.endsWith("/revisions"))
       return {
         data: {
-          items: options.params.query.effective_before ? (revision ? [revision] : []) : [],
-          total: revision ? 1 : 0,
+          items:
+            revision &&
+            (!options.params.query.effective_before ||
+              Date.parse(String(revision.effective_from)) <=
+                Date.parse(options.params.query.effective_before))
+              ? [revision]
+              : [],
+          total:
+            revision &&
+            (!options.params.query.effective_before ||
+              Date.parse(String(revision.effective_from)) <=
+                Date.parse(options.params.query.effective_before))
+              ? 1
+              : 0,
         },
       };
     throw Error("Unexpected read");
@@ -52,7 +67,20 @@ describe("Current Pay terms", () => {
   });
   it("future-only terms never tick the launch checklist", async () => {
     mock("payout_v4", { ...current, effective_from: "2099-01-01T00:00:00Z" });
-    expect((await readPayTerms("campaign"))?.ready).toBe(false);
+    expect(await readPayTerms("campaign")).toMatchObject({
+      ready: false,
+      startsAt: "2099-01-01T00:00:00Z",
+    });
+  });
+  it("keeps incomplete revisions out of the offer flow", async () => {
+    mock("payout_v4", { ...current, minimum_miles: null });
+    expect(await readPayTerms("campaign")).toMatchObject({ ready: false });
+  });
+  it("keeps pay terms visible without the editor when editing is disabled", async () => {
+    mock();
+    render(await Section({ campaignId: "campaign", editable: false }));
+    expect(screen.getByText(/10,000.*per day for 70 miles/)).toBeVisible();
+    expect(screen.queryByText("Change pay terms")).toBeNull();
   });
   it("failed current reads show one section failure", async () => {
     get.mockRejectedValue(new Error("offline"));

@@ -33,6 +33,7 @@ it("requires an explicit recommended candidate and clears its evidence after a m
         vehicle_plate_number: "ABC-123",
         service_city: "Lagos",
         fingerprint: "a".repeat(64),
+        vehicle_type: "car",
         matching_version: "matching_v1",
         components: { driver_load: 0, vehicle_load: 0 },
       },
@@ -48,6 +49,7 @@ it("requires an explicit recommended candidate and clears its evidence after a m
   await user.click(screen.getByRole("button", { name: "Choose" }));
   expect(container.querySelector('[name="driver_profile_id"]')).toHaveValue("driver");
   expect(container.querySelector('[name="vehicle_id"]')).toHaveValue("vehicle");
+  expect(container.querySelector('[name="recommendation_vehicle_type"]')).toHaveValue("car");
   expect(container.querySelector('[name="recommendation_fingerprint"]')).toHaveValue(
     "a".repeat(64),
   );

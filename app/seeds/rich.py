@@ -136,7 +136,6 @@ CORRIDORS = (
 )
 # Fixed anomaly and late-upload points, (latitude, longitude), on the same Abuja routes.
 STATIONARY_POINT = (9.0642, 7.4580)
-TELEPORT_POINT = (9.2398, 7.2788)
 LOOP_ROUTE = (
     (9.0498, 7.4488),
     (9.0598, 7.4588),
@@ -220,6 +219,8 @@ async def _upsert_driver(session: AsyncSession, *, index: int, settings: Setting
         _set_known_credential_flag(user)
     user.phone = DEMO_DRIVER_PHONE_NUMBERS[email]
     await session.flush()
+    if "demo_seed_user_ids" in session.info:
+        session.info["demo_seed_user_ids"].add(user.id)
 
     profile = await session.scalar(select(DriverProfile).where(DriverProfile.user_id == user.id))
     if profile is None:
@@ -274,7 +275,7 @@ def _initial_campaign_window(kind: str, now: datetime) -> tuple[datetime, dateti
     if kind == "paused":
         return midnight - timedelta(days=45), midnight + timedelta(days=45)
     if kind == "completed":
-        return midnight - timedelta(days=56), midnight - timedelta(days=29)
+        return midnight - timedelta(days=70), midnight - timedelta(days=43)
     return midnight + timedelta(days=7), midnight + timedelta(days=67)
 
 
@@ -311,7 +312,10 @@ async def _upsert_campaign(
             budget_amount=Decimal("4800000.00"),
             daily_budget_amount=Decimal("180000.00"),
             currency="NGN",
-            campaign_metadata=f7_metadata(generation_class=kind),
+            campaign_metadata=f7_metadata(
+                generation_class=kind,
+                planned_cars={"rolling": 5, "paused": 2, "completed": 3, "draft": 2}[kind],
+            ),
         )
         session.add(campaign)
         await session.flush()
@@ -319,8 +323,11 @@ async def _upsert_campaign(
     return campaign
 
 
-async def _ensure_creative(session: AsyncSession, campaign: Campaign, index: int) -> None:
-    name = campaign.name.split(" — ")[0] + " door panel"
+async def _ensure_creative(
+    session: AsyncSession, *, campaign: Campaign, index: int, advertiser: User, settings: Settings
+) -> None:
+    business_name = campaign.name.split(" — ")[0]
+    name = business_name + " door panel"
     creative = await session.scalar(
         select(CampaignCreative).where(
             CampaignCreative.campaign_id == campaign.id,
@@ -328,22 +335,38 @@ async def _ensure_creative(session: AsyncSession, campaign: Campaign, index: int
         )
     )
     if creative is None:
-        session.add(
-            CampaignCreative(
-                campaign_id=campaign.id,
-                name=name,
-                creative_type=CreativeType.IMAGE.value,
-                placement=CreativePlacement.VEHICLE_EXTERIOR.value,
-                asset_url=None,
-                mime_type="image/png",
-                width_px=1600,
-                height_px=900,
-                checksum=None,
-                status=CreativeStatus.DRAFT.value,
-                creative_metadata=f7_metadata(campaign_index=index),
-            )
+        creative = CampaignCreative(
+            campaign_id=campaign.id,
+            name=name,
+            creative_type=CreativeType.IMAGE.value,
+            placement=CreativePlacement.VEHICLE_EXTERIOR.value,
+            asset_url=None,
+            mime_type="image/png",
+            width_px=1600,
+            height_px=900,
+            checksum=None,
+            status=CreativeStatus.DRAFT.value,
+            creative_metadata=f7_metadata(campaign_index=index),
         )
+        session.add(creative)
         await session.flush()
+    # Draft campaigns have no offers to attach their artwork.
+    if campaign.status == CampaignStatus.DRAFT.value and creative.stored_file_id is None:
+        from app.models.stored_file import FilePurpose
+        from app.seeds.demo_authority import managed_seed_image
+
+        stored = await managed_seed_image(
+            session,
+            settings=settings,
+            subject=advertiser,
+            label=business_name.lower().replace(" ", "-"),
+            identity=str(creative.id),
+            purpose=FilePurpose.CREATIVE.value,
+            organization_id=campaign.organization_id,
+            at=creative.created_at,
+        )
+        creative.stored_file_id = stored.id
+        creative.checksum = stored.checksum_sha256
 
 
 def _zone_geometry(campaign_index: int, zone_type: CampaignZoneType) -> dict[str, Any]:
@@ -594,7 +617,10 @@ def _ping_specs(
     if anomaly == "stationary":
         coordinates = [STATIONARY_POINT] * count
     elif anomaly == "teleport":
-        coordinates[count // 2] = TELEPORT_POINT
+        point = count // 2
+        before, after = coordinates[point - 1], coordinates[point + 1]
+        coordinates[point] = ((before[0] + after[0]) / 2 + 0.040, (before[1] + after[1]) / 2)
+        intervals[point - 1 : point + 1] = [65, 65]
     elif anomaly == "gap":
         intervals[count // 2] = 1200
     elif anomaly == "loop":
@@ -882,7 +908,13 @@ async def build_rich_seed(
             kind=kind,
             now=now,
         )
-        await _ensure_creative(session, campaign, campaign_index)
+        await _ensure_creative(
+            session,
+            campaign=campaign,
+            index=campaign_index,
+            advertiser=advertiser,
+            settings=settings,
+        )
         await _ensure_zones(
             session,
             campaign=campaign,
@@ -899,7 +931,6 @@ async def build_rich_seed(
         # driver may hold only one live assignment.
         (1, range(5, 7), CampaignAssignmentStatus.ACTIVE),
         (2, range(0, 3), CampaignAssignmentStatus.ACTIVE),
-        (3, range(0, 2), CampaignAssignmentStatus.OFFERED),
     )
     assignments: list[CampaignAssignment] = []
     trip_inputs: list[tuple[Campaign, CampaignAssignment, DriverAsset, str]] = []
@@ -1306,7 +1337,7 @@ async def _ensure_contact_work(session, *, graph, staff):
             driver_profile_id=profile.id,
             phone_version_id=phone.id,
             version=1,
-            purpose="Installation and trip updates",
+            purpose="Arrange an installation visit",
             notice_version="contact-v1",
             granted_by_user_id=profile.user_id,
             granted_at=now,
@@ -1518,7 +1549,7 @@ async def _seed_cancelled_campaign(session, *, graph, staff, campaign, state):
 
 async def ensure_portal_campaigns(session, *, graph, staff, settings):
     from app.models.notification import NotificationType
-    from app.seeds.demo import upsert_creative, upsert_zones
+    from app.seeds.demo import demo_metadata, upsert_creative, upsert_zones
     from app.services.notifications import create_notification
 
     names = (
@@ -1607,6 +1638,9 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
                 budget_amount=Decimal("1000000.00"),
                 daily_budget_amount=Decimal("50000.00"),
                 currency="NGN",
+                campaign_metadata=demo_metadata(
+                    planned_cars=5 if "Wuse Weekend Catering" in name else 1,
+                ),
             )
             session.add(campaign)
             await session.flush()
@@ -1748,7 +1782,24 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
         accept_terms=False,
         financial_at=now - timedelta(hours=12),
     )
-    for i, person in enumerate([graph.admin, graph.advertiser, graph.driver, *staff[:5]]):
+    from contextlib import nullcontext
+
+    from app.models.billing import CampaignFinancialAuthorization, CommercialQuotationRevision
+    from app.seeds.history import initial_action_history
+
+    notice_times = {
+        NotificationType.QUOTATION_READY: await session.scalar(
+            select(func.min(CommercialQuotationRevision.created_at)).where(
+                CommercialQuotationRevision.campaign_id == graph.campaign.id
+            )
+        ),
+        NotificationType.FUNDING_CONFIRMED: await session.scalar(
+            select(func.min(CampaignFinancialAuthorization.effective_from)).where(
+                CampaignFinancialAuthorization.campaign_id == graph.campaign.id
+            )
+        ),
+    }
+    for i, person in ((1, graph.advertiser), (2, graph.driver)):
         for j, kind in enumerate(
             (
                 NotificationType.COMPLAINT_REPLIED,
@@ -1761,16 +1812,18 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
                 NotificationType.FUNDING_CONFIRMED,
             )
         ):
-            await create_notification(
-                session,
-                recipient_user_id=person.id,
-                type_key=kind,
-                payload={
-                    "campaign_id": str(graph.campaign.id),
-                    "campaign_name": graph.campaign.name,
-                },
-                dedupe_key=f"cardvert-preview:notice:{i}:{j}",
-            )
+            moment = notice_times.get(kind)
+            with initial_action_history(session, moment) if moment else nullcontext():
+                await create_notification(
+                    session,
+                    recipient_user_id=person.id,
+                    type_key=kind,
+                    payload={
+                        "campaign_id": str(graph.campaign.id),
+                        "campaign_name": graph.campaign.name,
+                    },
+                    dedupe_key=f"cardvert-preview:notice:{i}:{j}",
+                )
     for paused in await session.scalars(select(Campaign).where(Campaign.status == "paused")):
         key = uuid5(NAMESPACE_URL, f"cardvert-preview:pause:{paused.id}")
         if not await session.get(AuditEvent, key):
@@ -2064,7 +2117,7 @@ async def ensure_portal_reports(session, *, graph, settings):
     campaigns += [graph.campaign, graph.rich.campaigns[0]]
     campaigns += list(
         await session.scalars(
-            select(Campaign).where(Campaign.name == "Beryl Lane Grocers — Market Routes")
+            select(Campaign).where(Campaign.name == "Marula Kitchens — Wuse Lunch Rush")
         )
     )
     for campaign in campaigns:
@@ -2075,7 +2128,15 @@ async def ensure_portal_reports(session, *, graph, settings):
         from app.adapters.storage import build_storage_provider
         from app.services.campaign_reports import create_report
         from app.services.disclosure import _canonical_hash, after_day, midnight
+        from app.services.report_scheduling import WEEK, latest_due_window
 
+        now = utc_now()
+        end = after_day(campaign.end_at)
+        due = latest_due_window(campaign.start_at, end, midnight(now))
+        if due is None:
+            continue
+        end, kind = due
+        start = end - WEEK if kind == "weekly" else midnight(campaign.start_at)
         key = uuid5(NAMESPACE_URL, f"cardvert-preview:report:{campaign.id}")
         await create_report(
             session,
@@ -2083,11 +2144,9 @@ async def ensure_portal_reports(session, *, graph, settings):
             campaigns=[campaign],
             request_id=key,
             request_fingerprint=_canonical_hash(str(key)),
-            start=midnight(campaign.start_at),
-            end=after_day(campaign.end_at)
-            if campaign.end_at < midnight(utc_now())
-            else midnight(utc_now()),
-            kind="final" if campaign.end_at <= utc_now() else "weekly",
+            start=start,
+            end=end,
+            kind=kind,
             settings=settings,
             storage=build_storage_provider(settings),
             now=utc_now(),
@@ -2200,6 +2259,7 @@ async def ensure_trip_review_work(session, *, graph, staff, settings):
             client_request_id=uuid5(trip.id, "spot-check"),
             note=note,
             outcome=outcome,
+            now=trip.ended_at + timedelta(hours=1),
         )
 
 
@@ -2232,7 +2292,7 @@ async def ensure_portal_payouts(session, *, graph, staff, settings):
     if not entries and max_trips_per_day() == 0:
         # A zero-density fixture deliberately omits this driver's work history.
         await _ensure_payout_review_history(session, graph=graph, staff=staff, settings=settings)
-        return
+        return ()
     entries = await _prepare_portal_earnings(session, entries, settings)
     if len(entries) < 3:
         raise ValueError("The Finance demo driver needs three released trips")
@@ -2325,6 +2385,7 @@ async def ensure_portal_payouts(session, *, graph, staff, settings):
     await session.flush()
 
     await _ensure_payout_review_history(session, graph=graph, staff=staff, settings=settings)
+    return tuple(entry.id for entry in entries[:3])
 
 
 def _require_unavailable_payout_provider():
@@ -2341,49 +2402,8 @@ def _require_unavailable_payout_provider():
 
 
 async def _ensure_payout_review_history(session, *, graph, staff, settings):
-    from app.models.payout import PayoutCorrectionOrder
     from app.services.automatic_payouts import set_automatic_payouts_paused
-    from app.services.payout_corrections import (
-        approve_correction_order,
-        create_correction_order,
-    )
 
-    for trip, state, reason in zip(
-        graph.trips,
-        ("draft", "draft", "executed", "draft"),
-        (
-            "Please check the Garki distance after the route was corrected.",
-            "Please check the Central Area return leg.",
-            "The route review is complete; please confirm the earnings.",
-            "Please recheck the distance recorded near the fuel station.",
-        ),
-        strict=True,
-    ):
-        if await session.scalar(
-            select(PayoutCorrectionOrder.id).where(
-                PayoutCorrectionOrder.campaign_id == graph.campaign.id,
-                PayoutCorrectionOrder.reason == reason,
-            )
-        ):
-            continue
-        order = await create_correction_order(
-            session,
-            campaign_id=graph.campaign.id,
-            lagos_day=(trip.started_at + timedelta(hours=1)).date(),
-            reason=reason,
-            created_by_user_id=staff[0].id,
-            settings=settings,
-        )
-        if state == "executed":
-            await approve_correction_order(
-                session,
-                order_id=order.id,
-                actor_user_id=staff[0].id,
-                reason="Checked the corrected route and pay preview",
-                release_at=trip.ended_at,
-                request_metadata={"source": "synthetic_pilot_seed"},
-                settings=settings,
-            )
     recorded = await session.scalar(
         select(AuditEvent.id)
         .where(
@@ -2407,9 +2427,6 @@ async def _ensure_payout_review_history(session, *, graph, staff, settings):
         )
 
 
-SEED_UNREAD_NOTICE_PREFIX = "cardvert-preview:notice:"
-
-
 async def settle_seed_driver_notifications(
     session: AsyncSession, *, driver_user_ids: list[UUID]
 ) -> int:
@@ -2421,7 +2438,7 @@ async def settle_seed_driver_notifications(
     """
     from sqlalchemy import or_, update
 
-    from app.models.notification import Notification, NotificationChannel
+    from app.models.notification import Notification, NotificationChannel, NotificationType
 
     result = await session.execute(
         update(Notification)
@@ -2430,8 +2447,8 @@ async def settle_seed_driver_notifications(
             Notification.channel == NotificationChannel.IN_APP.value,
             Notification.read_at.is_(None),
             or_(
-                Notification.dedupe_key.is_(None),
-                ~Notification.dedupe_key.startswith(SEED_UNREAD_NOTICE_PREFIX),
+                Notification.dedupe_key.startswith("payout:released:v1:"),
+                Notification.type_key == NotificationType.FRAUD_HOLD_RAISED,
             ),
         )
         .values(read_at=func.statement_timestamp())
@@ -2440,7 +2457,9 @@ async def settle_seed_driver_notifications(
     return int(cast(CursorResult[Any], result).rowcount or 0)
 
 
-async def ensure_reporting_live_car(session, *, campaign, driver_email, settings, path_offset):
+async def ensure_reporting_live_car(
+    session, *, campaign, assignment, settings, path_offset, now=None
+):
     """Live fixture on an unbound reporting assignment; auto-end cannot earn money.
 
     REQ-312: the trip gets 40 minutes of staggered history, one batch per
@@ -2451,9 +2470,8 @@ async def ensure_reporting_live_car(session, *, campaign, driver_email, settings
     these history batches directly because ingest stamps ``received_at =
     utc_now()`` (app/services/trips.py:1126), which would hide the history until
     T0+15. An active trip under the 12-hour cap counts as present. Reseeding
-    after auto-end starts a fresh trip; reseeding after the cap first ends and
-    seals the capped trip through the driver End service, then starts a fresh
-    one. ``path_offset`` gives each campaign's car its own lane.
+    after auto-end starts a fresh trip. The worker normally seals capped trips
+    before starting a fresh one. ``path_offset`` gives each campaign's car its own lane.
     """
     from app.seeds.live_car import (
         LIVE_CAR_CAP,
@@ -2464,17 +2482,15 @@ async def ensure_reporting_live_car(session, *, campaign, driver_email, settings
         live_car_batch,
         live_car_slot,
     )
+    from app.services.campaign_lifecycle import campaign_display_status
 
-    assignment = await session.scalar(
-        select(CampaignAssignment)
-        .join(DriverProfile, DriverProfile.id == CampaignAssignment.driver_profile_id)
-        .join(User, User.id == DriverProfile.user_id)
-        .where(
-            CampaignAssignment.campaign_id == campaign.id,
-            User.email == driver_email,
-        )
-    )
-    now = utc_now().replace(microsecond=0)
+    now = (now or utc_now()).replace(microsecond=0)
+    if (
+        campaign_display_status(campaign.status, campaign.end_at, now=now) != "active"
+        or (campaign.start_at and campaign.start_at > now)
+        or assignment.status != "active"
+    ):
+        return
     existing = await session.scalar(
         select(TripSession).where(
             TripSession.assignment_id == assignment.id,
@@ -2570,7 +2586,10 @@ async def ensure_reporting_contributors(
             session,
             email=email,
             password="DemoReporting12345!",
-            full_name=("Amina Yusuf", "Chidi Okeke", "Bisi Adewale")[index],
+            full_name={
+                "abuja": ("Amina Yusuf", "Chidi Okeke", "Bisi Adewale"),
+                "wuse": ("Maryam Salisu", "Ebuka Ibe", "Tomi Adekunle"),
+            }[namespace][index],
             role=UserRole.DRIVER,
             settings=settings,
         )
@@ -2658,7 +2677,26 @@ async def ensure_reporting_contributors(
             await ensure_reporting_live_car(
                 session,
                 campaign=campaign,
-                driver_email=email,
+                assignment=assignment,
                 settings=settings,
                 path_offset=("abuja", "wuse").index(namespace),
             )
+
+
+async def ensure_seed_enquiry(session):
+    from app.models.campaign_enquiry import CampaignEnquiry
+    from app.schemas.campaign_enquiries import CampaignEnquiryCreate
+    from app.services.campaign_enquiries import save_campaign_enquiry
+
+    email = "marketing@maplecourtyard.example"
+    if not await session.scalar(select(CampaignEnquiry.id).where(CampaignEnquiry.email == email)):
+        await save_campaign_enquiry(
+            session,
+            CampaignEnquiryCreate(
+                company="Maple Courtyard Bakery",
+                contact_name="Ifeoma Obi",
+                email=email,
+                phone="+2340000000301",
+                brief="We would like to advertise our new bakery on cars around Wuse.",
+            ),
+        )

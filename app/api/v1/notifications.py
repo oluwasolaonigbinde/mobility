@@ -9,6 +9,7 @@ from app.api.v1.dependencies import (
     SessionDependency,
 )
 from app.models.notification import Notification, NotificationType
+from app.models.user import UserRole
 from app.schemas.notifications import (
     AdvertiserNotificationPreferenceRead,
     AdvertiserNotificationPreferenceUpdate,
@@ -64,7 +65,7 @@ def notification_feed_response(
         ),
         NotificationType.ASSIGNMENT_ACCEPTED.value: (
             "Job accepted",
-            "You accepted this job.",
+            "Send installation photos.",
         ),
         NotificationType.CAMPAIGN_APPROVED.value: (
             "Campaign approved",
@@ -112,8 +113,7 @@ def notification_feed_response(
         ),
         NotificationType.PAYOUT_RELEASED.value: (
             "Pay ready",
-            "A hold on some of your pay has been lifted. "
-            "Open Earnings to check its payment status.",
+            "Pay for this trip is ready.",
         ),
         NotificationType.FRAUD_HOLD_RAISED.value: (
             "Trip pay on hold",
@@ -200,6 +200,30 @@ async def current_feed_item(session, notice, user) -> NotificationFeedItemRead:
                 "action_url": review["action_path"],
             }
         )
+    if notice.recipient_user_id == user.id and user.role == UserRole.ADMIN:
+        if notice.type_key == NotificationType.COMPLAINT_RECEIVED:
+            complaint_id = notice.payload.get("complaint_id")
+            if isinstance(complaint_id, str):
+                try:
+                    complaint_id = UUID(complaint_id)
+                except ValueError:
+                    return item
+                return item.model_copy(
+                    update={"action_url": f"/admin/support?tab=complaints&complaint={complaint_id}"}
+                )
+        elif notice.type_key in {
+            NotificationType.PAYOUT_AUTOMATIC_ALERT,
+            NotificationType.PAYOUT_AUTOMATIC_PAUSED,
+            NotificationType.PAYOUT_AUTOMATIC_RESUMED,
+        }:
+            return item.model_copy(update={"action_url": "/admin/money?tab=automatic#problems"})
+    if (
+        notice.recipient_user_id == user.id
+        and user.role == UserRole.DRIVER
+        and notice.type_key == NotificationType.PAYOUT_RELEASED
+        and item.action_url is not None
+    ):
+        return item.model_copy(update={"action_url": "/driver/earnings"})
     return item
 
 

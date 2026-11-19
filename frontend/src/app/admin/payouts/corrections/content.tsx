@@ -1,8 +1,9 @@
-import { adminReadFailure } from "@/lib/api/admin-read";
+import { adminReadFailure, adminValueFailure } from "@/lib/api/admin-read";
 import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { requireRole } from "@/lib/auth/current-user";
+import { completePages } from "@/lib/complete-pages";
 import { getSessionToken } from "@/lib/auth/session";
 import { formatDate, formatMoneyExact } from "@/lib/format";
 import { adminStatus } from "@/lib/status/admin";
@@ -58,6 +59,13 @@ export default async function Corrections({ query }: { query: MoneyQuery }) {
     );
   }
   const namesFailed = names.size !== ids.length;
+  const trips = selected ? projectedTripRows(selected.projected_delta) : [];
+  const drivers = trips.length
+    ? await completePages((offset) =>
+        api.GET("/api/v1/admin/drivers", { params: { query: { offset, limit: 100 } } }),
+      ).catch(adminValueFailure)
+    : [];
+  const driverNames = new Map(drivers?.map((driver) => [driver.id, driver.full_name]));
   const delta = selected ? summarizeProjectedDelta(selected.projected_delta) : null;
   return (
     <div className="space-y-5">
@@ -135,13 +143,13 @@ export default async function Corrections({ query }: { query: MoneyQuery }) {
                 requiresReleaseAt={(delta?.adjustmentCount ?? 0) > 0}
               />
               <ul aria-label="Trip pay changes" className="mt-4 space-y-3">
-                {projectedTripRows(selected.projected_delta).map((trip, index) => (
+                {trips.map((trip) => (
                   <li key={trip.id}>
                     <Link
                       className="underline"
                       href={`/admin/drivers/${trip.driverId}?trip=${trip.id}#trips-and-pay`}
                     >
-                      Trip {index + 1}
+                      {driverNames.get(trip.driverId) ?? "Driver name unavailable"}
                     </Link>
                     <p>
                       Current: {formatMoneyExact(trip.previous, trip.currency)} · Correct:{" "}

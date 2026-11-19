@@ -16,6 +16,7 @@ export const BILLING_ERROR_COPY = {
   CANCELLATION_SNAPSHOT_INCOMPLETE:
     "The cancellation's payment records are incomplete. Ask the team to check them before continuing.",
   REVERSAL_KIND_REQUIRED: "Choose why you are reversing this payment.",
+  INVALID_CREDIT_DUE_AT: "Enter a valid credit due date and time.",
   INVOICE_NOT_ISSUED: "Payments can be recorded once the invoice is issued.",
   QUOTE_REFERENCE_CONFLICT: "This quote reference is already used. Enter a different reference.",
   FINANCIAL_AUTHORITY_REDUCTION_REQUIRES_GOVERNANCE:

@@ -237,6 +237,38 @@ describe("admin campaign billing page", () => {
       funded === "107500.00" ? "₦0.00" : "₦57,500.00",
     );
   });
+  it("keeps bank transfer available for a cancelled campaign with credit still due", async () => {
+    get.mockImplementation(async (path: string) =>
+      path.endsWith("/commercial")
+        ? {
+            data: {
+              ...commercial,
+              accepts_payments: true,
+              invoices: [
+                { ...commercial.invoices[0], status: "issued", payment_status: "partially_paid" },
+              ],
+            },
+          }
+        : path === "/api/v1/admin/billing"
+          ? { data: [] }
+          : {
+              data: {
+                ...campaign,
+                status: "cancelled",
+                cancellation: { disposition: "credit_settlement_due" },
+              },
+            },
+    );
+    render(
+      await AdminCampaignBillingPage({
+        params: Promise.resolve({ campaignId: "campaign-1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    expect(screen.getByRole("button", { name: "Check and record transfer" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Record funding approval" })).toBeNull();
+  });
+
   it("shows nothing due on an invoice its campaign's cancellation closed", async () => {
     get.mockImplementation(async (path: string) =>
       path.endsWith("/commercial")
@@ -264,6 +296,7 @@ describe("admin campaign billing page", () => {
         searchParams: Promise.resolve({}),
       }),
     );
+    expect(screen.queryByRole("button", { name: "Check and record transfer" })).toBeNull();
     expect(screen.getByText("Balance due").nextElementSibling).toHaveTextContent("₦0.00");
     expect(screen.getByText("Payment status").nextElementSibling).toHaveTextContent(
       "Cancelled – nothing to pay",
@@ -358,7 +391,7 @@ describe("admin campaign billing page", () => {
       "20000.00",
     );
     expect(screen.getByLabelText("Campaign start date")).toHaveValue("2026-11-01");
-    expect(screen.getByRole("button", { name: "Save quotation" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Send quotation" })).toBeVisible();
   });
 
   it.each([false, true])(
@@ -377,7 +410,7 @@ describe("admin campaign billing page", () => {
           searchParams: Promise.resolve({}),
         }),
       );
-      expect(screen.queryByRole("button", { name: "Save quotation" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Send quotation" })).toBeNull();
       expect(Boolean(screen.queryByRole("button", { name: "Issue invoice" }))).toBe(available);
       expect(Boolean(screen.queryByText(/bank details and the accountant's check/))).toBe(
         !available,
@@ -520,9 +553,7 @@ it.each([
     expect(Boolean(screen.queryByRole("button", { name: "Check and record transfer" }))).toBe(
       shown,
     );
-    expect(
-      Boolean(screen.queryByText("Payments can be recorded once the invoice is issued.")),
-    ).toBe(!shown);
+    expect(Boolean(screen.queryByRole("heading", { name: "Manual bank transfer" }))).toBe(shown);
   },
 );
 

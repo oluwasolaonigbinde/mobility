@@ -1,21 +1,15 @@
-"""Historical money parity, reconciled with REQ-251's explicit seed removals.
+"""Frozen demo pay and ledger snapshot.
 
-The original frozen baseline had 300 calculations and ledger rows. Trip
-identity uses campaign, driver, dates and seed key; report-route keys omit their
-random source UUID. Hashes cover each exact amount and ledger-to-trip identity.
-Storage/scanning are synthetic; no payment provider is contacted.
-
-REQ-251 removes driver05's duplicate Cedar Bay assignment (five trips), and
-omits seven zero-pay ledger entries. Reconstructing only those historical rows
-must recover the ORIGINAL hashes, protecting all unchanged values independently
-of today's calculation and ledger implementations.
-REQ-295 also replaces four synthetic email domains; only those identity labels
-are restored for this historical comparison, never their money values.
+REQ-335 moved story trips into disjoint campaign windows, shortened the teleport
+and settled historical earnings through the existing services, so the hashes were
+re-frozen then; any later change to seeded pay amounts or ledger status fails here.
+The exact hashes cover trip identity, amounts and ledger status.
 """
 
 import asyncio
 import hashlib
 import json
+from collections import Counter
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -102,7 +96,7 @@ def _removed_zero_ledger() -> list[list[str]]:
     ]
 
 
-def test_seed_pay_and_ledger_match_before_slimdown(
+def test_seed_pay_and_ledger_match_reviewed_fixture(
     postgis_db_sessionmaker, settings, monkeypatch
 ) -> None:
     now = datetime(2026, 10, 20, 12, tzinfo=UTC)
@@ -176,21 +170,9 @@ def test_seed_pay_and_ledger_match_before_slimdown(
     }
     for row in zero_ledger:
         assert calculation_by_trip[tuple(row[:5])][5:] == ["0.00", "0.00", "NGN"]
-    historical_calculations = sorted(calculations + removed)
-    historical_ledger = sorted(
-        ledger
-        + zero_ledger
-        + [[*row[:5], "trip_payout", "pending", row[6], row[7]] for row in removed]
-    )
-    # Updated by REQ-311: 28 demo report-route trips made physically plausible (seed data only; pay calculation unchanged).  # noqa: E501
     assert (
-        _digest(historical_calculations)
-        == "e7d9347716abfbcfb6d582a04e281637a5bdd0f8bef80505e1b6799890aa8deb"
+        _digest(calculations) == "17dc22a92aa0e47c4c177001ec4a8d239635b12436e9ec44706b9ed682bc5698"
     )
-    assert (
-        _digest(historical_ledger)
-        == "67d1c905e8fdfc17abfd5e48f075147c430d941c4bbbb23977c29d921caa61d7"
-    )
-    assert sum(Decimal(row[7]) for row in ledger) == (
-        Decimal("458595.06") - sum(Decimal(row[6]) for row in removed)
-    )
+    assert _digest(ledger) == "52a6600978610acac8fb6906b15517d3cde0e1dd7243c61bec5ef74d47191860"
+    assert sum(Decimal(row[7]) for row in ledger) == Decimal("457385.23")
+    assert Counter(row[6] for row in ledger) == {"available": 162, "paid": 121, "pending": 5}

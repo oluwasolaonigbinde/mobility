@@ -93,7 +93,7 @@ def test_seed_notification_cleanup_preserves_unrelated_drivers(postgis_db_sessio
                 recipient_user_id=seeded.id,
                 type_key="trip_verified",
                 channel="in_app",
-                dedupe_key="seed-generated",
+                dedupe_key="payout:released:v1:seed-generated:in_app",
                 dedupe_fingerprint="a" * 64,
             )
             curated = Notification(
@@ -518,23 +518,26 @@ def test_seed_geometry_stays_inside_abuja() -> None:
             add_route(route)
     for corridor in rich.CORRIDORS:
         add_route(corridor)
-    add_route([rich.STATIONARY_POINT, rich.TELEPORT_POINT, rich.LATE_UPLOAD_POINT])
+    add_route([rich.STATIONARY_POINT, rich.LATE_UPLOAD_POINT])
     add_route(rich.LOOP_ROUTE)
     for campaign_index in range(1, len(rich.CAMPAIGN_SPECS) + 1):
         add_zone(rich._zone_geometry(campaign_index, CampaignZoneType.TARGET))
     add_zone(rich._zone_geometry(1, CampaignZoneType.EXCLUSION))
     for state in ("draft", "pending_review", "approved", "rejected"):
         add_zone(rich.portal_zone_geometry(state))
+    teleport_routes = 0
     for driver_index in range(1, 10):
         for day_offset in range(4):
             for trip_index in range(2):
-                route, *_ = rich._ping_specs(
+                route, _, _, anomaly = rich._ping_specs(
                     trip_key=f"bounds:{driver_index}:{day_offset}:{trip_index}",
                     driver_index=driver_index,
                     day_offset=day_offset,
                     trip_index=trip_index,
                 )
                 add_route(route)
+                teleport_routes += anomaly == "teleport"
+    assert teleport_routes > 0
     min_lon, min_lat, max_lon, max_lat = (float(part) for part in DEMO_BBOX.split(","))
     points.extend([(min_lon, min_lat), (max_lon, max_lat)])
 
@@ -989,7 +992,19 @@ def fetch_rich_snapshot(sessionmaker: async_sessionmaker[AsyncSession]) -> dict:
             )
             fraud_flag_count = int(
                 await session.scalar(
-                    select(func.count(FraudFlag.id)).where(FraudFlag.trip_session_id.in_(trip_ids))
+                    select(func.count(FraudFlag.id)).where(
+                        FraudFlag.trip_session_id.in_(trip_ids),
+                        FraudFlag.flag_type != "route_replay",
+                    )
+                )
+                or 0
+            )
+            route_replay_flag_count = int(
+                await session.scalar(
+                    select(func.count(FraudFlag.id)).where(
+                        FraudFlag.trip_session_id.in_(trip_ids),
+                        FraudFlag.flag_type == "route_replay",
+                    )
                 )
                 or 0
             )
@@ -1017,7 +1032,12 @@ def fetch_rich_snapshot(sessionmaker: async_sessionmaker[AsyncSession]) -> dict:
                     (
                         await session.execute(
                             select(ImpressionEstimate.estimate_metadata).where(
-                                ImpressionEstimate.trip_session_id.in_(trip_ids)
+                                ImpressionEstimate.trip_session_id.in_(trip_ids),
+                                # A worker re-estimate after its fraud check uses
+                                # production provenance, like worker fraud evidence.
+                                ImpressionEstimate.estimate_metadata.op("#>>")(
+                                    "{request_metadata,seed_step}"
+                                ).is_not(None),
                             )
                         )
                     ).scalars()
@@ -1045,7 +1065,10 @@ def fetch_rich_snapshot(sessionmaker: async_sessionmaker[AsyncSession]) -> dict:
                         await session.execute(
                             select(FraudFlag.evidence).where(
                                 FraudFlag.trip_session_id.in_(trip_ids),
-                                FraudFlag.flag_type != "physical_spot_check_failed",
+                                # Worker and staff evidence uses production provenance.
+                                FraudFlag.flag_type.not_in(
+                                    ("physical_spot_check_failed", "route_replay")
+                                ),
                             )
                         )
                     ).scalars()
@@ -1174,7 +1197,10 @@ def fetch_rich_snapshot(sessionmaker: async_sessionmaker[AsyncSession]) -> dict:
                 ),
                 "flag_types": flag_types,
                 "severities": severities,
-                "fraud_flags": fraud_flag_count,
+                "fraud_flags_excluding_replay": fraud_flag_count,
+                # Replay flags hold pay; the seed now runs the worker's replay check,
+                # so the idempotency comparison must cover their count too.
+                "route_replay_flags": route_replay_flag_count,
             }
 
     return asyncio.run(fetch())
@@ -1289,15 +1315,17 @@ def fetch_lifecycle_violation_count(
 def fetch_palmpay_market_snapshot(
     sessionmaker: async_sessionmaker[AsyncSession],
 ) -> dict[str, object]:
+    from app.services.campaign_lifecycle import assignment_status_expression
+
     async def fetch() -> dict[str, object]:
         async with sessionmaker() as session:
             campaign = await session.scalar(
                 select(Campaign).where(Campaign.name == "Beryl Lane Grocers — Market Routes")
             )
             assert campaign is not None
-            assignment = (
-                await session.scalars(
-                    select(CampaignAssignment)
+            assignment, display_status = (
+                await session.execute(
+                    select(CampaignAssignment, assignment_status_expression())
                     .join(DriverProfile, DriverProfile.id == CampaignAssignment.driver_profile_id)
                     .join(User, User.id == DriverProfile.user_id)
                     .where(
@@ -1318,13 +1346,13 @@ def fetch_palmpay_market_snapshot(
             trip_ids = [trip.id for trip in trips]
             return {
                 "assignment_status": assignment.status,
-                "assignment_has_closed_activation_history": (
+                "assignment_display_status": display_status,
+                "assignment_cancelled_at": assignment.cancelled_at,
+                "assignment_activated_in_window": (
                     assignment.accepted_at is not None
                     and assignment.activated_at is not None
-                    and assignment.cancelled_at is not None
                     and campaign.end_at is not None
-                    and assignment.accepted_at <= assignment.activated_at <= assignment.cancelled_at
-                    and assignment.cancelled_at < campaign.end_at
+                    and assignment.accepted_at <= assignment.activated_at < campaign.end_at
                 ),
                 "creatives": int(
                     await session.scalar(
@@ -1944,7 +1972,7 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                 DEMO_DRIVER_PHONE_NUMBERS
             )
             assert all(
-                row.role == UserRole.DRIVER and "+2340000000100" <= row.phone <= "+2340000000115"
+                row.role == UserRole.DRIVER and row.phone.startswith("+2340000000")
                 for row in users
                 if row.phone is not None
             )
@@ -2021,7 +2049,7 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                 for row in campaigns
                 if row.status == "active" and row.end_at > now and row.id not in ready_campaigns
             ]
-            assert [row.name for row in in_progress] == ["Marula Kitchens — Wuse Lunch Rush"]
+            assert in_progress == []
             notifications = list(await session.scalars(select(Notification)))
             assert not [
                 row
@@ -2049,8 +2077,14 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                     unread_by_driver[row.recipient_user_id] = (
                         unread_by_driver.get(row.recipient_user_id, 0) + 1
                     )
-            # The removed photo challenge no longer creates a third preview notice.
-            assert unread_by_driver.get(graph.driver.id) == 2
+            curated_unread = [
+                row
+                for row in driver_notices
+                if row.recipient_user_id == graph.driver.id
+                and (row.dedupe_key or "").startswith("cardvert-preview:notice:")
+                and row.read_at is None
+            ]
+            assert len(curated_unread) == 2
             assert max(unread_by_driver.values()) < 10
             assert sum(row.read_at is not None for row in driver_notices) > 10
             for zone in await session.scalars(select(CampaignZone)):
@@ -2207,8 +2241,14 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                     "end_at": report_after_day(campaign.end_at).isoformat(),
                 },
             )
-            assert daily.json()["items"]
-            assert any((row["trip_count"] or 0) >= 5 for row in daily.json()["items"])
+            days = daily.json()["items"]
+            assert days
+            if campaign.name == "Marula Kitchens — Utako Office Lunch":
+                # This finished story has one car, below the three-car disclosure floor.
+                assert any(row["status"] == "not_enough_cars" for row in days)
+                assert all(row["trip_count"] in (None, 0) for row in days)
+            else:
+                assert any((row["trip_count"] or 0) >= 5 for row in days)
         if campaign.organization_id != graph.organization.id:
             assert (
                 postgis_db_client.get(
@@ -2354,10 +2394,11 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert first_legacy == second_legacy
     assert first_palmpay_market == second_palmpay_market
     assert first_evidence == second_evidence
-    # REQ-217 retired the old completed state. This primary-driver story ended
-    # before its still-running campaign; it must not become a live assignment.
-    assert second_palmpay_market["assignment_status"] == "cancelled"
-    assert second_palmpay_market["assignment_has_closed_activation_history"] is True
+    # The campaign ended before the next job. Its assignment is finished by date.
+    assert second_palmpay_market["assignment_status"] == "active"
+    assert second_palmpay_market["assignment_display_status"] == "finished"
+    assert second_palmpay_market["assignment_cancelled_at"] is None
+    assert second_palmpay_market["assignment_activated_in_window"] is True
     assert second_palmpay_market["creatives"] == 1
     assert second_palmpay_market["zones"] == 1
     assert second_palmpay_market["trips"] == 15
@@ -2379,7 +2420,7 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert second_rich["profiles"] == 9
     assert second_rich["vehicles"] == 9
     assert second_rich["campaigns"] == 4
-    assert second_rich["assignments"] == 18
+    assert second_rich["assignments"] == 16
     assert second_rich["campaign_statuses"] == {"active", "paused", "draft"}
     assert len(second_rich["trip_days"]) >= 25
     assert second_rich["trips"] == 374
@@ -2389,11 +2430,12 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert second_rich["estimates"] == second_rich["trips"]
     assert second_rich["payouts"] == second_rich["trips"]
     assert 0 < second_rich["ledger"] <= second_rich["trips"]
-    assert second_rich["audit_events"] == 20
+    # Two campaign events each and one per seeded rich assignment.
+    assert second_rich["audit_events"] == 18
     assert len(second_rich["flag_types"]) >= 5
     # Quality-only low flags were removed; the seeded pay-changing flags remain.
     assert second_rich["severities"] == {"medium", "high"}
-    assert 10 <= second_rich["fraud_flags"] <= 20
+    assert 10 <= second_rich["fraud_flags_excluding_replay"] <= 20
     assert fetch_lifecycle_violation_count(postgis_db_sessionmaker) == 0
     assert fetch_drivers_with_several_live_assignments(postgis_db_sessionmaker) == []
     assert fetch_zero_amount_ledger_count(postgis_db_sessionmaker) == 0
@@ -2900,3 +2942,242 @@ def test_reporting_trip_specs_cover_fourteen_complete_days_without_replacing_pai
         "demo-trip-1",
         "demo-trip-2",
     }
+
+
+@pytest.fixture
+def migrated_seed_sessionmaker(settings, monkeypatch):
+    database_url = asyncio.run(create_database_from_url(configured_postgres_url()))
+    engine = create_async_engine(database_url, poolclass=NullPool)
+    try:
+        upgrade_to(database_url, "head", monkeypatch)
+        yield (
+            async_sessionmaker(engine, expire_on_commit=False),
+            settings.model_copy(update={"database_url": database_url}),
+        )
+    finally:
+        asyncio.run(engine.dispose())
+        asyncio.run(drop_database(database_url))
+
+
+def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
+    migrated_seed_sessionmaker, monkeypatch, seed_private_storage
+):
+    import time
+
+    from app.jobs.worker import WorkerSettings
+    from app.models.billing import CommercialQuotationRevision
+    from app.models.campaign_report import CampaignReport
+    from app.models.evidence_verification import EvidenceVerification
+    from app.models.notification import Notification, NotificationType
+    from app.models.payout import PayoutCorrectionOrder
+
+    postgis_db_sessionmaker, settings = migrated_seed_sessionmaker
+    monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
+    started = time.monotonic()
+    seed_demo_graph(postgis_db_sessionmaker, settings)
+    print(f"Seed graph and publication runtime: {time.monotonic() - started:.2f}s")
+
+    async def inspect():
+        changes = []
+        ctx = {
+            "sessionmaker": postgis_db_sessionmaker,
+            "settings": settings.model_copy(update={"worker_sweep_batch_size": 1000}),
+            "engine": postgis_db_sessionmaker.kw["bind"],
+            "storage": seed_private_storage,
+        }
+        async with postgis_db_sessionmaker() as session:
+            audit_ids = set(await session.scalars(select(AuditEvent.id)))
+            notice_ids = set(await session.scalars(select(Notification.id)))
+        for job in WorkerSettings.cron_jobs:
+            await job.coroutine(ctx)
+            async with postgis_db_sessionmaker() as session:
+                audits = (await session.execute(select(AuditEvent.id, AuditEvent.action))).all()
+                notices = (
+                    await session.execute(select(Notification.id, Notification.type_key))
+                ).all()
+            new_audits = [action for identity, action in audits if identity not in audit_ids]
+            new_notices = [kind for identity, kind in notices if identity not in notice_ids]
+            name = job.coroutine.__name__
+            # These clock-driven jobs can do legitimate new work immediately.
+            # Require other changes, including report failures, to stay visible.
+            if name == "sweep_business_health":
+                # This fixture has no email or Redis and must surface those outages.
+                new_audits = [
+                    action
+                    for action in new_audits
+                    if action != "system.payout_automatic_alert.created"
+                ]
+                new_notices = [kind for kind in new_notices if kind != "payout_automatic_alert"]
+            if name == "sweep_scheduled_reports":
+                # The weekly schedule may discover a historical window after the selected report.
+                new_audits = [
+                    action for action in new_audits if action != "campaign_report.requested"
+                ]
+            if name == "purge_expired_file_kyc":
+                # The daily retention receipt records the sweep even with no file to remove.
+                new_audits = [
+                    action for action in new_audits if action != "file_kyc.retention_executed"
+                ]
+            if new_audits or new_notices:
+                changes.append((name, new_audits, new_notices))
+            audit_ids.update(identity for identity, _ in audits)
+            notice_ids.update(identity for identity, _ in notices)
+
+        print(f"Unexpected worker changes: {changes}")
+        async with postgis_db_sessionmaker() as session:
+            driver_users = list(await session.scalars(select(User).where(User.role == "driver")))
+            assert len({user.full_name for user in driver_users}) == len(driver_users)
+            assert all(user.phone.startswith("+2340000000") for user in driver_users)
+            assignments = (
+                await session.execute(
+                    select(CampaignAssignment, Campaign).join(
+                        Campaign, Campaign.id == CampaignAssignment.campaign_id
+                    )
+                )
+            ).all()
+            assert all(
+                campaign.status != "draft" or assignment.status != "offered"
+                for assignment, campaign in assignments
+            )
+            live = [
+                (assignment, campaign)
+                for assignment, campaign in assignments
+                if assignment.status in {"accepted", "active"}
+                and campaign.end_at is not None
+                and campaign.end_at > datetime.now(UTC)
+                and campaign.status in {"approved", "active", "paused"}
+            ]
+            for index, (assignment, campaign) in enumerate(live):
+                for other, other_campaign in live[index + 1 :]:
+                    if (
+                        assignment.driver_profile_id == other.driver_profile_id
+                        or assignment.vehicle_id == other.vehicle_id
+                    ):
+                        assert (
+                            campaign.end_at <= other_campaign.start_at
+                            or other_campaign.end_at <= campaign.start_at
+                        )
+            for assignment, campaign in assignments:
+                person = await session.scalar(
+                    select(DriverKycSubmission).where(
+                        DriverKycSubmission.driver_profile_id == assignment.driver_profile_id,
+                        DriverKycSubmission.status == "approved",
+                    )
+                )
+                assert person is not None, assignment.id
+                assert person.created_at <= campaign.start_at
+                assert person.agreement_accepted_at <= campaign.start_at
+                assert person.bank_account_version_id is not None
+                assert await session.scalar(
+                    select(VehicleEvidenceSubmission.id).where(
+                        VehicleEvidenceSubmission.vehicle_id == assignment.vehicle_id,
+                        VehicleEvidenceSubmission.status == "approved",
+                    )
+                ), assignment.id
+
+            for quotation, campaign in await session.execute(
+                select(CommercialQuotationRevision, Campaign).join(
+                    Campaign, Campaign.id == CommercialQuotationRevision.campaign_id
+                )
+            ):
+                planned = campaign.campaign_metadata["planned_cars"]
+                assert quotation.production_scope["vehicle_count"] == planned
+                assert sum(c.id == campaign.id for _, c in assignments) <= planned
+            assert not await session.scalar(
+                select(PayoutCorrectionOrder.id).where(PayoutCorrectionOrder.status == "draft")
+            )
+            for report in await session.scalars(
+                select(CampaignReport).where(
+                    CampaignReport.kind == "weekly", CampaignReport.status == "ready"
+                )
+            ):
+                assert report.period_end_at - report.period_start_at == timedelta(days=7)
+            assert await session.scalar(
+                select(CampaignReport.id)
+                .join(Campaign, Campaign.id == CampaignReport.campaign_id)
+                .where(
+                    Campaign.name == "Marula Kitchens \u2014 Wuse Lunch Rush",
+                    CampaignReport.status == "ready",
+                    CampaignReport.kind == "weekly",
+                )
+            )
+            teleport = list(
+                await session.scalars(
+                    select(TripSession).where(
+                        TripSession.trip_metadata["anomaly"].as_string() == "teleport"
+                    )
+                )
+            )
+            assert teleport
+            for trip in teleport:
+                previous = func.lag(LocationPing.recorded_at).over(
+                    order_by=LocationPing.recorded_at
+                )
+                segments = (
+                    select(
+                        func.lag(LocationPing.geom)
+                        .over(order_by=LocationPing.recorded_at)
+                        .label("start"),
+                        LocationPing.geom.label("finish"),
+                        func.extract("epoch", LocationPing.recorded_at - previous).label("seconds"),
+                    )
+                    .where(LocationPing.trip_session_id == trip.id)
+                    .subquery()
+                )
+                fastest = await session.scalar(
+                    select(
+                        func.max(
+                            func.ST_DistanceSphere(segments.c.start, segments.c.finish)
+                            / segments.c.seconds
+                        )
+                    ).where(segments.c.seconds > 0)
+                )
+                assert settings.route_analytics_impossible_speed_mps < fastest < 300 / 3.6
+                assert await session.scalar(
+                    select(FraudFlag.id).where(
+                        FraudFlag.trip_session_id == trip.id,
+                        FraudFlag.flag_type == "impossible_speed",
+                    )
+                )
+
+            for calculation, trip in await session.execute(
+                select(PayoutCalculation, TripSession).join(
+                    TripSession, TripSession.id == PayoutCalculation.trip_session_id
+                )
+            ):
+                assert (
+                    timedelta(0) <= calculation.calculated_at - trip.ended_at <= timedelta(days=1)
+                )
+            for review, trip in await session.execute(
+                select(EvidenceVerification, TripSession).join(
+                    TripSession, TripSession.id == EvidenceVerification.source_trip_session_id
+                )
+            ):
+                assert review.issued_at >= trip.ended_at
+
+            staff_types = set(
+                await session.scalars(
+                    select(Notification.type_key)
+                    .join(User, User.id == Notification.recipient_user_id)
+                    .where(User.role == "admin")
+                )
+            )
+            assert staff_types <= {
+                NotificationType.ASSIGNMENT_INACTIVE,
+                NotificationType.BUDGET_ALERT,
+                NotificationType.BUDGET_URGENT_ALERT,
+                NotificationType.CAMPAIGN_BUDGET_PAUSED,
+                NotificationType.COMPLAINT_RECEIVED,
+                NotificationType.PAYOUT_AUTOMATIC_ALERT,
+                NotificationType.PAYOUT_AUTOMATIC_PAUSED,
+                NotificationType.PAYOUT_AUTOMATIC_RESUMED,
+            }
+            assert not await session.scalar(
+                select(Notification.id).where(
+                    Notification.dedupe_key.startswith("payout:released:v1:"),
+                    Notification.read_at.is_(None),
+                )
+            )
+        assert not changes
+
+    asyncio.run(inspect())

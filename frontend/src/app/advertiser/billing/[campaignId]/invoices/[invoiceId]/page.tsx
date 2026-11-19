@@ -5,6 +5,7 @@ import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { requireRole } from "@/lib/auth/current-user";
 import { getSessionToken } from "@/lib/auth/session";
+import { PrintInvoiceButton } from "@/lib/billing/print-invoice-button";
 import { InvoiceDocument } from "@/lib/billing/invoice-document";
 
 export const metadata: Metadata = { title: "Invoice" };
@@ -40,6 +41,7 @@ export default async function AdvertiserInvoicePage({
         <Link href="/advertiser/billing">Billing</Link> /{" "}
         <Link href={`/advertiser/campaigns/${campaignId}`}>{campaign.name}</Link> / Invoice
       </nav>
+      <PrintInvoiceButton />
       <InvoiceDocument
         invoice={invoice}
         terms={commercial.terms ?? null}

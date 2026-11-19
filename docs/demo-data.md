@@ -31,6 +31,10 @@ Fake-provider reconciliations. These are synthetic maker/checker payments;
 they do not establish live automatic-payment readiness. Notification cleanup
 is restricted to the exact demo graph's drivers and preserves curated notices.
 Existing credentials, immutable history and unrelated records remain intact.
+Every driver with a seeded job has synthetic approved person, bank and vehicle
+documents. Driver01 and driver02 receive verified synthetic transfers for
+eligible finished-campaign days. Amina (driver01) also receives transfers for
+past eligible Aster Vale days outside the Finance walkthrough examples.
 
 Golden report contributors and the Wuse workday driver use the canonical
 full-workday route and durations of the primary driver, each car shifted a few
@@ -41,8 +45,15 @@ Lane, Linden Harbour and Central Area Lunch, 28 paid trips) drive one lap of
 the original route on their own nearby path, at a plausible speed, so no
 impossible-speed hold keeps their days not ready. REQ-311 changed the demo pay
 of exactly those 28 trips, not the pay calculation; the historical pay-parity
-hash was updated with a row-level diff. The two demo live cars stay on the live
-map while the local compose worker runs (REQ-312, below). This balances synthetic
+hash was updated with a row-level diff. The frozen REQ-335 fixture has
+295 pay calculations and 288 ledger entries. Its total is NGN 457,385.23, up
+NGN 274.54 from route inputs on the rescheduled Oriole Books trips. The ledger
+contains 121 paid entries, 162 available entries and five pending entries.
+The two demo live cars stay on the live
+map while the local compose worker runs (REQ-312, below). With
+`DEMO_LIVE_CAR_REFRESH=true` on the preview worker, each trip rolls over after
+12 hours while its campaign and assignment are usable. The production worker
+refuses the refresh. This balances synthetic
 distance, time, impressions and cost within the existing disclosure limits;
 privacy thresholds are not reduced to display the demo report.
 
@@ -58,7 +69,7 @@ No missing client answer is recorded as approved. These records are fictional an
 | Invoice issuer, bank and number prefix | Synthetic Terrax Media Company Ltd facts from `app/seeds/demo_authority.py` `SYNTHETIC_ISSUER_FACTS`; Moniepoint (Terrax's bank, D165), non-routable account `0000000000`, prefix `TXM`, reference `cardvert-synthetic-issuer`. Local, test and staging may issue with these facts, without a `TEST-` prefix or Test invoice label; one series per prefix is shared with verified profiles (owner, 27–29 Oct 2026, D141 / REQ-263). Built on integrate/req252-264 (`3abcc85b`); full CI and merge pending | REQ-042 and REQ-052 (the real bank details came in REQ-041/D165: Moniepoint 8246017023, Terrax Media Company Ltd); rehearsal and production require verified D42/Q28 facts and remain fail-closed |
 | Reach estimates | Abuja weekday: 240 contacts/km, 5/minute, road factor 1.15; Abuja office: 180/km, 4/minute, road factor 1; Abuja weekend: 140/km, 4/minute, road factor 1; morning/midday/evening/night factors 1.2/1/1.3/0.7; target/bonus/exclusion factors 1.2/1.35/0 | EXT-REPORT-METHOD: calculation, labels and limitations |
 | Report calculation inputs | Seeded traffic profiles, routes, impression estimates, exposure scores and frozen measurement snapshots; `impressions_v1` / `exposure_v1` identify the existing calculation | EXT-REPORT-METHOD; no revenue or conversion inputs are invented |
-| Commercial records | Campaign budgets and quotations, including ₦1,000,000 portal campaigns, ₦3,000,000 scopes for the three additional report contributor histories, ₦1,800,000 for Utako Office Lunch, partial funding of ₦500,000, 7.5% VAT, five-vehicle scopes and zero production-cost components | EXT-COMMERCIAL-VALUES: approved quotation components, production prices and commissions; each real campaign's accepted quotation replaces its seeded snapshot |
+| Commercial records | Campaign budgets and quotations, including ₦1,000,000 portal campaigns, ₦3,000,000 scopes for the three additional report contributor histories, ₦1,800,000 for Utako Office Lunch, partial funding of ₦500,000, 7.5% VAT, quotation vehicle counts taken from the campaign's planned cars, and zero production-cost components | EXT-COMMERCIAL-VALUES: approved quotation components, production prices and commissions; each real campaign's accepted quotation replaces its seeded snapshot |
 | Complaint handling | Existing categories and fictional replies in the inventory below; no reply target is configured | REQ-020 and REQ-021 |
 | Staff roster and contacts | The seven fictional Terrax staff in the inventory, their departmental actors and `@terraxmedia.com` addresses | Client's actual staff names, departments and sign-in details |
 | Driver identity and payment details | Fictional people, plates, licence numbers and document cards; encrypted NIN `00000000000`, non-routable all-zero bank account `0000000000`, bank code `999` | Each applicant's actual documents, identity checks and verified exact bank-account version |
@@ -129,13 +140,12 @@ so neither can earn money. Each trip gets 40 minutes of staggered history: one
 batch of five fixes per five-minute slot, each received at its slot's end, so
 the car shows on the advertiser "On the road now" map from the moment of seeding.
 
-`DEMO_LIVE_CAR_REFRESH` (default `false`) is set to `true` only for the `worker`
-service in `docker-compose.yml`. The worker then runs a five-minute job
-(`app.seeds.live_car`) that submits one deterministic batch per missed slot
-through the driver ingest path, so the cars keep moving. Production refuses the
-job whatever the flag says, and `ALLOW_DEMO_SEED` alone never enables it, so it
-is off outside the local compose stack (including staging and the client
-preview's env files, which are unchanged while the preview is on hold).
+`DEMO_LIVE_CAR_REFRESH` defaults to `false`. Local Compose enables it for the
+worker, and the client preview can enable it explicitly in the preview worker
+environment. The worker submits a deterministic batch per missed five-minute
+slot through the driver ingest path and records the same GPS health counters as
+the API. Production refuses the refresh. `ALLOW_DEMO_SEED` controls seed access
+independently.
 
 - **Path.** Each car drives a 4.7 km road out and back every 20 minutes at about
   8 m/s, accuracy 8 m. The road lies inside both campaigns' target zones and clear
@@ -151,10 +161,11 @@ preview's env files, which are unchanged while the preview is on hold).
   rows. A single missed five-minute run is caught up with no gap on the map. If
   the worker misses two runs in a row (roughly 5–10 minutes of downtime), the map
   shows a gap until it catches up. After 2 hours with no location the trip
-  auto-ends (REQ-264); rerunning the demo seed then starts a fresh trip. After the
-  12-hour cap the trip stays active but is no longer fed; rerunning the demo seed
-  ends and seals that capped trip through the driver End service (the trip is on
-  an unbound reporting assignment, so it earns nothing) and starts a fresh one.
+  auto-ends (REQ-264). Rerunning the demo seed starts a fresh trip after an
+  automatic end. At the 12-hour cap the worker seals the capped trip through
+  the driver's End service and starts a fresh one on the same reporting
+  assignment. Rollover stops when the campaign or assignment is no longer
+  usable. These unbound assignments earn no pay.
 - **Rejected alternative:** future-dated fixes. Ingest refuses a future
   `recorded_at`, and a future `received_at` would claim a receipt that hasn't
   happened.

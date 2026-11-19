@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.billing import CommercialQuoteRequest
 from app.models.campaign import Campaign, CampaignCreative
-from app.models.campaign_assignment import CampaignAssignment
 from app.models.campaign_change import CampaignChangeRequest
 from app.models.complaint import Complaint
 from app.models.disbursement import PayoutAutomaticAlert, PayoutBatch, PayoutBatchLine
@@ -26,7 +25,6 @@ SOURCE_AREAS = {
     "enquiries": "support",
     "applications": "drivers",
     "cars": "drivers",
-    "jobs": "campaigns",
     "trips": "trips",
     "campaigns": "campaigns",
     "artwork": "campaigns",
@@ -59,7 +57,6 @@ async def admin_badge_summary(session: AsyncSession, *, actor_user_id: UUID) -> 
     queries = {
         "applications": count(DriverApplication, DriverApplication.status == "pending"),
         "cars": count(Vehicle, pending_vehicle_review_clause()),
-        "jobs": count(CampaignAssignment, CampaignAssignment.status == "accepted"),
         "trips": select(func.count(func.distinct(FraudFlag.trip_session_id)))
         .where(FraudFlag.status == "open")
         .scalar_subquery(),

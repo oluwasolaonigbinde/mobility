@@ -77,6 +77,7 @@ export default async function MoneyCloseoutPage({
             {(
               [
                 ["Earned", item.earned_net],
+                ["Not released yet", item.not_released],
                 ["Ready to pay", item.unbatched_available],
                 ["Saved, not sent yet", item.reserved],
                 ["Waiting for a payment result", item.in_flight],

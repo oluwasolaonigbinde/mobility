@@ -806,3 +806,15 @@ def test_operator_created_driver_can_still_be_suspended_and_reactivated(
         )
         assert response.status_code == http_status.HTTP_200_OK
     assert fetch_user_by_email(db_sessionmaker, driver.email).status == UserStatus.ACTIVE
+
+
+@pytest.mark.parametrize(
+    "changes", [{"status": "suspended"}, {"status": "disabled"}, {"role": "driver"}]
+)
+def test_staff_cannot_change_their_own_login_status_or_role(db_client, db_sessionmaker, changes):
+    actor = create_test_user(db_sessionmaker, email="self-edit@example.com", password=PASSWORD)
+    headers = auth_headers(db_client, actor.email, PASSWORD)
+    response = db_client.patch(f"/api/v1/admin/users/{actor.id}", headers=headers, json=changes)
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "SELF_LOGIN_CHANGE_FORBIDDEN"
+    assert db_client.get("/api/v1/admin/users", headers=headers).status_code == 200

@@ -197,6 +197,27 @@ it.each(["draft", "finished", "cancelled"])(
     expect(screen.queryByRole("button", { name: "Ask Terrax to cancel" })).toBeNull();
   },
 );
+it("keeps map, refresh and performance off a draft campaign", async () => {
+  mocks.get.mockImplementation(async (path: string) =>
+    path === "/api/v1/advertiser/campaigns/{campaign_id}"
+      ? { data: { ...campaign, status: "draft" } }
+      : ready(path),
+  );
+  render(await Page(input));
+  expect(screen.queryByRole("heading", { name: "On the road now" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Refresh" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "See your campaign areas" })).toBeNull();
+});
+it("keeps map and performance on a cancelled campaign that ran", async () => {
+  mocks.get.mockImplementation(async (path: string) =>
+    path === "/api/v1/advertiser/campaigns/{campaign_id}"
+      ? { data: { ...campaign, status: "cancelled" } }
+      : ready(path),
+  );
+  render(await Page(input));
+  expect(screen.getByRole("heading", { name: "On the road now" })).toBeInTheDocument();
+});
+
 it("uses an available invoice as the next step before launch", async () => {
   mocks.get.mockImplementation(async (path: string) =>
     path.endsWith("/commercial")

@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.175 — 2026-11-18. Canonical source of truth: current state AND target state.**
+**Version 1.176 — 2026-11-19. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1371,7 +1371,7 @@ before implementation).
    │ source of      │   │ (analytics→fraud→ │   │ • WhatsApp/SMS/email providers  │
    │ truth (P2)     │   │  impress.→payout) │   │ • S3-compatible object storage  │
    │ + new domains: │   │ payout release    │   │   (creatives, KYC docs, photos) │
-   │ billing, files,│   │ retention purge   │   │ • Map tiles (MapTiler [OPEN])   │
+   │ billing, files,│   │ retention purge   │   │ • Map tiles (OpenFreeMap, D170) │
    │ notifications, │   │ notification send │   │ • Sentry (both tiers)           │
    │ audience       │   │ budget/activity   │   └─────────────────────────────────┘
    └────────────────┘   │ sweeps, webhooks  │
@@ -3234,7 +3234,10 @@ Render/AWS and MapTiler replaces Mapbox. `deploy/hetzner/` and
 `docs/deployment-templates.md` reuse the standalone Compose/Caddy release
 topology and existing S3 adapter, with blank secrets and no chosen region.
 Application bank/NIN key custody remains in the key ring; no KMS is claimed.
-MapTiler uses the build-time MapLibre HTTPS style and narrow API CSP origins.
+D170 replaces MapTiler with OpenFreeMap: the build-time MapLibre style is
+`https://tiles.openfreemap.org/styles/liberty` with no key, the CSP allows only
+that origin in connect-src and img-src, and the release contract refuses a
+style URL with a query string.
 Compose gains private ClamAV with persistent signatures, outbound update
 access and health dependencies, and explicit configurable WEB_CONCURRENCY
 (default two). Release and recovery allow 900 seconds for scanner/application
@@ -4452,4 +4455,15 @@ Money semantics outside D164 are unchanged. Launch gates are unchanged.
 - §10.3: CI runs on pull requests and pushes to `master` only, so one commit no longer runs twice (branch push plus pull request). D41's pre-merge evidence is the pull request's full CI on its exact head SHA.
 - §10.3: backend tests run in ten shards instead of six, balanced by the existing duration snapshot. Shard membership is part of the D33 measurement policy, so this change carries one controlled coverage-baseline refresh.
 - §10.3: Dependabot opens security-fix pull requests only; routine version updates and the Docker entries are removed. Test, coverage, audit and provider gates are unchanged.
+- Launch gates are unchanged.
+
+## Amendment / changelog 1.176 - REQ-335 / D170 / D171 (preview walkthrough fixes, 19 Nov 2026)
+
+- §9 contract (all three baselines move together): `CampaignDriverMoneyRead.not_released` is earned pay not yet released (`earned_net` minus released net, with the same netting as the trip cash position), shown as "Not released yet" in the staff closeout. `GET /admin/audit-events` takes an optional `campaign_id`, matching the campaign's own events plus cancellation, quote-request and refund-settlement events for it; refund and credit settlements now record `campaign_id`, and older refund events match through their commercial terms. Audit rows return `actor_name`; the staff campaign Activity tab uses both and no longer looks up staff names in the browser.
+- D170: the street map uses the keyless OpenFreeMap liberty style; the CSP allows only `https://tiles.openfreemap.org` for fetches and images, and the release contract refuses a style URL with a query string. MapTiler is removed.
+- D171: a staff member can't change the status or role of their own login (`409 SELF_LOGIN_CHANGE_FORBIDDEN`); the staff screen hides those controls for the signed-in user.
+- Staff date and time fields (offer expiry, pay-terms start, credit due, correction release) are Nigeria time and convert with the existing Lagos helper. Offer refusals and scheduled-pay refusals show plain fixed copy; Offer a job needs complete pay terms in force, and finished or cancelled campaigns hide offers, pay changes and funding approval. Bank-transfer entry and invoice payment details show only while money is still payable (D164/D166 payable cancellations included).
+- Counts and links: the advertiser-list live count uses the derived campaign status (D118); the Work-queue badge drops the removed accepted-jobs source; staff complaint and automatic-payout notices link to their pages.
+- The demo live-car job records GPS attempts like the trips API, and it replaces a trip that reaches its 12-hour cap until the campaign ends. It still refuses production.
+- The demo seed settles the trips it creates the way the worker would, so a fresh seed sends no burst of notices. Drivers with jobs have approved documents, past days are paid, no car has overlapping jobs, and dates follow their events. Pay rules, release timing, holds, funding authorization and invoice amounts are unchanged.
 - Launch gates are unchanged.

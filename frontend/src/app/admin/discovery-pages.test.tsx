@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ get: vi.fn() }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get }) }));
+vi.mock("@/lib/auth/current-user", () => ({ requireRole: async () => ({ user: { id: "u1" } }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("./users/user-status-menu", () => ({
   UserStatusMenu: () => <button>User actions</button>,
@@ -54,6 +55,7 @@ describe("admin named discovery pages", () => {
     });
     expect(screen.getByText("30 matching staff sign-ins")).toBeTruthy();
     expect(screen.getByText("Ada Okafor")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "User actions" })).toBeNull();
     expect(screen.getByLabelText("Search staff")).toHaveValue("Okafor");
     expect(screen.getByRole("link", { name: "Add staff login" })).toHaveAttribute(
       "href",

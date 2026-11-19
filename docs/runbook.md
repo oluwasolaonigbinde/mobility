@@ -35,8 +35,8 @@ cached. Refresh replaces the dots; there is no historical query, trail or per-ca
 filter. Disclosure history keeps only policy/window and salted result hashes,
 not coordinates. This reduces disclosure; legal real-use approval remains open.
 An empty snapshot says No cars on the road right now; a failed read stays unavailable.
-The basemap stays schematic until the MapTiler account/style (REQ-050) is ready;
-never add invented streets or landmarks to a campaign map.
+The basemap is schematic unless the frontend is built with the OpenFreeMap
+style URL (D170); never add invented streets or landmarks to a campaign map.
 
 This runbook covers the Docker Compose pilot stack. Run commands from the repository root. Production-like environments must use externally supplied credentials and explicit hostnames, require TLS and authentication for both PostgreSQL and Redis, keep both private, and put the frontend behind a trusted TLS edge. Bundled and managed data services are both permitted; do not infer provider values from this repository.
 

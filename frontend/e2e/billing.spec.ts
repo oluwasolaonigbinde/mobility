@@ -143,7 +143,7 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
   await page.getByLabel("Campaign end date").fill("2026-10-31");
   await page.getByLabel("Vehicle count").fill("2");
   await page.getByLabel("Payment terms and supporting notes").fill("Payment before production");
-  await page.getByRole("button", { name: "Save quotation" }).click();
+  await page.getByRole("button", { name: "Send quotation" }).click();
   await expect(page.getByText(new RegExp(quoteReference))).toBeVisible();
 
   await page.context().clearCookies();

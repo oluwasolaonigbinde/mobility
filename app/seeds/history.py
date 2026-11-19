@@ -3,12 +3,15 @@
 import hashlib
 from contextlib import asynccontextmanager, contextmanager
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 from sqlalchemy import event
 
+from app.models.audit import AuditEvent
 from app.models.campaign import Campaign, CampaignCreative
 from app.models.driver import DriverProfile
 from app.models.driver_application import DriverApplication
+from app.models.kyc import DriverKycSubmission
 from app.models.notification import Notification
 from app.models.organization import AdvertiserOrganization
 from app.models.payee import PayeeBankAccountVersion
@@ -57,16 +60,38 @@ def _entity_dates(session, row, now):
     row.updated_at = min(created + timedelta(days=3, hours=offset % 17), now - timedelta(hours=2))
 
 
+def _trip_history_time(session, trip_id):
+    trip = session.get(TripSession, trip_id) if trip_id else None
+    if trip and trip.ended_at and trip.trip_metadata.get("demo"):
+        return trip.ended_at + timedelta(minutes=5)
+    return None
+
+
+def _worker_trip_reference(row):
+    if (
+        isinstance(row, AuditEvent)
+        and row.entity_type == "trip_session"
+        and row.action in {"worker.trip_processing.completed", "worker.earnings.released"}
+    ):
+        return row.entity_id
+    if isinstance(row, Notification) and (row.dedupe_key or "").startswith("payout:released:v1:"):
+        return row.payload.get("trip_session_id")
+    return None
+
+
 def _dependent_dates(session, row, now):
-    if isinstance(row, (PayoutCalculation, EarningsLedgerEntry)) and row.trip_session_id:
-        trip = session.get(TripSession, row.trip_session_id)
-        if trip and trip.trip_metadata.get("full_workday"):
-            moment = trip.ended_at + timedelta(minutes=5)
-            if hasattr(type(row), "created_at"):
-                row.created_at = moment
-            for name in ("calculated_at", "occurred_at"):
-                if hasattr(type(row), name):
-                    setattr(row, name, moment)
+    if isinstance(row, (PayoutCalculation, EarningsLedgerEntry)):
+        moment = _trip_history_time(session, row.trip_session_id)
+        if moment:
+            row.created_at = moment
+            if isinstance(row, PayoutCalculation):
+                row.calculated_at = moment
+            else:
+                row.occurred_at = moment
+    elif reference := _worker_trip_reference(row):
+        moment = _trip_history_time(session, UUID(reference))
+        if moment:
+            row.created_at = moment
     elif isinstance(row, Notification) and (row.dedupe_key or "").startswith(
         "cardvert-preview:notice:"
     ):
@@ -129,6 +154,8 @@ def initial_action_history(session, moment):
                 row.created_at = clock[0]
             if hasattr(type(row), "updated_at"):
                 row.updated_at = clock[0]
+            if isinstance(row, DriverKycSubmission) and row.agreement_accepted_at:
+                row.agreement_accepted_at = clock[0]
             if isinstance(row, PayeeBankAccountVersion):
                 row.verified_at = clock[0]
             if isinstance(row, Notification) and row.sent_at:

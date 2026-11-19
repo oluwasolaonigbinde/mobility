@@ -48,7 +48,13 @@ export async function publishDailyRateAction(
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof ApiError) {
-      return { error: publicActionError(error), values: raw };
+      return {
+        error: publicActionError(error, {
+          INVALID_PAYOUT_RULE_REVISION:
+            "A pay change is already scheduled. New pay must start after it.",
+        }),
+        values: raw,
+      };
     }
     return { error: "Could not reach the server. Try again.", values: raw };
   }

@@ -1,5 +1,6 @@
 "use server";
 
+import { lagosLocalToApi } from "@/lib/campaigns/schema";
 import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { redirect, unstable_rethrow } from "next/navigation";
@@ -238,9 +239,11 @@ export async function recordFinancialAuthorityAction(
   approverId: string,
   formData: FormData,
 ) {
+  const isCredit = paymentClass === "approved_corporate_credit";
+  const dueAt = isCredit ? lagosLocalToApi(String(formData.get("due_at") ?? "")) : null;
+  if (isCredit && !dueAt) redirect(`${path(campaignId)}?error=INVALID_CREDIT_DUE_AT#money`);
   try {
     const api = createApiClient(await getSessionToken());
-    const isCredit = paymentClass === "approved_corporate_credit";
     await api.POST("/api/v1/admin/campaigns/{campaign_id}/financial-authority", {
       params: { path: { campaign_id: campaignId } },
       body: {
@@ -248,7 +251,7 @@ export async function recordFinancialAuthorityAction(
         max_driver_liability: String(formData.get("max_driver_liability") ?? "").trim(),
         reason: String(formData.get("reason") ?? "").trim(),
         credit_limit: isCredit ? String(formData.get("credit_limit") ?? "").trim() : null,
-        due_at: isCredit ? new Date(String(formData.get("due_at") ?? "")).toISOString() : null,
+        due_at: dueAt,
         approved_by_user_id: isCredit ? approverId : null,
         credit_terms: isCredit
           ? { notes: String(formData.get("credit_terms") ?? "").trim() }

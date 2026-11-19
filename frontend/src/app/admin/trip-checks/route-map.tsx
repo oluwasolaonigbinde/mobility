@@ -89,10 +89,6 @@ export function RecordedRouteMap({ points }: { points: Point[] }) {
           streets. These records do not confirm that the trip was valid.
         </span>
       </figcaption>
-      <p className="text-faint mt-1 text-xs">
-        Start {first.latitude.toFixed(5)}, {first.longitude.toFixed(5)} · End{" "}
-        {points.at(-1)!.latitude.toFixed(5)}, {points.at(-1)!.longitude.toFixed(5)}
-      </p>
     </figure>
   );
 }

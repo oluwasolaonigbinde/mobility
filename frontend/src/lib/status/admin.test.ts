@@ -9,8 +9,8 @@ it.each([
   ["draft", "Paid so far"],
   ["pending_review", "Paid so far"],
   ["approved", "Paid so far"],
-  ["active", "Budget used"],
-  ["paused", "Budget used"],
+  ["active", "Booked"],
+  ["paused", "Booked"],
 ])("names a %s campaign's budget figure truthfully", (status, label) =>
   expect(campaignSpendLabel(status)).toBe(label),
 );
@@ -57,7 +57,7 @@ it("uses context-specific staff words without leaking internal keys", () => {
 it("preserves provider payment meanings and hides unrecognized wire outcomes", () => {
   expect(adminStatus("queued", "payment_outcome")).toBe("Waiting to send");
   expect(adminStatus("reserved", "payment_outcome")).toBe("Waiting to send");
-  expect(paymentRunStatus({ status: "reserved", approved_at: null })).toBe("Saved, not sent yet");
+  expect(paymentRunStatus({ status: "reserved", approved_at: null })).toBe("Waiting for approval");
   expect(adminStatus("reserved", "payment_run")).toBe("Saved, not sent yet");
   expect(paymentRunStatus({ status: "reserved", approved_at: "2026-10-26T12:00:00Z" })).toBe(
     "Approved — not sent yet",

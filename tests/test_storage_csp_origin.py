@@ -92,9 +92,14 @@ def test_live_caddy_csp_uses_only_the_exact_storage_origin(tmp_path, endpoint, e
         assert directives["connect-src"] == [
             "'self'",
             *([expected] if expected else []),
-            "https://api.maptiler.com",
+            "https://tiles.openfreemap.org",
         ]
-        assert directives["img-src"] == ["'self'", "data:", "blob:", "https://api.maptiler.com"]
+        assert directives["img-src"] == [
+            "'self'",
+            "data:",
+            "blob:",
+            "https://tiles.openfreemap.org",
+        ]
         assert directives["default-src"] == ["'self'"]
         assert directives["frame-ancestors"] == ["'none'"]
         assert "*" not in policy

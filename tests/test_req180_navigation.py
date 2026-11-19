@@ -177,10 +177,10 @@ def test_navigation_counts_match_filtered_lists_and_group_pages_without_fanout(
         assert listed.json()["total"] == summary.json()["counts"][status.value]
     badges = db_client.get("/api/v1/admin/badge-summary", headers=ah).json()
     assert badges["source_counts"]["cars"] == 1
-    assert badges["source_counts"]["jobs"] == 1
+    assert "jobs" not in badges["source_counts"]
     assert badges["source_counts"]["campaigns"] == 1
     assert badges["source_counts"]["paused"] == 1
-    assert badges["total"] == 4
+    assert badges["total"] == sum(badges["source_counts"].values()) == 3
     listed = db_client.get("/api/v1/advertiser/campaigns", headers=vh).json()
     assert listed["total"] == len(CampaignAssignmentStatus)
     assert all(
@@ -387,7 +387,7 @@ def test_open_quote_requests_are_a_campaigns_work_source(db_client, db_sessionma
     assert badges["campaigns"] >= 1
     assert badges["campaigns"] == sum(
         badges["source_counts"][key]
-        for key in ("jobs", "campaigns", "artwork", "photos", "changes", "paused", "quotes")
+        for key in ("campaigns", "artwork", "photos", "changes", "paused", "quotes")
     )
     listed = db_client.get(
         "/api/v1/admin/quote-requests/open",
@@ -400,3 +400,30 @@ def test_open_quote_requests_are_a_campaigns_work_source(db_client, db_sessionma
         (row["id"], row["campaign_id"], row["campaign_name"], row["organization_name"])
         for row in listed.json()["items"]
     ] == [(str(open_request_id), str(open_campaign.id), "Open quote", "Quote Queue Foods")]
+
+
+def test_advertiser_directory_excludes_finished_campaigns(db_client, db_sessionmaker):
+    admin = create_test_user(db_sessionmaker, email="finished-count@example.test")
+    org, _ = create_test_organization(db_sessionmaker, name="Finished count")
+    now = datetime.now(ZoneInfo("Africa/Lagos"))
+    for name, state, days in (
+        ("Running", CampaignStatus.ACTIVE, 1),
+        ("Ended while running", CampaignStatus.ACTIVE, -1),
+        ("Ended while paused", CampaignStatus.PAUSED, -1),
+    ):
+        create_test_campaign(
+            db_sessionmaker,
+            organization_id=org.id,
+            created_by_user_id=admin.id,
+            campaign_status=state,
+            name=name,
+            start_at=now - timedelta(days=2),
+            end_at=now + timedelta(days=days),
+        )
+    response = db_client.get(
+        "/api/v1/admin/advertiser-organizations",
+        headers=auth_headers(db_client, admin.email),
+        params={"q": "Finished count"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["items"][0]["live_campaign_count"] == 1

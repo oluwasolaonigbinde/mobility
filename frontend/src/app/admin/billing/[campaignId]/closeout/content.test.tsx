@@ -94,6 +94,7 @@ describe("recorded campaign money position", () => {
           driver_name: "Ada Driver",
           currency: "NGN",
           earned_net: "100.07",
+          not_released: "10.01",
           unbatched_available: "20.01",
           reserved: "30.02",
           in_flight: "40.03",
@@ -108,6 +109,7 @@ describe("recorded campaign money position", () => {
     expect(screen.getByText("Total paid: ₦10.01")).toBeVisible();
     expect(screen.getByText("Of that, by transfer: ₦20.02")).toBeVisible();
     expect(screen.getByText("Waiting for a payment result: ₦40.03")).toBeVisible();
+    expect(screen.getByText("Not released yet: ₦10.01")).toBeVisible();
     expect(screen.getByText("Saved, not sent yet: ₦30.02")).toBeVisible();
     expect(screen.queryByText(/Waiting for approval/)).not.toBeInTheDocument();
     expect(

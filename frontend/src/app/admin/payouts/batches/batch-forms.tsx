@@ -451,7 +451,7 @@ export function BatchActions({
           >
             Cancel this payment run
           </Button>
-          {providerReady === false ? (
+          {!approved ? null : providerReady === false ? (
             <p className="text-muted w-full text-sm">
               Run saved, not sent. Payments are not connected.
             </p>

@@ -127,7 +127,7 @@ it("shows each company's outstanding money from the list read alone", async () =
   });
   render(await AdvertisersPage({ searchParams: Promise.resolve({}) }));
   expect(screen.getByText("Outstanding: ₦1,500,000.50 · USD 0.00")).toBeInTheDocument();
-  expect(screen.getByText("Outstanding: No issued invoices")).toBeInTheDocument();
+  expect(screen.getByText("Outstanding: Nothing owed")).toBeInTheDocument();
   expect(get).toHaveBeenCalledTimes(1);
 });
 it("does not invent zero people or live campaigns when row counts are missing", async () => {

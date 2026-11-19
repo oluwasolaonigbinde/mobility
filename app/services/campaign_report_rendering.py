@@ -25,7 +25,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-RENDERER_VERSION = "campaign-report-d160-v4"
+RENDERER_VERSION = "campaign-report-d160-v5"
 MAX_ARTIFACT_BYTES = 8 * 1024 * 1024
 MEASURED = (
     ("cars_deployed", "Cars deployed", "cars"),
@@ -57,10 +57,17 @@ def _cell(value):
     return "'" + result if dangerous or result.startswith(("\t", "\r")) else result
 
 
-def _csv_measure(value, unit):
+def _csv_measure(label, value, unit):
+    if unit == "metres":
+        return f"{label} (km)", None if value is None else f"{Decimal(str(value)) / 1000:.2f}", "km"
+    if unit == "seconds":
+        hours = None if value is None else f"{Decimal(str(value)) / 3600:.2f}"
+        return f"{label} (hours)", hours, "hours"
+    if unit == "estimated views":
+        return label, None if value is None else f"{Decimal(str(value)):.0f}", "views"
     if unit == "cars per day" and value is not None:
-        return f"{Decimal(str(value)):.2f}"
-    return value
+        value = f"{Decimal(str(value)):.2f}"
+    return label, value, unit
 
 
 def render_campaign_csv(snapshot: dict) -> bytes:
@@ -103,8 +110,11 @@ def render_campaign_csv(snapshot: dict) -> bytes:
         row("Campaign", "Campaign start", campaign["start_at"])
         row("Campaign", "Campaign end", campaign["end_at"])
         for key, label, unit in MEASURED:
-            row("Measured results", label, _csv_measure(campaign["measured"][key], unit), unit)
-        row("Estimates", "Estimated views", campaign["estimates"]["views"], "estimated views")
+            row("Measured results", *_csv_measure(label, campaign["measured"][key], unit))
+        row(
+            "Estimates",
+            *_csv_measure("Estimated views", campaign["estimates"]["views"], "estimated views"),
+        )
         row("Estimates", "Estimate explanation", UNCERTAINTY)
         row("Notes", "Completeness", campaign["note"])
         row("Campaign areas", "Period", "Full weeks only")
@@ -116,14 +126,14 @@ def render_campaign_csv(snapshot: dict) -> bytes:
                 ("driving_seconds", "Driving time", "seconds"),
                 ("estimated_impressions", "Estimated views", "estimated views"),
             ):
-                row("Daily chart data", label, item[key], unit, item["date"])
+                row("Daily chart data", *_csv_measure(label, item[key], unit), day=item["date"])
         for area in campaign["areas"]:
             row("Campaign areas", "Verified trips", area["trip_count"], "trips", area=area["name"])
             row(
                 "Estimates",
-                "Estimated views in area",
-                area.get("estimated_views"),
-                "estimated views",
+                *_csv_measure(
+                    "Estimated views in area", area.get("estimated_views"), "estimated views"
+                ),
                 area=area["name"],
             )
         for creative in campaign["creatives"]:

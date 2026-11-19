@@ -180,11 +180,51 @@ beforeEach(() => {
   });
   reads();
 });
+it("opens the job form when complete pay terms are in effect", async () => {
+  const normal = mocks.get.getMockImplementation()!;
+  mocks.get.mockImplementation(async (path, options) => {
+    if (path.endsWith("/payout-rules"))
+      return { data: { items: [{ id: "rule", status: "active", currency: "NGN" }] } };
+    if (path.endsWith("/revisions"))
+      return {
+        data: {
+          total: 1,
+          items: [
+            {
+              payout_rule_id: "rule",
+              effective_from: "2020-01-01T00:00:00Z",
+              daily_rate_naira: "10000",
+              daily_target_miles: "70",
+              currency: "NGN",
+              formula_version: "payout_v4",
+              shortfall_strategy: "proportional",
+              minimum_miles: "0",
+              outside_area_weight: "0",
+            },
+          ],
+        },
+      };
+    return normal(path, options);
+  });
+  render(await page());
+  expect(screen.getByText("Offer form")).toBeInTheDocument();
+});
+
+it.each(["finished", "cancelled"])(
+  "hides offers and the launch checklist for %s campaigns",
+  async (status) => {
+    reads({ status });
+    render(await page());
+    expect(screen.queryByText(/Offer a job/)).toBeNull();
+    expect(screen.queryByText("Launch checklist")).toBeNull();
+  },
+);
+
 it.each(["terms", "billing"])("keeps siblings usable if the %s section throws", async (failure) => {
   mocks.sectionFailure = failure;
   render(await page());
   expect(screen.getByRole("heading", { name: "PalmPay Wuse" })).toBeInTheDocument();
-  expect(screen.getByText("Offer form")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Offer a job" })).toBeDisabled();
   expect(screen.getByRole("link", { name: "Try again" })).toBeInTheDocument();
   expect(screen.queryByText(failure === "terms" ? "Pay terms form" : "Campaign money")).toBeNull();
   expect(
@@ -499,6 +539,7 @@ it("shows a staff name in Activity without exposing the demo sign-in address", a
             {
               id: "event",
               actor_user_id: "staff",
+              actor_name: "Ada Staff",
               actor_email: "admin@demo.mobility.local",
               action: "admin.campaign.approved",
               created_at: "2026-11-03T12:00:00Z",
@@ -507,8 +548,6 @@ it("shows a staff name in Activity without exposing the demo sign-in address", a
           total: 1,
         },
       };
-    if (path.endsWith("/users"))
-      return { data: { items: [{ id: "staff", full_name: "Ada Staff" }] } };
     return normal(path, options);
   });
   render(
@@ -518,6 +557,10 @@ it("shows a staff name in Activity without exposing the demo sign-in address", a
     }),
   );
   expect(screen.getByText(/Campaign approved · Ada Staff/)).toBeVisible();
+  expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/audit-events", {
+    params: { query: { campaign_id: id, limit: 25, offset: 0 } },
+  });
+  expect(mocks.get.mock.calls.some(([path]) => path.endsWith("/users"))).toBe(false);
   expect(screen.queryByText("admin@demo.mobility.local")).toBeNull();
 });
 it("does not open job reads behind a higher-priority invoice drawer", async () => {

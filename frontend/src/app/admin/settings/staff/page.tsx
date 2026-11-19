@@ -2,6 +2,7 @@ import { adminReadFailure } from "@/lib/api/admin-read";
 export const metadata = { title: "Staff logins" };
 import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
+import { requireRole } from "@/lib/auth/current-user";
 import { getSessionToken } from "@/lib/auth/session";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
@@ -13,6 +14,7 @@ export default async function StaffPage({
 }: {
   searchParams: Promise<{ q?: string; offset?: string }>;
 }) {
+  const me = await requireRole("admin");
   const p = await searchParams;
   const offset = Number.isFinite(Number(p.offset)) ? Math.max(0, Math.floor(Number(p.offset))) : 0;
   const { data } = await createApiClient(await getSessionToken())
@@ -50,12 +52,14 @@ export default async function StaffPage({
                       {user.email} · {adminStatus(user.status)}
                     </p>
                   </div>
-                  <UserStatusMenu
-                    userId={user.id}
-                    userLabel={user.full_name}
-                    status={user.status}
-                    role="admin"
-                  />
+                  {user.id !== me.user.id ? (
+                    <UserStatusMenu
+                      userId={user.id}
+                      userLabel={user.full_name}
+                      status={user.status}
+                      role="admin"
+                    />
+                  ) : null}
                 </li>
               ))}
             </ul>

@@ -77,7 +77,9 @@ export default async function AdvertiserOverviewPage() {
             {empty
               ? "Set up your first campaign."
               : inventory.available
-                ? `${formatCount(campaigns.length)} ${campaigns.length === 1 ? "campaign is" : "campaigns are"} running.`
+                ? campaigns.length === 0
+                  ? "No campaigns are running right now."
+                  : `${formatCount(campaigns.length)} ${campaigns.length === 1 ? "campaign is" : "campaigns are"} running.`
                 : "Your campaigns."}
           </p>
           <Link href="/advertiser/campaigns/new" className="brand-action">

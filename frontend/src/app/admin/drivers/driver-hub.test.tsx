@@ -318,7 +318,7 @@ it("uses identity-scoped complaint and contact reads and opens their exact Suppo
   );
   expect(screen.getByRole("link", { name: /Completed/ })).toHaveAttribute(
     "href",
-    `/admin/support?tab=contact&driver_profile_id=${driverId}&task=task`,
+    `/admin/support?tab=contact&driver_profile_id=${driverId}&history=true&task=task`,
   );
 });
 it.each(["invited", "active"])(

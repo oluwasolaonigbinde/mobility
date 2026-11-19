@@ -23,6 +23,14 @@ const calendarDate = new Intl.DateTimeFormat("en-NG", {
 /** One wording, on admin and advertiser screens, for an invoice its cancellation closed. */
 export const CANCELLED_INVOICE_LABEL = "Cancelled – nothing to pay";
 
+/** Cancellation dispositions that close payment are already reflected in payment_status. */
+export function isInvoicePayable(invoice: Pick<Invoice, "status" | "payment_status"> | undefined) {
+  return (
+    invoice?.status === "issued" &&
+    (invoice.payment_status === "unpaid" || invoice.payment_status === "partially_paid")
+  );
+}
+
 const paymentStatusLabel: Record<string, string> = {
   unpaid: "Not yet paid",
   partially_paid: "Part paid",
@@ -266,17 +274,19 @@ export function InvoiceDocument({
         </section>
       ) : null}
 
-      <section className="print:break-inside-avoid">
-        <h2 className="micro text-muted mb-3">Payment details</h2>
-        <dl className="grid gap-2 sm:grid-cols-3">
-          <Fact label="Bank" value={text(issuer?.bank_name)} />
-          <Fact label="Account name" value={text(issuer?.bank_account_name)} />
-          <Fact label="Account number" value={text(issuer?.bank_account_number)} />
-        </dl>
-        {text(issuer?.invoice_wording) ? (
-          <p className="text-muted mt-4 text-sm">{text(issuer?.invoice_wording)}</p>
-        ) : null}
-      </section>
+      {isInvoicePayable(invoice) ? (
+        <section className="print:break-inside-avoid">
+          <h2 className="micro text-muted mb-3">Payment details</h2>
+          <dl className="grid gap-2 sm:grid-cols-3">
+            <Fact label="Bank" value={text(issuer?.bank_name)} />
+            <Fact label="Account name" value={text(issuer?.bank_account_name)} />
+            <Fact label="Account number" value={text(issuer?.bank_account_number)} />
+          </dl>
+          {text(issuer?.invoice_wording) ? (
+            <p className="text-muted mt-4 text-sm">{text(issuer?.invoice_wording)}</p>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="invoice-signatures grid gap-10 pt-4 sm:grid-cols-2">
         <SignatureLine party="For the client" role={text(customer.name) ?? "Client"} />

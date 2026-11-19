@@ -33,7 +33,7 @@ test("campaign areas stay read-only when running and draft deletion requires con
   await page.waitForURL(/\/advertiser\/campaigns\/[0-9a-f-]{36}$/);
   const base = page.url();
   const sourceId = new URL(base).pathname.split("/").at(-1);
-  await page.getByRole("link", { name: "View coverage history", exact: true }).click();
+  await page.getByRole("link", { name: "See your campaign areas", exact: true }).click();
   await page.waitForURL(/\/map$/);
   await page.goto(`${base}/zones`);
 

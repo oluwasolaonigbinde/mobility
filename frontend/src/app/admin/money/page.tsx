@@ -1,5 +1,6 @@
 export const metadata = { title: "Money" };
 import { requireRole } from "@/lib/auth/current-user";
+import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { ViewTabs } from "@/components/ui/tabs";
 import { HubDrawer } from "../hub-drawer";
@@ -55,7 +56,14 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
   }
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <PageHeader title="Money" />
+      <PageHeader
+        title="Money"
+        actions={
+          <Link href="/admin/settings/support-tools" className="text-cyan underline">
+            Recalculate a trip
+          </Link>
+        }
+      />
       <ViewTabs
         label="Money tabs"
         items={MONEY_TABS.map(([value, label]) => ({

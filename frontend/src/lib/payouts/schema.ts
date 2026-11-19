@@ -1,3 +1,4 @@
+import { lagosLocalToApi } from "@/lib/campaigns/schema";
 import { z } from "zod";
 
 /** Staff enter the day rate, miles, start date and audited reason (D43). */
@@ -20,12 +21,16 @@ export const dailyRateFormSchema = z.object({
     .string()
     .trim()
     .min(1, "Start date and time are required")
-    .refine((v) => !Number.isNaN(new Date(v).getTime()), "Enter a valid date and time")
+    .transform((value, ctx) => {
+      const instant = lagosLocalToApi(value);
+      if (instant) return instant;
+      ctx.addIssue({ code: "custom", message: "Enter a valid date and time" });
+      return z.NEVER;
+    })
     .refine(
       (v) => new Date(v).getTime() > Date.now(),
       "The start must be in the future — past days change only through a correction",
-    )
-    .transform((v) => new Date(v).toISOString()),
+    ),
   reason: z.string().trim().min(1, "A reason is required"),
 });
 

@@ -107,7 +107,7 @@ a fixed Terrax-van hero and actual artwork alongside the real campaign map;
 driver jobs put the actual frozen advert on the same van with Where to drive
 and Avoid chips. Wallet for money figures; megaphone for campaigns. Maps show
 actual areas with the existing component and activeMapStyle; no drawn roads or
-landmarks for a real campaign. MapTiler remains REQ-050. Admin is plain white,
+landmarks for a real campaign. The street map is OpenFreeMap (D170). Admin is plain white,
 minimal and spacious through shared styling, with existing behaviour/drawers.
 One Account combines company and sign-in details; invoices live only in Billing,
 linked from campaigns; Billing's approved design stays. Campaigns has a simple
@@ -192,8 +192,11 @@ never set an advertiser's password (D130, REQ-232).
 The first staff account on a fresh deployment is created from the server shell
 (`python -m app.operations.create_staff`); it is an active admin with a one-time
 temporary password that must be changed at first sign-in (REQ-208).
+A staff member can't suspend, disable or change the role of their own login;
+another staff member must do it (D171, REQ-335).
 
 **History:**
+- **2026-11-19** — Owner approved the self-change guard after the 18 Nov preview walkthrough found staff could suspend their own login (D171, REQ-335). Previously nothing stopped it.
 - **2026-11-03** — Delivery accepted on master. Built in `e9e990c7`; full CI passed on `1a6d563f`. See the [acceptance evidence](../issues/testing/req271-ci-acceptance-2026-11-03.md).
 - **2026-09-02** — Owner decision on single-company advertiser logins and one admin for driver checks (D29).
 - **2026-10-27–29** — Owner clarified the existing three-role model (REQ-254); the former demo `viewer@demo.mobility.local` name incorrectly suggested read-only access. It was an ordinary advertiser member. Built on integrate/req252-264 (`e9e990c7`).
@@ -907,9 +910,11 @@ drivers, vehicles and advertisers.
 ### Hosting, accounts and providers
 
 **Current rule:** Terrax owns the cloud accounts and domain, with developer
-access (Q32). Hosting, database and file storage on **Hetzner**; maps from
-**MapTiler**; email from **Postmark** (support@terraxmedia.com); **ClamAV** file
-checking; domain **terraxmedia.com** (D44, client answers items 9–16). Bank and
+access (Q32). Hosting, database and file storage on **Hetzner**; email from
+**Postmark** (support@terraxmedia.com); **ClamAV** file checking; domain
+**terraxmedia.com** (D44, client answers items 9–16). The street map is the free
+**OpenFreeMap** style, which needs no account or key; viewers' browsers fetch its
+tiles directly (D170, REQ-335). Bank and
 NIN encryption keys stay in Cardvert's own key ring, because Hetzner has no
 key-management service (D44).
 Every process explicitly selects its environment. Outside local/test operation,
@@ -930,10 +935,11 @@ The VPS also hosts the owner's other software, so Cardvert runs with capped memo
 Its Caddy is the server's single public edge. Live at https://213-199-54-25.sslip.io
 since 18 Nov 2026.
 
-**Still open:** [REQ-050](requests.md) Postmark and MapTiler accounts (Hetzner now exists, no server yet);
+**Still open:** [REQ-050](requests.md) Postmark account (Hetzner now exists, no server yet; the map needs no account since D170);
 [REQ-043](requests.md) domain connection; [REQ-033](requests.md) which address (for example app.terraxmedia.com); [REQ-032](requests.md) residency and legal prerequisites.
 
 **History:**
+- **2026-11-19** — Owner chose the free OpenFreeMap street map ("Yes, free map", 18 Nov) and approved replacing MapTiler everywhere (D170, REQ-335). Previously maps were to come from MapTiler, which needs an account and a restricted key (D44).
 - **2026-11-18** — Preview deployed on the shared Contabo VPS from master `9485d03d` with capped memory. Release-template faults it found are logged as REQ-330, Built in `e7b027de`. Built on the server only; no repo commit.
 - **2026-11-17** — Owner: preview on the owner's Contabo VPS until a Hetzner CX33 is available (REQ-329). Previously there was no hosted preview, and Hetzner had no account access.
 - **2026-11-04** - REQ-286: process findings and preview prerequisites are recorded in the host/seed amendments Built in `d98e72b9` and specialist trace/corrections Built in `10e006fb`. REQ-287 explicitly opted-in staging seeding is Built in `d98e72b9`. REQ-283 remains a host-only TODO; this records no trusted-IP deployment verification.
@@ -1027,6 +1033,7 @@ other check is unchanged.
 - **2026-10-05** — Owner approved this one expiring advisory exception while finishing REQ-106, preserving all other high/critical checks and prohibiting npm's forced lint-package downgrade (D59, REQ-107). Built in `69655e2`.
 - **2026-11-18** — Owner approved a 30-day exception for the unfixed picomatch advisory on lint, test and build tools ("the ci check yes go aheaad"; D168, REQ-332). Previously CI allowed only the D59 braces exception, which expired on 5 Nov 2026; it is now removed.
 - **2026-11-18** — Owner approved faster CI ("yes yes, dependabot im neevr paying for anything so its a temporrary fix but sure why not ig"; D169, REQ-333). Previously CI ran on every branch push as well as on pull requests (REQ-108), in six backend groups, and Dependabot also opened weekly version updates. Built in `77b64c31`; PR #43 full CI passed and merged as `42405779`.
+- **2026-11-18** — Owner approved merging Dependabot's first security fixes ("the security prs, sure"; REQ-334); the rule is unchanged and the D168 check still passes. Built in `008395ff`; PR #45 full CI passed and merged as `79f21de2`.
 
 ### Money and privacy verification
 
