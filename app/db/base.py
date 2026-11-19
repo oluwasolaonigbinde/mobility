@@ -75,6 +75,7 @@ import app.models.notification  # noqa: E402,F401
 import app.models.organization  # noqa: E402,F401
 import app.models.payee  # noqa: E402,F401
 import app.models.payout  # noqa: E402,F401
+import app.models.project_feedback  # noqa: E402,F401
 import app.models.report_issuance  # noqa: E402,F401
 import app.models.report_schedule  # noqa: E402,F401
 import app.models.route_replay  # noqa: E402,F401

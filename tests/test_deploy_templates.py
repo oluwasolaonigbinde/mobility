@@ -26,6 +26,7 @@ SECRET_NAMES = {
     "NEXT_PUBLIC_SENTRY_DSN",
     "RELEASE_EVIDENCE_SIGNING_SECRET",
     "NEXT_PUBLIC_MAP_STYLE_URL",
+    "FEEDBACK_REVIEW_PASSWORD",
 }
 
 
@@ -42,6 +43,7 @@ def test_secrets_are_blank_and_unapproved_policies_stay_unset(name: str) -> None
         "ALLOW_DEMO_SEED",
         "DEMO_LIVE_CAR_REFRESH",
         "DEMO_LOGIN_ENABLED",
+        "FEEDBACK_ENABLED",
     ):
         assert environment[key] == "false"
     assert environment["MALWARE_SCANNER_HOST"] == "clamav"

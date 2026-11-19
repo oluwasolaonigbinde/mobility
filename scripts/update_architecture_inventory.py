@@ -30,6 +30,7 @@ GROUPS = (
     ("/api/v1/advertiser/*", "/api/v1/advertiser"),
     ("/api/v1/auth/*", "/api/v1/auth"),
     ("/api/v1/driver/*", "/api/v1/driver"),
+    ("/api/v1/feedback*", "/api/v1/feedback"),
     ("/api/v1/health*", "/api/v1/health"),
     ("/api/v1/notifications/*", "/api/v1/notifications"),
     ("/api/v1/qr/*", "/api/v1/qr"),

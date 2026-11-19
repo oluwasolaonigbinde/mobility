@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { FeedbackWidget } from "@/components/feedback/feedback-widget";
 import { productFontVariables } from "@/lib/fonts";
 import { Providers } from "./providers";
 import "./globals.css";
@@ -20,6 +21,7 @@ export default function RootLayout({
     <html lang="en" className="h-full antialiased" style={productFontVariables}>
       <body className="flex min-h-full flex-col">
         <Providers>{children}</Providers>
+        <FeedbackWidget />
       </body>
     </html>
   );

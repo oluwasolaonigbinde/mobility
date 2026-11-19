@@ -456,6 +456,23 @@ EXEMPT = {
     ),
 }
 
+EXEMPT.update(
+    {
+        ("POST", "/api/v1/feedback"): (
+            "REQ-336/D172: a test-version feedback note is itself the stored record; it "
+            "carries no platform authority, money or personal-data access to audit."
+        ),
+        ("POST", "/api/v1/feedback/review/unlock"): (
+            "REQ-336/D172: stateless review-token issuance after a rate-limited password "
+            "check; it writes nothing to the database."
+        ),
+        ("PATCH", "/api/v1/feedback/{feedback_id}/status"): (
+            "REQ-336/D172: project-team triage state (opened/resolved) on a test-version "
+            "note; resolved_at records the change and no platform authority moves."
+        ),
+    }
+)
+
 KNOWN_UNAUDITED: dict[tuple[str, str], str] = {}
 
 EXEMPT.update(

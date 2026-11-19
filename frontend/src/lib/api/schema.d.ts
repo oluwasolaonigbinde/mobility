@@ -4155,6 +4155,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit Feedback */
+        post: operations["submit_feedback_api_v1_feedback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/feedback/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Feedback */
+        get: operations["export_feedback_api_v1_feedback_export_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/feedback/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Feedback */
+        get: operations["list_feedback_api_v1_feedback_review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/feedback/review/unlock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unlock Feedback Review */
+        post: operations["unlock_feedback_review_api_v1_feedback_review_unlock_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/feedback/{feedback_id}/screenshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Feedback Screenshot */
+        get: operations["read_feedback_screenshot_api_v1_feedback__feedback_id__screenshot_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/feedback/{feedback_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Feedback Status */
+        patch: operations["update_feedback_status_api_v1_feedback__feedback_id__status_patch"];
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -9104,6 +9206,100 @@ export interface components {
          * @enum {string}
          */
         EvidenceVerificationType: "physical_spot_check";
+        /** FeedbackCounts */
+        FeedbackCounts: {
+            /** Opened */
+            opened: number;
+            /** Resolved */
+            resolved: number;
+        };
+        /** FeedbackItemRead */
+        FeedbackItemRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Has Screenshot */
+            has_screenshot: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Message */
+            message: string;
+            /** Name */
+            name: string;
+            /** Page Path */
+            page_path: string;
+            /** Pin X */
+            pin_x: number | null;
+            /** Pin Y */
+            pin_y: number | null;
+            /**
+             * Portal
+             * @enum {string}
+             */
+            portal: "public" | "advertiser" | "driver" | "staff";
+            /** Resolved At */
+            resolved_at: string | null;
+            /** Screenshot Height */
+            screenshot_height: number | null;
+            /** Screenshot Width */
+            screenshot_width: number | null;
+            /** Signed In */
+            signed_in: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "opened" | "resolved";
+        };
+        /** FeedbackList */
+        FeedbackList: {
+            counts: components["schemas"]["FeedbackCounts"];
+            /** Items */
+            items: components["schemas"]["FeedbackItemRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** FeedbackReceived */
+        FeedbackReceived: {
+            /**
+             * Status
+             * @default received
+             * @constant
+             */
+            status: "received";
+        };
+        /** FeedbackReviewToken */
+        FeedbackReviewToken: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Token */
+            token: string;
+        };
+        /** FeedbackStatusUpdate */
+        FeedbackStatusUpdate: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "opened" | "resolved";
+        };
+        /** FeedbackUnlock */
+        FeedbackUnlock: {
+            /** Password */
+            password: string;
+        };
         /**
          * FileAccessPurpose
          * @enum {string}
@@ -21657,6 +21853,225 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VehicleEvidenceSubmissionRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    submit_feedback_api_v1_feedback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Message */
+                    message: string;
+                    /** Name */
+                    name: string;
+                    /** Page Path */
+                    page_path: string;
+                    screenshot?: {
+                        /** Data Url */
+                        data_url: string;
+                        /** Pin X */
+                        pin_x: number;
+                        /** Pin Y */
+                        pin_y: number;
+                    } | null;
+                    /** Website */
+                    website?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackReceived"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    export_feedback_api_v1_feedback_export_csv_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Feedback-Review-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_feedback_api_v1_feedback_review_get: {
+        parameters: {
+            query?: {
+                status?: "opened" | "resolved";
+                limit?: number;
+                offset?: number;
+            };
+            header?: {
+                "X-Feedback-Review-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackList"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    unlock_feedback_review_api_v1_feedback_review_unlock_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackUnlock"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackReviewToken"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_feedback_screenshot_api_v1_feedback__feedback_id__screenshot_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Feedback-Review-Token"?: string | null;
+            };
+            path: {
+                feedback_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    update_feedback_status_api_v1_feedback__feedback_id__status_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Feedback-Review-Token"?: string | null;
+            };
+            path: {
+                feedback_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackStatusUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackItemRead"];
                 };
             };
             /** @description Request validation failed */

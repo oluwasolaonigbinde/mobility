@@ -41,7 +41,7 @@ function EvidenceRead({
         {pending ? "Opening…" : label}
       </Button>
       {state.sensitiveValue ? (
-        <p className="mt-1 font-mono text-xs break-all" data-sensitive-review>
+        <p className="mt-1 font-mono text-xs break-all" data-sensitive-review data-feedback-private>
           {state.sensitiveValue}
         </p>
       ) : null}
@@ -50,6 +50,7 @@ function EvidenceRead({
           href={state.downloadUrl}
           target="_blank"
           rel="noreferrer"
+          data-feedback-private
           className="text-cyan mt-1 block text-xs underline"
         >
           Open reviewed document

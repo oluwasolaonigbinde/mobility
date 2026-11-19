@@ -5,14 +5,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import ValidationError
-from redis.asyncio import Redis
 
 from app.api.v1.dependencies import AdminUserDependency, SessionDependency, SettingsDependency
-from app.core.campaign_enquiry_rate_limit import (
-    EnquiryRateLimiter,
-    RedisEnquiryRateLimiter,
-    UnavailableEnquiryRateLimiter,
-)
+from app.core.campaign_enquiry_rate_limit import EnquiryRateLimiter, open_submit_limiter
 from app.core.errors import AppError
 from app.core.rate_limit import login_client_ip
 from app.schemas.campaign_enquiries import (
@@ -36,18 +31,8 @@ MAX_BODY_BYTES = 8192
 
 
 async def get_enquiry_limiter(settings: SettingsDependency) -> AsyncIterator[EnquiryRateLimiter]:
-    if not settings.redis_url:
-        yield UnavailableEnquiryRateLimiter()
-        return
-    try:
-        redis = Redis.from_url(
-            settings.redis_url, decode_responses=True, socket_connect_timeout=2, socket_timeout=2
-        )
-    except ValueError:
-        yield UnavailableEnquiryRateLimiter()
-        return
-    async with redis:
-        yield RedisEnquiryRateLimiter(redis, settings)
+    async with open_submit_limiter(settings) as limiter:
+        yield limiter
 
 
 async def read_enquiry(request: Request) -> CampaignEnquiryCreate:

@@ -68,7 +68,7 @@ export function ApplicationBankDetails({ accessToken }: { accessToken: string })
     };
   }, [bank, number, accessToken, attempt]);
   return (
-    <section className="grid gap-4" aria-label="Bank details">
+    <section className="grid gap-4" aria-label="Bank details" data-feedback-private>
       <BankPicker
         onBank={(code) => {
           invalidate();

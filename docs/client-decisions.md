@@ -1161,6 +1161,21 @@ Before D72, renewal required the complete identity/bank or vehicle capture and d
 
 - **2026-10-13** — Reviewed Wave 1 and 2 integration Built in `21239a6d`, with renewal/expiry and MapTiler corrections in `7f374c39`; canonical receipt in `3a9f8b64` and one-time parent correction in `e1716154`, deterministic privacy-test fixture in `1217e4a1`, and payout recovery lock repair in `31997a67`. Exact R branch CI 38334710143, final repair branch CI [38369572447](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38369572447) and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass. Delivery requests close in the register; external launch prerequisites remain open.
 
+### Feedback button (test versions)
+
+**Current rule:** On a test version where it is switched on, every page shows a
+small **Feedback** button. Anyone can send a note about the page they are on,
+optionally marking a spot on a screenshot of the screen. The project team reads
+every note on one review page, `/feedback`, unlocked by a project password, and
+can mark notes resolved, reopen them and export a CSV. Staff logins do not see
+the notes. No email is sent for a new note. It is off by default and refused in
+production; how long notes are kept is not decided yet (D172, REQ-336).
+
+**History:**
+- **2026-11-19** — Owner asked for Green Flag's feedback button on Cardvert, on
+  the preview "asap", with one page to read every note (D172, REQ-336).
+  Previously there was no in-app feedback.
+
 ## Scheduled operational monitoring
 
 **Current rule (D82 / REQ-164):** Scheduled jobs publish Cron status, and a

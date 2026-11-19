@@ -12884,6 +12884,250 @@
         "title": "EvidenceVerificationType",
         "type": "string"
       },
+      "FeedbackCounts": {
+        "properties": {
+          "opened": {
+            "title": "Opened",
+            "type": "integer"
+          },
+          "resolved": {
+            "title": "Resolved",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "opened",
+          "resolved"
+        ],
+        "title": "FeedbackCounts",
+        "type": "object"
+      },
+      "FeedbackItemRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "has_screenshot": {
+            "title": "Has Screenshot",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "page_path": {
+            "title": "Page Path",
+            "type": "string"
+          },
+          "pin_x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pin X"
+          },
+          "pin_y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pin Y"
+          },
+          "portal": {
+            "enum": [
+              "public",
+              "advertiser",
+              "driver",
+              "staff"
+            ],
+            "title": "Portal",
+            "type": "string"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "screenshot_height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Screenshot Height"
+          },
+          "screenshot_width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Screenshot Width"
+          },
+          "signed_in": {
+            "title": "Signed In",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "opened",
+              "resolved"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "page_path",
+          "portal",
+          "message",
+          "status",
+          "created_at",
+          "resolved_at",
+          "signed_in",
+          "has_screenshot",
+          "screenshot_width",
+          "screenshot_height",
+          "pin_x",
+          "pin_y"
+        ],
+        "title": "FeedbackItemRead",
+        "type": "object"
+      },
+      "FeedbackList": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/FeedbackCounts"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FeedbackItemRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "counts",
+          "limit",
+          "offset"
+        ],
+        "title": "FeedbackList",
+        "type": "object"
+      },
+      "FeedbackReceived": {
+        "properties": {
+          "status": {
+            "const": "received",
+            "default": "received",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "FeedbackReceived",
+        "type": "object"
+      },
+      "FeedbackReviewToken": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "expires_at"
+        ],
+        "title": "FeedbackReviewToken",
+        "type": "object"
+      },
+      "FeedbackStatusUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "enum": [
+              "opened",
+              "resolved"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "FeedbackStatusUpdate",
+        "type": "object"
+      },
+      "FeedbackUnlock": {
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "FeedbackUnlock",
+        "type": "object"
+      },
       "FileAccessPurpose": {
         "enum": [
           "campaign_preview",
@@ -38297,6 +38541,433 @@
         "summary": "Create Vehicle Evidence Submission",
         "tags": [
           "Protected KYC"
+        ]
+      }
+    },
+    "/api/v1/feedback": {
+      "post": {
+        "operationId": "submit_feedback_api_v1_feedback_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "message": {
+                    "maxLength": 5000,
+                    "minLength": 1,
+                    "title": "Message",
+                    "type": "string"
+                  },
+                  "name": {
+                    "maxLength": 120,
+                    "minLength": 1,
+                    "title": "Name",
+                    "type": "string"
+                  },
+                  "page_path": {
+                    "maxLength": 500,
+                    "minLength": 1,
+                    "title": "Page Path",
+                    "type": "string"
+                  },
+                  "screenshot": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "data_url": {
+                            "maxLength": 1500000,
+                            "minLength": 1,
+                            "title": "Data Url",
+                            "type": "string"
+                          },
+                          "pin_x": {
+                            "maximum": 1.0,
+                            "minimum": 0.0,
+                            "title": "Pin X",
+                            "type": "number"
+                          },
+                          "pin_y": {
+                            "maximum": 1.0,
+                            "minimum": 0.0,
+                            "title": "Pin Y",
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "data_url",
+                          "pin_x",
+                          "pin_y"
+                        ],
+                        "title": "FeedbackScreenshotCreate",
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "website": {
+                    "anyOf": [
+                      {
+                        "maxLength": 500,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Website"
+                  }
+                },
+                "required": [
+                  "name",
+                  "page_path",
+                  "message"
+                ],
+                "title": "FeedbackCreate",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackReceived"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Submit Feedback",
+        "tags": [
+          "Project feedback"
+        ]
+      }
+    },
+    "/api/v1/feedback/export.csv": {
+      "get": {
+        "operationId": "export_feedback_api_v1_feedback_export_csv_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Feedback-Review-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Feedback-Review-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "summary": "Export Feedback",
+        "tags": [
+          "Project feedback"
+        ]
+      }
+    },
+    "/api/v1/feedback/review": {
+      "get": {
+        "operationId": "list_feedback_api_v1_feedback_review_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "opened",
+              "enum": [
+                "opened",
+                "resolved"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Feedback-Review-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Feedback-Review-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "summary": "List Feedback",
+        "tags": [
+          "Project feedback"
+        ]
+      }
+    },
+    "/api/v1/feedback/review/unlock": {
+      "post": {
+        "operationId": "unlock_feedback_review_api_v1_feedback_review_unlock_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackUnlock"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackReviewToken"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "summary": "Unlock Feedback Review",
+        "tags": [
+          "Project feedback"
+        ]
+      }
+    },
+    "/api/v1/feedback/{feedback_id}/screenshot": {
+      "get": {
+        "operationId": "read_feedback_screenshot_api_v1_feedback__feedback_id__screenshot_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "feedback_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Feedback Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Feedback-Review-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Feedback-Review-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "summary": "Read Feedback Screenshot",
+        "tags": [
+          "Project feedback"
+        ]
+      }
+    },
+    "/api/v1/feedback/{feedback_id}/status": {
+      "patch": {
+        "operationId": "update_feedback_status_api_v1_feedback__feedback_id__status_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "feedback_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Feedback Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Feedback-Review-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Feedback-Review-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackStatusUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackItemRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "summary": "Update Feedback Status",
+        "tags": [
+          "Project feedback"
         ]
       }
     },
