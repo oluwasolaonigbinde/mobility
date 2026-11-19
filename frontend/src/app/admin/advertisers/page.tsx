@@ -81,7 +81,7 @@ export default async function AdvertisersPage({
                         ? c.outstanding
                             .map(({ currency, amount }) => exactCompanyMoney(amount, currency))
                             .join(" · ")
-                        : "No issued invoices"}
+                        : "Nothing owed"}
                     </p>
                   </Link>
                 );

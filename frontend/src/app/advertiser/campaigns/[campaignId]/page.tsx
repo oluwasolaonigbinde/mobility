@@ -66,6 +66,9 @@ export default async function CampaignDetailPage({
     return <DataUnavailable title="Campaign unavailable" reason={loaded.reason} retryHref={base} />;
   }
   const campaign = loaded.data;
+  const showPerformance = ["approved", "active", "paused", "finished", "cancelled"].includes(
+    campaign.status,
+  );
   const cancellable = isCancellableCampaign(campaign.status);
   const [visuals, commercial, history, changes, cancellations, live, performance] =
     await Promise.all([
@@ -88,8 +91,8 @@ export default async function CampaignDetailPage({
       cancellable
         ? loadAdvertiserPageData(() => readCampaignCancellationRequests(api, campaignId))
         : null,
-      loadLivePositions(api, campaignId),
-      loadPerformance(api, campaignId, campaign),
+      showPerformance ? loadLivePositions(api, campaignId) : null,
+      showPerformance ? loadPerformance(api, campaignId, campaign) : null,
     ]);
   // A request already sent shows its status instead of a second form (REQ-194).
   const cancellation =
@@ -145,7 +148,7 @@ export default async function CampaignDetailPage({
     campaign.status === "active" ||
     (commercial.available && Boolean(commercial.data.production_start?.started_at));
   const positions =
-    live.available && live.data.campaign_id === campaignId ? live.data.positions : null;
+    live?.available && live.data.campaign_id === campaignId ? live.data.positions : null;
   const assets = await CampaignAssets({
     api,
     campaignId,
@@ -233,52 +236,54 @@ export default async function CampaignDetailPage({
         </div>
         <div className="portal-hero-art" aria-hidden="true" />
       </section>
-      <div className="mb-6 grid gap-5 lg:grid-cols-2">
-        <Panel className="overflow-hidden">
-          <div className="border-edge flex items-center justify-between gap-3 border-b px-5 py-4">
-            <h2 className="font-semibold">On the road now</h2>
-            <a href={base} className="text-green text-sm font-semibold">
-              Refresh
-            </a>
-          </div>
-          <div className="h-64">
-            {areas.available ? (
-              <CampaignMap
-                areas={areas.data.items.map(({ id, name, geometry, zone_type }) => ({
-                  id,
-                  name,
-                  geometry,
-                  zone_type,
-                }))}
-                positions={positions ?? []}
-              />
-            ) : (
-              <p className="text-muted p-5 text-sm">
-                The campaign area couldn&apos;t be loaded.{" "}
-                <Link href={base} className="underline">
-                  Try again
-                </Link>
-              </p>
-            )}
-          </div>
-          <p className="text-muted px-5 py-4 text-sm">
-            {positions === null
-              ? "Car positions couldn't be loaded. Refresh to try again."
-              : positions.length === 0
-                ? "No cars on the road right now"
-                : `${positions.length} ${positions.length === 1 ? "car" : "cars"} on the road · as of about 15 minutes ago`}
-          </p>
-          <p className="text-muted px-5 pb-4 text-sm">
-            {areas.available ? areas.data.items.map((area) => area.name).join(" · ") : ""}{" "}
-            <Link href={`${base}/map`} className="text-green font-semibold">
-              View coverage history
-            </Link>
-          </p>
-        </Panel>
-        <Panel>
-          <PerformanceCard {...performance} cars={positions?.length ?? null} />
-        </Panel>
-      </div>
+      {performance ? (
+        <div className="mb-6 grid gap-5 lg:grid-cols-2">
+          <Panel className="overflow-hidden">
+            <div className="border-edge flex items-center justify-between gap-3 border-b px-5 py-4">
+              <h2 className="font-semibold">On the road now</h2>
+              <a href={base} className="text-green text-sm font-semibold">
+                Refresh
+              </a>
+            </div>
+            <div className="h-64">
+              {areas.available ? (
+                <CampaignMap
+                  areas={areas.data.items.map(({ id, name, geometry, zone_type }) => ({
+                    id,
+                    name,
+                    geometry,
+                    zone_type,
+                  }))}
+                  positions={positions ?? []}
+                />
+              ) : (
+                <p className="text-muted p-5 text-sm">
+                  The campaign area couldn&apos;t be loaded.{" "}
+                  <Link href={base} className="underline">
+                    Try again
+                  </Link>
+                </p>
+              )}
+            </div>
+            <p className="text-muted px-5 py-4 text-sm">
+              {positions === null
+                ? "Car positions couldn't be loaded. Refresh to try again."
+                : positions.length === 0
+                  ? "No cars on the road right now"
+                  : `${positions.length} ${positions.length === 1 ? "car" : "cars"} on the road · as of about 15 minutes ago`}
+            </p>
+            <p className="text-muted px-5 pb-4 text-sm">
+              {areas.available ? areas.data.items.map((area) => area.name).join(" · ") : ""}{" "}
+              <Link href={`${base}/map`} className="text-green font-semibold">
+                See your campaign areas
+              </Link>
+            </p>
+          </Panel>
+          <Panel>
+            <PerformanceCard {...performance} cars={positions?.length ?? null} />
+          </Panel>
+        </div>
+      ) : null}
       {assets}
       <Panel className="mb-7 flex items-start gap-4 p-5 md:p-6">
         <IconTile name="wallet" tone="gold" />

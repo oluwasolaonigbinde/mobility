@@ -263,7 +263,7 @@ export const sources: Source[] = [
         `Payment run ${formatDate(r.created_at)}`,
         [
           r.status === "reserved" && r.approval_mode === "manual" && !r.approved_at
-            ? "Needs approval"
+            ? "Waiting for approval"
             : null,
           (r.outcomes.failed ?? 0) > 0 ? "Has failed payments" : null,
         ]

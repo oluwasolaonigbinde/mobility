@@ -230,6 +230,8 @@ def test_renderer_is_deterministic_allowlisted_and_csv_is_safe():
     ]
     assert "campaign_id" not in content and "Nigeria time (WAT)" in content
     assert "Preview app path" not in content
+    assert "Driving time (hours),0.50,hours" in content
+    assert "Estimated views,75,views" in content
     assert rows[1][0].startswith("'  =")
     assert (
         "Estimated views" in content
@@ -329,7 +331,7 @@ def test_terminal_trip_after_campaign_end_uses_same_requested_period_everywhere(
             assert item["measured"]["trip_count"] == 3
             assert item["daily"][0] == daily.json()["items"][0]
             csv_text = render_campaign_csv(report.snapshot).decode("utf-8-sig")
-            assert "Verified driving distance,3000.00,metres" in csv_text
+            assert "Verified driving distance (km),3.00,km" in csv_text
             assert "Verified trips,3,trips" in csv_text
             assert render_campaign_pdf(report.snapshot).startswith(b"%PDF-")
 

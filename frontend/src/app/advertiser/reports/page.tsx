@@ -25,8 +25,16 @@ export default async function ReportsPage() {
         retryHref="/advertiser/reports"
       />
     );
-  const campaigns = result.data.map(({ id, name }) => ({ id, name }));
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(new Date());
+  const now = new Date();
+  const campaigns = result.data
+    .filter(
+      ({ status, start_at }) =>
+        ["active", "paused", "finished", "cancelled"].includes(status) &&
+        start_at != null &&
+        Date.parse(start_at) <= now.getTime(),
+    )
+    .map(({ id, name }) => ({ id, name }));
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(now);
   return (
     <div className="space-y-6">
       <PageHeader title="Reports" />

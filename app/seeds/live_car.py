@@ -3,7 +3,7 @@
 The seed lays down 40 minutes of staggered history for each ``demo-live-v1``
 trip. A five-minute worker job then submits one deterministic batch per missed
 slot through the driver ingest path, so the advertiser's delayed live map keeps
-showing both cars for up to 12 hours per trip. It runs only when
+showing both cars while the assigned campaigns run. It runs only when
 ``DEMO_LIVE_CAR_REFRESH`` is set (the local compose worker) and never in
 production. Privacy rules are untouched: the map still applies its delay,
 bucket, window, rounding and parked checks to these points.
@@ -20,8 +20,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
 from app.core.errors import AppError
+from app.models.campaign import Campaign
+from app.models.campaign_assignment import CampaignAssignment
 from app.models.driver import DriverProfile
 from app.models.trip import LocationPing, LocationPingBatch, TripSession
+from app.models.user import User
+from app.models.vehicle import Vehicle
 from app.schemas.trips import LocationPingBatchCreate, LocationPingCreate
 
 logger = logging.getLogger(__name__)
@@ -113,12 +117,7 @@ def live_car_batch(
 async def end_capped_live_car(
     session: AsyncSession, *, trip: TripSession, settings: Settings
 ) -> None:
-    """End a trip past the cap as its driver, sealing it on the evidence the server holds.
-
-    A capped trip stays active until auto-end (2 hours without a receipt), and one
-    active trip per vehicle blocks a fresh one, so the reseed ends it first through
-    the driver End service with a complete manifest of the held batches.
-    """
+    """Seal the demo trip through Driver End using the batches the server holds."""
     from app.schemas.trips import (
         TripEndRequest,
         TripEvidenceManifestCreate,
@@ -179,13 +178,42 @@ def live_car_refresh_enabled(settings: Settings) -> bool:
 async def _catch_up(
     session: AsyncSession, *, trip_id: UUID, settings: Settings, now: datetime
 ) -> tuple[int, int]:
+    from app.core.gps_health import GPSAttempt, record_gps_attempt
+    from app.services.campaign_lifecycle import campaign_display_status
+    from app.services.payout_rule_serialization import acquire_campaign_terms_lock
     from app.services.trips import ingest_location_ping_batch
 
     trip = await session.get(TripSession, trip_id)
-    profile = await session.get(DriverProfile, trip.driver_profile_id) if trip else None
-    if trip is None or profile is None:
+    if trip is None:
+        return 0, 0
+    profile = await session.get(DriverProfile, trip.driver_profile_id)
+    if profile is None:
         return 0, 0
     started = trip.started_at
+    capped = started + LIVE_CAR_CAP <= now
+    if capped:
+        # End takes this exclusive campaign lock before the trip lock.
+        await acquire_campaign_terms_lock(session, trip.campaign_id)
+        await session.refresh(trip)
+    if trip.status != "active":
+        raise AppError("TRIP_ALREADY_ENDED", "Trip is already ended")
+    campaign = await session.get(Campaign, trip.campaign_id)
+    assignment = await session.get(CampaignAssignment, trip.assignment_id)
+    vehicle = await session.get(Vehicle, trip.vehicle_id)
+    driver = await session.get(User, profile.user_id)
+    usable = (
+        campaign is not None
+        and campaign_display_status(campaign.status, campaign.end_at, now=now) == "active"
+        and (campaign.start_at is None or campaign.start_at <= now)
+        and assignment is not None
+        and assignment.status == "active"
+        and profile.onboarding_status == "active"
+        and vehicle is not None
+        and vehicle.status == "active"
+        and vehicle.driver_profile_id == profile.id
+        and driver is not None
+        and driver.status == "active"
+    )
     end = min(now, started + LIVE_CAR_CAP)
     last = await session.scalar(
         select(func.max(LocationPing.recorded_at)).where(LocationPing.trip_session_id == trip.id)
@@ -193,7 +221,7 @@ async def _catch_up(
     # Re-offer the last ping's slot (a duplicate), then every slot missed since.
     slot = max(live_car_slot(last), started) if last is not None else started
     accepted = duplicates = 0
-    while slot + LIVE_CAR_SLOT <= end:
+    while usable and slot + LIVE_CAR_SLOT <= end:
         sequence = await session.scalar(
             select(LocationPingBatch.batch_sequence).where(
                 LocationPingBatch.trip_session_id == trip.id,
@@ -208,31 +236,49 @@ async def _catch_up(
                 )
             )
             sequence = 0 if highest is None else highest + 1
-        result = await ingest_location_ping_batch(
-            session,
-            user_id=profile.user_id,
-            trip_id=trip.id,
-            payload=live_car_batch(
+        telemetry = GPSAttempt()
+        try:
+            result = await ingest_location_ping_batch(
+                session,
+                user_id=profile.user_id,
                 trip_id=trip.id,
-                started_at=started,
-                path_offset=int(trip.trip_metadata.get("path_offset", 0)),
-                slot=slot,
-                batch_sequence=sequence,
-            ),
-            settings=settings,
-        )
+                payload=live_car_batch(
+                    trip_id=trip.id,
+                    started_at=started,
+                    path_offset=int(trip.trip_metadata.get("path_offset", 0)),
+                    slot=slot,
+                    batch_sequence=sequence,
+                ),
+                settings=settings,
+                telemetry=telemetry,
+            )
+        finally:
+            await record_gps_attempt(settings, telemetry)
         if result.duplicate:
             duplicates += 1
         else:
             accepted += 1
         slot += LIVE_CAR_SLOT
+    if capped or not usable:
+        from app.seeds.rich import ensure_reporting_live_car
+
+        await end_capped_live_car(session, trip=trip, settings=settings)
+        if usable:
+            await ensure_reporting_live_car(
+                session,
+                campaign=campaign,
+                assignment=assignment,
+                settings=settings,
+                path_offset=int(trip.trip_metadata.get("path_offset", 0)),
+                now=now,
+            )
     return accepted, duplicates
 
 
 async def refresh_demo_live_cars(
     sessionmaker: async_sessionmaker[AsyncSession], *, settings: Settings, now: datetime
 ) -> dict[str, int]:
-    """Feed every active ``demo-live-v1`` trip under the 12-hour cap up to ``now``."""
+    """Feed seeded live trips and replace those that reach the 12-hour cap."""
     summary = {"trips": 0, "accepted": 0, "duplicates": 0}
     if not live_car_refresh_enabled(settings):
         return summary
@@ -243,7 +289,6 @@ async def refresh_demo_live_cars(
                 .where(
                     TripSession.trip_metadata["seed_version"].as_string() == LIVE_CAR_VERSION,
                     TripSession.status == "active",
-                    TripSession.started_at > now - LIVE_CAR_CAP,
                 )
                 .order_by(TripSession.id)
             )
@@ -256,7 +301,7 @@ async def refresh_demo_live_cars(
                 )
                 await session.commit()
         except AppError as exc:
-            # A trip auto-ended or sealed meanwhile simply stops; reseeding starts a new one.
+            # A trip auto-ended or sealed while the job was running.
             logger.warning("demo live car %s not refreshed: %s", trip_id, exc.code)
             continue
         summary["trips"] += 1

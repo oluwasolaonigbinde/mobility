@@ -7,7 +7,7 @@ import { requireRole } from "@/lib/auth/current-user";
 import { receiptsAllocatedToTerms } from "@/lib/billing/history";
 import { vatRateToPercentage } from "@/lib/billing/vat-percentage";
 import { moneyMinor, minorDecimal } from "@/lib/advertiser/budget-display";
-import { watCalendarDate } from "@/lib/billing/invoice-document";
+import { isInvoicePayable, watCalendarDate } from "@/lib/billing/invoice-document";
 import { formatDate, formatMoney } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -208,7 +208,7 @@ export default async function AdminCampaignBillingPage({
               <Field
                 name="quote_reference"
                 label="Quote reference"
-                defaultValue={latest?.quote_reference}
+                defaultValue={latest?.quote_reference ?? `TX-${campaignId.slice(0, 8)}`}
                 required
               />
               {quoteLines.map((line, index) => (
@@ -322,7 +322,7 @@ export default async function AdminCampaignBillingPage({
                 defaultValue={latest ? String(latest.payment_terms.notes ?? "") : undefined}
                 required
               />
-              <Button type="submit">Save quotation</Button>
+              <Button type="submit">Send quotation</Button>
             </QuotationForm>
           ) : !latest && !commercial.terms ? (
             <p className="text-muted text-sm">The advertiser has not requested a quotation.</p>
@@ -355,57 +355,47 @@ export default async function AdminCampaignBillingPage({
 
       {commercial.terms ? (
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <Panel className="p-6">
-            <h2 className="font-display text-xl font-semibold">Manual bank transfer</h2>
-            {invoice?.status !== "issued" ? (
-              <p className="text-muted mt-2 text-sm">
-                Payments can be recorded once the invoice is issued.
+          {isInvoicePayable(invoice) ? (
+            <Panel className="p-6">
+              <h2 className="font-display text-xl font-semibold">Manual bank transfer</h2>
+              <p className="micro text-muted mt-1 mb-4">
+                The transfer must match the expected payment before it can be confirmed and assigned
+                to this campaign.
               </p>
-            ) : (
-              <>
-                <p className="micro text-muted mt-1 mb-4">
-                  The transfer must match the expected payment before it can be confirmed and
-                  assigned to this campaign.
-                </p>
-                <form
-                  action={recordManualTransferAction.bind(
-                    null,
-                    campaignId,
-                    campaign.organization.id,
-                    commercial.terms.id,
-                  )}
-                  className="grid gap-4"
-                >
+              <form
+                action={recordManualTransferAction.bind(
+                  null,
+                  campaignId,
+                  campaign.organization.id,
+                  commercial.terms.id,
+                )}
+                className="grid gap-4"
+              >
+                <Field name="external_transaction_id" label="Bank transaction reference" required />
+                <div className="grid grid-cols-2 gap-4">
+                  <Field name="observed_amount" label="Amount received" required />
                   <Field
-                    name="external_transaction_id"
-                    label="Bank transaction reference"
+                    name="expected_amount"
+                    label="Expected amount"
+                    defaultValue={commercial.terms.gross_amount}
                     required
                   />
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field name="observed_amount" label="Amount received" required />
-                    <Field
-                      name="expected_amount"
-                      label="Expected amount"
-                      defaultValue={commercial.terms.gross_amount}
-                      required
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field name="allocation_amount" label="Amount for this campaign (optional)" />
-                    <Field
-                      name="currency"
-                      label="Currency"
-                      defaultValue={commercial.terms.currency}
-                      required
-                    />
-                  </div>
-                  <Field name="payer_name" label="Payer name" required />
-                  <Field name="evidence_reference" label="Proof of payment reference" required />
-                  <Button type="submit">Check and record transfer</Button>
-                </form>
-              </>
-            )}
-          </Panel>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field name="allocation_amount" label="Amount for this campaign (optional)" />
+                  <Field
+                    name="currency"
+                    label="Currency"
+                    defaultValue={commercial.terms.currency}
+                    required
+                  />
+                </div>
+                <Field name="payer_name" label="Payer name" required />
+                <Field name="evidence_reference" label="Proof of payment reference" required />
+                <Button type="submit">Check and record transfer</Button>
+              </form>
+            </Panel>
+          ) : null}
 
           <Panel className="p-6">
             <div className="flex items-start justify-between gap-3">
@@ -721,26 +711,38 @@ export default async function AdminCampaignBillingPage({
                 )}
               </p>
             ) : null}
-            <form
-              action={recordFinancialAuthorityAction.bind(
-                null,
-                campaignId,
-                commercial.terms.payment_class as "standard_prepaid" | "approved_corporate_credit",
-                me.user.id,
-              )}
-              className="mt-5 grid gap-4"
-            >
-              <Field name="max_driver_liability" label="Maximum amount owed to drivers" required />
-              {commercial.terms.payment_class === "approved_corporate_credit" ? (
-                <>
-                  <Field name="credit_limit" label="Approved credit limit" required />
-                  <Field name="due_at" label="Credit due at" type="datetime-local" required />
-                  <Field name="credit_terms" label="Approved credit terms" required />
-                </>
-              ) : null}
-              <Field name="reason" label="Supporting record and reason" required />
-              <Button type="submit">Record funding approval</Button>
-            </form>
+            {!["cancelled", "finished"].includes(campaign.status) ? (
+              <form
+                action={recordFinancialAuthorityAction.bind(
+                  null,
+                  campaignId,
+                  commercial.terms.payment_class as
+                    "standard_prepaid" | "approved_corporate_credit",
+                  me.user.id,
+                )}
+                className="mt-5 grid gap-4"
+              >
+                <Field
+                  name="max_driver_liability"
+                  label="Maximum amount owed to drivers"
+                  required
+                />
+                {commercial.terms.payment_class === "approved_corporate_credit" ? (
+                  <>
+                    <Field name="credit_limit" label="Approved credit limit" required />
+                    <Field
+                      name="due_at"
+                      label="Credit due at (Nigeria time, WAT)"
+                      type="datetime-local"
+                      required
+                    />
+                    <Field name="credit_terms" label="Approved credit terms" required />
+                  </>
+                ) : null}
+                <Field name="reason" label="Supporting record and reason" required />
+                <Button type="submit">Record funding approval</Button>
+              </form>
+            ) : null}
             {commercial.financial_authority && !commercial.production_start ? (
               <div className="mt-5">
                 <p className="text-muted mb-3 text-sm">

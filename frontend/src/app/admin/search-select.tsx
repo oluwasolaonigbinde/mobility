@@ -109,7 +109,8 @@ export function SearchSelect({
       ) : result ? (
         <>
           <p className="text-muted my-2 text-xs">
-            {result.total} results · Final eligibility is rechecked when you submit.
+            {result.total} {result.total === 1 ? "result" : "results"} · Final eligibility is
+            rechecked when you submit.
           </p>
           <ul className="space-y-2">
             {result.items.map((option) => (

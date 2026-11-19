@@ -176,7 +176,7 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
   const held = (flag: NonNullable<typeof selectedFlag>) =>
     flag.money_effect.held_currency
       ? formatMoneyExact(flag.money_effect.held_pending_net, flag.money_effect.held_currency)
-      : "No pay held";
+      : "None";
   const summaries = new Map<
     string,
     { name: string; plate: string; campaign: string; date: string }

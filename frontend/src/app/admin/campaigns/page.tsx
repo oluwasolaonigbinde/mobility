@@ -227,8 +227,17 @@ async function CampaignList(
           ? "Review campaign details"
           : source.id === "paused"
             ? "Review pause and funding"
-            : "View launch checklist",
-      section: p.section ?? "overview",
+            : source.id === "finished"
+              ? "View results"
+              : source.id === "cancelled"
+                ? "See money summary"
+                : "View launch checklist",
+      section:
+        source.id === "finished"
+          ? "results"
+          : source.id === "cancelled"
+            ? "money"
+            : (p.section ?? "overview"),
     }));
     total = data?.total;
   }
@@ -292,12 +301,20 @@ async function CampaignList(
           <p className="text-muted mb-4 text-sm">
             {total} matching{" "}
             {source.id === "artwork"
-              ? "artwork submissions"
+              ? total === 1
+                ? "artwork submission"
+                : "artwork submissions"
               : source.id === "changes"
-                ? "change requests"
+                ? total === 1
+                  ? "change request"
+                  : "change requests"
                 : source.id === "installation"
-                  ? "installation submissions"
-                  : "campaigns"}
+                  ? total === 1
+                    ? "installation submission"
+                    : "installation submissions"
+                  : total === 1
+                    ? "campaign"
+                    : "campaigns"}
           </p>
           {!items.length ? (
             <p>Nothing in this list. Choose another status or change the search.</p>
@@ -306,15 +323,6 @@ async function CampaignList(
               {items.map(({ key, campaign, next, section, job }, i) => {
                 const evaluation = summaries[i]?.commercial?.budget_check;
                 const spent = evaluation?.billing_spend_amount;
-                const percentage =
-                  spent != null &&
-                  campaign.budget_amount != null &&
-                  Number(campaign.budget_amount) > 0
-                    ? Math.min(
-                        100,
-                        Math.max(0, (Number(spent) / Number(campaign.budget_amount)) * 100),
-                      )
-                    : undefined;
                 return (
                   <Link
                     key={key}
@@ -333,22 +341,16 @@ async function CampaignList(
                     </div>
                     <div>
                       <p className="text-sm">{adminStatus(campaign.status, "campaign")}</p>
-                      <p className="text-muted mt-1 text-sm">{summaries[i]?.jobs} driver jobs</p>
+                      <p className="text-muted mt-1 text-sm">
+                        {summaries[i]?.jobs} driver {summaries[i]?.jobs === 1 ? "job" : "jobs"}
+                      </p>
                     </div>
                     <div>
-                      {percentage !== undefined ? (
-                        <>
-                          <p className="text-muted text-xs">
-                            {campaignSpendLabel(campaign.status)}:{" "}
-                            {formatMoneyExact(spent, campaign.currency)}
-                          </p>
-                          <progress
-                            aria-label={`Booked for ${campaign.name}`}
-                            max={100}
-                            value={percentage}
-                            className="my-2 h-2 w-full"
-                          />
-                        </>
+                      {spent != null ? (
+                        <p className="text-muted text-xs">
+                          {campaignSpendLabel(campaign.status)}:{" "}
+                          {formatMoneyExact(spent, campaign.currency)}
+                        </p>
                       ) : null}
                       <p className="text-sm">Next: {next}</p>
                     </div>

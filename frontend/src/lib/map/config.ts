@@ -5,8 +5,8 @@
  * code change. The default is a local, provider-neutral schematic background
  * with no network source.
  *
- * D44 selects MapTiler: NEXT_PUBLIC_MAP_STYLE_URL is its complete HTTPS style
- * URL with a domain-restricted public key, frozen into the frontend build.
+ * OpenFreeMap supplies the keyless Liberty map style. NEXT_PUBLIC_MAP_STYLE_URL
+ * is its complete HTTPS style URL, frozen into the frontend build.
  * Go-live provider/account/licence gates remain in docs/deployment-templates.md.
  */
 import { setWorkerUrl, type StyleSpecification } from "maplibre-gl";

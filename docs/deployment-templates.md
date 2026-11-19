@@ -1,4 +1,4 @@
-# Deployment templates — Hetzner, MapTiler, ClamAV and Postmark
+# Deployment templates — Hetzner, OpenFreeMap, ClamAV and Postmark
 
 **Templates only (D44/D68, REQ-049/117). Not deployed or provider-verified.**
 No accounts, servers, buckets, keys or DNS records were created. Every secret
@@ -70,7 +70,7 @@ production; staging synthetic setup does not close that external input.
 | 2 — private webhooks/health unreachable | Falls away: existing Caddy health/webhook routes | Public webhook delivery/recovery under W2-01C |
 | 3 — Render Redis plaintext/auth mismatch | Falls away: authenticated TLS-only bundled Redis | Certificates, release smoke and restore evidence |
 | 4 — generated database URL/PostGIS | Falls away: pinned bundled PostGIS and explicit asyncpg verified TLS | External TLS inputs and deployment proof |
-| 5 — Mapbox/MapLibre and CSP | Template mismatch closes: MapTiler HTTPS styles and narrow API CSP | Account/licence, restricted public key, real tile/sprite/glyph browser rehearsal |
+| 5 — Mapbox/MapLibre and CSP | Template mismatch closes: OpenFreeMap HTTPS style (D170, replacing MapTiler) and a narrow CSP for its one origin | Real tile/sprite/glyph browser rehearsal |
 | 6 — Render release lifecycle | Falls away: existing standalone Compose release/backup/restore/recovery | Host rehearsal, off-host backup scheduling, restore/compatibility evidence |
 | 7 — application keys outside AWS KMS | Still open: D44 key ring remains; no KMS claim | Production custodian, injection, rotation/recovery, EXT-KMS-CUSTODY |
 | 8 — long-lived AWS key | AWS-specific mismatch falls away; Hetzner credentials remain long lived | Dedicated project or reviewed per-key bucket policy, injection and rotation |
@@ -140,21 +140,21 @@ Actual checksum upload/versioned read/copy/delete, unsigned denial, backup and
 isolated restore remain provider adoption checks. No lifecycle expiry is
 selected while legal retention remains unresolved.
 
-## MapTiler with existing MapLibre
+## OpenFreeMap with existing MapLibre
 
-Set build-time `NEXT_PUBLIC_MAP_STYLE_URL` to
-`https://api.maptiler.com/maps/<approved-map>/style.json?key=<restricted-public-key>`.
-The complete URL passes directly to MapLibre without a Mapbox transform.
-[MapTiler's MapLibre guide](https://docs.maptiler.com/maplibre/)
-documents this HTTPS form. Choose map/account/licence later; no key is committed.
-Restrict the browser-visible key to approved origins and rebuild when it
-changes. Blank retains the local schematic.
+D170 replaces MapTiler with the free OpenFreeMap style. Set build-time
+`NEXT_PUBLIC_MAP_STYLE_URL` to `https://tiles.openfreemap.org/styles/liberty`.
+It needs no account or key, and the release contract refuses any query string.
+The URL passes directly to MapLibre. Rebuild the frontend image when it changes.
+Blank keeps the local schematic.
 
-Caddy permits only `https://api.maptiler.com` in connect-src and img-src for
-styles, tiles, glyphs and sprites; scripts/fonts/frames gain no origins. No
-external SDK/CDN is introduced. Custom styles importing other origins need
-review, not wildcard CSP. Rendering, attribution/licence and quota remain
-EXT-BASEMAP adoption evidence.
+The liberty style, its vector and raster tiles, glyphs and sprites are all served
+from `https://tiles.openfreemap.org` (checked 19 Nov 2026). Caddy permits only
+that origin in connect-src and img-src; scripts, fonts and frames gain no origins.
+No external SDK or CDN is introduced. A style that imports other origins needs
+review, not a wildcard CSP. The map shows the style's OpenFreeMap and
+OpenStreetMap attribution. Viewers' browsers fetch tiles directly, so
+OpenFreeMap sees their IP address and the map area they view.
 
 ## Email, key custody and unanswered inputs
 

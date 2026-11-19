@@ -480,7 +480,7 @@ export default async function DriverHub({
                 <Link
                   key={task.id}
                   className="border-edge mt-3 block rounded-lg border p-3"
-                  href={`/admin/support?tab=contact&driver_profile_id=${id}&task=${task.id}`}
+                  href={`/admin/support?tab=contact&driver_profile_id=${id}&history=true&task=${task.id}`}
                 >
                   {adminStatus(task.status, "contact")} · {formatDate(task.created_at)}
                 </Link>

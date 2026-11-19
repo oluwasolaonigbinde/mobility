@@ -5938,6 +5938,8 @@ export interface components {
             action: string;
             /** Actor Email */
             actor_email: string | null;
+            /** Actor Name */
+            actor_name: string | null;
             /** Actor User Id */
             actor_user_id: string | null;
             /**
@@ -6828,6 +6830,8 @@ export interface components {
              * @description Unresolved provider exposure across scoped payout-line chains, including replacements of paid credits.
              */
             in_flight: string;
+            /** Not Released */
+            not_released: string;
             /**
              * Provider Verified Paid
              * @description Total amount of verified successful payout lines, including duplicate transfers in a replacement chain.
@@ -12968,6 +12972,7 @@ export interface operations {
                 entity_type?: string | null;
                 entity_id?: string | null;
                 actor_user_id?: string | null;
+                campaign_id?: string | null;
                 created_from?: string | null;
                 created_to?: string | null;
                 limit?: number;

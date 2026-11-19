@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/errors";
 
@@ -305,6 +305,44 @@ describe("DriverAssignmentsPage history availability", () => {
     expect(screen.queryByText("Finished", { exact: true })).not.toBeInTheDocument();
     expect(container.querySelector("summary")).not.toHaveTextContent("Dec 2026");
     expect(screen.getByText("Started 2 Oct 2026 – Finished 3 Oct 2026.")).toBeInTheDocument();
+  });
+
+  it("lists running jobs first, then accepted jobs by campaign start, undated last", async () => {
+    const job = (id: string, status: string, start_at?: string) => ({
+      id,
+      campaign_id: `campaign-${id}`,
+      status,
+      offered_at: "2026-09-01T09:00:00Z",
+      offer_terms: null,
+      campaign: { name: `Job ${id}`, ...(start_at ? { start_at } : {}) },
+      vehicle: { plate_number: "ABC-130" },
+    });
+    mockJobs([
+      job("late", "accepted", "2027-03-01T08:00:00Z"),
+      job("undated-1", "accepted"),
+      job("live-1", "active", "2027-05-01T08:00:00Z"),
+      job("early", "accepted", "2027-01-01T08:00:00Z"),
+      job("live-2", "active", "2026-01-01T08:00:00Z"),
+      job("early-twin", "accepted", "2027-01-01T08:00:00Z"),
+      job("undated-2", "accepted"),
+    ]);
+
+    render(await DriverAssignmentsPage({}));
+
+    const currentSection = screen.getByRole("region", { name: "Current" });
+    expect(
+      within(currentSection)
+        .getAllByRole("heading", { level: 3, name: /^Job / })
+        .map((heading) => heading.textContent),
+    ).toEqual([
+      "Job live-1",
+      "Job live-2",
+      "Job early",
+      "Job early-twin",
+      "Job late",
+      "Job undated-1",
+      "Job undated-2",
+    ]);
   });
 
   it("shows daily-rate pay terms as plain sentences instead of hourly lines", async () => {

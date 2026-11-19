@@ -282,7 +282,15 @@ export default async function DriverAssignmentsPage({
       history.state === "ready" ? history.data.items.at(-1) : undefined,
     ]),
   );
-  const current = items.filter((item) => CURRENT.includes(item.status));
+  const current = items
+    .filter((item) => CURRENT.includes(item.status))
+    .sort((a, b) => {
+      if (a.status !== b.status) return a.status === "active" ? -1 : 1;
+      if (a.status === "active") return 0;
+      const aStart = a.campaign?.start_at ? Date.parse(a.campaign.start_at) : Infinity;
+      const bStart = b.campaign?.start_at ? Date.parse(b.campaign.start_at) : Infinity;
+      return aStart === bStart ? 0 : aStart < bStart ? -1 : 1;
+    });
   const offers = items.filter((item) => OFFERS.includes(item.status));
   const past = items.filter(
     (item) => !CURRENT.includes(item.status) && !OFFERS.includes(item.status),

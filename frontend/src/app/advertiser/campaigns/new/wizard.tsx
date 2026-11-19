@@ -342,7 +342,7 @@ export function CampaignWizard({
             </div>
 
             <div className="border-amber/30 bg-amber/10 rounded-lg border p-3.5 text-sm">
-              <p className="font-medium">Saved as a draft</p>
+              <p className="font-medium">Next: save your draft</p>
               <p className="text-muted mt-1">Save your draft, then choose areas and artwork.</p>
             </div>
           </fieldset>

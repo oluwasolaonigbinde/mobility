@@ -6,12 +6,12 @@
   },
   "critical": {
     "backend": {
-      "branch_covered": 6339,
-      "branch_percent": 84.4075,
-      "branch_total": 7510,
-      "line_covered": 29890,
-      "line_percent": 94.6186,
-      "line_total": 31590,
+      "branch_covered": 6403,
+      "branch_percent": 84.4723,
+      "branch_total": 7580,
+      "line_covered": 30107,
+      "line_percent": 94.7416,
+      "line_total": 31778,
       "paths": [
         "app/__init__.py",
         "app/adapters/banks.py",
@@ -318,12 +318,12 @@
       ]
     },
     "frontend": {
-      "branch_covered": 8120,
-      "branch_percent": 81.9292,
-      "branch_total": 9911,
-      "line_covered": 7773,
-      "line_percent": 88.7227,
-      "line_total": 8761,
+      "branch_covered": 8254,
+      "branch_percent": 82.5317,
+      "branch_total": 10001,
+      "line_covered": 7844,
+      "line_percent": 89.2175,
+      "line_total": 8792,
       "paths": [
         "frontend/src/app/admin/advertisers/[organizationId]/company/actions.ts",
         "frontend/src/app/admin/advertisers/[organizationId]/invite-actions.ts",
@@ -692,6 +692,7 @@
         "frontend/src/lib/billing/commercial-history.tsx",
         "frontend/src/lib/billing/history.ts",
         "frontend/src/lib/billing/invoice-document.tsx",
+        "frontend/src/lib/billing/print-invoice-button.tsx",
         "frontend/src/lib/billing/vat-percentage.ts",
         "frontend/src/lib/campaigns/cancellation.ts",
         "frontend/src/lib/campaigns/day-progress.ts",
@@ -741,25 +742,27 @@
       ]
     }
   },
-  "eligible_inventory_sha256": "0b2f7eff89933e1b52e31d8ec9a3710938117298d836144b46d9a45068fe8468",
+  "eligible_inventory_sha256": "2428bbbdd8985b76c9fc0b1a8929b4fcf386b40818e0148189ed1ec5c727eaac",
   "global": {
-    "branch_covered": 14459,
-    "branch_percent": 82.9975,
-    "branch_total": 17421,
-    "line_covered": 37663,
-    "line_percent": 93.3385,
-    "line_total": 40351
+    "branch_covered": 14657,
+    "branch_percent": 83.3684,
+    "branch_total": 17581,
+    "line_covered": 37951,
+    "line_percent": 93.5445,
+    "line_total": 40570
   },
   "policy_sha256": "a9c855e61beb9ace90dcb0372073ee743405ba1a1736725acfe502a1cc36ce99",
   "refresh": {
     "inventory_changes": {
-      "added": [],
+      "added": [
+        "frontend/src/lib/billing/print-invoice-button.tsx"
+      ],
       "removed": []
     },
-    "previous_baseline_sha256": "dc6e2cde4566527d5ce596440331334cbb5ffdc575d1003afcb075578de83f61",
-    "reason": "REQ-334: security dependency updates change the measurement policy; refreshed from PR #45 run 44329453315 on 008395ff"
+    "previous_baseline_sha256": "deaacb4e41df59194e8411aa7b5922c1c265d12ed8d60b0a516242342228df97",
+    "reason": "REQ-335 walkthrough fixes: inventory/policy change"
   },
-  "source_parent_sha": "424057796adf0980ab48f757d3ee59a346ea8c09",
-  "source_sha256": "194bffa9af4b8c8ecc25a5b08ae60ec0316c308c9c7c3a540471be7de1b61a95",
+  "source_parent_sha": "79f21de23ff6aae64c86a68094389ffe54481ae4",
+  "source_sha256": "f5f1e4003bc01a09ef1783405fc94b04808c4525d54426f91b50943a6273c9c4",
   "version": 3
 }

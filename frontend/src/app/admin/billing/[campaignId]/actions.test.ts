@@ -251,6 +251,21 @@ it("submits a raised approval to the existing authority command", async () => {
     },
   );
 });
+it("sends the credit due date as a Nigeria-time instant", async () => {
+  post.mockResolvedValueOnce({ data: {} });
+  const form = new FormData();
+  form.set("due_at", "2026-11-19T00:00");
+  await expect(
+    recordFinancialAuthorityAction("campaign-1", "approved_corporate_credit", "admin-1", form),
+  ).rejects.toThrow("redirect:/admin/campaigns/campaign-1?saved=authority#money");
+  expect(post).toHaveBeenLastCalledWith(
+    "/api/v1/admin/campaigns/{campaign_id}/financial-authority",
+    expect.objectContaining({
+      body: expect.objectContaining({ due_at: "2026-11-18T23:00:00.000Z" }),
+    }),
+  );
+});
+
 it("explains that a transfer needs an issued invoice", async () => {
   post.mockRejectedValueOnce(
     new ApiError(409, {

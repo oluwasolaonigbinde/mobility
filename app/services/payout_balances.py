@@ -19,6 +19,7 @@ ZERO = Decimal("0.00")
 class TripMoneyPosition:
     unpaid_authority: Decimal = ZERO
     earned_net: Decimal = ZERO
+    not_released: Decimal = ZERO
     released_available: Decimal = ZERO
     reserved: Decimal = ZERO
     in_flight: Decimal = ZERO
@@ -43,6 +44,7 @@ class DriverMoneyBalance:
     driver_profile_id: UUID
     currency: str
     earned_net: Decimal
+    not_released: Decimal
     released_available: Decimal
     reserved: Decimal
     in_flight: Decimal
@@ -119,6 +121,7 @@ def trip_cash_position(
     payable = max(remaining - reserved - in_flight, ZERO)
     return TripMoneyPosition(
         earned_net=earned,
+        not_released=earned - released_net,
         unpaid_authority=remaining,
         released_available=payable - min(failed, payable),
         reserved=reserved,

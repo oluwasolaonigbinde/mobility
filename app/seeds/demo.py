@@ -103,6 +103,15 @@ DEMO_DRIVER_PHONE_NUMBERS = {
     "nneka.umeh@demo.mobility.local": "+2340000000111",
     "ayodele.bakare@demo.mobility.local": "+2340000000112",
     "suleiman.idris@demo.mobility.local": "+2340000000113",
+    "yewande.afolabi@demo.mobility.local": "+2340000000116",
+    "obinna.onyekachi@demo.mobility.local": "+2340000000117",
+    "fatima.adamu@demo.mobility.local": "+2340000000118",
+    "chukwudi.agu@demo.mobility.local": "+2340000000119",
+    **{
+        f"{area}.reporting.{index}@demo.mobility.local": f"+2340000000{base + index}"
+        for area, base in (("abuja", 119), ("wuse", 122))
+        for index in range(1, 4)
+    },
 }
 PRODUCTION_ENVIRONMENTS = {"prod", "production"}
 
@@ -392,7 +401,7 @@ async def upsert_campaign(
         "budget_amount": Decimal("3500000.00"),
         "daily_budget_amount": Decimal("150000.00"),
         "currency": "NGN",
-        "campaign_metadata": demo_metadata(frontend_contract="slice_12_demo"),
+        "campaign_metadata": demo_metadata(frontend_contract="slice_12_demo", planned_cars=8),
     }
     if campaign is None:
         campaign = Campaign(
@@ -992,8 +1001,8 @@ async def upsert_driver_story_campaigns(
             "description": "Visibility along commuter routes into the Central Business District.",
             "campaign_status": CampaignStatus.ACTIVE,
             "assignment_status": CampaignAssignmentStatus.ACTIVE,
-            "start_at": now - timedelta(days=120),
-            "end_at": now - timedelta(days=45),
+            "start_at": now - timedelta(days=88),
+            "end_at": now - timedelta(days=83),
             "activity": "airtel",
         },
         {
@@ -1001,8 +1010,8 @@ async def upsert_driver_story_campaigns(
             "description": "Visibility around Abuja markets and neighbourhood shops.",
             "campaign_status": CampaignStatus.ACTIVE,
             "assignment_status": CampaignAssignmentStatus.ACTIVE,
-            "start_at": now - timedelta(days=30),
-            "end_at": now + timedelta(days=60),
+            "start_at": now - timedelta(days=76),
+            "end_at": now - timedelta(days=71),
             "activity": "palmpay_market",
         },
     )
@@ -1010,11 +1019,15 @@ async def upsert_driver_story_campaigns(
         {
             **specs[0],
             "name": "Marula Kitchens — Central Area Lunch Deliveries",
+            "start_at": now - timedelta(days=82),
+            "end_at": now - timedelta(days=77),
             "description": "Deliver weekday lunches around Central Business District offices.",
         },
         {
             **specs[1],
             "name": "Marula Kitchens — Utako Office Lunch",
+            "start_at": now - timedelta(days=42),
+            "end_at": now - timedelta(days=37),
             "description": "Bring weekday lunches to offices around Utako and Jabi.",
             "campaign_status": CampaignStatus.PAUSED,
         },
@@ -1042,7 +1055,10 @@ async def upsert_driver_story_campaigns(
             ),
             "daily_budget_amount": Decimal("90000.00"),
             "currency": "NGN",
-            "campaign_metadata": demo_metadata(driver_story=True),
+            "campaign_metadata": demo_metadata(
+                driver_story=True,
+                planned_cars=3 if spec["campaign_status"] == CampaignStatus.ACTIVE else 1,
+            ),
         }
         if campaign is None:
             campaign = Campaign(
@@ -1154,19 +1170,10 @@ async def upsert_driver_story_campaigns(
             specs=[
                 (
                     key,
-                    at
-                    + timedelta(
-                        days=(
-                            1
-                            if spec["name"] == "Marula Kitchens — Central Area Lunch Deliveries"
-                            else -1
-                            if spec["name"] == "Marula Kitchens — Utako Office Lunch"
-                            else 0
-                        )
-                    ),
+                    campaign.start_at + timedelta(days=index + 1),
                     points,
                 )
-                for key, at, points in story_trip_specs
+                for index, (key, _at, points) in enumerate(story_trip_specs)
             ],
         )
         await upsert_payout_rule(session, campaign=campaign, admin=admin)
@@ -1419,7 +1426,7 @@ async def upsert_palmpay_graph(  # noqa: C901
         "budget_amount": Decimal("2500000.00"),
         "daily_budget_amount": Decimal("125000.00"),
         "currency": "NGN",
-        "campaign_metadata": demo_metadata(showcase="palmpay_wuse"),
+        "campaign_metadata": demo_metadata(showcase="palmpay_wuse", planned_cars=4),
     }
     if campaign is None:
         campaign = Campaign(
@@ -1622,6 +1629,14 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
         settings=settings,
     )
     organization = await upsert_organization(session)
+    organization.address_line_1 = "14 Aminu Kano Crescent, Wuse II"
+    organization.address_city = "Abuja"
+    organization.address_region = "FCT"
+    organization.address_country_code = "NG"
+    organization.industry = "Food and catering"
+    organization.operational_contact_name = advertiser.full_name
+    organization.operational_contact_email = advertiser.email
+    organization.operational_contact_phone = "+2340000000200"
     from app.seeds.rich import _ensure_advertiser_directory
 
     await _ensure_advertiser_directory(session, settings=settings)
@@ -1639,6 +1654,16 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
     )
     driver_profile = await upsert_driver_profile(session, driver=driver)
     vehicle = await upsert_vehicle(session, profile=driver_profile)
+    await upsert_driver_story_campaigns(
+        session,
+        settings=settings,
+        organization=organization,
+        advertiser=advertiser,
+        admin=admin,
+        driver=driver,
+        profile=driver_profile,
+        vehicle=vehicle,
+    )
     campaign = await upsert_campaign(session, organization=organization, advertiser=advertiser)
     creative = await upsert_creative(session, campaign=campaign)
     await upsert_zones(session, campaign=campaign, advertiser=advertiser, settings=settings)
@@ -1690,16 +1715,6 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
                 settings=settings,
                 now=workday_processing_time(trip),
             )
-    await upsert_driver_story_campaigns(
-        session,
-        settings=settings,
-        organization=organization,
-        advertiser=advertiser,
-        admin=admin,
-        driver=driver,
-        profile=driver_profile,
-        vehicle=vehicle,
-    )
     await upsert_palmpay_graph(
         session,
         settings=settings,
@@ -1756,15 +1771,18 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
     await ensure_offer_review_work(session, graph=graph, staff=staff, settings=settings)
     await ensure_trip_review_work(session, graph=graph, staff=staff, settings=settings)
     await ensure_completed_report_contributors(session, graph=graph, settings=settings)
-    await ensure_portal_reports(session, graph=graph, settings=settings)
     from app.seeds.driver_story import settle_demo_driver_history
     from app.seeds.rich import (
         ensure_portal_payouts,
         settle_seed_driver_notifications,
     )
 
-    await settle_demo_driver_history(session, graph=graph, staff=staff, settings=settings)
-    await ensure_portal_payouts(session, graph=graph, staff=staff, settings=settings)
+    await settle_demo_driver_history(
+        session, driver_profile_id=graph.driver_profile.id, staff=staff, settings=settings
+    )
+    finance_example_ids = await ensure_portal_payouts(
+        session, graph=graph, staff=staff, settings=settings
+    )
     from app.seeds.renewals import ensure_demo_renewals
 
     await ensure_demo_renewals(session, settings=settings, reviewer=staff[2])
@@ -1783,8 +1801,36 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
             plate_prefix=plate_prefix,
             balance_paid_workdays=balance_paid_workdays,
         )
+    from app.seeds.demo_authority import ensure_job_driver_documents
+    from app.seeds.rich import ensure_seed_enquiry
+
+    await ensure_job_driver_documents(session, reviewer=staff[2], settings=settings)
+    await ensure_seed_enquiry(session)
+    await process_demo_trip_backlog(session, settings=settings)
+    await settle_demo_worker_reviews(session, settings=settings)
+    await ensure_portal_reports(session, graph=graph, settings=settings)
+    finished_campaign_ids = list(
+        await session.scalars(
+            select(Campaign.id).where(
+                Campaign.end_at <= utc_now(),
+                Campaign.campaign_metadata["demo"].as_boolean().is_(True),
+            )
+        )
+    )
+    for index, asset in enumerate(graph.rich.drivers[:2]):
+        await settle_demo_driver_history(
+            session,
+            driver_profile_id=asset.profile.id,
+            staff=staff,
+            settings=settings,
+            campaign_ids=[
+                *finished_campaign_ids,
+                *([graph.rich.campaigns[0].id] if index == 0 else []),
+            ],
+            protected_entry_ids=finance_example_ids if index == 0 else (),
+        )
     await settle_seed_driver_notifications(
-        session, driver_user_ids=[graph.driver.id, *(asset.user.id for asset in graph.rich.drivers)]
+        session, driver_user_ids=list(session.info.get("demo_seed_user_ids", set()))
     )
     # Also settle pending mail left by an earlier seed run for these seed accounts.
     from sqlalchemy import update
@@ -1911,6 +1957,74 @@ def print_summary(graph: DemoGraph, summary_counts: dict[str, int]) -> None:
     print("- GET /api/v1/me")
     print(f"- GET /api/v1/advertiser/campaigns/{graph.campaign.id}/daily-metrics")
     print("- GET /api/v1/driver/earnings/summary")
+
+
+async def process_demo_trip_backlog(session: AsyncSession, *, settings: Settings) -> None:
+    from app.services.earnings_release import (
+        find_pending_release_trip_ids,
+        release_pending_earnings_for_trip,
+    )
+    from app.services.trip_processing import find_unprocessed_trip_page, process_ended_trip
+
+    after = None
+    while page := await find_unprocessed_trip_page(
+        session, limit=100, settings=settings, after=after
+    ):
+        for due in page:
+            trip = await session.get(TripSession, due.id)
+            if trip and trip.trip_metadata.get("demo"):
+                await process_ended_trip(session, trip_id=due.id, settings=settings)
+                await release_pending_earnings_for_trip(session, trip_id=due.id, settings=settings)
+        after = page[-1].ended_at, page[-1].id
+
+    after_id = None
+    while trip_ids := await find_pending_release_trip_ids(session, limit=100, after=after_id):
+        for trip_id in trip_ids:
+            trip = await session.get(TripSession, trip_id)
+            if trip and trip.trip_metadata.get("demo"):
+                await release_pending_earnings_for_trip(session, trip_id=trip_id, settings=settings)
+        after_id = trip_ids[-1]
+
+
+async def settle_demo_worker_reviews(session: AsyncSession, *, settings: Settings) -> None:
+    from app.adapters.disbursement import DisabledDisbursementAdapter
+    from app.models.trip_analytics import FraudFlag
+    from app.services.assignment_activity import evaluate_assignment_activity
+    from app.services.automatic_payouts import run_automatic_payouts
+    from app.services.earnings_release import escalate_fraud_flag_if_due, find_due_fraud_flag_ids
+
+    due_ids = await find_due_fraud_flag_ids(
+        session, review_sla_days=settings.fraud_review_sla_days, limit=10000
+    )
+    demo_ids = await session.scalars(
+        select(FraudFlag.id)
+        .join(TripSession, TripSession.id == FraudFlag.trip_session_id)
+        .where(
+            FraudFlag.id.in_(due_ids),
+            TripSession.trip_metadata["demo"].as_boolean().is_(True),
+        )
+    )
+    for flag_id in demo_ids:
+        await escalate_fraud_flag_if_due(
+            session, flag_id=flag_id, review_sla_days=settings.fraud_review_sla_days
+        )
+    assignment_ids = await session.scalars(
+        select(CampaignAssignment.id)
+        .join(Campaign, Campaign.id == CampaignAssignment.campaign_id)
+        .where(
+            CampaignAssignment.status == "active",
+            Campaign.campaign_metadata["demo"].as_boolean().is_(True),
+        )
+    )
+    for assignment_id in assignment_ids:
+        await evaluate_assignment_activity(session, assignment_id=assignment_id, settings=settings)
+
+    # Preview intentionally has no transfer provider. Persist the genuine
+    # configuration alert before the first sweep, using a disabled adapter.
+    if settings.paystack_secret_key is None:
+        await run_automatic_payouts(
+            session, settings=settings, adapter=DisabledDisbursementAdapter()
+        )
 
 
 async def run_seed(settings: Settings | None = None) -> DemoGraph:

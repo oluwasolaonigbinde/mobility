@@ -1,5 +1,6 @@
 "use server";
 
+import { lagosLocalToApi } from "@/lib/campaigns/schema";
 import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { redirect, unstable_rethrow } from "next/navigation";
@@ -64,11 +65,36 @@ const recommendationSchema = z.object({
   service_city: z.string().trim().min(1, "Enter a service city").max(128),
 });
 
-function normalizeExpiry(value: FormDataEntryValue | null): FormDataEntryValue | null {
-  if (typeof value !== "string" || !value) return value;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
-}
+const offerErrors = {
+  FORBIDDEN_ROLE: "An active staff login is required to send a job offer.",
+  CAMPAIGN_NOT_FOUND: "This campaign could not be found. Choose a campaign again.",
+  DRIVER_PROFILE_NOT_FOUND: "This driver could not be found. Choose a driver again.",
+  VEHICLE_NOT_FOUND: "This car could not be found. Choose a car again.",
+  CAMPAIGN_NOT_ASSIGNABLE: "This campaign can't take job offers in its current status.",
+  CAMPAIGN_EXPIRED: "This campaign has ended. You can no longer offer jobs for it.",
+  COMPLETE_CAMPAIGN_WINDOW_REQUIRED: "Set the campaign’s start and end before offering jobs.",
+  INVALID_OFFER_EXPIRY: "Choose an expiry in the future and within the campaign dates.",
+  DRIVER_PROFILE_NOT_ACTIVE: "Choose a driver whose profile is active.",
+  VEHICLE_NOT_ACTIVE: "Choose an active car.",
+  VEHICLE_DRIVER_PROFILE_MISMATCH: "Choose a car that belongs to this driver.",
+  DRIVER_PERSON_PAYEE_NOT_APPROVED: "Approve the driver’s identity and payment details first.",
+  VEHICLE_APPROVAL_REQUIRED: "Approve the car before offering this job.",
+  DUPLICATE_CAMPAIGN_VEHICLE_ASSIGNMENT: "This car already has a job or offer for this campaign.",
+  ACTIVE_ASSIGNMENT_EXISTS_FOR_DRIVER: "This driver already has a running job.",
+  ACTIVE_ASSIGNMENT_EXISTS_FOR_VEHICLE: "This car already has a running job.",
+  APPROVED_CAMPAIGN_CREATIVE_REQUIRED: "Choose approved artwork before offering this job.",
+  MANAGED_CLEAN_CREATIVE_REQUIRED:
+    "Upload a new artwork file and have it approved before offering this job.",
+  CREATIVE_CONTENT_IDENTITY_REQUIRED:
+    "Upload a new artwork file and have it approved before offering this job.",
+  CREATIVE_VERSION_REQUIRED: "Save and approve the artwork before offering this job.",
+  DRIVER_SERVICE_AREA_REQUIRED: "Add the driver’s city before sending a job offer.",
+  FROZEN_PAYOUT_TERMS_REQUIRED: "Set pay terms that are in effect before offering jobs.",
+  TARGET_AREA_REQUIRED: "Add a campaign area before offering jobs.",
+  CAMPAIGN_ZONE_GEOMETRY_REQUIRED: "Check that all campaign areas are drawn on the map.",
+  CAMPAIGN_VERSION_REQUIRED: "Save the campaign details before offering jobs.",
+  STALE_RECOMMENDATION: "Find drivers again and choose a current recommendation.",
+};
 
 export async function listAssignmentRecommendationsAction(
   values: unknown,
@@ -93,6 +119,10 @@ export async function createAssignmentAction(
   _prev: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
+  const expiresAt = lagosLocalToApi(String(formData.get("expires_at") ?? ""));
+  if (!expiresAt || Date.parse(expiresAt) <= Date.now()) {
+    return { error: "Choose a valid offer expiry in the future." };
+  }
   const recommendationParts = {
     service_city: formData.get("recommendation_service_city"),
     vehicle_type: formData.get("recommendation_vehicle_type"),
@@ -105,11 +135,16 @@ export async function createAssignmentAction(
     driver_profile_id: formData.get("driver_profile_id"),
     vehicle_id: formData.get("vehicle_id"),
     creative_id: formData.get("creative_id"),
-    expires_at: normalizeExpiry(formData.get("expires_at")),
+    expires_at: expiresAt,
     notes: formData.get("notes") ?? "",
     recommendation_context: hasRecommendationPart ? recommendationParts : undefined,
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  if (!parsed.success) {
+    const field = parsed.error.issues[0]?.path[0];
+    if (field === "recommendation_context") return { error: offerErrors.STALE_RECOMMENDATION };
+    if (field === "notes") return { error: "Keep your notes to 500 characters or fewer." };
+    return { error: "Choose a campaign, driver, car and approved artwork." };
+  }
   try {
     const api = createApiClient(await getSessionToken());
     await api.POST("/api/v1/admin/campaign-assignments", { body: parsed.data });
@@ -117,10 +152,10 @@ export async function createAssignmentAction(
     unstable_rethrow(error);
     if (error instanceof ApiError && error.code === "DRIVER_SERVICE_AREA_REQUIRED")
       return {
-        error: "Add the driver’s city before sending a job offer.",
+        error: offerErrors.DRIVER_SERVICE_AREA_REQUIRED,
         cityRequiredForDriver: parsed.data.driver_profile_id,
       };
-    if (error instanceof ApiError) return { error: publicActionError(error) };
+    if (error instanceof ApiError) return { error: publicActionError(error, offerErrors) };
     return { error: "Could not reach the server." };
   }
   revalidatePath("/admin/campaigns");

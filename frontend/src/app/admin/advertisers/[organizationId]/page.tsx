@@ -224,7 +224,7 @@ export default async function CompanyHub({
                   ? money.outstanding
                       .map(({ currency, amount }) => exactCompanyMoney(amount, currency))
                       .join(" · ")
-                  : "No issued invoices"}
+                  : "Nothing owed"}
               </p>
               {!money.invoices.length ? (
                 <p>No invoices yet.</p>

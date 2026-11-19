@@ -318,7 +318,8 @@ def test_driver_context_resolves_trip_and_denies_another_drivers_assignment(
     )
     headers = auth_headers(db_client, driver.email, PASSWORD)
     item = db_client.get("/api/v1/notifications", headers=headers).json()["items"][0]
-    assert item["action_url"] == f"/driver/assignments?assignment_id={assignment.id}"
+    assert item["action_url"] == "/driver/earnings"
+    assert item["body"] == "Pay for this trip is ready."
     stranger = create_test_user(
         db_sessionmaker, email="trip-stranger@example.com", role=UserRole.DRIVER, password=PASSWORD
     )
@@ -806,3 +807,37 @@ def test_notification_preference_and_audit_share_the_same_transaction(db_session
             )
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "notice_type",
+    [
+        NotificationType.COMPLAINT_RECEIVED,
+        NotificationType.PAYOUT_AUTOMATIC_ALERT,
+        NotificationType.PAYOUT_AUTOMATIC_PAUSED,
+        NotificationType.PAYOUT_AUTOMATIC_RESUMED,
+    ],
+)
+def test_staff_notification_links_use_the_signed_in_role_and_canonical_route(notice_type):
+    from app.api.v1.notifications import current_feed_item
+    from app.models.user import User
+
+    complaint_id = uuid4()
+    for role in (UserRole.ADMIN, UserRole.DRIVER):
+        user = User(id=uuid4(), role=role, status="active")
+        notice = Notification(
+            id=uuid4(),
+            recipient_user_id=user.id,
+            type_key=notice_type,
+            channel=NotificationChannel.IN_APP,
+            payload={"complaint_id": str(complaint_id), "action_url": "https://attacker.invalid"},
+            created_at=datetime.now(UTC),
+        )
+        expected = None
+        if role == UserRole.ADMIN:
+            expected = (
+                f"/admin/support?tab=complaints&complaint={complaint_id}"
+                if notice_type == NotificationType.COMPLAINT_RECEIVED
+                else "/admin/money?tab=automatic#problems"
+            )
+        assert asyncio.run(current_feed_item(None, notice, user)).action_url == expected

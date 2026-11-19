@@ -6,10 +6,24 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
+from conftest import (
+    create_test_campaign,
+    create_test_campaign_assignment,
+    create_test_driver_profile,
+    create_test_organization,
+    create_test_user,
+    create_test_vehicle,
+)
 from sqlalchemy import func, select
+from test_business_health import FakeRedis
 from test_seed_demo import seed_demo_graph, seed_private_storage  # noqa: F401
 
+from app.models.campaign import Campaign, CampaignStatus
+from app.models.campaign_assignment import CampaignAssignmentStatus
+from app.models.driver import DriverOnboardingStatus
 from app.models.trip import LocationPing, LocationPingBatch, TripSession
+from app.models.user import UserRole
+from app.models.vehicle import VehicleStatus
 from app.schemas.trips import LocationPingBatchCreate
 from app.seeds import live_car
 from app.seeds.demo import palmpay_zone_specs, zone_geometries
@@ -145,13 +159,25 @@ def test_both_live_cars_stay_visible_every_five_minutes_from_seed_to_cap(
         # Seeding is about 40 minutes after the trip starts: about 136 checks to the cap.
         assert checks >= 130 and tick > cap, (checks, cap)
         print("REQ312_TIMELINE", checks, "five-minute checks, both cars shown", seeded, cap)
-        # Past the cap the job stops feeding the trip.
+        # At the next tick, a capped car rolls over. A finished campaign stops.
         clock["now"] = cap + timedelta(minutes=10)
-        assert (
-            await live_car.refresh_demo_live_cars(
-                postgis_db_sessionmaker, settings=enabled, now=cap + timedelta(minutes=10)
-            )
-        )["trips"] == 0
+        async with postgis_db_sessionmaker() as session:
+            finished = await session.get(Campaign, trips[0].campaign_id)
+            finished.end_at = cap
+            await session.commit()
+        await live_car.refresh_demo_live_cars(
+            postgis_db_sessionmaker, settings=enabled, now=clock["now"]
+        )
+        fresh = await _live_trips(postgis_db_sessionmaker)
+        assert len(fresh) == 1 and fresh[0].campaign_id == trips[1].campaign_id
+        assert fresh[0].id != trips[1].id
+        assert await _shows_live_car(
+            postgis_db_sessionmaker,
+            advertiser_id=graph.advertiser.id,
+            trip=fresh[0],
+            settings=settings,
+            now=clock["now"],
+        )
 
     asyncio.run(walk())
 
@@ -188,15 +214,6 @@ def test_refresh_gate_no_ops_and_reseed_brings_the_car_back(
             )
             assert summary == {"trips": 0, "accepted": 0, "duplicates": 0}, (name, summary)
             assert await _row_counts(postgis_db_sessionmaker, ids) == before, name
-        past_cap = min(trip.started_at for trip in trips) + timedelta(hours=12, minutes=5)
-        clock["now"] = past_cap
-        assert (
-            await live_car.refresh_demo_live_cars(
-                postgis_db_sessionmaker, settings=enabled, now=past_cap
-            )
-        )["trips"] == 0
-        assert await _row_counts(postgis_db_sessionmaker, ids) == before
-
         abandoned = datetime.now(UTC).replace(microsecond=0) + timedelta(hours=3)
         async with postgis_db_sessionmaker() as session:
             for trip in trips:
@@ -265,10 +282,6 @@ def _after_cap_reseed_and_sweep(sessionmaker, settings, monkeypatch, clock, *, s
                 sessionmaker, settings=enabled, now=last_run
             )
             assert fed["trips"] == 2 and fed["accepted"] >= 2 * 130, fed
-            clock["now"] = after_cap
-            assert (
-                await live_car.refresh_demo_live_cars(sessionmaker, settings=enabled, now=after_cap)
-            )["trips"] == 0
             async with sessionmaker() as session:
                 # Before auto-end: the last receipt is ten minutes old, not two hours.
                 due = await find_trips_to_auto_end(session, now=after_cap, limit=100)
@@ -531,3 +544,124 @@ def test_missing_trip_or_driver_is_never_fed_or_ended(settings):
     trip = TripSession(id=UUID(int=1), driver_profile_id=UUID(int=2))
     with pytest.raises(RuntimeError, match="has no driver profile"):
         asyncio.run(live_car.end_capped_live_car(_FakeSession(), trip=trip, settings=settings))
+
+
+def test_catch_up_records_the_same_gps_attempt_as_ingest(settings, monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    now = datetime(2026, 11, 13, 9, 0, tzinfo=UTC)
+    trip = TripSession(
+        id=UUID(int=1),
+        driver_profile_id=UUID(int=2),
+        status="active",
+        started_at=now - FIVE,
+        trip_metadata={},
+    )
+    session = AsyncMock()
+    session.get.side_effect = [
+        trip,
+        SimpleNamespace(id=UUID(int=2), user_id=UUID(int=3), onboarding_status="active"),
+        SimpleNamespace(status="active", start_at=None, end_at=None),
+        SimpleNamespace(status="active"),
+        SimpleNamespace(status="active", driver_profile_id=UUID(int=2)),
+        SimpleNamespace(status="active"),
+    ]
+    session.scalar.return_value = 0
+    session.scalar.side_effect = [None, 0]
+    ingest = AsyncMock(return_value=SimpleNamespace(duplicate=False))
+    record = AsyncMock()
+    monkeypatch.setattr(trip_service, "ingest_location_ping_batch", ingest)
+    monkeypatch.setattr("app.core.gps_health.record_gps_attempt", record)
+    assert asyncio.run(
+        live_car._catch_up(session, trip_id=trip.id, settings=settings, now=now)
+    ) == (1, 0)
+    record.assert_awaited_once_with(settings, ingest.await_args.kwargs["telemetry"])
+
+
+def test_live_car_rollover_and_health_check_use_real_demo_evidence(
+    postgis_db_sessionmaker, settings, monkeypatch
+):
+    from app.core.gps_health import record_attempt
+    from app.models.disbursement import PayoutAutomaticAlert
+    from app.seeds.rich import ensure_reporting_live_car
+    from app.services.business_health import health_counts, publish_health_alerts
+
+    maker = postgis_db_sessionmaker
+    driver = create_test_user(maker, email="live-car-driver@example.test", role=UserRole.DRIVER)
+    admin = create_test_user(maker, email="live-car-admin@example.test")
+    profile = create_test_driver_profile(
+        maker, user_id=driver.id, onboarding_status=DriverOnboardingStatus.ACTIVE
+    )
+    vehicle = create_test_vehicle(
+        maker, driver_profile_id=profile.id, vehicle_status=VehicleStatus.ACTIVE
+    )
+    org, _ = create_test_organization(maker)
+    now = live_car.live_car_slot(datetime.now(UTC))
+    campaign = create_test_campaign(
+        maker,
+        organization_id=org.id,
+        created_by_user_id=admin.id,
+        campaign_status=CampaignStatus.ACTIVE,
+        start_at=now - timedelta(days=1),
+        end_at=now + timedelta(days=1),
+    )
+    assignment = create_test_campaign_assignment(
+        maker,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        assigned_by_user_id=admin.id,
+        assignment_status=CampaignAssignmentStatus.ACTIVE,
+    )
+    redis = FakeRedis()
+    clock = _controlled_clocks(monkeypatch)
+    enabled = settings.model_copy(update={"demo_live_car_refresh": True})
+    monkeypatch.setattr(live_car, "LIVE_CAR_CAP", timedelta(minutes=45))
+
+    async def record(_settings, attempt):
+        await record_attempt(redis, rejected=attempt.rejected, now=clock["now"])
+
+    monkeypatch.setattr("app.core.gps_health.record_gps_attempt", record)
+
+    async def exercise():
+        async with maker() as session:
+            await ensure_reporting_live_car(
+                session,
+                campaign=campaign,
+                assignment=assignment,
+                settings=settings,
+                path_offset=0,
+                now=now,
+            )
+            await session.commit()
+        [capped] = await _live_trips(maker)
+        clock["now"] = now + FIVE
+        production = enabled.model_copy(update={"environment": "production"})
+        assert (
+            await live_car.refresh_demo_live_cars(maker, settings=production, now=clock["now"])
+        )["trips"] == 0
+        assert (await live_car.refresh_demo_live_cars(maker, settings=enabled, now=clock["now"]))[
+            "trips"
+        ] == 1
+        [fresh] = await _live_trips(maker)
+        assert fresh.id != capped.id
+        async with maker() as session:
+            assert (await session.get(TripSession, capped.id)).status == "sealed"
+            health_time = clock["now"] + timedelta(minutes=1)
+            counts = await health_counts(session, now=health_time, settings=enabled, redis=redis)
+            await publish_health_alerts(session, now=health_time, counts=counts)
+            assert not await session.scalar(
+                select(PayoutAutomaticAlert.id).where(
+                    PayoutAutomaticAlert.detail["check"]
+                    .as_string()
+                    .in_(["gps_telemetry_unavailable", "gps_rejections", "stale_trips"])
+                )
+            )
+            (await session.get(Campaign, campaign.id)).end_at = clock["now"]
+            await session.commit()
+        clock["now"] += FIVE
+        await live_car.refresh_demo_live_cars(maker, settings=enabled, now=clock["now"])
+        assert await _live_trips(maker) == []
+
+    asyncio.run(exercise())

@@ -270,7 +270,7 @@ async def _guard_advertiser_invite_transition(
         )
 
 
-async def update_user(
+async def update_user(  # noqa: C901
     session: AsyncSession,
     user_id: UUID,
     payload: UserUpdate,
@@ -303,6 +303,12 @@ async def update_user(
     changed_fields = list(update_values)
     status_changed = "status" in update_values and update_values["status"] != user.status
     role_changed = "role" in update_values and update_values["role"] != user.role
+    if actor_user_id == user.id and (status_changed or role_changed):
+        raise AppError(
+            "SELF_LOGIN_CHANGE_FORBIDDEN",
+            "You can't change the status or role of your own login",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     enters_admin_role = role_changed and update_values["role"] == UserRole.ADMIN
     activates_admin = (
         status_changed

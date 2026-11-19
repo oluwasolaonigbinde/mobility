@@ -19,6 +19,7 @@ async def admin_list_audit_events(
     entity_type: str | None = None,
     entity_id: str | None = None,
     actor_user_id: UUID | None = None,
+    campaign_id: UUID | None = None,
     created_from: datetime | None = None,
     created_to: datetime | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
@@ -31,6 +32,7 @@ async def admin_list_audit_events(
         entity_type=entity_type,
         entity_id=entity_id,
         actor_user_id=actor_user_id,
+        campaign_id=campaign_id,
         created_from=created_from,
         created_to=created_to,
         limit=limit,
@@ -42,13 +44,14 @@ async def admin_list_audit_events(
                 id=event.id,
                 actor_user_id=event.actor_user_id,
                 actor_email=email,
+                actor_name=name,
                 action=event.action,
                 entity_type=event.entity_type,
                 entity_id=event.entity_id,
                 metadata=event.event_metadata,
                 created_at=event.created_at,
             )
-            for event, email in rows
+            for event, email, name in rows
         ],
         total=total,
         limit=limit,

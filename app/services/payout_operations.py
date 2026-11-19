@@ -536,6 +536,7 @@ async def campaign_money_position(
                 "driver_name": name,
                 "currency": currency,
                 "earned_net": balance.earned_net,
+                "not_released": balance.not_released,
                 "unbatched_available": balance.released_available,
                 "reserved": reserved,
                 "in_flight": in_flight,

@@ -218,7 +218,7 @@ export function CommercialPanel({
         </div>
         {error ? <p className="text-coral mb-4 text-sm">{error}</p> : null}
         {[requestState, acceptState, waiverState].map((state, index) =>
-          state.error || state.done ? (
+          state.error || (state.done && (index !== 0 || !latest)) ? (
             <p
               key={index}
               role={state.error ? "alert" : "status"}
@@ -262,7 +262,7 @@ export function CommercialPanel({
               </Button>
             </form>
           </>
-        ) : commercial.quote_request && !requestState.done ? (
+        ) : !latest && commercial.quote_request && !requestState.done ? (
           <p className="text-muted text-sm">
             Your request has been received. Our team will prepare a quotation for you to review
             here.

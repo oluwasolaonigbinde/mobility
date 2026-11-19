@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ApiError } from "@/lib/api/errors";
 import { requireRole } from "@/lib/auth/current-user";
+import { PrintInvoiceButton } from "@/lib/billing/print-invoice-button";
 import { InvoiceDocument } from "@/lib/billing/invoice-document";
 import { QueueUnavailable } from "../../../../queue-search";
 import { readCampaign, readCampaignCommercial } from "../../../../entity-reads";
@@ -34,6 +35,7 @@ export default async function AdminInvoicePage({
         <Link href="/admin/campaigns">Campaigns</Link> /{" "}
         <Link href={`/admin/campaigns/${campaignId}#money`}>{campaign.name}</Link> / Invoice
       </nav>
+      <PrintInvoiceButton />
       <InvoiceDocument
         invoice={invoice}
         terms={commercial.terms ?? null}

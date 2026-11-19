@@ -135,6 +135,7 @@ export function AssignmentForm({
             <p className="text-green">
               Selected: {selected.driver_name} · {selected.vehicle_plate_number}
             </p>
+            <input type="hidden" name="recommendation_vehicle_type" value={selected.vehicle_type} />
             <input type="hidden" name="recommendation_service_city" value={selected.service_city} />
             <input
               type="hidden"
@@ -145,7 +146,12 @@ export function AssignmentForm({
           </>
         ) : null}
       </section>
-      <Field label="Offer expires" name="expires_at" type="datetime-local" required />
+      <Field
+        label="Offer expires (Nigeria time, WAT)"
+        name="expires_at"
+        type="datetime-local"
+        required
+      />
       <p className="text-muted text-sm">
         Expiry must be in the future and before the campaign ends.
       </p>

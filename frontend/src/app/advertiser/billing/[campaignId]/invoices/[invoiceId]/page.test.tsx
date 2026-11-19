@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/errors";
 
@@ -56,6 +56,18 @@ describe("advertiser invoice page", () => {
       "href",
       "/advertiser/campaigns/campaign-1",
     );
+  });
+
+  it("opens the browser print dialog", async () => {
+    respond();
+    const print = vi.spyOn(window, "print").mockImplementation(() => {});
+    try {
+      render(await AdvertiserInvoicePage(input()));
+      fireEvent.click(screen.getByRole("button", { name: "Print or save as PDF" }));
+      expect(print).toHaveBeenCalledOnce();
+    } finally {
+      print.mockRestore();
+    }
   });
 
   it("is not found for an invoice outside the campaign or a campaign outside the company", async () => {

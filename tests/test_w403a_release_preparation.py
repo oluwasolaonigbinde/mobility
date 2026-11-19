@@ -582,32 +582,25 @@ def test_release_environment_rejects_incomplete_live_authority(
         validate_release_environment(environment, allow_local_rehearsal=False)
 
 
-def test_release_environment_accepts_approved_maptiler_public_style(tmp_path: Path) -> None:
+def test_release_environment_accepts_openfreemap_style(tmp_path: Path) -> None:
     environment = valid_release_environment(tmp_path)
-    environment["NEXT_PUBLIC_MAP_STYLE_URL"] = (
-        "https://api.maptiler.com/maps/streets-v2/style.json?key=synthetic-public-key"
-    )
+    environment["NEXT_PUBLIC_MAP_STYLE_URL"] = "https://tiles.openfreemap.org/styles/liberty"
     validate_release_environment(environment, allow_local_rehearsal=False)
 
 
 @pytest.mark.parametrize(
     "url",
     [
-        "https://api.maptiler.com.evil.example/maps/streets/style.json?key=public",
-        "https://user@api.maptiler.com/maps/streets/style.json?key=public",
-        "https://api.maptiler.com:444/maps/streets/style.json?key=public",
-        "https://api.maptiler.com/maps/streets/style.json?key=public#fragment",
-        "https://api.maptiler.com/maps/streets/style.json?key=",
-        "https://api.maptiler.com/maps/streets/style.json?key=one&key=two",
-        "https://api.maptiler.com/maps/streets/style.json?key=public&access_token=extra",
-        "https://api.maptiler.com/other/style.json?key=public",
-        "https://api.maptiler.com/maps/../style.json?key=public",
-        "https://api.maptiler.com/maps/%2e%2e/style.json?key=public",
-        "https://api.maptiler.com/maps/a%2fb/style.json?key=public",
-        "https://api.maptiler.com:invalid/maps/streets/style.json?key=public",
+        "https://tiles.openfreemap.org/styles/liberty?key=public",
+        "https://user@tiles.openfreemap.org/styles/liberty",
+        "https://tiles.openfreemap.org/styles/liberty#fragment",
+        "https://tiles.openfreemap.org:invalid/styles/liberty",
+        "https://api.maptiler.com/maps/streets/style.json?key=public",
     ],
 )
-def test_release_environment_rejects_unapproved_maptiler_query(tmp_path: Path, url: str) -> None:
+def test_release_environment_rejects_map_style_query_or_credentials(
+    tmp_path: Path, url: str
+) -> None:
     environment = valid_release_environment(tmp_path)
     environment["NEXT_PUBLIC_MAP_STYLE_URL"] = url
     with pytest.raises(ContractError, match="MAP_STYLE"):

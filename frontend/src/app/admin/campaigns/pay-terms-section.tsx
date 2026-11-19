@@ -5,10 +5,17 @@ import { DailyRatePanel } from "../payouts/rules/daily-rate-panel";
 import { QueueUnavailable } from "../queue-search";
 import { readPayTerms } from "./pay-terms-read";
 
-export default async function PayTermsSection({ campaignId }: { campaignId: string }) {
+export default async function PayTermsSection({
+  campaignId,
+  editable = true,
+}: {
+  campaignId: string;
+  editable?: boolean;
+}) {
   const api = createApiClient(await getSessionToken());
   const terms = await readPayTerms(campaignId);
   if (!terms) return <QueueUnavailable />;
+  if (!editable) return <p className="text-lg font-medium">{terms.summary}</p>;
   const rule = terms.rule;
   const revisions = rule
     ? await api

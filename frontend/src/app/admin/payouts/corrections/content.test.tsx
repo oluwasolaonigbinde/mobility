@@ -115,8 +115,14 @@ describe("selected pay corrections", () => {
         },
       })
       .mockResolvedValueOnce({ data: { id: "campaign", name: "Named campaign" } });
+    mocks.get.mockResolvedValueOnce({
+      data: { items: [{ id: driverId, full_name: "Ada Driver" }], total: 1 },
+    });
     render(await Content({ query: { tab: "corrections", correction: "selected" } }));
-    expect(screen.getByRole("link", { name: "Trip 1" })).toHaveAttribute(
+    expect(mocks.get.mock.calls.filter(([path]) => path === "/api/v1/admin/drivers")).toHaveLength(
+      1,
+    );
+    expect(screen.getByRole("link", { name: "Ada Driver" })).toHaveAttribute(
       "href",
       `/admin/drivers/${driverId}?trip=${tripId}#trips-and-pay`,
     );

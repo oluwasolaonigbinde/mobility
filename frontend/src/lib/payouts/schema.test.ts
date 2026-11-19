@@ -4,7 +4,8 @@ import { dailyRateFormSchema } from "./schema";
 const CAMPAIGN_ID = "7f9c1f4e-8a5b-4c3d-9e2f-1a2b3c4d5e6f";
 
 describe("dailyRateFormSchema", () => {
-  const future = new Date(Date.now() + 3_600_000).toISOString().slice(0, 16);
+  // A Nigeria-time (UTC+1) wall clock three hours from now.
+  const future = new Date(Date.now() + 4 * 3_600_000).toISOString().slice(0, 16);
   const valid = {
     campaign_id: CAMPAIGN_ID,
     daily_rate_naira: "10000",

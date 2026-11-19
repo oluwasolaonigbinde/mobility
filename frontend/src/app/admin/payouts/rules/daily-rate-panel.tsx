@@ -45,7 +45,7 @@ export function DailyRatePanel({
             error={fieldError("daily_target_miles")}
           />
           <Field
-            label="Starts on"
+            label="Starts on (Nigeria time, WAT)"
             name="effective_from"
             defaultValue={previous("effective_from")}
             type="datetime-local"

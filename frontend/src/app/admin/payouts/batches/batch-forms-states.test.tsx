@@ -182,12 +182,10 @@ describe("payout form states", () => {
   it("asks before voiding a reservation and reports a refused transition", async () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     calls.transition.mockResolvedValue({ error: "The saved instructions changed." });
-    render(<BatchActions batchId="batch-1" status="reserved" />);
-    await fillReasons();
+    render(<BatchActions batchId="batch-1" status="reserved" approved />);
     await userEvent.click(screen.getByRole("button", { name: "Cancel this payment run" }));
     expect(confirm).toHaveBeenCalledWith("Cancel this payment run?");
     expect(calls.transition).not.toHaveBeenCalled();
-    await fillReasons();
     await userEvent.click(screen.getByRole("button", { name: "Send payments" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("saved instructions changed");
     expect((calls.transition.mock.calls[0]![1] as FormData).get("intent")).toBe("submit");

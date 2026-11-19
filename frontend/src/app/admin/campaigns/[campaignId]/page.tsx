@@ -18,7 +18,8 @@ import {
   adminTone,
   campaignSpendLabel,
 } from "@/lib/status/admin";
-import { formatDate, formatDateRange, formatMoneyExact } from "@/lib/format";
+import { formatDate, formatDateRange, formatDateTime, formatMoneyExact } from "@/lib/format";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Pagination } from "@/components/ui/pagination";
@@ -110,6 +111,7 @@ export default async function CampaignHub({
     throw error;
   }
   if (!campaign) notFound();
+  const ended = ["cancelled", "finished"].includes(campaign.status);
   const offset = (value?: string) =>
     Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : 0;
   const [commercial, artwork, jobs, history, changes, results, reviews, activity, terms] =
@@ -161,8 +163,7 @@ export default async function CampaignHub({
         .GET("/api/v1/admin/audit-events", {
           params: {
             query: {
-              entity_type: "campaign",
-              entity_id: campaignId,
+              campaign_id: campaignId,
               limit: 25,
               offset: offset(query.activity_offset),
             },
@@ -220,13 +221,8 @@ export default async function CampaignHub({
   const latestBudget = commercial.data?.budget_check;
   const spent = latestBudget?.billing_spend_amount;
   const budget = campaign.budget_amount;
-  const percentage =
-    spent != null && budget != null && Number(budget) > 0
-      ? Math.min(100, Math.max(0, (Number(spent) / Number(budget)) * 100))
-      : undefined;
-
   const [payTermsContent, billingContent, invoiceContent, closeoutContent] = await Promise.all([
-    renderSection(() => PayTermsSection({ campaignId }), `${root}#pay-terms`),
+    renderSection(() => PayTermsSection({ campaignId, editable: !ended }), `${root}#pay-terms`),
     commercial.data
       ? renderSection(
           () =>
@@ -260,15 +256,6 @@ export default async function CampaignHub({
         )
       : null,
   ]);
-  const staff = activity.data?.items.length
-    ? await api
-        .GET("/api/v1/admin/users", { params: { query: { role: "admin", limit: 100 } } })
-        .catch(sectionFailure)
-    : { data: undefined };
-  const activityNames = new Map(
-    (staff.data?.items ?? []).map((person) => [person.id, person.full_name]),
-  );
-  activityNames.set(me.user.id, me.user.full_name);
   return (
     <div className="mx-auto max-w-6xl">
       <Link href="/admin/campaigns" className="text-cyan text-sm">
@@ -328,21 +315,13 @@ export default async function CampaignHub({
           />
         </details>
       ) : null}
-      {percentage !== undefined ? (
-        <div className="mb-5">
-          <label htmlFor="campaign-budget" className="text-muted text-sm">
-            {campaignSpendLabel(campaign.status)}: {formatMoneyExact(spent, campaign.currency)} of{" "}
-            {formatMoneyExact(budget, campaign.currency)}
-          </label>
-          <progress
-            id="campaign-budget"
-            value={percentage}
-            max={100}
-            className="mt-2 block h-2 w-full"
-          />
-        </div>
+      {spent != null ? (
+        <p className="text-muted mb-5 text-sm">
+          {campaignSpendLabel(campaign.status)}: {formatMoneyExact(spent, campaign.currency)}
+          {budget != null ? ` of ${formatMoneyExact(budget, campaign.currency)}` : null}
+        </p>
       ) : null}
-      {artwork.data && commercial.data && jobs.data && terms ? (
+      {!ended && artwork.data && commercial.data && jobs.data && terms ? (
         <HubChecklist
           title="Launch checklist"
           items={[
@@ -373,7 +352,7 @@ export default async function CampaignHub({
               label: "Payment or approved credit",
               state: commercial.data?.financial_authority
                 ? "Paid or credit approved"
-                : "Review funding",
+                : "Record funding approval",
               done: Boolean(commercial.data?.financial_authority),
               section: "money",
             },
@@ -547,12 +526,27 @@ export default async function CampaignHub({
               />
             </>
           )}
-          <details className="mt-4">
-            <summary className="text-cyan cursor-pointer">Offer a job · Find drivers</summary>
+          {ended ? null : terms?.ready ? (
+            <details className="mt-4">
+              <summary className="text-cyan cursor-pointer">Offer a job · Find drivers</summary>
+              <div className="mt-4">
+                <AssignmentForm campaignId={campaignId} />
+              </div>
+            </details>
+          ) : (
             <div className="mt-4">
-              <AssignmentForm campaignId={campaignId} />
+              <Button type="button" disabled>
+                Offer a job
+              </Button>
+              <p className="text-muted text-sm">
+                {terms?.startsAt
+                  ? `Pay terms start on ${formatDateTime(terms.startsAt)}; you can offer jobs from then.`
+                  : terms
+                    ? "Set pay terms first"
+                    : "Pay terms couldn’t be checked. Try again."}
+              </p>
             </div>
-          </details>
+          )}
         </HubSection>
         <HubSection id="pay-terms" title="Pay terms">
           {payTermsContent}
@@ -637,7 +631,7 @@ export default async function CampaignHub({
                 activity.data.items.map((event) => (
                   <p className="mb-2 text-sm" key={event.id}>
                     {formatDate(event.created_at)} · {adminActivity(event.action)} ·{" "}
-                    {adminActor(event.actor_email, activityNames.get(event.actor_user_id ?? ""))}
+                    {adminActor(event.actor_email, event.actor_name)}
                   </p>
                 ))
               )}

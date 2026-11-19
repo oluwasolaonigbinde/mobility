@@ -198,12 +198,19 @@ describe("payout operator forms", () => {
     expect(calls.reserve).not.toHaveBeenCalled();
   });
 
+  it("requires approval before sending a reserved run", () => {
+    render(<BatchActions batchId="batch-1" status="reserved" />);
+    expect(screen.getByRole("button", { name: "Approve payment run" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Send payments" })).toBeNull();
+  });
+
   it("labels queueing as queueing, without a paid confirmation", async () => {
     calls.transition.mockResolvedValue({
       done: "Sending started. Check each payment for the result.",
     });
-    render(<BatchActions batchId="11111111-1111-4111-8111-111111111111" status="reserved" />);
-    await fillReasons();
+    render(
+      <BatchActions batchId="11111111-1111-4111-8111-111111111111" status="reserved" approved />,
+    );
     await userEvent.click(screen.getByRole("button", { name: "Send payments" }));
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Check each payment for the result.",
@@ -248,7 +255,7 @@ describe("payout operator forms", () => {
     await userEvent.click(screen.getByRole("button", { name: "Review selected payments" }));
     await screen.findByText(/To bank/);
     await fillReasons();
-    await userEvent.click(screen.getByRole("button", { name: "Create payment run" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Create payment run" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "This browser can't create payment runs.",
     );

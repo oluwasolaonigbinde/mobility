@@ -50,6 +50,32 @@ def test_trip_net_is_cash_authority_without_mutating_the_original_credit():
     assert paid.cash_paid == Decimal("80.00") and paid.batch_payable == 0
 
 
+@pytest.mark.parametrize(
+    ("entries", "transfers", "earned", "not_released", "paid"),
+    [
+        ([credit(kind="trip_payout", status="pending")], [], "100.00", "100.00", "0.00"),
+        ([credit(), credit("20.00", kind="reversal")], [], "80.00", "0.00", "0.00"),
+        ([credit()], [(line(), None), (line(), None)], "100.00", "0.00", "200.00"),
+    ],
+)
+def test_not_released_uses_net_awards_independently_of_transfers(
+    entries, transfers, earned, not_released, paid
+):
+    position = trip_cash_position(entries, transfers)
+    assert position.earned_net == Decimal(earned)
+    assert position.not_released == Decimal(not_released)
+    assert position.cash_paid == Decimal(paid)
+    if not position.debt:
+        assert position.earned_net == (
+            position.not_released
+            + position.released_available
+            + position.reserved
+            + position.in_flight
+            + position.terminal_failed
+            + position.cash_paid
+        )
+
+
 def test_reservations_and_failed_replacements_are_not_double_counted():
     pending = line("80.00", status="reserved", active=True)
     reserved = trip_cash_position([credit(), credit("20.00", kind="reversal")], [(pending, None)])

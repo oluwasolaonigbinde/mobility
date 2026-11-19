@@ -46,9 +46,13 @@ def workday_processing_time(trip):
     return trip.ended_at + timedelta(minutes=5) if trip.trip_metadata.get("full_workday") else None
 
 
-async def settle_demo_driver_history(session, *, graph, staff, settings):
+async def settle_demo_driver_history(
+    session, *, driver_profile_id, staff, settings, campaign_ids=None, protected_entry_ids=()
+):
+    from app.models.trip import TripSession
+
     today = datetime.now(UTC).astimezone(ZoneInfo("Africa/Lagos")).date().isoformat()
-    payee = await session.scalar(select(Payee).where(Payee.subject_id == graph.driver_profile.id))
+    payee = await session.scalar(select(Payee).where(Payee.subject_id == driver_profile_id))
     version = await session.scalar(
         select(PayeeVersion)
         .where(PayeeVersion.payee_id == payee.id)
@@ -63,9 +67,18 @@ async def settle_demo_driver_history(session, *, graph, staff, settings):
     entries = (
         await session.scalars(
             select(EarningsLedgerEntry).where(
-                EarningsLedgerEntry.driver_profile_id == graph.driver_profile.id,
+                EarningsLedgerEntry.driver_profile_id == driver_profile_id,
                 EarningsLedgerEntry.entry_type == "trip_payout",
                 EarningsLedgerEntry.status.in_(["pending", "available"]),
+                *(
+                    [EarningsLedgerEntry.campaign_id.in_(campaign_ids)]
+                    if campaign_ids is not None
+                    else []
+                ),
+                EarningsLedgerEntry.id.not_in(protected_entry_ids),
+                ~select(PayoutBatchLine.id)
+                .where(PayoutBatchLine.ledger_entry_id == EarningsLedgerEntry.id)
+                .exists(),
             )
         )
     ).all()
@@ -77,8 +90,6 @@ async def settle_demo_driver_history(session, *, graph, staff, settings):
             continue
         if len(days) != 1:
             raise ValueError("The demo workday must not cross Lagos midnight")
-        from app.models.trip import TripSession
-
         trip = await session.get(TripSession, entry.trip_session_id)
         processing = await process_ended_trip(
             session, trip_id=trip.id, settings=settings, now=workday_processing_time(trip)
@@ -87,6 +98,8 @@ async def settle_demo_driver_history(session, *, graph, staff, settings):
             session, trip_id=entry.trip_session_id, settings=settings
         )
         if entry.status != "available" or not released.assessment_current or released.hold_active:
+            if campaign_ids is not None:
+                continue
             from app.models.trip_analytics import FraudFlag
 
             flags = (
@@ -100,10 +113,6 @@ async def settle_demo_driver_history(session, *, graph, staff, settings):
                 f"Demo workday {next(iter(days))} release refused: {released}, "
                 f"status={entry.status}, flags={flags}, processing={processing}"
             )
-        if await session.scalar(
-            select(PayoutBatchLine.id).where(PayoutBatchLine.ledger_entry_id == entry.id)
-        ):
-            raise ValueError("Existing payout history must not be replaced by the demo story")
         by_day.setdefault(next(iter(days)), []).append(entry)
 
     adapter = FakeDisbursementAdapter()
@@ -111,7 +120,7 @@ async def settle_demo_driver_history(session, *, graph, staff, settings):
         paid_at = datetime.combine(
             date.fromisoformat(day) + timedelta(days=1), time(2), ZoneInfo("Africa/Lagos")
         ).astimezone(UTC)
-        key = uuid5(NAMESPACE_URL, f"cardvert-driver-history:{graph.driver_profile.id}:{day}")
+        key = uuid5(NAMESPACE_URL, f"cardvert-driver-history:{driver_profile_id}:{day}")
         # Historical transfers retain their actual maker/checker provenance. The
         # separate automatic scenario uses the real automatic approval service.
         with initial_action_history(session, paid_at):

@@ -253,6 +253,7 @@ class CampaignDriverMoneyRead(BaseModel):
     driver_name: str
     currency: str
     earned_net: Money
+    not_released: Money
     unbatched_available: Money
     reserved: Money = Field(
         description="Active reserved payout instructions, independent of ledger payment status."

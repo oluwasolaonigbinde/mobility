@@ -15,7 +15,7 @@ describe("provider-neutral map configuration", () => {
   });
 
   it("uses the configured provider style when supplied at build time", () => {
-    const configuredStyle = "https://api.maptiler.com/maps/streets-v4/style.json?key=synthetic";
+    const configuredStyle = "https://tiles.openfreemap.org/styles/liberty";
     vi.stubEnv("NEXT_PUBLIC_MAP_STYLE_URL", configuredStyle);
 
     expect(activeMapStyle()).toBe(configuredStyle);

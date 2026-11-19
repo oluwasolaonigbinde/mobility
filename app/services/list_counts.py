@@ -12,6 +12,7 @@ from app.models.campaign_assignment import CampaignAssignment
 from app.models.campaign_zone import CampaignZone
 from app.models.organization import OrganizationMembership
 from app.models.stored_file import FileScanStatus, StoredFile
+from app.services.campaign_lifecycle import campaign_status_expression
 
 
 async def grouped_counts(
@@ -45,7 +46,10 @@ async def campaign_list_counts(session: AsyncSession, identities: list[UUID]) ->
 async def organization_list_counts(session: AsyncSession, identities: list[UUID]) -> dict:
     members = await grouped_counts(session, OrganizationMembership.organization_id, identities)
     campaigns = await grouped_counts(
-        session, Campaign.organization_id, identities, Campaign.status.in_(["active", "paused"])
+        session,
+        Campaign.organization_id,
+        identities,
+        campaign_status_expression().in_(["active", "paused"]),
     )
     return {
         identity: {
