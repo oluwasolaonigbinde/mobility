@@ -218,6 +218,55 @@ it("keeps map and performance on a cancelled campaign that ran", async () => {
   expect(screen.getByRole("heading", { name: "On the road now" })).toBeInTheDocument();
 });
 
+it.each([
+  [[], "No cars on the road right now"],
+  [[{ longitude: 7.49, latitude: 9.06 }], "1 car on the road · as of about 15 minutes ago"],
+  [
+    [
+      { longitude: 7.49, latitude: 9.06 },
+      { longitude: 7.5, latitude: 9.07 },
+    ],
+    "2 cars on the road · as of about 15 minutes ago",
+  ],
+])("counts the cars on the road from delayed live positions", async (positions, text) => {
+  mocks.get.mockImplementation(async (path: string) =>
+    path.endsWith("/live-positions")
+      ? { data: { campaign_id: "one", delay_minutes: 15, positions } }
+      : ready(path),
+  );
+  render(await Page(input));
+  expect(screen.getByText(text)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "See your campaign areas" })).toHaveAttribute(
+    "href",
+    "/advertiser/campaigns/one/map",
+  );
+});
+it("says car positions couldn't be loaded when the live read fails", async () => {
+  mocks.get.mockImplementation(async (path: string) => {
+    if (path.endsWith("/live-positions"))
+      throw new ApiError(503, { code: "DOWN", message: "Private live failure" });
+    return ready(path);
+  });
+  render(await Page(input));
+  expect(
+    screen.getByText("Car positions couldn't be loaded. Refresh to try again."),
+  ).toBeInTheDocument();
+  expect(document.body).not.toHaveTextContent("Private live failure");
+});
+it("offers a retry in the map panel when a running campaign's areas can't be read", async () => {
+  mocks.get.mockImplementation(async (path: string) => {
+    if (path.endsWith("/zones"))
+      throw new ApiError(503, { code: "DOWN", message: "Private area failure" });
+    if (path.endsWith("/live-positions"))
+      return { data: { campaign_id: "one", delay_minutes: 15, positions: [] } };
+    return ready(path);
+  });
+  render(await Page(input));
+  expect(screen.getByText(/The campaign area couldn.t be loaded\./)).toBeInTheDocument();
+  expect(screen.queryByText("Campaign map")).toBeNull();
+  expect(document.body).not.toHaveTextContent("Private area failure");
+});
+
 it("uses an available invoice as the next step before launch", async () => {
   mocks.get.mockImplementation(async (path: string) =>
     path.endsWith("/commercial")

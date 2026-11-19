@@ -166,6 +166,59 @@ describe("createAssignmentAction", () => {
     expect(mocks.post).not.toHaveBeenCalled();
   });
 
+  it("asks for an expiry when none was chosen", async () => {
+    const form = offer();
+    form.delete("expires_at");
+    expect(await createAssignmentAction({}, form)).toEqual({
+      error: "Choose a valid offer expiry in the future.",
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it("sends a manual offer without recommendation context", async () => {
+    const form = offer();
+    for (const field of [
+      "recommendation_service_city",
+      "recommendation_vehicle_type",
+      "recommendation_matching_version",
+      "recommendation_fingerprint",
+    ])
+      form.delete(field);
+    form.set("notes", "  Park near the gate  ");
+    await createAssignmentAction({}, form);
+    expect(mocks.post).toHaveBeenCalledWith("/api/v1/admin/campaign-assignments", {
+      body: expect.not.objectContaining({ recommendation_context: expect.anything() }),
+    });
+    expect(mocks.post.mock.calls[0]?.[1].body.notes).toBe("Park near the gate");
+  });
+
+  it("asks for shorter notes when they exceed 500 characters", async () => {
+    const form = offer();
+    form.set("notes", "x".repeat(501));
+    expect(await createAssignmentAction({}, form)).toEqual({
+      error: "Keep your notes to 500 characters or fewer.",
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it("asks for every offer choice when one is missing", async () => {
+    const form = offer();
+    form.delete("vehicle_id");
+    expect(await createAssignmentAction({}, form)).toEqual({
+      error: "Choose a campaign, driver, car and approved artwork.",
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it("reports an unreachable server without redirecting", async () => {
+    mocks.redirect.mockClear();
+    mocks.post.mockRejectedValueOnce(new TypeError("fetch failed"));
+    expect(await createAssignmentAction({}, offer())).toEqual({
+      error: "Could not reach the server.",
+    });
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["FROZEN_PAYOUT_TERMS_REQUIRED", "Set pay terms that are in effect before offering jobs."],
     ["STALE_RECOMMENDATION", "Find drivers again and choose a current recommendation."],

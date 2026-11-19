@@ -50,6 +50,34 @@ it.each([
     );
   },
 );
+it("sends a single cancelled campaign to its money summary in singular wording", async () => {
+  get.mockImplementation(async (path) => {
+    if (path.endsWith("/campaigns"))
+      return {
+        data: { items: [{ ...campaign, status: "cancelled", assignment_count: 1 }], total: 1 },
+      };
+    if (path.endsWith("/commercial")) return { data: { budget_check: null } };
+    return { data: { items: [], total: 0 } };
+  });
+  render(await page({ tab: "ended", source: "cancelled" }));
+  expect(get).toHaveBeenCalledWith("/api/v1/admin/campaigns", {
+    params: { query: { status: "cancelled", q: undefined, limit: 25, offset: 0 } },
+  });
+  expect(screen.getByText("1 matching campaign")).toBeInTheDocument();
+  const row = screen.getByRole("link", { name: /Wuse Blitz PalmPay/ });
+  expect(row).toHaveAttribute("href", "/admin/campaigns/campaign#money");
+  expect(row).toHaveTextContent("Next: See money summary");
+  expect(row).toHaveTextContent("1 driver job");
+  expect(row).not.toHaveTextContent("1 driver jobs");
+  expect(row).not.toHaveTextContent("₦");
+});
+it("pluralises several matching campaigns and their driver jobs", async () => {
+  render(await page({ tab: "live", source: "active" }));
+  expect(screen.getByText("60 matching campaigns")).toBeInTheDocument();
+  const row = screen.getByRole("link", { name: /Wuse Blitz PalmPay/ });
+  expect(row).toHaveTextContent("2 driver jobs");
+  expect(row).toHaveTextContent("₦20,000");
+});
 it.each(["artwork", "changes", "installation"])(
   "opens %s work in its campaign section without an unsupported search",
   async (source) => {
