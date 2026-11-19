@@ -65,6 +65,7 @@ describe("Money tabs: one job per screen", () => {
     expect(
       screen.getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")]),
     ).toEqual([
+      ["Recalculate a trip", "/admin/settings/support-tools"],
       ["Payment runs", "/admin/money?tab=runs"],
       ["Ready to pay", "/admin/money?tab=ready"],
       ["Automatic", "/admin/money?tab=automatic"],

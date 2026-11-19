@@ -29,19 +29,19 @@ beforeEach(() => {
 });
 const page = (query = {}) => CampaignsPage({ searchParams: Promise.resolve(query) });
 it.each([
-  ["needs-review", "pending_review", "Review campaign details"],
-  ["getting-ready", "draft", "View launch checklist"],
-  ["live", "paused", "Review pause and funding"],
-  ["ended", "finished", "View launch checklist"],
+  ["needs-review", "pending_review", "Review campaign details", "overview"],
+  ["getting-ready", "draft", "View launch checklist", "overview"],
+  ["live", "paused", "Review pause and funding", "overview"],
+  ["ended", "finished", "View results", "results"],
 ])(
   "lists named campaigns in %s and preserves the selected work list",
-  async (tab, source, next) => {
+  async (tab, source, next, section) => {
     render(await page({ tab, source, q: "Wuse", offset: "25" }));
     expect(get).toHaveBeenCalledWith("/api/v1/admin/campaigns", {
       params: { query: { status: source, q: "Wuse", limit: 25, offset: 25 } },
     });
     const row = screen.getByRole("link", { name: /Wuse Blitz PalmPay/ });
-    expect(row).toHaveAttribute("href", "/admin/campaigns/campaign#overview");
+    expect(row).toHaveAttribute("href", `/admin/campaigns/campaign#${section}`);
     expect(row).toHaveTextContent(next);
     expect(row).toHaveTextContent("2");
     expect(screen.getByRole("link", { name: "Next →" })).toHaveAttribute(

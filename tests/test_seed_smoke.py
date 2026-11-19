@@ -163,11 +163,11 @@ def test_demo_seed_frontend_smoke_paths(
     assert assignments_response.status_code == 200
     assignments = assignments_response.json()["items"]
     assert assignments_response.json()["total"] == 6
+    # REQ-335: the PalmPay story job now ends with its campaign (finished by date).
     assert {item["status"] for item in assignments} == {
         "active",
         "finished",
         "offered",
-        "cancelled",
     }
 
     offered = [item for item in assignments if item["status"] == "offered"]
