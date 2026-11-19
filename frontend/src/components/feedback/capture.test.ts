@@ -35,15 +35,15 @@ it("hides private regions and the widget and blanks password inputs in the clone
 });
 
 /** Adds an image to the page at a position, loaded or not. */
-function pageImage(top: number, complete: boolean, attrs: Record<string, string>) {
+function pageImage(top: number, complete: boolean, attrs: Record<string, string>, left = 0) {
   const img = document.createElement("img");
   for (const [name, value] of Object.entries(attrs)) img.setAttribute(name, value);
   Object.defineProperty(img, "complete", { value: complete });
   vi.spyOn(img, "getBoundingClientRect").mockReturnValue({
     top,
     bottom: top + 100,
-    left: 0,
-    right: 200,
+    left,
+    right: left + 200,
   } as DOMRect);
   document.body.append(img);
   return img;
@@ -52,7 +52,7 @@ function pageImage(top: number, complete: boolean, attrs: Record<string, string>
 describe("parking unloaded off-screen images", () => {
   afterEach(() => document.body.querySelectorAll("img").forEach((img) => img.remove()));
 
-  it("parks only unloaded images outside the viewport, then puts them back exactly", () => {
+  it("parks only unloaded images below or right of the viewport, then puts them back exactly", () => {
     const below = pageImage(2540, false, {
       src: "/fleet.svg",
       srcset: "/fleet.svg 1x",
@@ -63,12 +63,17 @@ describe("parking unloaded off-screen images", () => {
     const loadingOnScreen = pageImage(100, false, { src: "/hero.png" });
     const noSrcset = pageImage(5958, false, { src: "/logo.png" });
     const srcsetOnly = pageImage(4000, false, { srcset: "/wide.png 2x" });
+    const right = pageImage(100, false, { src: "/carousel.png" }, 1300);
+    const justBelow = pageImage(800, false, { src: "/edge.png" });
 
     const restore = parkUnloadedOffscreenImages(1280, 800);
     expect(below.hasAttribute("src")).toBe(false);
     expect(below.hasAttribute("srcset")).toBe(false);
-    expect(above.hasAttribute("src")).toBe(false);
     expect(noSrcset.hasAttribute("src")).toBe(false);
+    expect(right.hasAttribute("src")).toBe(false);
+    expect(justBelow.hasAttribute("src")).toBe(false);
+    // Above the viewport: collapsing it would shift what is on screen, so it is left alone.
+    expect(above.getAttribute("src")).toBe("/above.png");
     expect(loadedBelow.getAttribute("src")).toBe("/loaded.png");
     expect(loadingOnScreen.getAttribute("src")).toBe("/hero.png");
 
@@ -80,6 +85,8 @@ describe("parking unloaded off-screen images", () => {
     expect(noSrcset.hasAttribute("srcset")).toBe(false);
     expect(srcsetOnly.getAttribute("srcset")).toBe("/wide.png 2x");
     expect(srcsetOnly.hasAttribute("src")).toBe(false);
+    expect(right.getAttribute("src")).toBe("/carousel.png");
+    expect(justBelow.getAttribute("src")).toBe("/edge.png");
   });
 
   it("puts parked images back even when the capture fails", async () => {

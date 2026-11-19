@@ -21,15 +21,18 @@ export function scrubClone(root: ParentNode): void {
 /**
  * Before cloning, the library waits for every <img> on the live page to load. Lazy images
  * below the fold never load until scrolled to, so it would wait out its whole timeout (the
- * home page lost 15 s this way). Briefly take the source off images that are both unloaded
- * and off screen; they show nothing either way. Returns a function that puts them back.
+ * home page lost 15 s this way). Briefly take the source off images that are unloaded and
+ * wholly below or right of the viewport; they show nothing either way, and if one collapses it
+ * can only move content after the visible area. Images above the viewport are left alone: a
+ * collapse there would shift what is on screen and misplace the pin. Returns a function that
+ * puts the sources back.
  */
 export function parkUnloadedOffscreenImages(width: number, height: number): () => void {
   const parked: [HTMLImageElement, string | null, string | null][] = [];
   for (const img of Array.from(document.images)) {
     if (img.complete) continue;
     const box = img.getBoundingClientRect();
-    if (box.bottom > 0 && box.right > 0 && box.top < height && box.left < width) continue;
+    if (box.top < height && box.left < width) continue;
     parked.push([img, img.getAttribute("src"), img.getAttribute("srcset")]);
     img.removeAttribute("srcset");
     img.removeAttribute("src");
