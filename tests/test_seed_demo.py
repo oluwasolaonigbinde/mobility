@@ -1035,9 +1035,11 @@ def fetch_rich_snapshot(sessionmaker: async_sessionmaker[AsyncSession]) -> dict:
                                 ImpressionEstimate.trip_session_id.in_(trip_ids),
                                 # A worker re-estimate after its fraud check uses
                                 # production provenance, like worker fraud evidence.
-                                ImpressionEstimate.estimate_metadata.op("#>>")(
-                                    "{request_metadata,seed_step}"
-                                ).is_not(None),
+                                ImpressionEstimate.estimate_metadata["request_metadata"][
+                                    "seed_step"
+                                ]
+                                .as_string()
+                                .is_not(None),
                             )
                         )
                     ).scalars()
