@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const domToCanvas = vi.hoisted(() => vi.fn());
 vi.mock("modern-screenshot", () => ({ domToCanvas }));
 
-import { captureViewport, encode, keepNode, scrubClone } from "./capture";
+import { captureViewport, encode, parkUnloadedOffscreenImages, scrubClone } from "./capture";
 
 type FakeCanvas = HTMLCanvasElement & { toDataURL: ReturnType<typeof vi.fn> };
 const jpeg = (bytes: number) => `data:image/jpeg;base64,${"A".repeat(bytes)}`;
@@ -34,18 +34,65 @@ it("hides private regions and the widget and blanks password inputs in the clone
   expect(root.querySelector<HTMLElement>("#public")!.style.visibility).toBe("");
 });
 
-it("keeps on-screen media and all non-media, and drops media below or right of the viewport", () => {
-  const at = (tag: string, top: number, left = 0) => {
-    const el = document.createElement(tag);
-    vi.spyOn(el, "getBoundingClientRect").mockReturnValue({ top, left } as DOMRect);
-    return el;
-  };
-  expect(keepNode(at("img", 100), 390, 844)).toBe(true);
-  expect(keepNode(at("img", -500), 390, 844)).toBe(true);
-  expect(keepNode(at("img", 900), 390, 844)).toBe(false);
-  expect(keepNode(at("iframe", 10, 400), 390, 844)).toBe(false);
-  expect(keepNode(at("div", 5000), 390, 844)).toBe(true);
-  expect(keepNode(document.createTextNode("x"), 390, 844)).toBe(true);
+/** Adds an image to the page at a position, loaded or not. */
+function pageImage(top: number, complete: boolean, attrs: Record<string, string>) {
+  const img = document.createElement("img");
+  for (const [name, value] of Object.entries(attrs)) img.setAttribute(name, value);
+  Object.defineProperty(img, "complete", { value: complete });
+  vi.spyOn(img, "getBoundingClientRect").mockReturnValue({
+    top,
+    bottom: top + 100,
+    left: 0,
+    right: 200,
+  } as DOMRect);
+  document.body.append(img);
+  return img;
+}
+
+describe("parking unloaded off-screen images", () => {
+  afterEach(() => document.body.querySelectorAll("img").forEach((img) => img.remove()));
+
+  it("parks only unloaded images outside the viewport, then puts them back exactly", () => {
+    const below = pageImage(2540, false, {
+      src: "/fleet.svg",
+      srcset: "/fleet.svg 1x",
+      loading: "lazy",
+    });
+    const above = pageImage(-400, false, { src: "/above.png" });
+    const loadedBelow = pageImage(3000, true, { src: "/loaded.png" });
+    const loadingOnScreen = pageImage(100, false, { src: "/hero.png" });
+    const noSrcset = pageImage(5958, false, { src: "/logo.png" });
+    const srcsetOnly = pageImage(4000, false, { srcset: "/wide.png 2x" });
+
+    const restore = parkUnloadedOffscreenImages(1280, 800);
+    expect(below.hasAttribute("src")).toBe(false);
+    expect(below.hasAttribute("srcset")).toBe(false);
+    expect(above.hasAttribute("src")).toBe(false);
+    expect(noSrcset.hasAttribute("src")).toBe(false);
+    expect(loadedBelow.getAttribute("src")).toBe("/loaded.png");
+    expect(loadingOnScreen.getAttribute("src")).toBe("/hero.png");
+
+    restore();
+    expect(below.getAttribute("src")).toBe("/fleet.svg");
+    expect(below.getAttribute("srcset")).toBe("/fleet.svg 1x");
+    expect(above.getAttribute("src")).toBe("/above.png");
+    expect(noSrcset.getAttribute("src")).toBe("/logo.png");
+    expect(noSrcset.hasAttribute("srcset")).toBe(false);
+    expect(srcsetOnly.getAttribute("srcset")).toBe("/wide.png 2x");
+    expect(srcsetOnly.hasAttribute("src")).toBe(false);
+  });
+
+  it("puts parked images back even when the capture fails", async () => {
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(390);
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(844);
+    const lazy = pageImage(2540, false, { src: "/fleet.svg" });
+    domToCanvas.mockReset().mockImplementation(async () => {
+      expect(lazy.hasAttribute("src")).toBe(false);
+      throw new Error("blocked");
+    });
+    await expect(captureViewport()).rejects.toThrow("blocked");
+    expect(lazy.getAttribute("src")).toBe("/fleet.svg");
+  });
 });
 
 it("encodes a narrow canvas as JPEG at the first quality that fits", () => {
@@ -88,17 +135,16 @@ describe("captureViewport", () => {
       height: 844,
       scale: 3,
       font: false,
+      timeout: 5000,
       style: { marginTop: "-250px", marginLeft: "0px" },
     });
+    expect(options.filter).toBeUndefined();
     const clone = document.createElement("div");
     clone.innerHTML = '<input type="password" value="pw" /><p data-feedback-private>x</p>';
     options.onCloneNode(clone);
     expect(clone.querySelector("input")!.value).toBe("");
     expect(clone.querySelector("p")!.style.visibility).toBe("hidden");
     options.onCloneNode(document.createTextNode("ignored"));
-    const below = document.createElement("img");
-    vi.spyOn(below, "getBoundingClientRect").mockReturnValue({ top: 900, left: 0 } as DOMRect);
-    expect(options.filter(below)).toBe(false);
   });
 
   it("caps the scale so a desktop capture is at most 1200 px wide", async () => {

@@ -18,17 +18,28 @@ export function scrubClone(root: ParentNode): void {
   });
 }
 
-const MEDIA_TAGS = new Set(["IMG", "PICTURE", "VIDEO", "IFRAME", "CANVAS"]);
-
 /**
- * Leave out media wholly below or right of the viewport. The library otherwise fetches every
- * image on the page to inline it, including lazy images that have never loaded; dropping them
- * can't move anything on screen because they sit after the visible area.
+ * Before cloning, the library waits for every <img> on the live page to load. Lazy images
+ * below the fold never load until scrolled to, so it would wait out its whole timeout (the
+ * home page lost 15 s this way). Briefly take the source off images that are both unloaded
+ * and off screen; they show nothing either way. Returns a function that puts them back.
  */
-export function keepNode(node: Node, width: number, height: number): boolean {
-  if (!(node instanceof Element) || !MEDIA_TAGS.has(node.tagName)) return true;
-  const box = node.getBoundingClientRect();
-  return box.top < height && box.left < width;
+export function parkUnloadedOffscreenImages(width: number, height: number): () => void {
+  const parked: [HTMLImageElement, string | null, string | null][] = [];
+  for (const img of Array.from(document.images)) {
+    if (img.complete) continue;
+    const box = img.getBoundingClientRect();
+    if (box.bottom > 0 && box.right > 0 && box.top < height && box.left < width) continue;
+    parked.push([img, img.getAttribute("src"), img.getAttribute("srcset")]);
+    img.removeAttribute("srcset");
+    img.removeAttribute("src");
+  }
+  return () => {
+    for (const [img, src, srcset] of parked) {
+      if (srcset !== null) img.setAttribute("srcset", srcset);
+      if (src !== null) img.setAttribute("src", src);
+    }
+  };
 }
 
 export function encode(canvas: HTMLCanvasElement): string {
@@ -59,26 +70,31 @@ export async function captureViewport(): Promise<string> {
   const { domToCanvas } = await import("modern-screenshot");
   const scrollX = window.scrollX;
   const scrollY = window.scrollY;
-  const canvas = await domToCanvas(document.body, {
-    width,
-    height,
-    scale,
-    backgroundColor: background,
-    timeout: 15000,
-    // Web-font embedding builds a <style> element, which the site CSP (style-src 'self')
-    // blocks. The screenshot falls back to system fonts instead.
-    font: false,
-    // The sandboxed clone starts at the page top; shift the flow content to the viewport.
-    // Fixed elements (the driver tab bar) stay put because margins don't move them.
-    style: {
-      marginTop: `${-scrollY}px`,
-      marginLeft: `${-scrollX}px`,
-      minHeight: "0",
-    },
-    filter: (node) => keepNode(node, width, height),
-    onCloneNode: (cloned) => {
-      if (cloned instanceof Element) scrubClone(cloned);
-    },
-  });
-  return encode(canvas);
+  const restore = parkUnloadedOffscreenImages(width, height);
+  try {
+    const canvas = await domToCanvas(document.body, {
+      width,
+      height,
+      scale,
+      backgroundColor: background,
+      // Caps the wait for any one image that never settles.
+      timeout: 5000,
+      // Web-font embedding builds a <style> element, which the site CSP (style-src 'self')
+      // blocks. The screenshot falls back to system fonts instead.
+      font: false,
+      // The sandboxed clone starts at the page top; shift the flow content to the viewport.
+      // Fixed elements (the driver tab bar) stay put because margins don't move them.
+      style: {
+        marginTop: `${-scrollY}px`,
+        marginLeft: `${-scrollX}px`,
+        minHeight: "0",
+      },
+      onCloneNode: (cloned) => {
+        if (cloned instanceof Element) scrubClone(cloned);
+      },
+    });
+    return encode(canvas);
+  } finally {
+    restore();
+  }
 }
