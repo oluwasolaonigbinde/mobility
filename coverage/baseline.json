@@ -6,12 +6,12 @@
   },
   "critical": {
     "backend": {
-      "branch_covered": 6403,
-      "branch_percent": 84.4723,
-      "branch_total": 7580,
-      "line_covered": 30107,
-      "line_percent": 94.7416,
-      "line_total": 31778,
+      "branch_covered": 6464,
+      "branch_percent": 84.6073,
+      "branch_total": 7640,
+      "line_covered": 30429,
+      "line_percent": 94.7885,
+      "line_total": 32102,
       "paths": [
         "app/__init__.py",
         "app/adapters/banks.py",
@@ -65,6 +65,7 @@
         "app/api/v1/notifications.py",
         "app/api/v1/payees.py",
         "app/api/v1/payouts.py",
+        "app/api/v1/project_feedback.py",
         "app/api/v1/report_issuances.py",
         "app/api/v1/router.py",
         "app/api/v1/stored_files.py",
@@ -146,6 +147,7 @@
         "app/models/organization.py",
         "app/models/payee.py",
         "app/models/payout.py",
+        "app/models/project_feedback.py",
         "app/models/report_issuance.py",
         "app/models/report_schedule.py",
         "app/models/route_replay.py",
@@ -192,6 +194,7 @@
         "app/schemas/organizations.py",
         "app/schemas/payees.py",
         "app/schemas/payouts.py",
+        "app/schemas/project_feedback.py",
         "app/schemas/report_issuances.py",
         "app/schemas/reports.py",
         "app/schemas/stored_files.py",
@@ -297,6 +300,7 @@
         "app/services/payouts/read.py",
         "app/services/payouts/rules.py",
         "app/services/paystack_disbursements.py",
+        "app/services/project_feedback.py",
         "app/services/provenance.py",
         "app/services/report_authorization.py",
         "app/services/report_cohorts.py",
@@ -318,12 +322,12 @@
       ]
     },
     "frontend": {
-      "branch_covered": 8254,
-      "branch_percent": 82.5317,
-      "branch_total": 10001,
-      "line_covered": 7844,
-      "line_percent": 89.2175,
-      "line_total": 8792,
+      "branch_covered": 8463,
+      "branch_percent": 82.7839,
+      "branch_total": 10223,
+      "line_covered": 8109,
+      "line_percent": 89.4737,
+      "line_total": 9063,
       "paths": [
         "frontend/src/app/admin/advertisers/[organizationId]/company/actions.ts",
         "frontend/src/app/admin/advertisers/[organizationId]/invite-actions.ts",
@@ -523,6 +527,9 @@
         "frontend/src/app/api/driver/files/uploads/route.ts",
         "frontend/src/app/api/driver/jobs/[assignmentId]/artwork/route.ts",
         "frontend/src/app/api/driver/vehicles/[vehicleId]/documents/route.ts",
+        "frontend/src/app/api/feedback/[feedbackId]/screenshot/route.ts",
+        "frontend/src/app/api/feedback/export/route.ts",
+        "frontend/src/app/api/feedback/route.ts",
         "frontend/src/app/api/notifications/[notificationId]/read/route.ts",
         "frontend/src/app/api/notifications/_proxy.ts",
         "frontend/src/app/api/notifications/read-all/route.ts",
@@ -575,6 +582,9 @@
         "frontend/src/app/driver/layout.tsx",
         "frontend/src/app/driver/manifest.webmanifest/route.ts",
         "frontend/src/app/error.tsx",
+        "frontend/src/app/feedback/actions.ts",
+        "frontend/src/app/feedback/page-label.ts",
+        "frontend/src/app/feedback/page.tsx",
         "frontend/src/app/forgot-password/actions.ts",
         "frontend/src/app/forgot-password/page.tsx",
         "frontend/src/app/forgot-password/request-form.tsx",
@@ -618,6 +628,9 @@
         "frontend/src/components/driver/phone-prompt.tsx",
         "frontend/src/components/driver/sw-register.tsx",
         "frontend/src/components/driver/tab-bar.tsx",
+        "frontend/src/components/feedback/actions.ts",
+        "frontend/src/components/feedback/capture.ts",
+        "frontend/src/components/feedback/feedback-widget.tsx",
         "frontend/src/components/marketing/campaign-enquiry.tsx",
         "frontend/src/components/marketing/cardvert-section.tsx",
         "frontend/src/components/marketing/contact-band.tsx",
@@ -742,27 +755,39 @@
       ]
     }
   },
-  "eligible_inventory_sha256": "2428bbbdd8985b76c9fc0b1a8929b4fcf386b40818e0148189ed1ec5c727eaac",
+  "eligible_inventory_sha256": "38968e0c6efabd858f0b5c407c5ede35f3d4dc620e582391485a4de45ef68796",
   "global": {
-    "branch_covered": 14657,
-    "branch_percent": 83.3684,
-    "branch_total": 17581,
-    "line_covered": 37951,
-    "line_percent": 93.5445,
-    "line_total": 40570
+    "branch_covered": 14927,
+    "branch_percent": 83.5638,
+    "branch_total": 17863,
+    "line_covered": 38538,
+    "line_percent": 93.6184,
+    "line_total": 41165
   },
-  "policy_sha256": "a9c855e61beb9ace90dcb0372073ee743405ba1a1736725acfe502a1cc36ce99",
+  "policy_sha256": "262aae46610c03b2a781d421b029494931660f83a0b7c24b9fd617fc45564b92",
   "refresh": {
     "inventory_changes": {
       "added": [
-        "frontend/src/lib/billing/print-invoice-button.tsx"
+        "app/api/v1/project_feedback.py",
+        "app/models/project_feedback.py",
+        "app/schemas/project_feedback.py",
+        "app/services/project_feedback.py",
+        "frontend/src/app/api/feedback/[feedbackId]/screenshot/route.ts",
+        "frontend/src/app/api/feedback/export/route.ts",
+        "frontend/src/app/api/feedback/route.ts",
+        "frontend/src/app/feedback/actions.ts",
+        "frontend/src/app/feedback/page-label.ts",
+        "frontend/src/app/feedback/page.tsx",
+        "frontend/src/components/feedback/actions.ts",
+        "frontend/src/components/feedback/capture.ts",
+        "frontend/src/components/feedback/feedback-widget.tsx"
       ],
       "removed": []
     },
-    "previous_baseline_sha256": "deaacb4e41df59194e8411aa7b5922c1c265d12ed8d60b0a516242342228df97",
-    "reason": "REQ-335 walkthrough fixes: inventory/policy change"
+    "previous_baseline_sha256": "a4e22446ee3bca36022866edb1fb4ffede166e2fd8c389dc79a42db9d7b06c4f",
+    "reason": "REQ-336 feedback button and open review page (D172, D173): inventory/policy change"
   },
-  "source_parent_sha": "79f21de23ff6aae64c86a68094389ffe54481ae4",
-  "source_sha256": "f5f1e4003bc01a09ef1783405fc94b04808c4525d54426f91b50943a6273c9c4",
+  "source_parent_sha": "dc44fc9d4d0808c28b5f177d6cd34363599a40cc",
+  "source_sha256": "f48b5165be9d7eba7b263df41c7510ceb1ce7bf179ea1b16d82abe6ba8da935c",
   "version": 3
 }
