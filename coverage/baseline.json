@@ -764,7 +764,7 @@
     "line_percent": 93.6184,
     "line_total": 41165
   },
-  "policy_sha256": "262aae46610c03b2a781d421b029494931660f83a0b7c24b9fd617fc45564b92",
+  "policy_sha256": "a9c855e61beb9ace90dcb0372073ee743405ba1a1736725acfe502a1cc36ce99",
   "refresh": {
     "inventory_changes": {
       "added": [
@@ -788,6 +788,6 @@
     "reason": "REQ-336 feedback button and open review page (D172, D173): inventory/policy change"
   },
   "source_parent_sha": "dc44fc9d4d0808c28b5f177d6cd34363599a40cc",
-  "source_sha256": "f48b5165be9d7eba7b263df41c7510ceb1ce7bf179ea1b16d82abe6ba8da935c",
+  "source_sha256": "0d7940365d0b24f4b54caa23ea035b1609204b2dbdb3f5685722c3cdf6850daa",
   "version": 3
 }
