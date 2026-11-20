@@ -21,10 +21,11 @@ origin in [s3-cors.json](s3-cors.json) before any separately approved applicatio
 Long-lived keys, signature updates, off-host backup and retention remain
 operator responsibilities. Bank/NIN encryption stays in the application key ring.
 
-The street map uses the free OpenFreeMap style (D170):
-`NEXT_PUBLIC_MAP_STYLE_URL=https://tiles.openfreemap.org/styles/liberty`, with
-no key or query string. It is bundled into the frontend image and needs a
-rebuild to change. No credential is present in the template. Residency is REQ-032's legal
+The street map uses the MapTiler style (D174):
+`NEXT_PUBLIC_MAP_STYLE_URL=https://api.maptiler.com/maps/streets-v2/style.json?key=<maptiler-key>`,
+where the key is MapTiler's public browser key restricted to the site's origins.
+It is bundled into the frontend image and needs a rebuild to change. No key or
+other credential is present in the template. Residency is REQ-032's legal
 decision, never a template default.
 
 W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117, wording REQ-112 → REQ-116, D62 → D68, architecture v1.117 → v1.125. Master identifiers retain their meanings.

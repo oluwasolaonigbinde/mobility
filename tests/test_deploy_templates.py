@@ -68,16 +68,16 @@ def test_hetzner_cors_replaces_obsolete_provider_artifacts() -> None:
     assert "*" not in rule["AllowedOrigins"]
 
 
-def test_map_csp_is_limited_to_openfreemap_fetches_and_images() -> None:
+def test_map_csp_is_limited_to_maptiler_fetches_and_images() -> None:
     policy = (ROOT / "Caddyfile").read_text().split('Content-Security-Policy "')[1].split('"')[0]
     directives = dict(
         item.strip().split(" ", 1) for item in policy.split(";") if " " in item.strip()
     )
-    assert "https://tiles.openfreemap.org" in directives["connect-src"].split()
-    assert "https://tiles.openfreemap.org" in directives["img-src"].split()
-    assert "maptiler" not in policy
+    assert "https://api.maptiler.com" in directives["connect-src"].split()
+    assert "https://api.maptiler.com" in directives["img-src"].split()
+    assert "openfreemap" not in policy
     for key in ("script-src", "style-src", "font-src", "frame-src"):
-        assert "openfreemap" not in directives[key]
+        assert "maptiler" not in directives[key]
     assert "https:" not in directives["connect-src"].split()
     assert "*" not in policy
 

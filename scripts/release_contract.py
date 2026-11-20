@@ -510,23 +510,27 @@ def validate_release_evidence_configuration(
     return secret, key_id
 
 
-def _validate_https_authority(name: str, value: str) -> None:
-    parsed = urlparse(value)
-    try:
-        port = parsed.port
-    except ValueError as exc:
-        raise ContractError(f"{name} contains an invalid port") from exc
+_MAP_STYLE_PATH = re.compile(r"/maps/[A-Za-z0-9_-]+/style\.json")
+
+
+def _validate_map_style_url(value: str) -> None:
+    # D174: only a MapTiler style whose sole query parameter is a non-empty key.
+    parts = urlsplit(value)
+    query = parse_qsl(parts.query, keep_blank_values=True)
     if (
-        parsed.scheme != "https"
-        or not _deployable_runtime_host(parsed.hostname)
-        or port == 0
-        or parsed.username is not None
-        or parsed.password is not None
-        or parsed.params
-        or parsed.query
-        or parsed.fragment
+        parts.scheme != "https"
+        or parts.netloc != "api.maptiler.com"
+        or not _MAP_STYLE_PATH.fullmatch(parts.path)
+        or parts.fragment
+        or "#" in value
+        or len(query) != 1
+        or query[0][0] != "key"
+        or not query[0][1].strip()
     ):
-        raise ContractError(f"{name} must use a deployable HTTPS authority")
+        raise ContractError(
+            "NEXT_PUBLIC_MAP_STYLE_URL must be "
+            "https://api.maptiler.com/maps/<style>/style.json?key=<key>"
+        )
 
 
 def _validate_live_adapters(environment: Mapping[str, str]) -> None:
@@ -559,9 +563,7 @@ def _validate_live_adapters(environment: Mapping[str, str]) -> None:
     if not 1 <= email_port <= 65535:
         raise ContractError("EMAIL_SMTP_PORT is outside its accepted range")
 
-    # D170: the OpenFreeMap style needs no key, so a query string is never valid.
-    map_style = _require(environment, "NEXT_PUBLIC_MAP_STYLE_URL")
-    _validate_https_authority("NEXT_PUBLIC_MAP_STYLE_URL", map_style)
+    _validate_map_style_url(_require(environment, "NEXT_PUBLIC_MAP_STYLE_URL"))
     for name in (
         # Approved applicants get their set-up link only when this is set.
         "DRIVER_ACCOUNT_SETUP_PUBLIC_URL",

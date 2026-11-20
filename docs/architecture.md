@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.178 — 2026-11-19. Canonical source of truth: current state AND target state.**
+**Version 1.179 — 2026-11-20. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1372,7 +1372,7 @@ before implementation).
    │ source of      │   │ (analytics→fraud→ │   │ • WhatsApp/SMS/email providers  │
    │ truth (P2)     │   │  impress.→payout) │   │ • S3-compatible object storage  │
    │ + new domains: │   │ payout release    │   │   (creatives, KYC docs, photos) │
-   │ billing, files,│   │ retention purge   │   │ • Map tiles (OpenFreeMap, D170) │
+   │ billing, files,│   │ retention purge   │   │ • Map tiles (MapTiler, D174)    │
    │ notifications, │   │ notification send │   │ • Sentry (both tiers)           │
    │ audience       │   │ budget/activity   │   └─────────────────────────────────┘
    └────────────────┘   │ sweeps, webhooks  │
@@ -3235,10 +3235,11 @@ Render/AWS and MapTiler replaces Mapbox. `deploy/hetzner/` and
 `docs/deployment-templates.md` reuse the standalone Compose/Caddy release
 topology and existing S3 adapter, with blank secrets and no chosen region.
 Application bank/NIN key custody remains in the key ring; no KMS is claimed.
-D170 replaces MapTiler with OpenFreeMap: the build-time MapLibre style is
-`https://tiles.openfreemap.org/styles/liberty` with no key, the CSP allows only
-that origin in connect-src and img-src, and the release contract refuses a
-style URL with a query string.
+D174 uses MapTiler: the build-time MapLibre style is
+`https://api.maptiler.com/maps/streets-v2/style.json?key=<key>` with a public,
+origin-restricted key, the CSP allows only `https://api.maptiler.com` in
+connect-src and img-src, and the release contract accepts only a MapTiler style
+URL whose sole query parameter is a non-empty `key`.
 Compose gains private ClamAV with persistent signatures, outbound update
 access and health dependencies, and explicit configurable WEB_CONCURRENCY
 (default two). Release and recovery allow 900 seconds for scanner/application
@@ -4484,4 +4485,9 @@ Money semantics outside D164 are unchanged. Launch gates are unchanged.
 
 - §9 contract (all three baselines move together): `POST /feedback/review/unlock` and the `X-Feedback-Review-Token` header are removed. `GET /feedback/review`, `PATCH /feedback/{feedback_id}/status`, `GET /feedback/{feedback_id}/screenshot` and `GET /feedback/export.csv` are public when `FEEDBACK_ENABLED` is set and answer 404 when it is not.
 - D173: `FEEDBACK_REVIEW_PASSWORD`, the review token and the unlock limits are removed; submit limits, the production refusal and capture masking are unchanged. Accepted risk: anyone with a test version's URL can read every note and screenshot and mark notes resolved.
+- Launch gates are unchanged.
+
+## Amendment / changelog 1.179 - REQ-338 / D174 (street map from MapTiler, 20 Nov 2026)
+
+- D174 supersedes D170: the street map uses MapTiler's `streets-v2` style with a public key restricted to the site's origins, frozen into the frontend build and never committed. The CSP allows only `https://api.maptiler.com` for fetches and images, and the release contract accepts only `https://api.maptiler.com/maps/<style>/style.json?key=<key>` with no other query parameter, userinfo, port or fragment. OpenFreeMap is removed. MapTiler's attribution stays visible.
 - Launch gates are unchanged.

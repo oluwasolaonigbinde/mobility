@@ -107,7 +107,7 @@ a fixed Terrax-van hero and actual artwork alongside the real campaign map;
 driver jobs put the actual frozen advert on the same van with Where to drive
 and Avoid chips. Wallet for money figures; megaphone for campaigns. Maps show
 actual areas with the existing component and activeMapStyle; no drawn roads or
-landmarks for a real campaign. The street map is OpenFreeMap (D170). Admin is plain white,
+landmarks for a real campaign. The street map is MapTiler (D174). Admin is plain white,
 minimal and spacious through shared styling, with existing behaviour/drawers.
 One Account combines company and sign-in details; invoices live only in Billing,
 linked from campaigns; Billing's approved design stays. Campaigns has a simple
@@ -912,9 +912,11 @@ drivers, vehicles and advertisers.
 **Current rule:** Terrax owns the cloud accounts and domain, with developer
 access (Q32). Hosting, database and file storage on **Hetzner**; email from
 **Postmark** (support@terraxmedia.com); **ClamAV** file checking; domain
-**terraxmedia.com** (D44, client answers items 9–16). The street map is the free
-**OpenFreeMap** style, which needs no account or key; viewers' browsers fetch its
-tiles directly (D170, REQ-335). Bank and
+**terraxmedia.com** (D44, client answers items 9–16). The street map comes from
+**MapTiler**, in an account in Terrax's name, using a public key that works only
+on the approved sites. Viewers' browsers fetch its tiles directly, and MapTiler's
+credit stays on the map (D174, REQ-338). Before production, the client's domain
+must be added to the key and the plan checked for commercial use. Bank and
 NIN encryption keys stay in Cardvert's own key ring, because Hetzner has no
 key-management service (D44).
 Every process explicitly selects its environment. Outside local/test operation,
@@ -935,10 +937,11 @@ The VPS also hosts the owner's other software, so Cardvert runs with capped memo
 Its Caddy is the server's single public edge. Live at https://213-199-54-25.sslip.io
 since 18 Nov 2026.
 
-**Still open:** [REQ-050](requests.md) Postmark account (Hetzner now exists, no server yet; the map needs no account since D170);
+**Still open:** [REQ-050](requests.md) Postmark account (Hetzner and MapTiler accounts now exist; no Hetzner server yet);
 [REQ-043](requests.md) domain connection; [REQ-033](requests.md) which address (for example app.terraxmedia.com); [REQ-032](requests.md) residency and legal prerequisites.
 
 **History:**
+- **2026-11-20** — Owner switched the map to MapTiler ("lets set up maptiler next") and supplied the MapTiler account (D174, REQ-338). Previously the map was the free OpenFreeMap style, which needed no account or key (D170).
 - **2026-11-19** — Owner chose the free OpenFreeMap street map ("Yes, free map", 18 Nov) and approved replacing MapTiler everywhere (D170, REQ-335). Previously maps were to come from MapTiler, which needs an account and a restricted key (D44).
 - **2026-11-18** — Preview deployed on the shared Contabo VPS from master `9485d03d` with capped memory. Release-template faults it found are logged as REQ-330, Built in `e7b027de`. Built on the server only; no repo commit.
 - **2026-11-17** — Owner: preview on the owner's Contabo VPS until a Hetzner CX33 is available (REQ-329). Previously there was no hosted preview, and Hetzner had no account access.
@@ -1176,10 +1179,10 @@ how long notes are kept is not decided yet (D172, D173, REQ-336).
 - **2026-11-19** — Owner removed the review password: "let it have no password,
   the url should open up the feedback" (D173, REQ-336). Previously `/feedback`
   was unlocked by a project password and staff logins could not see the notes
-  (D172).
+  (D172). Built in `3c981a01`.
 - **2026-11-19** — Owner asked for Green Flag's feedback button on Cardvert, on
   the preview "asap", with one page to read every note (D172, REQ-336).
-  Previously there was no in-app feedback.
+  Previously there was no in-app feedback. Built in `3c981a01`.
 
 ## Scheduled operational monitoring
 
