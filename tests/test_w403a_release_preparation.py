@@ -293,7 +293,7 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
             "EMAIL_SMTP_STARTTLS": "true",
             "PRIVACY_LEGAL_APPROVAL_REFERENCE": "legal-approval-reference-2026-01",
             "NEXT_PUBLIC_MAP_STYLE_URL": (
-                "https://api.maptiler.com/maps/streets-v2/style.json?key=dummy-key"
+                "https://api.maptiler.com/maps/streets-v2/style.json?key=Xq7RmT2vLp9WcH4nZs8B"
             ),
             "SESSION_COOKIE_NAME": "__Host-cardvert_session",
             "ALLOW_DEMO_SEED": "false",
@@ -585,7 +585,7 @@ def test_release_environment_rejects_incomplete_live_authority(
 def test_release_environment_accepts_maptiler_style(tmp_path: Path) -> None:
     environment = valid_release_environment(tmp_path)
     environment["NEXT_PUBLIC_MAP_STYLE_URL"] = (
-        "https://api.maptiler.com/maps/streets-v2/style.json?key=dummy-key"
+        "https://api.maptiler.com/maps/streets-v2/style.json?key=Xq7RmT2vLp9WcH4nZs8B"
     )
     validate_release_environment(environment, allow_local_rehearsal=False)
 
@@ -593,17 +593,17 @@ def test_release_environment_accepts_maptiler_style(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "url",
     [
-        "https://tiles.example.com/maps/streets-v2/style.json?key=dummy-key",
-        "https://api.maptiler.com.example.com/maps/streets-v2/style.json?key=dummy-key",
+        "https://tiles.example.com/maps/streets-v2/style.json?key=Xq7RmT2vLp9WcH4nZs8B",
+        "https://api.maptiler.com.example.com/maps/streets-v2/style.json?key=Xq7RmT2vLp9WcH4nZs8B",
         "https://api.maptiler.com/maps/streets-v2/style.json",
         "https://api.maptiler.com/maps/streets-v2/style.json?key=",
-        "https://api.maptiler.com/maps/streets-v2/style.json?key=dummy-key&debug=1",
+        "https://api.maptiler.com/maps/streets-v2/style.json?key=Xq7RmT2vLp9WcH4nZs8B&debug=1",
         "https://api.maptiler.com/maps/streets-v2/style.json?key=a&key=b",
-        "https://user@api.maptiler.com/maps/streets-v2/style.json?key=dummy-key",
-        "https://api.maptiler.com:8443/maps/streets-v2/style.json?key=dummy-key",
-        "https://api.maptiler.com/maps/streets-v2/style.json?key=dummy-key#fragment",
-        "http://api.maptiler.com/maps/streets-v2/style.json?key=dummy-key",
-        "https://api.maptiler.com/tiles/streets-v2/style.json?key=dummy-key",
+        "https://user@api.maptiler.com/maps/streets-v2/style.json?key=Xq7RmT2vLp9WcH4nZs8B",
+        "https://api.maptiler.com:8443/maps/streets-v2/style.json?key=Xq7RmT2vLp9WcH4nZs8B",
+        "https://api.maptiler.com/maps/streets-v2/style.json?key=Xq7RmT2vLp9WcH4nZs8B#fragment",
+        "http://api.maptiler.com/maps/streets-v2/style.json?key=Xq7RmT2vLp9WcH4nZs8B",
+        "https://api.maptiler.com/tiles/streets-v2/style.json?key=Xq7RmT2vLp9WcH4nZs8B",
     ],
 )
 def test_release_environment_rejects_other_map_style_urls(tmp_path: Path, url: str) -> None:
