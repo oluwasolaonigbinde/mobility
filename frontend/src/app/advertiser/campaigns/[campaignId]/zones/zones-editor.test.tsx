@@ -10,7 +10,7 @@ const deleteZoneAction = vi.hoisted(() => vi.fn());
 const drawHandlers = vi.hoisted(() => new Map<string, (id: string) => void>());
 const createZoneAction = vi.hoisted(() => vi.fn());
 const activeStyle = vi.hoisted(() =>
-  vi.fn((): string | object => "https://tiles.openfreemap.org/styles/liberty"),
+  vi.fn((): string | object => "https://api.maptiler.com/maps/streets-v2/style.json?key=dummy-key"),
 );
 
 vi.mock("maplibre-gl", () => ({
@@ -147,7 +147,7 @@ describe("ZonesEditor MapLibre compatibility", () => {
 
     expect(mapConstructor).toHaveBeenCalledOnce();
     expect(mapConstructor.mock.calls[0]![0].style).toBe(
-      "https://tiles.openfreemap.org/styles/liberty",
+      "https://api.maptiler.com/maps/streets-v2/style.json?key=dummy-key",
     );
     act(() => mapHandlers.get("error")?.());
     expect(map.setStyle).toHaveBeenCalledWith({ version: 8, sources: {}, layers: [] });
