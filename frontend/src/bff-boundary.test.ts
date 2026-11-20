@@ -119,6 +119,16 @@ it("rejects navigated forms at the JSON command boundary", async () => {
   expect((await proxy(req)).status).toBe(403);
 });
 
+it("guards the public feedback submit like every other JSON command (REQ-336)", async () => {
+  expect((await proxy(request("/api/feedback"))).status).toBe(200);
+  expect(
+    (await proxy(request("/api/feedback", { origin: "https://hostile.example.com" }))).status,
+  ).toBe(403);
+  expect((await proxy(request("/api/feedback", { "content-type": "text/plain" }))).status).toBe(
+    415,
+  );
+});
+
 function routes(path: string): string[] {
   return readdirSync(path, { withFileTypes: true }).flatMap((entry) =>
     entry.isDirectory()

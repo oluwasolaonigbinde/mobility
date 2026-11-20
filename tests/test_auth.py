@@ -15,6 +15,7 @@ from fastapi.routing import APIRoute
 from starlette import status as http_status
 
 from app.api.v1.dependencies import get_current_user, oauth2_scheme
+from app.api.v1.project_feedback import optional_submitter_user_id
 from app.models.user import UserRole, UserStatus
 from app.services.users import get_user_by_email
 
@@ -575,7 +576,9 @@ def test_every_bearer_route_uses_the_central_current_user_dependency(client) -> 
         if oauth2_scheme not in calls:
             continue
         bearer_routes.append(f"{','.join(sorted(route.methods))} {path}")
-        assert get_current_user in calls
+        # REQ-336: feedback submit reads identity optionally; that dependency
+        # calls get_current_user directly so a bad session never blocks it.
+        assert get_current_user in calls or optional_submitter_user_id in calls
 
     assert bearer_routes
 

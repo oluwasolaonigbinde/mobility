@@ -675,6 +675,22 @@ Measurements from the 12 Jul 2026 local Docker/PostGIS verification host:
 
 Re-measure on the hosted CI runner after the first workflow run. If density 1 exceeds budget there, reduce the CI rolling window or share a module seed as specified by the tests; do not change the local default or legacy objects merely to hide runtime.
 
+## Feedback button for test versions (REQ-336 / D172 / D173)
+
+Switch it on only for a preview or staging host; production refuses it.
+
+1. Set `FEEDBACK_ENABLED=true` for the API and worker.
+2. Rebuild the frontend image with the build argument
+   `NEXT_PUBLIC_FEEDBACK_ENABLED=1` so the button shows on every page.
+3. Restart the stack, then open `<site>/feedback`. It has no password (D173):
+   anyone with the URL can read every note and screenshot and mark notes
+   resolved, so use it only on hosts that hold synthetic data.
+
+To switch it off, set `FEEDBACK_ENABLED=false` and rebuild the frontend without
+the build argument; every feedback route then answers 404. Stored notes stay in
+`project_feedback_items`; no retention job deletes them yet. Submit needs Redis
+and answers 503 without it.
+
 ## Sentry-ready error tracking
 
 All hooks are inert when their DSN is empty. No Sentry account is created by this repository.

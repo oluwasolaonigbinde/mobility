@@ -144,7 +144,7 @@ export function PersonPayeeForm({ accessToken }: { accessToken: string }) {
         private.
       </p>
       <form onSubmit={submit} onChange={changed} className="grid grid-cols-1 gap-4" noValidate>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2" data-feedback-private>
           <Field
             label="NIN (11 digits)"
             name="nin"

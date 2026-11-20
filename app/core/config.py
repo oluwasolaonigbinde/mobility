@@ -220,6 +220,13 @@ class Settings(BaseSettings):
     campaign_enquiry_rate_limit_ip_max_attempts: ClassVar[int] = 5
     campaign_enquiry_rate_limit_global_max_attempts: ClassVar[int] = 100
     campaign_enquiry_rate_limit_window_seconds: ClassVar[int] = 3600
+    # REQ-336/D172/D173: site-wide feedback button and open review page for test
+    # versions. Off by default and refused in production.
+    feedback_enabled: bool = False
+    feedback_submit_ip_max_attempts: ClassVar[int] = 10
+    feedback_submit_ip_window_seconds: ClassVar[int] = 600
+    feedback_submit_global_max_attempts: ClassVar[int] = 300
+    feedback_submit_global_window_seconds: ClassVar[int] = 86400
     email_sender_address: str = ""
     email_sender_name: str = "Cardvert"
     email_smtp_host: str = ""
@@ -374,6 +381,12 @@ class Settings(BaseSettings):
         if not value.strip() or len(value) < 32:
             raise ValueError("JWT_SECRET_KEY must be at least 32 characters long")
         return value
+
+    @model_validator(mode="after")
+    def validate_feedback_environment(self) -> "Settings":
+        if self.feedback_enabled and self.environment == "production":
+            raise ValueError("FEEDBACK_ENABLED is refused in production")
+        return self
 
     @field_validator("paystack_secret_key")
     @classmethod

@@ -56,6 +56,13 @@ PUBLIC_ROUTES = frozenset(
         ("GET", "/api/v1/health/partitions"),
         ("GET", "/api/v1/qr/{code}"),
         ("POST", "/api/v1/campaign-enquiries"),
+        # REQ-336: optional bearer only names the sender. D173: on test versions the
+        # review routes are open to anyone with the URL; FEEDBACK_ENABLED off is 404.
+        ("POST", "/api/v1/feedback"),
+        ("GET", "/api/v1/feedback/review"),
+        ("PATCH", "/api/v1/feedback/{feedback_id}/status"),
+        ("GET", "/api/v1/feedback/{feedback_id}/screenshot"),
+        ("GET", "/api/v1/feedback/export.csv"),
         ("POST", "/api/v1/auth/login"),
         ("POST", "/api/v1/auth/password-reset/request"),
         ("POST", "/api/v1/auth/password-reset/complete"),

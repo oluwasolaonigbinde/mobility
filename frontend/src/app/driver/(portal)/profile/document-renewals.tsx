@@ -147,18 +147,20 @@ function RenewalForm({
   return (
     <form onSubmit={submit} onChange={changed} className="mt-4 flex flex-col gap-4">
       {replaceNin ? (
-        <Field
-          name="nin"
-          label="NIN"
-          inputMode="numeric"
-          minLength={11}
-          maxLength={11}
-          required
-          autoComplete="off"
-        />
+        <div className="flex flex-col gap-4" data-feedback-private>
+          <Field
+            name="nin"
+            label="NIN"
+            inputMode="numeric"
+            minLength={11}
+            maxLength={11}
+            required
+            autoComplete="off"
+          />
+        </div>
       ) : null}
       {replaceBank ? (
-        <>
+        <div className="flex flex-col gap-4" data-feedback-private>
           <Field name="account_name" label="Bank account name" required />
           <Field
             name="account_number"
@@ -171,7 +173,7 @@ function RenewalForm({
           <p className="text-muted text-sm">
             If your bank is missing, contact Terrax Media to add it.
           </p>
-        </>
+        </div>
       ) : null}
       {kinds.map((kind) => (
         <UploadControl key={kind} kind={kind} disabled={busy} />

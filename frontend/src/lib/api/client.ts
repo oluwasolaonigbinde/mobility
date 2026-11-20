@@ -64,3 +64,11 @@ export function createApiClient(token?: string): ApiClient {
 export function createLoginApiClient(clientIp?: string): ApiClient {
   return createConfiguredClient(clientIp ? { "X-Client-IP": clientIp } : undefined);
 }
+
+/** Public endpoints with optional identity (feedback): relayed client IP plus any session. */
+export function createRelayedApiClient(token?: string, clientIp?: string): ApiClient {
+  return createConfiguredClient({
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(clientIp ? { "X-Client-IP": clientIp } : {}),
+  });
+}

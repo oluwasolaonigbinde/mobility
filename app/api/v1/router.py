@@ -31,6 +31,7 @@ from app.api.v1.navigation import router as navigation_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.payees import router as payees_router
 from app.api.v1.payouts import router as payouts_router
+from app.api.v1.project_feedback import router as project_feedback_router
 from app.api.v1.report_issuances import router as report_issuances_router
 from app.api.v1.stored_files import router as stored_files_router
 from app.api.v1.trip_analytics import router as trip_analytics_router
@@ -66,6 +67,7 @@ api_router.include_router(impressions_router)
 api_router.include_router(installation_evidence_router)
 api_router.include_router(kyc_router)
 api_router.include_router(payouts_router)
+api_router.include_router(project_feedback_router)
 api_router.include_router(report_issuances_router)
 api_router.include_router(stored_files_router)
 api_router.include_router(trip_analytics_router)
