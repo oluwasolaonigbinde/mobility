@@ -1,4 +1,4 @@
-"""REQ-336/D172: site-wide feedback button and the password-protected review page."""
+"""REQ-336/D172/D173: site-wide feedback button and the open review page."""
 
 import asyncio
 import base64
@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from alembic.config import Config
-from authorization_matrix import PROJECT_REVIEW_ROUTES, Principal, authorization_inventory
+from authorization_matrix import PUBLIC_ROUTES, Principal, authorization_inventory
 from conftest import auth_headers, create_test_user, isolated_postgis_sessionmaker
 from database_helpers import (
     configured_postgres_url,
@@ -27,11 +27,7 @@ from sqlalchemy import delete, select, update
 from test_config import production_settings
 
 from alembic import command
-from app.api.v1.project_feedback import (
-    get_feedback_submit_limiter,
-    get_feedback_unlock_limiter,
-)
-from app.core import clock
+from app.api.v1.project_feedback import get_feedback_submit_limiter
 from app.core.campaign_enquiry_rate_limit import PublicSubmitLimits, RedisEnquiryRateLimiter
 from app.core.config import Settings
 from app.core.errors import AppError
@@ -46,7 +42,6 @@ from app.services.project_feedback import (
     reencode_screenshot,
 )
 
-REVIEW_PASSWORD = "project-review-password-for-tests"
 PAYLOAD = {"name": "Ada Tester", "page_path": "/advertiser/campaigns", "message": "Button is odd."}
 
 
@@ -74,13 +69,12 @@ def feedback_settings(**overrides) -> Settings:
         "redis_url": None,
         "jwt_secret_key": "test-secret-key-at-least-32-bytes",
         "feedback_enabled": True,
-        "feedback_review_password": REVIEW_PASSWORD,
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)
 
 
-def make_client(db_sessionmaker, *, settings=None, submit=None, unlock=None, client=None):
+def make_client(db_sessionmaker, *, settings=None, submit=None, client=None):
     app = create_app(settings or feedback_settings())
 
     async def store():
@@ -88,12 +82,10 @@ def make_client(db_sessionmaker, *, settings=None, submit=None, unlock=None, cli
             yield session
 
     submit = submit or FakeLimiter()
-    unlock = unlock or FakeLimiter()
     app.dependency_overrides[get_session] = store
     app.dependency_overrides[get_feedback_submit_limiter] = lambda: submit
-    app.dependency_overrides[get_feedback_unlock_limiter] = lambda: unlock
     kwargs = {"client": client} if client else {}
-    return TestClient(app, raise_server_exceptions=False, **kwargs), submit, unlock
+    return TestClient(app, raise_server_exceptions=False, **kwargs), submit
 
 
 @pytest.fixture(scope="module")
@@ -121,9 +113,9 @@ def _empty_feedback_table(request):
 
 @pytest.fixture
 def feedback(db_sessionmaker):
-    client, submit, unlock = make_client(db_sessionmaker)
+    client, submit = make_client(db_sessionmaker)
     with client:
-        yield client, submit, unlock
+        yield client, submit
 
 
 def rows(db_sessionmaker) -> list[tuple]:
@@ -174,21 +166,11 @@ def data_url(image: Image.Image, fmt: str = "PNG", **save) -> str:
     return f"data:image/{mime};base64,{base64.b64encode(buffer.getvalue()).decode()}"
 
 
-def unlock_token(client) -> str:
-    response = client.post("/api/v1/feedback/review/unlock", json={"password": REVIEW_PASSWORD})
-    assert response.status_code == 200, response.text
-    return response.json()["token"]
-
-
-def review_headers(client) -> dict[str, str]:
-    return {"X-Feedback-Review-Token": unlock_token(client)}
-
-
 # --- Submit --------------------------------------------------------------------
 
 
 def test_anonymous_text_note_is_stored(feedback, db_sessionmaker):
-    client, submit, _ = feedback
+    client, submit = feedback
     response = client.post("/api/v1/feedback", json={**PAYLOAD, "name": "  Ada Tester  "})
     assert response.status_code == 200
     assert response.json() == {"status": "received"}
@@ -206,7 +188,7 @@ def test_anonymous_text_note_is_stored(feedback, db_sessionmaker):
 
 
 def test_signed_in_sender_comes_from_the_session(feedback, db_sessionmaker):
-    client, _, _ = feedback
+    client, _ = feedback
     user = create_test_user(db_sessionmaker, email="fb-driver@example.com", role=UserRole.DRIVER)
     headers = auth_headers(client, "fb-driver@example.com")
     assert client.post("/api/v1/feedback", json=PAYLOAD, headers=headers).status_code == 200
@@ -216,7 +198,7 @@ def test_signed_in_sender_comes_from_the_session(feedback, db_sessionmaker):
 def test_invalid_expired_and_password_change_sessions_are_stored_as_anonymous(
     feedback, db_sessionmaker
 ):
-    client, _, _ = feedback
+    client, _ = feedback
     settings = feedback_settings()
     user = create_test_user(db_sessionmaker, email="fb-admin@example.com")
     expired = create_access_token(
@@ -275,7 +257,7 @@ def test_invalid_expired_and_password_change_sessions_are_stored_as_anonymous(
     ],
 )
 def test_invalid_or_spoofed_fields_are_refused_before_the_limiter(feedback, db_sessionmaker, patch):
-    client, submit, _ = feedback
+    client, submit = feedback
     response = client.post("/api/v1/feedback", json={**PAYLOAD, **patch})
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"
@@ -284,7 +266,7 @@ def test_invalid_or_spoofed_fields_are_refused_before_the_limiter(feedback, db_s
 
 
 def test_page_path_keeps_a_same_site_path(feedback, db_sessionmaker):
-    client, _, _ = feedback
+    client, _ = feedback
     for path in ("/", "/admin/driver-applications/123", "/driver"):
         assert client.post("/api/v1/feedback", json={**PAYLOAD, "page_path": path}).status_code == (
             200
@@ -297,7 +279,7 @@ def test_page_path_keeps_a_same_site_path(feedback, db_sessionmaker):
 
 
 def test_honeypot_looks_like_success_and_stores_nothing(feedback, db_sessionmaker):
-    client, submit, _ = feedback
+    client, submit = feedback
     response = client.post("/api/v1/feedback", json={**PAYLOAD, "website": "http://spam"})
     assert (response.status_code, response.json()) == (200, {"status": "received"})
     assert rows(db_sessionmaker) == []
@@ -312,7 +294,7 @@ def test_honeypot_looks_like_success_and_stores_nothing(feedback, db_sessionmake
     ],
 )
 def test_limiter_refusals_store_nothing(db_sessionmaker, decision, expected, code):
-    client, _, _ = make_client(db_sessionmaker, submit=FakeLimiter(decision=decision))
+    client, _ = make_client(db_sessionmaker, submit=FakeLimiter(decision=decision))
     response = client.post("/api/v1/feedback", json=PAYLOAD)
     assert (response.status_code, response.json()["error"]["code"]) == (expected, code)
     if expected == 429:
@@ -320,7 +302,7 @@ def test_limiter_refusals_store_nothing(db_sessionmaker, decision, expected, cod
     assert rows(db_sessionmaker) == []
 
 
-def test_without_redis_submit_and_unlock_are_unavailable(db_sessionmaker):
+def test_without_redis_submit_is_unavailable(db_sessionmaker):
     app = create_app(feedback_settings(redis_url=None))
 
     async def store():
@@ -330,8 +312,6 @@ def test_without_redis_submit_and_unlock_are_unavailable(db_sessionmaker):
     app.dependency_overrides[get_session] = store
     client = TestClient(app)
     assert client.post("/api/v1/feedback", json=PAYLOAD).status_code == 503
-    unlock = client.post("/api/v1/feedback/review/unlock", json={"password": REVIEW_PASSWORD})
-    assert unlock.status_code == 503
     assert rows(db_sessionmaker) == []
 
 
@@ -340,11 +320,10 @@ def test_relayed_client_ips_get_separate_buckets(db_sessionmaker):
         login_rate_limit_trust_client_ip_header=True,
         login_rate_limit_trusted_proxy_cidrs="127.0.0.1/32",
     )
-    client, submit, unlock = make_client(
+    client, submit = make_client(
         db_sessionmaker,
         settings=settings,
         submit=FakeLimiter(limit=1),
-        unlock=FakeLimiter(limit=1),
         client=("127.0.0.1", 50000),
     )
     first = {"X-Client-IP": "203.0.113.1"}
@@ -353,18 +332,10 @@ def test_relayed_client_ips_get_separate_buckets(db_sessionmaker):
     assert client.post("/api/v1/feedback", json=PAYLOAD, headers=first).status_code == 429
     assert client.post("/api/v1/feedback", json=PAYLOAD, headers=second).status_code == 200
     assert submit.ips == ["203.0.113.1", "203.0.113.1", "203.0.113.2"]
-    body = {"password": "wrong-password"}
-    assert client.post("/api/v1/feedback/review/unlock", json=body, headers=first).status_code == (
-        401
-    )
-    assert client.post("/api/v1/feedback/review/unlock", json=body, headers=first).status_code == (
-        429
-    )
-    assert unlock.ips == ["203.0.113.1", "203.0.113.1"]
 
 
 def test_forged_client_ip_from_an_untrusted_peer_is_ignored(feedback):
-    client, submit, _ = feedback
+    client, submit = feedback
     client.post("/api/v1/feedback", json=PAYLOAD, headers={"X-Client-IP": "203.0.113.9"})
     assert submit.ips == ["testclient"]
 
@@ -381,7 +352,7 @@ def test_forged_client_ip_from_an_untrusted_peer_is_ignored(feedback):
     ids=["not-json", "text-plain", "over-1mib", "array", "deep-json"],
 )
 def test_body_parsing_fails_safely(feedback, db_sessionmaker, body, content_type, expected):
-    client, submit, _ = feedback
+    client, submit = feedback
     response = client.post("/api/v1/feedback", content=body, headers={"Content-Type": content_type})
     assert response.status_code == expected
     assert submit.ips == []
@@ -389,7 +360,7 @@ def test_body_parsing_fails_safely(feedback, db_sessionmaker, body, content_type
 
 
 def test_marked_screenshot_is_reencoded_without_metadata(feedback, db_sessionmaker):
-    client, _, _ = feedback
+    client, _ = feedback
     exif = Image.Exif()
     exif[0x010F] = "SecretCameraMaker"
     source = data_url(Image.new("RGB", (2400, 1000), "red"), "JPEG", exif=exif)
@@ -410,7 +381,7 @@ def test_marked_screenshot_is_reencoded_without_metadata(feedback, db_sessionmak
 
 @pytest.mark.parametrize("fmt", ["PNG", "WEBP"])
 def test_png_and_webp_captures_are_accepted(feedback, db_sessionmaker, fmt):
-    client, _, _ = feedback
+    client, _ = feedback
     image = Image.new("RGBA", (300, 200), (0, 0, 0, 0))
     response = client.post(
         "/api/v1/feedback",
@@ -441,7 +412,7 @@ def _bomb() -> str:
     ],
 )
 def test_non_images_and_mismatched_types_are_refused(feedback, db_sessionmaker, screenshot_url):
-    client, _, _ = feedback
+    client, _ = feedback
     response = client.post(
         "/api/v1/feedback",
         json={**PAYLOAD, "screenshot": {"data_url": screenshot_url, "pin_x": 0, "pin_y": 0}},
@@ -452,7 +423,7 @@ def test_non_images_and_mismatched_types_are_refused(feedback, db_sessionmaker, 
 
 
 def test_decompression_bomb_is_refused_before_decoding(feedback, db_sessionmaker):
-    client, _, _ = feedback
+    client, _ = feedback
     bomb = _bomb()
     assert len(bomb) < 200_000
     response = client.post(
@@ -476,128 +447,55 @@ def test_oversize_and_tall_images_are_refused_by_the_decoder():
 
 
 def test_feature_off_answers_404_everywhere(db_sessionmaker):
-    for settings in (
-        feedback_settings(feedback_enabled=False),
-        feedback_settings(feedback_review_password=None),
-    ):
-        client, submit, unlock = make_client(db_sessionmaker, settings=settings)
-        token = {"X-Feedback-Review-Token": "fbr1.1.x"}
-        responses = [
-            client.get("/api/v1/feedback/review", headers=token),
-            client.patch(
-                f"/api/v1/feedback/{uuid4()}/status", json={"status": "resolved"}, headers=token
-            ),
-            client.get(f"/api/v1/feedback/{uuid4()}/screenshot", headers=token),
-            client.get("/api/v1/feedback/export.csv", headers=token),
-            client.post("/api/v1/feedback/review/unlock", json={"password": REVIEW_PASSWORD}),
-        ]
-        if not settings.feedback_enabled:
-            responses.append(client.post("/api/v1/feedback", json=PAYLOAD))
-        for response in responses:
-            assert (response.status_code, response.json()["error"]["code"]) == (
-                404,
-                "FEEDBACK_NOT_ENABLED",
-            )
-        assert unlock.ips == []
+    client, submit = make_client(
+        db_sessionmaker, settings=feedback_settings(feedback_enabled=False)
+    )
+    responses = [
+        client.post("/api/v1/feedback", json=PAYLOAD),
+        client.get("/api/v1/feedback/review"),
+        client.patch(f"/api/v1/feedback/{uuid4()}/status", json={"status": "resolved"}),
+        client.get(f"/api/v1/feedback/{uuid4()}/screenshot"),
+        client.get("/api/v1/feedback/export.csv"),
+    ]
+    for response in responses:
+        assert (response.status_code, response.json()["error"]["code"]) == (
+            404,
+            "FEEDBACK_NOT_ENABLED",
+        )
+    assert submit.ips == []
     assert rows(db_sessionmaker) == []
 
 
 # --- Review --------------------------------------------------------------------
 
-
-def test_unlock_refuses_wrong_password_and_issues_a_twelve_hour_token(feedback):
-    client, _, unlock = feedback
-    wrong = client.post("/api/v1/feedback/review/unlock", json={"password": "nope"})
-    assert (wrong.status_code, wrong.json()["error"]["code"]) == (
-        401,
-        "FEEDBACK_REVIEW_PASSWORD_MISMATCH",
-    )
-    assert REVIEW_PASSWORD not in wrong.text
-    right = client.post("/api/v1/feedback/review/unlock", json={"password": REVIEW_PASSWORD})
-    assert right.status_code == 200
-    body = right.json()
-    assert REVIEW_PASSWORD not in right.text
-    expires = datetime.fromisoformat(body["expires_at"])
-    assert timedelta(hours=11, minutes=59) < expires - datetime.now(UTC) <= timedelta(hours=12)
-    assert len(unlock.ips) == 2
-    headers = {"X-Feedback-Review-Token": body["token"]}
-    assert client.get("/api/v1/feedback/review", headers=headers).status_code == 200
+REVIEW_ROUTES = {
+    ("GET", "/api/v1/feedback/review"),
+    ("PATCH", "/api/v1/feedback/{feedback_id}/status"),
+    ("GET", "/api/v1/feedback/{feedback_id}/screenshot"),
+    ("GET", "/api/v1/feedback/export.csv"),
+}
 
 
-def test_unlock_rate_limit_answers_429(db_sessionmaker):
-    limited = FakeLimiter(decision=RateLimitDecision(allowed=False, retry_after_seconds=7))
-    client, _, _ = make_client(db_sessionmaker, unlock=limited)
-    response = client.post("/api/v1/feedback/review/unlock", json={"password": REVIEW_PASSWORD})
-    assert response.status_code == 429
-    assert response.headers["Retry-After"] == "7"
-
-
-def test_review_routes_refuse_missing_tampered_expired_and_session_tokens(
-    feedback, db_sessionmaker
-):
-    client, _, _ = feedback
-    create_test_user(db_sessionmaker, email="fb-staff@example.com")
-    session_jwt = auth_headers(client, "fb-staff@example.com")["Authorization"].split()[1]
-    token = unlock_token(client)
-    prefix, expires, mac = token.split(".")
-    other = feedback_settings(feedback_review_password="a-different-review-password")
-    other_client, _, _ = make_client(db_sessionmaker, settings=other)
-    other_token = unlock_token_for(other_client, "a-different-review-password")
-    candidates = [
-        None,
-        "",
-        session_jwt,
-        f"{prefix}.{int(expires) + 3600}.{mac}",
-        f"{prefix}.{expires}.{mac[:-2]}AA",
-        f"fbr2.{expires}.{mac}",
-        other_token,
-        "x" * 500,
-    ]
-    for candidate in candidates:
-        headers = {} if candidate is None else {"X-Feedback-Review-Token": candidate}
-        response = client.get("/api/v1/feedback/review", headers=headers)
-        assert (response.status_code, response.json()["error"]["code"]) == (
-            401,
-            "FEEDBACK_REVIEW_TOKEN_INVALID",
-        ), candidate
-    later = datetime.now(UTC) + timedelta(hours=12, seconds=1)
-    with clock.use_clock(lambda: later):
-        response = client.get("/api/v1/feedback/review", headers={"X-Feedback-Review-Token": token})
-    assert response.status_code == 401
-    assert (
-        client.get(
-            "/api/v1/feedback/review", headers={"X-Feedback-Review-Token": token}
-        ).status_code
-        == 200
-    )
-
-
-def unlock_token_for(client, password: str) -> str:
-    response = client.post("/api/v1/feedback/review/unlock", json={"password": password})
-    assert response.status_code == 200
-    return response.json()["token"]
-
-
-def test_every_review_route_is_classified_and_refuses_without_a_review_token(
-    feedback, db_sessionmaker
-):
-    client, _, _ = feedback
+def test_review_routes_are_public_and_open_without_any_header(feedback, db_sessionmaker):
+    client, _ = feedback
     inventory = {route.key: route for route in authorization_inventory()}
-    assert {
-        key for key, route in inventory.items() if route.principal is Principal.PROJECT_REVIEW
-    } == PROJECT_REVIEW_ROUTES
-    create_test_user(db_sessionmaker, email="fb-matrix@example.com")
-    bearer = auth_headers(client, "fb-matrix@example.com")
-    for method, path in PROJECT_REVIEW_ROUTES:
-        concrete = path.replace("{feedback_id}", str(uuid4()))
-        kwargs = {"json": {"status": "resolved"}} if method == "PATCH" else {}
-        for headers in ({}, bearer):
-            response = client.request(method, concrete, headers=headers, **kwargs)
-            assert response.status_code == 401, (method, path)
+    assert REVIEW_ROUTES <= PUBLIC_ROUTES
+    assert all(inventory[key].principal is Principal.PUBLIC for key in REVIEW_ROUTES)
+    (item_id,) = insert_items(db_sessionmaker, [{}])
+    # D173: no login, password or token; an unusable bearer changes nothing.
+    for headers in ({}, {"Authorization": "Bearer not-a-jwt"}):
+        assert client.get("/api/v1/feedback/review", headers=headers).status_code == 200
+        assert client.get("/api/v1/feedback/export.csv", headers=headers).status_code == 200
+        status = client.patch(
+            f"/api/v1/feedback/{item_id}/status", json={"status": "opened"}, headers=headers
+        )
+        assert status.status_code == 200
+        shot = client.get(f"/api/v1/feedback/{item_id}/screenshot", headers=headers)
+        assert (shot.status_code, shot.json()["error"]["code"]) == (404, "FEEDBACK_NOT_FOUND")
 
 
 def test_review_list_pages_newest_first_with_counts(feedback, db_sessionmaker):
-    client, _, _ = feedback
+    client, _ = feedback
     base = datetime(2026, 11, 1, 9, tzinfo=UTC)
     insert_items(
         db_sessionmaker,
@@ -615,28 +513,25 @@ def test_review_list_pages_newest_first_with_counts(feedback, db_sessionmaker):
             for index in range(2)
         ],
     )
-    headers = review_headers(client)
-    first = client.get("/api/v1/feedback/review", headers=headers).json()
+    first = client.get("/api/v1/feedback/review").json()
     assert first["counts"] == {"opened": 12, "resolved": 2}
     assert (first["total"], first["limit"], first["offset"]) == (12, 10, 0)
     assert [item["message"] for item in first["items"]] == [
         f"opened {index}" for index in range(11, 1, -1)
     ]
-    second = client.get("/api/v1/feedback/review", headers=headers, params={"offset": 10}).json()
+    second = client.get("/api/v1/feedback/review", params={"offset": 10}).json()
     assert [item["message"] for item in second["items"]] == ["opened 1", "opened 0"]
     resolved = client.get(
-        "/api/v1/feedback/review", headers=headers, params={"status": "resolved", "limit": 1}
+        "/api/v1/feedback/review", params={"status": "resolved", "limit": 1}
     ).json()
     assert resolved["total"] == 2
     assert [item["message"] for item in resolved["items"]] == ["resolved 1"]
     for params in ({"limit": 0}, {"limit": 51}, {"offset": -1}, {"status": "deleted"}):
-        assert client.get(
-            "/api/v1/feedback/review", headers=headers, params=params
-        ).status_code == (422)
+        assert client.get("/api/v1/feedback/review", params=params).status_code == (422)
 
 
 def test_review_item_shape_and_portal_labels(feedback, db_sessionmaker):
-    client, _, _ = feedback
+    client, _ = feedback
     user = create_test_user(db_sessionmaker, email="fb-shape@example.com")
     paths = ["/", "/advertiser", "/driver/trips", "/admin/campaigns", "/advertisers"]
     insert_items(
@@ -658,7 +553,7 @@ def test_review_item_shape_and_portal_labels(feedback, db_sessionmaker):
             }
         ],
     )
-    items = client.get("/api/v1/feedback/review", headers=review_headers(client)).json()["items"]
+    items = client.get("/api/v1/feedback/review").json()["items"]
     newest = items[0]
     assert set(newest) == {
         "id",
@@ -693,27 +588,24 @@ def test_review_item_shape_and_portal_labels(feedback, db_sessionmaker):
 
 
 def test_status_change_resolves_reopens_and_updates_counts(feedback, db_sessionmaker):
-    client, _, _ = feedback
+    client, _ = feedback
     (item_id,) = insert_items(db_sessionmaker, [{}])
-    headers = review_headers(client)
     path = f"/api/v1/feedback/{item_id}/status"
-    resolved = client.patch(path, json={"status": "resolved"}, headers=headers)
+    resolved = client.patch(path, json={"status": "resolved"})
     assert resolved.status_code == 200
     assert resolved.json()["status"] == "resolved"
     assert resolved.json()["resolved_at"] is not None
-    counts = client.get("/api/v1/feedback/review", headers=headers).json()["counts"]
+    counts = client.get("/api/v1/feedback/review").json()["counts"]
     assert counts == {"opened": 0, "resolved": 1}
-    reopened = client.patch(path, json={"status": "opened"}, headers=headers).json()
+    reopened = client.patch(path, json={"status": "opened"}).json()
     assert (reopened["status"], reopened["resolved_at"]) == ("opened", None)
-    assert client.patch(path, json={"status": "deleted"}, headers=headers).status_code == 422
-    missing = client.patch(
-        f"/api/v1/feedback/{uuid4()}/status", json={"status": "resolved"}, headers=headers
-    )
+    assert client.patch(path, json={"status": "deleted"}).status_code == 422
+    missing = client.patch(f"/api/v1/feedback/{uuid4()}/status", json={"status": "resolved"})
     assert (missing.status_code, missing.json()["error"]["code"]) == (404, "FEEDBACK_NOT_FOUND")
 
 
 def test_screenshot_endpoint_serves_stored_jpeg_without_caching(feedback, db_sessionmaker):
-    client, _, _ = feedback
+    client, _ = feedback
     with_shot, without = insert_items(
         db_sessionmaker,
         [
@@ -727,20 +619,17 @@ def test_screenshot_endpoint_serves_stored_jpeg_without_caching(feedback, db_ses
             {},
         ],
     )
-    headers = review_headers(client)
-    response = client.get(f"/api/v1/feedback/{with_shot}/screenshot", headers=headers)
+    response = client.get(f"/api/v1/feedback/{with_shot}/screenshot")
     assert response.status_code == 200
     assert response.content == b"\xff\xd8stored-jpeg"
     assert response.headers["content-type"] == "image/jpeg"
     assert response.headers["cache-control"] == "no-store"
     for item_id in (without, uuid4()):
-        assert client.get(
-            f"/api/v1/feedback/{item_id}/screenshot", headers=headers
-        ).status_code == (404)
+        assert client.get(f"/api/v1/feedback/{item_id}/screenshot").status_code == (404)
 
 
 def test_csv_export_lists_every_note_with_neutralised_cells(feedback, db_sessionmaker):
-    client, _, _ = feedback
+    client, _ = feedback
     insert_items(
         db_sessionmaker,
         [
@@ -764,7 +653,7 @@ def test_csv_export_lists_every_note_with_neutralised_cells(feedback, db_session
             },
         ],
     )
-    response = client.get("/api/v1/feedback/export.csv", headers=review_headers(client))
+    response = client.get("/api/v1/feedback/export.csv")
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
     assert response.headers["cache-control"] == "no-store"
@@ -798,10 +687,8 @@ def test_csv_export_lists_every_note_with_neutralised_cells(feedback, db_session
 # --- Settings, limiter and migration -----------------------------------------
 
 
-def test_settings_validate_password_length_and_refuse_production():
-    with pytest.raises(ValidationError, match="at least 20 characters"):
-        feedback_settings(feedback_review_password="short-password")
-    assert feedback_settings(feedback_review_password="").feedback_review_password is None
+def test_settings_refuse_production_and_have_no_review_password():
+    assert "feedback_review_password" not in Settings.model_fields
     with pytest.raises(ValidationError, match="FEEDBACK_ENABLED is refused in production"):
         production_settings(feedback_enabled=True)
     assert production_settings().feedback_enabled is False
@@ -810,16 +697,12 @@ def test_settings_validate_password_length_and_refuse_production():
 
 
 def test_feedback_limits_are_fixed_constants():
-    fixed = Settings(
-        _env_file=None, feedback_submit_ip_max_attempts=0, feedback_review_token_ttl_seconds=1
-    )
+    fixed = Settings(_env_file=None, feedback_submit_ip_max_attempts=0)
     assert fixed.feedback_submit_ip_max_attempts == 10
+    assert fixed.feedback_submit_ip_window_seconds == 600
     assert fixed.feedback_submit_global_max_attempts == 300
     assert fixed.feedback_submit_global_window_seconds == 86400
-    assert fixed.feedback_unlock_ip_max_attempts == 10
-    assert fixed.feedback_review_token_ttl_seconds == 43200
-    for name in ("feedback_submit_ip_max_attempts", "feedback_review_token_ttl_seconds"):
-        assert name not in Settings.model_fields
+    assert "feedback_submit_ip_max_attempts" not in Settings.model_fields
 
 
 def test_real_redis_feedback_buckets_use_their_own_windows():

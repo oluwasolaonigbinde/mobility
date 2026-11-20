@@ -5,14 +5,12 @@ import { Pagination } from "@/components/ui/pagination";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { ViewTabs } from "@/components/ui/tabs";
-import { createFeedbackReviewApiClient } from "@/lib/api/client";
+import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import type { components } from "@/lib/api/schema";
 import { formatDateTime } from "@/lib/format";
 import { setFeedbackStatusAction } from "./actions";
 import { feedbackTitle, portalLabel, safePagePath } from "./page-label";
-import { getReviewToken } from "./review-cookie";
-import { UnlockForm } from "./unlock-form";
 
 export const metadata: Metadata = { title: "Feedback", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -21,29 +19,16 @@ const PAGE_SIZE = 10;
 type FeedbackItem = components["schemas"]["FeedbackItemRead"];
 type FeedbackList = components["schemas"]["FeedbackList"];
 type Status = "opened" | "resolved";
-type Load =
-  | { kind: "list"; data: FeedbackList }
-  | { kind: "gate"; expired?: boolean }
-  | { kind: "off" }
-  | { kind: "error" };
+type Load = { kind: "list"; data: FeedbackList } | { kind: "off" } | { kind: "error" };
 
 async function load(status: Status, offset: number): Promise<Load> {
-  const token = await getReviewToken();
   try {
-    // Without a token this still asks the API, so a switched-off site says so up front.
-    const { data } = await createFeedbackReviewApiClient(token ?? "").GET(
-      "/api/v1/feedback/review",
-      {
-        params: { query: { status, limit: PAGE_SIZE, offset } },
-      },
-    );
+    const { data } = await createApiClient().GET("/api/v1/feedback/review", {
+      params: { query: { status, limit: PAGE_SIZE, offset } },
+    });
     return data ? { kind: "list", data } : { kind: "error" };
   } catch (error) {
-    if (error instanceof ApiError) {
-      if (error.status === 404) return { kind: "off" };
-      if (error.status === 401) return { kind: "gate", expired: Boolean(token) };
-    }
-    return { kind: "error" };
+    return error instanceof ApiError && error.status === 404 ? { kind: "off" } : { kind: "error" };
   }
 }
 
@@ -65,39 +50,15 @@ export default async function FeedbackPage({
   const page = Math.max(1, Math.floor(Number(query.page)) || 1);
   const result = await load(status, (page - 1) * PAGE_SIZE);
 
-  if (result.kind === "off" || result.kind === "gate") {
-    return (
-      <Shell>
-        <div className="mx-auto max-w-sm">
-          <h1 className="font-display text-3xl font-semibold tracking-tight">Feedback access</h1>
-          {result.kind === "off" ? (
-            <p className="text-muted mt-3 text-sm">
-              Feedback isn&apos;t switched on for this site.
-            </p>
-          ) : (
-            <>
-              <p className="text-muted mt-3 mb-6 text-sm">
-                {result.expired
-                  ? "Your access has ended. Enter the password again."
-                  : "Enter the project feedback password to view feedback."}
-              </p>
-              <Panel className="p-6">
-                <UnlockForm />
-              </Panel>
-            </>
-          )}
-        </div>
-      </Shell>
-    );
-  }
-
-  if (result.kind === "error") {
+  if (result.kind !== "list") {
     return (
       <Shell>
         <h1 className="font-display text-3xl font-semibold tracking-tight">Feedback</h1>
         <Panel className="mt-6 p-6">
-          <p role="alert" className="text-sm">
-            Feedback can&apos;t be loaded right now. Refresh the page to try again.
+          <p role={result.kind === "error" ? "alert" : undefined} className="text-sm">
+            {result.kind === "off"
+              ? "Feedback isn't switched on for this site."
+              : "Feedback can't be loaded right now. Refresh the page to try again."}
           </p>
         </Panel>
       </Shell>

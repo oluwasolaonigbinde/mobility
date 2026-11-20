@@ -1,4 +1,4 @@
-"""REQ-336 feedback button and project review page API shapes."""
+"""REQ-336 feedback button and review page API shapes."""
 
 from datetime import datetime
 from typing import Literal
@@ -65,17 +65,6 @@ class FeedbackCreate(BaseModel):
 
 class FeedbackReceived(BaseModel):
     status: Literal["received"] = "received"
-
-
-class FeedbackUnlock(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    password: str = Field(min_length=1, max_length=256)
-
-
-class FeedbackReviewToken(BaseModel):
-    token: str
-    expires_at: datetime
 
 
 class FeedbackItemRead(BaseModel):

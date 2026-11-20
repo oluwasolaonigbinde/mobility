@@ -1,14 +1,11 @@
-"""REQ-336/D172 feedback notes: screenshot hardening, review token, queries and CSV."""
+"""REQ-336/D172 feedback notes: screenshot hardening, queries and CSV."""
 
 import base64
 import binascii
 import csv
-import hashlib
-import hmac
 import io
 import re
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from uuid import UUID
 
 from PIL import Image, UnidentifiedImageError
@@ -16,7 +13,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import clock
-from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.project_feedback import FeedbackStatus, ProjectFeedbackItem
 from app.schemas.project_feedback import FeedbackCreate, FeedbackItemRead, FeedbackPortal
@@ -28,8 +24,6 @@ MAX_SOURCE_PIXELS = 16_000_000
 MAX_STORED_WIDTH = 1200
 _DATA_URL = re.compile(r"data:image/(jpeg|png|webp);base64,([A-Za-z0-9+/=\s]+)")
 _FORMATS = {"jpeg": "JPEG", "png": "PNG", "webp": "WEBP"}
-_TOKEN_PREFIX = "fbr1"
-_TOKEN_PURPOSE = b"cardvert-feedback-review-token-v1"
 CSV_COLUMNS = (
     "created_at",
     "status",
@@ -230,57 +224,3 @@ async def feedback_csv(session: AsyncSession) -> str:
 
 def feedback_not_found() -> AppError:
     return AppError("FEEDBACK_NOT_FOUND", "Feedback note not found", status_code=404)
-
-
-# --- Review token ---------------------------------------------------------------
-# Stateless and separate from session JWTs: the key mixes the app secret, the
-# current review password and a purpose label, so a session token never verifies
-# here and changing the password ends every review session.
-
-
-def _review_key(settings: Settings) -> bytes:
-    password = settings.feedback_review_password
-    if password is None:
-        raise ValueError("Feedback review password is not configured")
-    return hmac.new(
-        settings.jwt_secret_key.encode(),
-        _TOKEN_PURPOSE + b"\x00" + password.get_secret_value().encode(),
-        hashlib.sha256,
-    ).digest()
-
-
-def _sign(settings: Settings, expires: int) -> str:
-    body = f"{_TOKEN_PREFIX}.{expires}"
-    mac = hmac.new(_review_key(settings), body.encode(), hashlib.sha256).digest()
-    return f"{body}.{base64.urlsafe_b64encode(mac).rstrip(b'=').decode()}"
-
-
-def review_password_matches(settings: Settings, candidate: str) -> bool:
-    password = settings.feedback_review_password
-    if password is None:
-        return False
-    return hmac.compare_digest(
-        hashlib.sha256(candidate.encode()).digest(),
-        hashlib.sha256(password.get_secret_value().encode()).digest(),
-    )
-
-
-def issue_review_token(settings: Settings) -> tuple[str, datetime]:
-    expires = int(clock.now().timestamp()) + settings.feedback_review_token_ttl_seconds
-    return _sign(settings, expires), datetime.fromtimestamp(expires, UTC)
-
-
-def review_token_valid(settings: Settings, token: str | None) -> bool:
-    if not token or len(token) > 200:
-        return False
-    parts = token.split(".")
-    if len(parts) != 3 or parts[0] != _TOKEN_PREFIX or not parts[1].isdigit():
-        return False
-    expires = int(parts[1])
-    try:
-        expected = _sign(settings, expires)
-    except ValueError:
-        return False
-    return hmac.compare_digest(expected.encode(), token.encode()) and expires > int(
-        clock.now().timestamp()
-    )

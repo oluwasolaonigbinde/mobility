@@ -26,7 +26,6 @@ SECRET_NAMES = {
     "NEXT_PUBLIC_SENTRY_DSN",
     "RELEASE_EVIDENCE_SIGNING_SECRET",
     "NEXT_PUBLIC_MAP_STYLE_URL",
-    "FEEDBACK_REVIEW_PASSWORD",
 }
 
 
@@ -39,6 +38,7 @@ def test_secrets_are_blank_and_unapproved_policies_stay_unset(name: str) -> None
         "" if name == "production.env.example" else "cardvert-synthetic-issuer"
     )
     assert "FILE_KYC_RETENTION_DAYS" not in environment
+    assert "FEEDBACK_REVIEW_PASSWORD" not in environment  # D173: the review page is open
     for key in (
         "ALLOW_DEMO_SEED",
         "DEMO_LIVE_CAR_REFRESH",

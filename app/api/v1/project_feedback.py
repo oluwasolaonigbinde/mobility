@@ -1,7 +1,8 @@
-"""REQ-336/D172: site-wide feedback button and the project review page API.
+"""REQ-336/D172/D173: site-wide feedback button and the open review page API.
 
 Routes are always registered so the API contract is stable; they answer 404
-unless FEEDBACK_ENABLED is set (and, for review routes, a review password).
+unless FEEDBACK_ENABLED is set. With it set, the review routes need no login
+or password (D173): anyone with the URL of a test version can read the notes.
 """
 
 import json
@@ -9,7 +10,7 @@ from collections.abc import AsyncIterator
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
@@ -34,25 +35,19 @@ from app.schemas.project_feedback import (
     FeedbackItemRead,
     FeedbackList,
     FeedbackReceived,
-    FeedbackReviewToken,
     FeedbackStatusUpdate,
-    FeedbackUnlock,
 )
 from app.services.project_feedback import (
     feedback_csv,
     feedback_screenshot,
-    issue_review_token,
     reencode_screenshot,
     review_page,
-    review_password_matches,
-    review_token_valid,
     save_feedback,
     set_feedback_status,
 )
 
 router = APIRouter(tags=["Project feedback"])
 MAX_BODY_BYTES = 1024 * 1024
-REVIEW_TOKEN_HEADER = "X-Feedback-Review-Token"
 
 
 def _inline_schema(model: type[FeedbackCreate]) -> dict[str, Any]:
@@ -72,18 +67,12 @@ def _inline_schema(model: type[FeedbackCreate]) -> dict[str, Any]:
     return {key: resolve(value) for key, value in schema.items()}
 
 
-def _not_enabled() -> AppError:
-    return AppError("FEEDBACK_NOT_ENABLED", "Feedback is not switched on here", status_code=404)
-
-
-def _require_enabled(settings: Settings) -> None:
+def require_feedback_enabled(settings: SettingsDependency) -> None:
     if not settings.feedback_enabled:
-        raise _not_enabled()
+        raise AppError("FEEDBACK_NOT_ENABLED", "Feedback is not switched on here", status_code=404)
 
 
-def _require_review_enabled(settings: Settings) -> None:
-    if not settings.feedback_enabled or settings.feedback_review_password is None:
-        raise _not_enabled()
+FeedbackEnabledDependency = Annotated[None, Depends(require_feedback_enabled)]
 
 
 def _submit_limits(settings: Settings) -> PublicSubmitLimits:
@@ -96,27 +85,10 @@ def _submit_limits(settings: Settings) -> PublicSubmitLimits:
     )
 
 
-def _unlock_limits(settings: Settings) -> PublicSubmitLimits:
-    return PublicSubmitLimits(
-        key_prefix="feedback-unlock",
-        ip_max_attempts=settings.feedback_unlock_ip_max_attempts,
-        ip_window_seconds=settings.feedback_unlock_ip_window_seconds,
-        global_max_attempts=settings.feedback_unlock_global_max_attempts,
-        global_window_seconds=settings.feedback_unlock_global_window_seconds,
-    )
-
-
 async def get_feedback_submit_limiter(
     settings: SettingsDependency,
 ) -> AsyncIterator[EnquiryRateLimiter]:
     async with open_submit_limiter(settings, _submit_limits(settings)) as limiter:
-        yield limiter
-
-
-async def get_feedback_unlock_limiter(
-    settings: SettingsDependency,
-) -> AsyncIterator[EnquiryRateLimiter]:
-    async with open_submit_limiter(settings, _unlock_limits(settings)) as limiter:
         yield limiter
 
 
@@ -168,22 +140,6 @@ async def read_feedback(request: Request) -> FeedbackCreate:
         ) from None
 
 
-def require_review_token(
-    settings: SettingsDependency,
-    token: Annotated[str | None, Header(alias=REVIEW_TOKEN_HEADER)] = None,
-) -> None:
-    _require_review_enabled(settings)
-    if not review_token_valid(settings, token):
-        raise AppError(
-            "FEEDBACK_REVIEW_TOKEN_INVALID",
-            "Enter the project feedback password again.",
-            status_code=401,
-        )
-
-
-ReviewTokenDependency = Annotated[None, Depends(require_review_token)]
-
-
 @router.post(
     "/feedback",
     response_model=FeedbackReceived,
@@ -201,7 +157,7 @@ async def submit_feedback(
     limiter: Annotated[EnquiryRateLimiter, Depends(get_feedback_submit_limiter)],
     submitter_user_id: Annotated[UUID | None, Depends(optional_submitter_user_id)],
 ) -> FeedbackReceived:
-    _require_enabled(settings)
+    require_feedback_enabled(settings)
     payload = await read_feedback(request)
     if payload.website:
         return FeedbackReceived()
@@ -216,26 +172,9 @@ async def submit_feedback(
     return FeedbackReceived()
 
 
-@router.post("/feedback/review/unlock", response_model=FeedbackReviewToken)
-async def unlock_feedback_review(
-    payload: FeedbackUnlock,
-    request: Request,
-    settings: SettingsDependency,
-    limiter: Annotated[EnquiryRateLimiter, Depends(get_feedback_unlock_limiter)],
-) -> FeedbackReviewToken:
-    _require_review_enabled(settings)
-    _enforce(await limiter.reserve(login_client_ip(request, settings)))
-    if not review_password_matches(settings, payload.password):
-        raise AppError(
-            "FEEDBACK_REVIEW_PASSWORD_MISMATCH", "That password did not match.", status_code=401
-        )
-    token, expires_at = issue_review_token(settings)
-    return FeedbackReviewToken(token=token, expires_at=expires_at)
-
-
 @router.get("/feedback/review", response_model=FeedbackList)
 async def list_feedback(
-    _: ReviewTokenDependency,
+    _: FeedbackEnabledDependency,
     session: SessionDependency,
     status: Literal["opened", "resolved"] = "opened",
     limit: int = Query(default=10, ge=1, le=50),
@@ -255,7 +194,7 @@ async def list_feedback(
 async def update_feedback_status(
     feedback_id: UUID,
     payload: FeedbackStatusUpdate,
-    _: ReviewTokenDependency,
+    _: FeedbackEnabledDependency,
     session: SessionDependency,
 ) -> FeedbackItemRead:
     item = await set_feedback_status(session, item_id=feedback_id, status=payload.status)
@@ -268,7 +207,7 @@ async def update_feedback_status(
     response_class=Response,
     responses={200: {"content": {"text/csv": {"schema": {"type": "string"}}}}},
 )
-async def export_feedback(_: ReviewTokenDependency, session: SessionDependency) -> Response:
+async def export_feedback(_: FeedbackEnabledDependency, session: SessionDependency) -> Response:
     return Response(
         content=await feedback_csv(session),
         media_type="text/csv; charset=utf-8",
@@ -287,7 +226,7 @@ async def export_feedback(_: ReviewTokenDependency, session: SessionDependency) 
     },
 )
 async def read_feedback_screenshot(
-    feedback_id: UUID, _: ReviewTokenDependency, session: SessionDependency
+    feedback_id: UUID, _: FeedbackEnabledDependency, session: SessionDependency
 ) -> Response:
     return Response(
         content=await feedback_screenshot(session, feedback_id),

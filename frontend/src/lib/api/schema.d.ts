@@ -4206,23 +4206,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/feedback/review/unlock": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Unlock Feedback Review */
-        post: operations["unlock_feedback_review_api_v1_feedback_review_unlock_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/feedback/{feedback_id}/screenshot": {
         parameters: {
             query?: never;
@@ -9277,16 +9260,6 @@ export interface components {
              */
             status: "received";
         };
-        /** FeedbackReviewToken */
-        FeedbackReviewToken: {
-            /**
-             * Expires At
-             * Format: date-time
-             */
-            expires_at: string;
-            /** Token */
-            token: string;
-        };
         /** FeedbackStatusUpdate */
         FeedbackStatusUpdate: {
             /**
@@ -9294,11 +9267,6 @@ export interface components {
              * @enum {string}
              */
             status: "opened" | "resolved";
-        };
-        /** FeedbackUnlock */
-        FeedbackUnlock: {
-            /** Password */
-            password: string;
         };
         /**
          * FileAccessPurpose
@@ -21919,9 +21887,7 @@ export interface operations {
     export_feedback_api_v1_feedback_export_csv_get: {
         parameters: {
             query?: never;
-            header?: {
-                "X-Feedback-Review-Token"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -21954,9 +21920,7 @@ export interface operations {
                 limit?: number;
                 offset?: number;
             };
-            header?: {
-                "X-Feedback-Review-Token"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -21982,45 +21946,10 @@ export interface operations {
             };
         };
     };
-    unlock_feedback_review_api_v1_feedback_review_unlock_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FeedbackUnlock"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FeedbackReviewToken"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     read_feedback_screenshot_api_v1_feedback__feedback_id__screenshot_get: {
         parameters: {
             query?: never;
-            header?: {
-                "X-Feedback-Review-Token"?: string | null;
-            };
+            header?: never;
             path: {
                 feedback_id: string;
             };
@@ -22051,9 +21980,7 @@ export interface operations {
     update_feedback_status_api_v1_feedback__feedback_id__status_patch: {
         parameters: {
             query?: never;
-            header?: {
-                "X-Feedback-Review-Token"?: string | null;
-            };
+            header?: never;
             path: {
                 feedback_id: string;
             };

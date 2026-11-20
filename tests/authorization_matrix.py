@@ -19,7 +19,6 @@ class Principal(StrEnum):
     AUTHENTICATED = "authenticated"
     APPLICANT = "applicant_capability"
     MACHINE = "machine_callback"
-    PROJECT_REVIEW = "project_review_token"
     PUBLIC = "public"
 
 
@@ -57,9 +56,13 @@ PUBLIC_ROUTES = frozenset(
         ("GET", "/api/v1/health/partitions"),
         ("GET", "/api/v1/qr/{code}"),
         ("POST", "/api/v1/campaign-enquiries"),
-        # REQ-336: optional bearer only names the sender; the unlock is the password gate.
+        # REQ-336: optional bearer only names the sender. D173: on test versions the
+        # review routes are open to anyone with the URL; FEEDBACK_ENABLED off is 404.
         ("POST", "/api/v1/feedback"),
-        ("POST", "/api/v1/feedback/review/unlock"),
+        ("GET", "/api/v1/feedback/review"),
+        ("PATCH", "/api/v1/feedback/{feedback_id}/status"),
+        ("GET", "/api/v1/feedback/{feedback_id}/screenshot"),
+        ("GET", "/api/v1/feedback/export.csv"),
         ("POST", "/api/v1/auth/login"),
         ("POST", "/api/v1/auth/password-reset/request"),
         ("POST", "/api/v1/auth/password-reset/complete"),
@@ -88,17 +91,6 @@ MACHINE_ROUTES = frozenset(
     {
         ("POST", "/api/v1/webhooks/payments"),
         ("POST", "/api/v1/webhooks/paystack"),
-    }
-)
-
-# REQ-336/D172: the project review page uses a password-issued review token, not a
-# user session (tests/test_project_feedback.py proves the denial).
-PROJECT_REVIEW_ROUTES = frozenset(
-    {
-        ("GET", "/api/v1/feedback/review"),
-        ("PATCH", "/api/v1/feedback/{feedback_id}/status"),
-        ("GET", "/api/v1/feedback/{feedback_id}/screenshot"),
-        ("GET", "/api/v1/feedback/export.csv"),
     }
 )
 
@@ -164,10 +156,6 @@ def _principal(key: tuple[str, str], dependencies: frozenset[str]) -> Principal:
         return Principal.APPLICANT
     if key in MACHINE_ROUTES:
         return Principal.MACHINE
-    if key in PROJECT_REVIEW_ROUTES:
-        if "require_review_token" not in dependencies:
-            raise AssertionError(f"Route {key!r} lost its project review token check")
-        return Principal.PROJECT_REVIEW
     by_dependency = {
         "require_admin_user": Principal.ADMIN,
         "require_advertiser_user": Principal.ADVERTISER,
@@ -226,7 +214,6 @@ def authorization_inventory() -> tuple[GovernedRoute, ...]:
                 Principal.DRIVER: "driver_owner",
                 Principal.APPLICANT: "driver_application",
                 Principal.MACHINE: "signed_provider",
-                Principal.PROJECT_REVIEW: "project_review",
                 Principal.ADMIN: "platform_admin",
                 Principal.AUTHENTICATED: "current_actor",
                 Principal.PUBLIC: "public",

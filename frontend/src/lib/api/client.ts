@@ -72,8 +72,3 @@ export function createRelayedApiClient(token?: string, clientIp?: string): ApiCl
     ...(clientIp ? { "X-Client-IP": clientIp } : {}),
   });
 }
-
-/** Feedback review endpoints: the review token travels as a header, never in a URL. */
-export function createFeedbackReviewApiClient(reviewToken: string): ApiClient {
-  return createConfiguredClient({ "X-Feedback-Review-Token": reviewToken });
-}

@@ -13075,25 +13075,6 @@
         "title": "FeedbackReceived",
         "type": "object"
       },
-      "FeedbackReviewToken": {
-        "properties": {
-          "expires_at": {
-            "format": "date-time",
-            "title": "Expires At",
-            "type": "string"
-          },
-          "token": {
-            "title": "Token",
-            "type": "string"
-          }
-        },
-        "required": [
-          "token",
-          "expires_at"
-        ],
-        "title": "FeedbackReviewToken",
-        "type": "object"
-      },
       "FeedbackStatusUpdate": {
         "additionalProperties": false,
         "properties": {
@@ -13110,22 +13091,6 @@
           "status"
         ],
         "title": "FeedbackStatusUpdate",
-        "type": "object"
-      },
-      "FeedbackUnlock": {
-        "additionalProperties": false,
-        "properties": {
-          "password": {
-            "maxLength": 256,
-            "minLength": 1,
-            "title": "Password",
-            "type": "string"
-          }
-        },
-        "required": [
-          "password"
-        ],
-        "title": "FeedbackUnlock",
         "type": "object"
       },
       "FileAccessPurpose": {
@@ -38669,24 +38634,6 @@
     "/api/v1/feedback/export.csv": {
       "get": {
         "operationId": "export_feedback_api_v1_feedback_export_csv_get",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-Feedback-Review-Token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Feedback-Review-Token"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -38755,22 +38702,6 @@
               "title": "Offset",
               "type": "integer"
             }
-          },
-          {
-            "in": "header",
-            "name": "X-Feedback-Review-Token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Feedback-Review-Token"
-            }
           }
         ],
         "responses": {
@@ -38801,47 +38732,6 @@
         ]
       }
     },
-    "/api/v1/feedback/review/unlock": {
-      "post": {
-        "operationId": "unlock_feedback_review_api_v1_feedback_review_unlock_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FeedbackUnlock"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FeedbackReviewToken"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "summary": "Unlock Feedback Review",
-        "tags": [
-          "Project feedback"
-        ]
-      }
-    },
     "/api/v1/feedback/{feedback_id}/screenshot": {
       "get": {
         "operationId": "read_feedback_screenshot_api_v1_feedback__feedback_id__screenshot_get",
@@ -38854,22 +38744,6 @@
               "format": "uuid",
               "title": "Feedback Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Feedback-Review-Token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Feedback-Review-Token"
             }
           }
         ],
@@ -38914,22 +38788,6 @@
               "format": "uuid",
               "title": "Feedback Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Feedback-Review-Token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Feedback-Review-Token"
             }
           }
         ],

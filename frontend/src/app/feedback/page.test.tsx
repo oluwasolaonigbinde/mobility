@@ -2,18 +2,16 @@ import { render, screen, within } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/errors";
 
-const mocks = vi.hoisted(() => ({ get: vi.fn(), token: vi.fn(), client: vi.fn() }));
+const mocks = vi.hoisted(() => ({ get: vi.fn(), client: vi.fn() }));
 vi.mock("@/lib/api/client", () => ({
-  createFeedbackReviewApiClient: (token: string) => {
-    mocks.client(token);
+  createApiClient: (...args: unknown[]) => {
+    mocks.client(...args);
     return { GET: mocks.get };
   },
 }));
-vi.mock("./review-cookie", () => ({ getReviewToken: mocks.token }));
 vi.mock("./actions", () => ({ setFeedbackStatusAction: vi.fn() }));
-vi.mock("./unlock-form", () => ({ UnlockForm: () => <form aria-label="Unlock" /> }));
 
-import FeedbackPage from "./page";
+import FeedbackPage, { metadata } from "./page";
 
 const item = {
   id: "10000000-0000-4000-8000-000000000001",
@@ -37,32 +35,19 @@ const open = async (query: Record<string, string> = {}) =>
 beforeEach(() => {
   mocks.get.mockReset();
   mocks.client.mockReset();
-  mocks.token.mockReset().mockResolvedValue("review-token");
 });
 
-it("shows the password gate without a token and says when the feature is off", async () => {
-  mocks.token.mockResolvedValue(undefined);
-  mocks.get.mockRejectedValue(
-    new ApiError(401, { code: "FEEDBACK_REVIEW_TOKEN_INVALID", message: "x" }),
-  );
-  await open();
-  expect(screen.getByRole("heading", { name: "Feedback access" })).toBeInTheDocument();
-  expect(
-    screen.getByText("Enter the project feedback password to view feedback."),
-  ).toBeInTheDocument();
-  expect(screen.getByRole("form", { name: "Unlock" })).toBeInTheDocument();
+it("is kept out of search engines", () => {
+  expect(metadata.robots).toEqual({ index: false, follow: false });
+});
 
+it("says when feedback is switched off, without asking for a password", async () => {
   mocks.get.mockRejectedValue(new ApiError(404, { code: "FEEDBACK_NOT_ENABLED", message: "x" }));
   await open();
+  expect(screen.getByRole("heading", { name: "Feedback" })).toBeInTheDocument();
   expect(screen.getByText("Feedback isn't switched on for this site.")).toBeInTheDocument();
-});
-
-it("sends an expired token back to the gate", async () => {
-  mocks.get.mockRejectedValue(
-    new ApiError(401, { code: "FEEDBACK_REVIEW_TOKEN_INVALID", message: "x" }),
-  );
-  await open();
-  expect(screen.getByText("Your access has ended. Enter the password again.")).toBeInTheDocument();
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.queryByLabelText(/password/i)).toBeNull();
 });
 
 it("lists a page of notes with counts, portal link, screenshot and pin", async () => {
@@ -70,7 +55,9 @@ it("lists a page of notes with counts, portal link, screenshot and pin", async (
     data: { items: [item], total: 12, counts: { opened: 12, resolved: 3 }, limit: 10, offset: 10 },
   });
   await open({ page: "2" });
-  expect(mocks.client).toHaveBeenCalledWith("review-token");
+  // The list opens straight away: a plain API client, no session or review token.
+  expect(mocks.client).toHaveBeenCalledWith();
+  expect(screen.queryByLabelText(/password/i)).toBeNull();
   expect(mocks.get).toHaveBeenCalledWith("/api/v1/feedback/review", {
     params: { query: { status: "opened", limit: 10, offset: 10 } },
   });

@@ -1,9 +1,8 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ fetch: vi.fn(), token: vi.fn() }));
+const mocks = vi.hoisted(() => ({ fetch: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("@/lib/env", () => ({ env: () => ({ API_BASE_URL: "http://api.test" }) }));
-vi.mock("@/app/feedback/review-cookie", () => ({ getReviewToken: mocks.token }));
 
 import { GET as exportCsv } from "./export/route";
 import { GET as screenshot } from "./[feedbackId]/screenshot/route";
@@ -20,10 +19,9 @@ const sent = () => mocks.fetch.mock.calls[0]![0] as Request;
 beforeEach(() => {
   mocks.fetch.mockReset();
   vi.stubGlobal("fetch", mocks.fetch);
-  mocks.token.mockReset().mockResolvedValue("review-token");
 });
 
-it("streams the screenshot as a private JPEG, with the token in a header only", async () => {
+it("serves the screenshot as a private JPEG with no password or token", async () => {
   mocks.fetch.mockResolvedValue(
     new Response(new Uint8Array([0xff, 0xd8, 0xff]), { headers: { "content-type": "image/jpeg" } }),
   );
@@ -34,18 +32,15 @@ it("streams the screenshot as a private JPEG, with the token in a header only", 
   expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([0xff, 0xd8, 0xff]));
   expect(sent().url).toBe(`http://api.test/api/v1/feedback/${ID}/screenshot`);
-  expect(sent().headers.get("x-feedback-review-token")).toBe("review-token");
+  expect(sent().headers.get("x-feedback-review-token")).toBeNull();
 });
 
-it("refuses a bad id or missing token without calling the API", async () => {
+it("refuses a bad id without calling the API", async () => {
   expect((await shot("../export.csv")).status).toBe(404);
-  mocks.token.mockResolvedValue(undefined);
-  expect((await shot()).status).toBe(401);
   expect(mocks.fetch).not.toHaveBeenCalled();
 });
 
 it.each([
-  [401, 401],
   [404, 404],
   [500, 503],
 ])("maps an upstream screenshot %s to %s", async (upstream, expected) => {
@@ -55,7 +50,7 @@ it.each([
   expect(response.headers.get("cache-control")).toBe("private, no-store");
 });
 
-it("downloads the CSV as an attachment with the token in a header only", async () => {
+it("downloads the CSV as an attachment with no password or token", async () => {
   mocks.fetch.mockResolvedValue(
     new Response("created_at,status\n", { headers: { "content-type": "text/csv" } }),
   );
@@ -68,20 +63,7 @@ it("downloads the CSV as an attachment with the token in a header only", async (
   expect(response.headers.get("cache-control")).toBe("private, no-store");
   expect(await response.text()).toBe("created_at,status\n");
   expect(sent().url).toBe("http://api.test/api/v1/feedback/export.csv");
-  expect(sent().headers.get("x-feedback-review-token")).toBe("review-token");
-});
-
-it("sends the export back to the gate without a token or when it has expired", async () => {
-  mocks.token.mockResolvedValue(undefined);
-  let response = await exportCsv();
-  expect(response.status).toBe(303);
-  expect(response.headers.get("location")).toBe("/feedback");
-  expect(mocks.fetch).not.toHaveBeenCalled();
-  mocks.token.mockResolvedValue("review-token");
-  mocks.fetch.mockResolvedValue(apiError(401));
-  response = await exportCsv();
-  expect(response.status).toBe(303);
-  expect(response.headers.get("location")).toBe("/feedback");
+  expect(sent().headers.get("x-feedback-review-token")).toBeNull();
 });
 
 it.each([
