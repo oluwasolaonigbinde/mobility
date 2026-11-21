@@ -193,3 +193,17 @@ it("shows a Lagos retry time based on Retry-After", async () => {
     now.mockRestore();
   }
 });
+
+it("does not grant manual entry for an unrecognized outcome", async () => {
+  vi.mocked(fetch).mockImplementation(async (url) =>
+    String(url).endsWith("/banks")
+      ? Response.json(banks)
+      : Response.json({ outcome: "unknown", bank_check_receipt: "receipt" }),
+  );
+  const { container } = render(<ApplicationBankDetails accessToken="private-code" />);
+  await fill();
+  await waitFor(() =>
+    expect(container.querySelector("input[name=bank_check_outcome]")).toHaveValue("unknown"),
+  );
+  expect(screen.queryByLabelText("Name on bank account")).toBeNull();
+});

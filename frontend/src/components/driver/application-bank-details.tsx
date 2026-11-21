@@ -111,7 +111,7 @@ export function ApplicationBankDetails({ accessToken }: { accessToken: string })
           <input type="hidden" name="account_name" value={check.account_name ?? ""} />
         </div>
       ) : null}
-      {check && check.outcome !== "resolved" ? (
+      {check?.outcome === "unavailable" || check?.outcome === "refused" ? (
         <>
           <p className="text-muted text-sm">
             {check.outcome === "refused"
