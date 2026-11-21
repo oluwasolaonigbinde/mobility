@@ -780,7 +780,8 @@ def test_paystack_http_refusal_keeps_bounded_redacted_provider_detail():
     )
     with pytest.raises(PaystackNotFoundError) as refused:
         asyncio.run(client.request("GET", "/bank/resolve"))
-    assert isinstance(refused.value, PaystackRejectedError)
+    # Not-found stays its own error (not a rejection), so checkout keeps its saved reference.
+    assert not isinstance(refused.value, PaystackRejectedError)
     assert refused.value.status_code == 404
     assert len(refused.value.message) == 240
     assert refused.value.message.startswith("Cannot resolve [redacted] ")
