@@ -382,6 +382,7 @@ export default async function DriverHub({
               submissionId={p.submission_id}
               bankAccountVersionId={p.bank_account_version_id}
               bankAccountVerified={p.bank_account_verified}
+              bankNameConfirmed={p.bank_name_confirmed}
               documentFileIds={p.document_file_ids ?? {}}
               status={p.status}
             />

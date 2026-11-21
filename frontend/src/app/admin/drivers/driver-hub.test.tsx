@@ -136,6 +136,7 @@ const application = {
     submission_id: "person",
     bank_account_version_id: "bank",
     bank_account_verified: true,
+    bank_name_confirmed: false,
     document_file_ids: { identity: "file" },
   },
   vehicle: {
@@ -238,6 +239,7 @@ it("keeps exact audited document identities and blocks generic activation for a 
     submissionId: "person",
     bankAccountVersionId: "bank",
     bankAccountVerified: true,
+    bankNameConfirmed: false,
     documentFileIds: { identity: "file" },
     status: "pending_review",
   });

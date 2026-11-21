@@ -17,6 +17,7 @@ it("uses one combined applicants search and preserves each actual identity", asy
           full_name: "Ada",
           email: "ada@example.test",
           created_at: "2026-11-19T11:25:00Z",
+          stage: "Waiting for ID and bank details",
         },
         {
           id: "staff",
@@ -25,6 +26,7 @@ it("uses one combined applicants search and preserves each actual identity", asy
           full_name: "Bola",
           email: "bola@example.test",
           created_at: "2026-11-20T00:00:00Z",
+          stage: "Added by staff",
         },
       ],
       total: 2,
@@ -56,4 +58,31 @@ it("does not claim no waiting applicants when an old page is empty", async () =>
   render(await DriversPage({ searchParams: Promise.resolve({ offset: "25" }) }));
   expect(screen.getByText("No applicants on this page.")).toBeVisible();
   expect(screen.queryByText("No applicants waiting.")).toBeNull();
+});
+
+it("shows every stage returned by the applicant worklist", async () => {
+  const stages = [
+    "Waiting for ID and bank details",
+    "ID and bank to review",
+    "ID or bank sent back for changes",
+    "Waiting for car details",
+    "Car to review",
+    "Car sent back for changes",
+    "Ready for account setup",
+    "Added by staff",
+  ];
+  get.mockResolvedValue({
+    data: {
+      total: stages.length,
+      applicants: stages.map((stage, index) => ({
+        id: String(index),
+        kind: index === stages.length - 1 ? "staff_added" : "application",
+        full_name: `Driver ${index}`,
+        driver_profile_id: String(index),
+        stage,
+      })),
+    },
+  });
+  render(await DriversPage({ searchParams: Promise.resolve({}) }));
+  for (const stage of stages) expect(screen.getByText(stage)).toBeVisible();
 });

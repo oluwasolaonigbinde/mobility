@@ -28,6 +28,12 @@ function assertActive(progress: DocumentUploadProgress) {
 const CODE_NOT_WORKING = "This link doesn't work any more. Ask for a new one on the Apply page.";
 const CHOOSE_FILES_AGAIN = "Please choose your files again, then send.";
 const CHECK_DETAILS = "Some details aren't right. Check what you typed, then send again.";
+const bankRetryTime = new Intl.DateTimeFormat("en-NG", {
+  timeZone: "Africa/Lagos",
+  hourCycle: "h23",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 /**
  * Plain words for the onboarding errors an applicant can meet. Every way a code can fail
@@ -35,7 +41,8 @@ const CHECK_DETAILS = "Some details aren't right. Check what you typed, then sen
  */
 const APPLICANT_MESSAGES: Record<string, string> = {
   BANK_CHECK_INVALID: "Check your bank and account details again",
-  BANK_CHECK_LIMITED: "Try checking your account again in a few minutes",
+  BANK_CHECK_LIMITED: "Too many bank checks. Try again shortly.",
+  BANK_CHECK_LIMIT_UNAVAILABLE: "Bank checks are paused for a moment. Try again shortly.",
   ONBOARDING_ACCESS_INVALID: CODE_NOT_WORKING,
   PERSON_PAYEE_AUTHORITY_INVALID: CODE_NOT_WORKING,
   VEHICLE_ONBOARDING_AUTHORITY_INVALID: CODE_NOT_WORKING,
@@ -60,9 +67,16 @@ const APPLICANT_MESSAGES: Record<string, string> = {
 
 export async function onboardingResponseJson<T>(response: Response): Promise<T> {
   const body = (await response.json().catch(() => null)) as
-    T | { error?: { code?: string; message?: string } } | null;
+    T | { error?: { code?: string } } | null;
   if (!response.ok) {
     const error = body && typeof body === "object" && "error" in body ? body.error : undefined;
+    if (response.status === 429 && error?.code === "BANK_CHECK_LIMITED") {
+      const seconds = Number(response.headers.get("retry-after"));
+      if (Number.isInteger(seconds) && seconds > 0 && seconds <= 3600) {
+        const nextMinute = Math.ceil((Date.now() + seconds * 1000) / 60_000) * 60_000;
+        throw new Error(`Try again after ${bankRetryTime.format(nextMinute)}`);
+      }
+    }
     throw new Error(
       (error?.code ? APPLICANT_MESSAGES[error.code] : undefined) ||
         "Something went wrong. Please try again.",

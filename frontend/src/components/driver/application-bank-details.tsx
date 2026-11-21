@@ -4,13 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { BankPicker } from "./bank-picker";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
+import type { components } from "@/lib/api/schema";
 import { onboardingResponseJson } from "@/lib/files/onboarding-upload";
 
-type Check = {
-  outcome: "resolved" | "unavailable";
-  account_name?: string;
-  bank_check_receipt: string;
-};
+type Check = components["schemas"]["AccountNameCheckRead"];
 
 export function ApplicationBankDetails({ accessToken }: { accessToken: string }) {
   const [bank, setBank] = useState("");
@@ -114,10 +111,12 @@ export function ApplicationBankDetails({ accessToken }: { accessToken: string })
           <input type="hidden" name="account_name" value={check.account_name ?? ""} />
         </div>
       ) : null}
-      {check?.outcome === "unavailable" ? (
+      {check && check.outcome !== "resolved" ? (
         <>
           <p className="text-muted text-sm">
-            We can&apos;t check the name right now. Enter it as shown on your bank account.
+            {check.outcome === "refused"
+              ? "Your bank couldn’t confirm the name. Enter it as shown on your bank account."
+              : "We can’t check the name right now. Enter it as shown on your bank account."}
           </p>
           <Field
             name="account_name"

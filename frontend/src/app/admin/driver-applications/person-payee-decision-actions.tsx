@@ -119,6 +119,7 @@ export function PersonPayeeDecisionActions({
   submissionId,
   bankAccountVersionId,
   bankAccountVerified,
+  bankNameConfirmed,
   documentFileIds,
   agreementVersion,
   agreementAcceptedAt,
@@ -129,6 +130,7 @@ export function PersonPayeeDecisionActions({
   submissionId?: string | null;
   bankAccountVersionId?: string | null;
   bankAccountVerified: boolean;
+  bankNameConfirmed?: boolean | null;
   documentFileIds: Record<string, string>;
   agreementVersion?: string | null;
   agreementAcceptedAt?: string | null;
@@ -192,6 +194,9 @@ export function PersonPayeeDecisionActions({
                     expired: "Expired",
                   }[status] ?? "Status unavailable")}
             </p>
+            {row.kind === "account" && bankNameConfirmed === false ? (
+              <p className="text-muted mt-1 text-sm">Name not confirmed by the bank</p>
+            ) : null}
           </div>
           <div>
             {row.id ? (

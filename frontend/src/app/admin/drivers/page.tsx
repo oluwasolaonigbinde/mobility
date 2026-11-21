@@ -34,6 +34,7 @@ export default async function DriversPage({
     phone?: string | null;
     email?: string;
     appliedAt?: string;
+    staffAdded?: boolean;
     city?: string | null;
     plate?: string | null;
     status: string;
@@ -54,7 +55,8 @@ export default async function DriversPage({
         email: a.email,
         appliedAt: a.created_at,
         city: a.service_city,
-        status: a.kind === "staff_added" ? "Added by staff" : "Application for review",
+        staffAdded: a.kind === "staff_added",
+        status: a.stage,
         href: a.driver_profile_id
           ? `/admin/drivers/${a.driver_profile_id}${a.application_id ? `?application=${a.application_id}` : ""}`
           : `/admin/drivers/applicant/${a.application_id}`,
@@ -152,8 +154,7 @@ export default async function DriversPage({
                     ) : null}
                     {r.appliedAt ? (
                       <p className="text-muted">
-                        {r.status === "Added by staff" ? "Added" : "Applied"}{" "}
-                        {formatDate(r.appliedAt)}
+                        {r.staffAdded ? "Added" : "Applied"} {formatDate(r.appliedAt)}
                       </p>
                     ) : null}
                   </div>

@@ -379,3 +379,14 @@ it("counts every supplied document and keeps decision feedback when status refre
   );
   expect(screen.getByText("Identity and bank approved.")).toBeVisible();
 });
+
+it("marks only a bank name explicitly unconfirmed by the bank", () => {
+  const { rerender } = render(<PersonPayeeDecisionActions {...props} bankNameConfirmed={false} />);
+  const row = within(screen.getByRole("region", { name: "Bank account" }));
+  expect(row.getByText("Name not confirmed by the bank")).toBeVisible();
+  expect(row.getByRole("button", { name: "Check bank details" })).toBeEnabled();
+  rerender(<PersonPayeeDecisionActions {...props} bankNameConfirmed />);
+  expect(row.queryByText("Name not confirmed by the bank")).toBeNull();
+  rerender(<PersonPayeeDecisionActions {...props} bankNameConfirmed={null} />);
+  expect(row.queryByText("Name not confirmed by the bank")).toBeNull();
+});
