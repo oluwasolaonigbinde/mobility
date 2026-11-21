@@ -16,6 +16,7 @@ from app.adapters.payments.paystack import (
     PaystackClient,
     PaystackError,
     PaystackMalformedResponseError,
+    PaystackNotFoundError,
     PaystackOutcomeUnknownError,
     PaystackRejectedError,
 )
@@ -42,7 +43,8 @@ _PROVIDER_RESTRICTION = re.compile(
     re.IGNORECASE,
 )
 _PROVIDER_RESOLVE_REFUSAL = re.compile(
-    r"\b(?:could(?: not|n't)|cannot|can(?: not|'t)|unable to|failed to)\s+resolve\b",
+    r"\b(?:could(?: not|n't)|cannot|can(?: not|'t)|unable to|failed to)\s+resolve"
+    r"\s+(?:(?:the|this|an?)\s+)?account(?:\s+(?:name|number)\b|(?=\s*(?:[:.,;!?]|$)))",
     re.IGNORECASE,
 )
 
@@ -174,7 +176,7 @@ class BankAdapter:
             )
         except PaystackMalformedResponseError:
             raise BankLookupInvalid("Invalid account response") from None
-        except (PaystackRejectedError, PaystackOutcomeUnknownError) as exc:
+        except (PaystackRejectedError, PaystackNotFoundError, PaystackOutcomeUnknownError) as exc:
             if exc.status_code is not None:
                 logger.warning(
                     "Paystack bank resolve failed: status=%s bank_code=%s message=%s",

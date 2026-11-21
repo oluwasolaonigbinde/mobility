@@ -90,7 +90,7 @@ class PaystackRejectedError(PaystackError):
     """Paystack definitively refused the request, or its answer failed our checks."""
 
 
-class PaystackNotFoundError(PaystackRejectedError):
+class PaystackNotFoundError(PaystackError):
     """Paystack answered 404 for the requested object."""
 
 

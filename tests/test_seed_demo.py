@@ -2987,14 +2987,61 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
     monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
     discover = report_scheduling.discover_reports
     interleaved_scheduler_reports = set()
+    real_campaign_id = uuid4()
+    real_email = "real-report-owner@cardvert-check.ng"
+    worker_discovered_first = False
 
-    async def worker_publishes_after_discovery(*args, **kwargs):
+    async def worker_interleaves_with_seed(*args, **kwargs):
+        nonlocal worker_discovered_first
+        if not kwargs.get("seed_only"):
+            return await discover(*args, **kwargs)
+        if not worker_discovered_first:
+            async with postgis_db_sessionmaker() as worker_session:
+                count = await discover(
+                    worker_session, settings=settings, storage=seed_private_storage, limit=1000
+                )
+                assert count > 0
+                first_worker_report_ids = set(
+                    await worker_session.scalars(
+                        select(CampaignReport.id).where(
+                            CampaignReport.requested_by_user_id == REPORT_ACTOR_ID
+                        )
+                    )
+                )
+                assert first_worker_report_ids
+            # Before seed discovery starts, add an ordinary overdue campaign to
+            # the same database. User-supplied metadata cannot establish seed provenance.
+            owner_id, organization_id = await _seed_advertiser(
+                postgis_db_sessionmaker, email=real_email
+            )
+            async with postgis_db_sessionmaker() as worker_session:
+                today = report_midnight(datetime.now(UTC))
+                worker_session.add(
+                    Campaign(
+                        id=real_campaign_id,
+                        organization_id=organization_id,
+                        created_by_user_id=owner_id,
+                        name="Ordinary advertiser report",
+                        status="active",
+                        start_at=today - timedelta(days=10),
+                        end_at=today + timedelta(days=10),
+                        budget_amount=Decimal("1000000.00"),
+                        currency="NGN",
+                        campaign_metadata={"demo": True, "seed_version": "f7_rich_v1"},
+                    )
+                )
+                await worker_session.commit()
+            worker_discovered_first = True
+        else:
+            first_worker_report_ids = set()
         created = await discover(*args, **kwargs)
-        if not kwargs.get("seed"):
-            return created
-        # An ordinary worker can see the committed reports and claim them before
-        # the seed's publisher starts. Its session has no seed history hook.
         async with postgis_db_sessionmaker() as worker_session:
+            assert (
+                await worker_session.scalar(
+                    select(CampaignReport.id).where(CampaignReport.campaign_id == real_campaign_id)
+                )
+                is None
+            )
             queued = (
                 await worker_session.execute(
                     select(CampaignReport.id, CampaignReport.requested_by_user_id).where(
@@ -3011,9 +3058,10 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
             )
             if actor_id == REPORT_ACTOR_ID:
                 interleaved_scheduler_reports.add(report_id)
+        assert first_worker_report_ids <= interleaved_scheduler_reports
         return created
 
-    monkeypatch.setattr(report_scheduling, "discover_reports", worker_publishes_after_discovery)
+    monkeypatch.setattr(report_scheduling, "discover_reports", worker_interleaves_with_seed)
     seed_started = datetime.now(UTC)
     started = time.monotonic()
     seed_demo_graph(postgis_db_sessionmaker, settings, catch_up=True)
@@ -3057,6 +3105,7 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
             ):
                 addresses.update(await session.scalars(select(column).where(column.is_not(None))))
             assert issuer_contact in addresses
+            addresses.remove(real_email)
             assert {
                 address for address in addresses if not is_undeliverable_recipient(address)
             } == {issuer_contact}
@@ -3109,14 +3158,33 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
                     assert stored.last_error_code == "email_recipient_undeliverable"
         assert [message.recipient for message in mail.messages] == [issuer_contact]
 
+        await sweep_scheduled_reports(ctx)
         for _ in range(3):
             await sweep_scheduled_reports({**ctx, "settings": settings})
+
+        async with postgis_db_sessionmaker() as session:
+            real_report_id = await session.scalar(
+                select(CampaignReport.id).where(CampaignReport.campaign_id == real_campaign_id)
+            )
+            assert real_report_id is not None
+            real_request_audit = await session.scalar(
+                select(AuditEvent.id).where(
+                    AuditEvent.action == "campaign_report.requested",
+                    AuditEvent.entity_type == "campaign_report",
+                    AuditEvent.entity_id == str(real_report_id),
+                )
+            )
+            assert real_request_audit is not None
+            audit_ids.add(real_request_audit)
 
         async with postgis_db_sessionmaker() as session:
             assert (
                 set(
                     await session.scalars(
-                        select(CampaignReport.id).where(CampaignReport.period_end_at < seed_started)
+                        select(CampaignReport.id).where(
+                            CampaignReport.period_end_at < seed_started,
+                            CampaignReport.campaign_id != real_campaign_id,
+                        )
                     )
                 )
                 == historical_reports
@@ -3323,5 +3391,33 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
                 )
             )
         assert not changes
+        assert (
+            await publish_campaign_report(
+                postgis_db_sessionmaker, report_id=real_report_id, storage=seed_private_storage
+            )
+            == "ready"
+        )
+        async with postgis_db_sessionmaker() as session:
+            real_notice = await session.scalar(
+                select(Notification)
+                .join(User, User.id == Notification.recipient_user_id)
+                .where(
+                    User.email == real_email,
+                    Notification.type_key == NotificationType.REPORT_READY,
+                    Notification.channel == "transactional_email",
+                )
+            )
+            assert real_notice is not None
+        assert (
+            await process_email_notification(
+                postgis_db_sessionmaker,
+                notification_id=real_notice.id,
+                settings=settings,
+                email_adapter=mail,
+                now=datetime.now(UTC),
+            )
+            == "sent"
+        )
+        assert [message.recipient for message in mail.messages] == [issuer_contact, real_email]
 
     asyncio.run(inspect())
