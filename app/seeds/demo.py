@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
@@ -2148,6 +2149,9 @@ async def preflight_seed_identities(session: AsyncSession) -> None:
 
 
 async def run_seed(settings: Settings | None = None) -> DemoGraph:
+    from app.adapters.storage import StorageProvider
+    from app.seeds.demo_authority import SEED_IMAGE_WRITES
+
     settings = settings or get_settings()
     ensure_seed_allowed(settings)
     engine = get_engine(settings)
@@ -2155,8 +2159,22 @@ async def run_seed(settings: Settings | None = None) -> DemoGraph:
     async with sessionmaker() as session:
         await ensure_database_ready(session)
         await preflight_seed_identities(session)
-        graph = await build_demo_graph(session, settings)
-        summary_counts = await counts(session, graph)
+        writes: list[tuple[StorageProvider, str]] = []
+        session.info[SEED_IMAGE_WRITES] = writes
+        try:
+            graph = await build_demo_graph(session, settings)
+            summary_counts = await counts(session, graph)
+        except Exception:
+            for storage, key in reversed(writes):
+                try:
+                    await storage.delete_all_versions(key)
+                except Exception:
+                    logging.getLogger(__name__).exception(
+                        "Failed to remove demo seed image %s", key
+                    )
+            raise
+        # Once commit starts its outcome can be uncertain. Preserve storage in
+        # that case so a successful commit cannot reference deleted objects.
         await session.commit()
     await settle_demo_reports(sessionmaker, settings=settings)
     print_summary(graph, summary_counts)

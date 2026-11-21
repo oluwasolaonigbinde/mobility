@@ -54,8 +54,7 @@ async def check_account_name(
     return AccountNameCheckRead(outcome=outcome, account_name=name, bank_check_receipt=receipt)
 
 
-def require_bank_check(payload, *, user_id: UUID, settings: Settings) -> tuple[str, str]:
-    receipt = payload.bank_check_receipt
+def _verified_bank_check(receipt, *, user_id: UUID, settings: Settings, replay: bool):
     if receipt is None:
         raise _invalid()
     raw = receipt.get_secret_value()
@@ -64,16 +63,23 @@ def require_bank_check(payload, *, user_id: UUID, settings: Settings) -> tuple[s
             raw,
             settings.jwt_secret_key,
             algorithms=["HS256"],
-            options={"require": ["exp", "iat", "sub"]},
+            options={"require": ["exp", "iat", "sub", "jti"], "verify_exp": not replay},
         )
-    except jwt.PyJWTError:
+        receipt_id = UUID(claims["jti"])
+    except (jwt.PyJWTError, ValueError, TypeError, AttributeError):
         raise _invalid() from None
-    if (
-        claims.get("kind") != "driver-bank-check-v1"
-        or claims.get("sub") != str(user_id)
-        or claims.get("bank_code") != payload.bank_code.get_secret_value()
-        or claims.get("account_digest") != digest(payload.account_number.get_secret_value())
-    ):
+    if claims.get("kind") != "driver-bank-check-v1" or claims.get("sub") != str(user_id):
+        raise _invalid()
+    return digest(str(receipt_id)), claims
+
+
+def require_bank_check(payload, *, user_id: UUID, settings: Settings) -> tuple[str, str]:
+    identity, claims = _verified_bank_check(
+        payload.bank_check_receipt, user_id=user_id, settings=settings, replay=False
+    )
+    if claims.get("bank_code") != payload.bank_code.get_secret_value() or claims.get(
+        "account_digest"
+    ) != digest(payload.account_number.get_secret_value()):
         raise _invalid()
     outcome = claims.get("outcome")
     if outcome == "resolved":
@@ -83,4 +89,14 @@ def require_bank_check(payload, *, user_id: UUID, settings: Settings) -> tuple[s
             raise _invalid()
     elif outcome not in ("unavailable", "refused") or payload.account_name_confirmed:
         raise _invalid()
-    return digest(raw), outcome
+    return identity, outcome
+
+
+def matches_prior_bank_check(payload, *, user_id: UUID, settings: Settings, receipt_sha256) -> bool:
+    try:
+        identity, _ = _verified_bank_check(
+            payload.bank_check_receipt, user_id=user_id, settings=settings, replay=True
+        )
+    except AppError:
+        return False
+    return identity == receipt_sha256

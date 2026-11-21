@@ -11,7 +11,11 @@ from app.adapters.banks import BankAdapter, BankLookupInvalid
 from app.adapters.payments.paystack import PaystackClient
 from app.core.errors import AppError
 from app.schemas.driver_onboarding import PersonPayeeSubmissionCreate
-from app.services.bank_capture import check_account_name, require_bank_check
+from app.services.bank_capture import (
+    check_account_name,
+    matches_prior_bank_check,
+    require_bank_check,
+)
 
 
 def adapter(handler):
@@ -148,6 +152,12 @@ def test_resolved_name_requires_confirmed_exact_identity_account_and_name(settin
     expired = jwt.encode(claims, settings.jwt_secret_key, algorithm="HS256")
     with pytest.raises(AppError):
         require_bank_check(payload(expired), user_id=user_id, settings=settings)
+    identity, _ = require_bank_check(
+        payload(result.bank_check_receipt), user_id=user_id, settings=settings
+    )
+    assert matches_prior_bank_check(
+        payload(expired), user_id=user_id, settings=settings, receipt_sha256=identity
+    )
 
 
 def test_unavailable_receipt_binds_fallback_without_confirmation(settings):

@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.adapters.banks import BankAdapter
 from app.adapters.crypto import AssociatedData, EnvelopeCryptoProvider
 from app.adapters.scanner import MalwareScanVerdict, build_malware_scanner
-from app.adapters.storage import build_storage_provider
+from app.adapters.storage import StorageProvider, build_storage_provider
 from app.core.config import Settings
 from app.models.billing import ProductionStart
 from app.models.campaign import Campaign, CampaignCreative
@@ -84,6 +84,9 @@ SYNTHETIC_ISSUER_FACTS = {
 SEED_PLANNED_INVOICES = "cardvert_seed_planned_invoices"
 
 
+SEED_IMAGE_WRITES = "demo_seed_image_writes"
+
+
 async def managed_seed_image(
     session,
     *,
@@ -112,10 +115,14 @@ async def managed_seed_image(
     if scan.verdict != MalwareScanVerdict.CLEAN:
         raise ValueError("Installation image did not pass malware scanning")
     digest = hashlib.sha256(data).hexdigest()
-    key = f"campaign-files/{file_id}.png"
-    await build_storage_provider(settings).put(
-        object_key=key, content_type="image/png", data=data, checksum_sha256=digest
-    )
+    writes: list[tuple[StorageProvider, str]] | None = session.info.get(SEED_IMAGE_WRITES)
+    # A failed or concurrent invocation must own its storage keys independently
+    # of the stable database file IDs used for successful re-seeds.
+    key = f"campaign-files/{uuid4() if writes is not None else file_id}.png"
+    storage = build_storage_provider(settings)
+    await storage.put(object_key=key, content_type="image/png", data=data, checksum_sha256=digest)
+    if writes is not None:
+        writes.append((storage, key))
     now = at or datetime.now(UTC)
     intent = FileUploadIntent(
         subject_user_id=None if organization_id else subject.id,

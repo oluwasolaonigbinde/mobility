@@ -849,6 +849,12 @@ def test_rejected_or_expired_submission_resubmits_as_new_truthful_version(
     replay = db_client.post(capture, json=first_body)
     assert replay.status_code == 201, replay.text
     assert replay.json()["submission_id"] == first.json()["submission_id"]
+    # PyJWT accepts an extra Base64URL padding byte on the signature segment.
+    reencoded_receipt = first_body["bank_check_receipt"] + "="
+    reencoded_replay = db_client.post(
+        capture, json={**first_body, "bank_check_receipt": reencoded_receipt}
+    )
+    assert reencoded_replay.status_code == 201, reencoded_replay.text
     admin = create_test_user(
         db_sessionmaker,
         email=f"person-payee-{suffix}-admin@example.com",
@@ -867,11 +873,10 @@ def test_rejected_or_expired_submission_resubmits_as_new_truthful_version(
     reference = _current_access_token(db_sessionmaker, settings, application)
     second_body = _person_payee_payload(reference, files, db_client)
     assert second_body["bank_check_receipt"] != first_body["bank_check_receipt"]
-    denied = db_client.post(
-        capture, json={**second_body, "bank_check_receipt": first_body["bank_check_receipt"]}
-    )
+    denied = db_client.post(capture, json={**second_body, "bank_check_receipt": reencoded_receipt})
     assert denied.status_code == 422, denied.text
     assert denied.json()["error"]["code"] == "BANK_CHECK_INVALID"
+    assert "already used" in denied.json()["error"]["message"]
     second = db_client.post(capture, json=second_body)
 
     assert first.status_code == second.status_code == 201

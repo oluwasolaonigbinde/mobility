@@ -653,7 +653,7 @@ def test_demo_seed_command_runs_the_guarded_seed_and_prints_its_summary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     graph = SimpleNamespace(id="demo-graph")
-    session = SimpleNamespace(commit=AsyncMock())
+    session = SimpleNamespace(commit=AsyncMock(), info={})
 
     class SessionContext:
         async def __aenter__(self):
@@ -3104,6 +3104,62 @@ def test_run_seed_rejects_identity_conflict_before_writes(
             assert {
                 column.key: getattr(after, column.key) for column in model.__table__.columns
             } == before
+
+    asyncio.run(exercise())
+
+
+def test_run_seed_removes_its_images_after_late_same_role_login_collision(
+    migrated_seed_sessionmaker, monkeypatch, seed_private_storage
+):
+    from hashlib import sha256
+
+    sessionmaker, settings = migrated_seed_sessionmaker
+    monkeypatch.setattr(demo, "get_engine", lambda _: sessionmaker.kw["bind"])
+    monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
+    preflight = demo.preflight_seed_identities
+    email = "nneka.umeh@demo.mobility.local"
+    prior_key = "campaign-files/previous-success.png"
+    prior_data = b"existing object"
+
+    async def insert_after_preflight(session):
+        await preflight(session)
+        async with sessionmaker() as other_session:
+            other_session.add(
+                User(
+                    email=email,
+                    full_name="Existing applicant",
+                    password_hash="existing-password-hash",
+                    role=UserRole.DRIVER.value,
+                    status="disabled",
+                )
+            )
+            await other_session.commit()
+
+    monkeypatch.setattr(demo, "preflight_seed_identities", insert_after_preflight)
+
+    async def exercise():
+        await seed_private_storage.put(
+            object_key=prior_key,
+            content_type="image/png",
+            data=prior_data,
+            checksum_sha256=sha256(prior_data).hexdigest(),
+        )
+        with pytest.raises(AppError) as error:
+            await demo.run_seed(settings)
+        assert error.value.code == "DEMO_IDENTITY_CONFLICT"
+        assert seed_private_storage.deleted
+        assert prior_key not in seed_private_storage.deleted
+        assert set(seed_private_storage.objects) == {prior_key}
+        assert seed_private_storage.contents == {prior_key: prior_data}
+        async with sessionmaker() as session:
+            users = (await session.scalars(select(User).where(User.email == email))).all()
+            [existing] = users
+            assert (existing.full_name, existing.password_hash, existing.status) == (
+                "Existing applicant",
+                "existing-password-hash",
+                "disabled",
+            )
+            assert not await session.scalar(select(StoredFile.id).limit(1))
 
     asyncio.run(exercise())
 

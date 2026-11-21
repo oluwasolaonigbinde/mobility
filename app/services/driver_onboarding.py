@@ -33,7 +33,7 @@ from app.schemas.driver_onboarding import (
 )
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
-from app.services.bank_capture import digest, require_bank_check
+from app.services.bank_capture import matches_prior_bank_check, require_bank_check
 from app.services.driver_agreement import require_agreement, require_recorded_agreement
 from app.services.driver_applications import application_from_access_token
 from app.services.kyc import (
@@ -222,11 +222,11 @@ async def submit_application_person_payee(
         if (
             not payload.agreement_accepted
             or payload.agreement_version != existing.agreement_version
-            or existing.bank_check_receipt_sha256
-            != (
-                digest(payload.bank_check_receipt.get_secret_value())
-                if payload.bank_check_receipt
-                else None
+            or not matches_prior_bank_check(
+                payload,
+                user_id=user_id,
+                settings=settings,
+                receipt_sha256=existing.bank_check_receipt_sha256,
             )
             or payload.account_name_confirmed != existing.bank_name_confirmed
         ):
@@ -278,7 +278,11 @@ async def submit_application_person_payee(
         )
         .limit(1)
     ):
-        raise _error("BANK_CHECK_INVALID", "Check your bank and account details again", 422)
+        raise _error(
+            "BANK_CHECK_INVALID",
+            "This bank check was already used. Check your bank details again.",
+            422,
+        )
     current = await session.scalar(
         select(DriverKycSubmission)
         .where(DriverKycSubmission.driver_profile_id == profile.id)
