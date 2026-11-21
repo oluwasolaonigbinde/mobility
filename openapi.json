@@ -59,7 +59,8 @@
           "outcome": {
             "enum": [
               "resolved",
-              "unavailable"
+              "unavailable",
+              "refused"
             ],
             "title": "Outcome",
             "type": "string"
@@ -139,6 +140,20 @@
             ],
             "title": "Service City"
           },
+          "stage": {
+            "enum": [
+              "Waiting for ID and bank details",
+              "ID and bank to review",
+              "ID or bank sent back for changes",
+              "Waiting for car details",
+              "Car to review",
+              "Car sent back for changes",
+              "Ready for account setup",
+              "Added by staff"
+            ],
+            "title": "Stage",
+            "type": "string"
+          },
           "user_id": {
             "format": "uuid",
             "title": "User Id",
@@ -146,6 +161,7 @@
           }
         },
         "required": [
+          "stage",
           "kind",
           "id",
           "application_id",
@@ -2102,6 +2118,17 @@
               }
             ],
             "title": "Bank Account Version Id"
+          },
+          "bank_name_confirmed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Name Confirmed"
           },
           "created_at": {
             "anyOf": [
@@ -31924,6 +31951,16 @@
               ],
               "title": "Q"
             }
+          },
+          {
+            "in": "query",
+            "name": "without_driver_profile",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Without Driver Profile",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -35520,6 +35557,42 @@
               }
             },
             "description": "Request validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bank check limit reached",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "minimum": 1.0,
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bank check limiter storage unavailable",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "const": 1,
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Onboarding Account Name",

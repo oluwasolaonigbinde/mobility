@@ -95,6 +95,7 @@ def _admin_person_payee_response(view, now=None) -> AdminPersonPayeeStageRead:
         masked_nin=f"*******{submission.nin_last_four}" if submission.purged_at is None else None,
         purged_at=submission.purged_at,
         bank_account_verified=view.bank_account_verified,
+        bank_name_confirmed=submission.bank_name_confirmed,
         reason_code=decision.reason_code if decision else None,
         created_at=submission.created_at,
         decided_at=decision.created_at if decision else None,
@@ -303,6 +304,7 @@ async def admin_list_users(
     role: UserRole | None = None,
     status: UserStatus | None = None,
     q: Annotated[str | None, Query(max_length=120)] = None,
+    without_driver_profile: bool = False,
 ) -> UserListResponse:
     del current_user
     users, total = await list_users(
@@ -312,6 +314,7 @@ async def admin_list_users(
         role=role,
         user_status=status,
         q=q,
+        without_driver_profile=without_driver_profile,
     )
     return UserListResponse(
         items=[UserRead.model_validate(user) for user in users],

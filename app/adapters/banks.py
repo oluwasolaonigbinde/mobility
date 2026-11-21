@@ -17,6 +17,7 @@ from app.adapters.payments.paystack import (
     PaystackError,
     PaystackMalformedResponseError,
     PaystackOutcomeUnknownError,
+    PaystackRejectedError,
 )
 from app.core.config import Settings
 
@@ -34,6 +35,8 @@ class _AccountLookupLogFilter(logging.Filter):
 
 
 logging.getLogger("httpx").addFilter(_AccountLookupLogFilter())
+logger = logging.getLogger(__name__)
+_PROVIDER_RESTRICTION = re.compile(r"\b(?:quota|limits?|test[ -]mode)\b", re.IGNORECASE)
 
 # Extracted from the renewal picker; digital-bank additions support Apply too.
 FALLBACK_BANKS = (
@@ -80,6 +83,10 @@ _POPULAR = (
 
 class BankLookupInvalid(ValueError):
     """Unusable bank/account response; never grants manual fallback."""
+
+
+class BankLookupRefused(ValueError):
+    """Provider refused lookup for a locally valid bank and account."""
 
 
 @dataclass(frozen=True)
@@ -161,8 +168,16 @@ class BankAdapter:
             raise BankLookupInvalid("Invalid account response") from None
         except PaystackOutcomeUnknownError:
             return None
-        except PaystackError:
-            raise BankLookupInvalid("Account could not be checked") from None
+        except PaystackRejectedError as exc:
+            logger.warning(
+                "Paystack bank resolve refused: status=%s bank_code=%s message=%s",
+                exc.status_code,
+                bank_code,
+                exc.message,
+            )
+            if exc.status_code in (401, 403) or _PROVIDER_RESTRICTION.search(exc.message):
+                return None
+            raise BankLookupRefused("Account could not be resolved") from None
         if (
             not isinstance(data, dict)
             or data.get("account_number") != account_number

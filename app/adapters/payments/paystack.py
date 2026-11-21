@@ -50,6 +50,8 @@ def _is_paystack_checkout_url(value: object) -> bool:
         )
     except ValueError:
         return False
+
+
 _TRANSACTION_REFERENCE_RE = re.compile(r"[A-Za-z0-9.=-]{1,100}")
 _EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 _CENT = Decimal("0.01")
@@ -63,16 +65,27 @@ class PaystackOutcomeUnknownError(PaystackError):
     """Timeout, transport failure, 5xx, 429 or a non-final status: reconcile later."""
 
 
-class PaystackNotFoundError(PaystackError):
-    """Paystack answered 404 for the requested object."""
-
-
 class PaystackMalformedResponseError(PaystackOutcomeUnknownError):
     """Response cannot authorize bank-name fallback, even if payment outcome is unknown."""
 
 
 class PaystackRejectedError(PaystackError):
     """Paystack definitively refused the request, or its answer failed our checks."""
+
+    def __init__(
+        self, description: str, *, status_code: int | None = None, message: object = None
+    ) -> None:
+        super().__init__(description)
+        self.status_code = status_code
+        self.message = (
+            re.sub(r"\d(?:[ -]?\d){5,}", "[redacted]", " ".join(message.split()))[:240]
+            if isinstance(message, str)
+            else ""
+        )
+
+
+class PaystackNotFoundError(PaystackRejectedError):
+    """Paystack answered 404 for the requested object."""
 
 
 def paystack_key_mode(secret_key: str) -> str:
@@ -201,10 +214,21 @@ class PaystackClient:
         status_code = response.status_code
         if status_code >= 500 or status_code == 429:
             raise PaystackOutcomeUnknownError("Paystack request outcome is unknown")
-        if status_code == 404:
-            raise PaystackNotFoundError("Paystack object was not found")
         if status_code >= 400:
-            raise PaystackRejectedError(f"Paystack rejected the request ({status_code})")
+            try:
+                error = response.json()
+            except ValueError:
+                error = None
+            message = error.get("message") if isinstance(error, dict) else None
+            if status_code == 404:
+                raise PaystackNotFoundError(
+                    "Paystack object was not found", status_code=status_code, message=message
+                )
+            raise PaystackRejectedError(
+                f"Paystack rejected the request ({status_code})",
+                status_code=status_code,
+                message=message,
+            )
         try:
             body = response.json()
         except ValueError as exc:
@@ -212,7 +236,11 @@ class PaystackClient:
         if not isinstance(body, dict) or not isinstance(body.get("status"), bool):
             raise PaystackMalformedResponseError("Paystack response envelope is malformed")
         if body["status"] is False:
-            raise PaystackRejectedError("Paystack rejected the request")
+            raise PaystackRejectedError(
+                "Paystack rejected the request",
+                status_code=status_code,
+                message=body.get("message"),
+            )
         return body if include_meta else body.get("data")
 
 

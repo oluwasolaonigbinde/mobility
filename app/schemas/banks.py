@@ -17,6 +17,6 @@ class AccountNameCheckCreate(BaseModel):
 
 
 class AccountNameCheckRead(BaseModel):
-    outcome: Literal["resolved", "unavailable"]
+    outcome: Literal["resolved", "unavailable", "refused"]
     account_name: str | None = None
     bank_check_receipt: str

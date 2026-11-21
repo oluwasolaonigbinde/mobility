@@ -183,6 +183,10 @@ class Settings(BaseSettings):
     driver_registration_rate_limit_ip_window_seconds: ClassVar[int] = 3600
     driver_registration_rate_limit_email_max_attempts: ClassVar[int] = 3
     driver_registration_rate_limit_email_window_seconds: ClassVar[int] = 3600
+    driver_bank_check_rate_limit_app_max_attempts: ClassVar[int] = 5
+    driver_bank_check_rate_limit_app_window_seconds: ClassVar[int] = 900
+    driver_bank_check_rate_limit_ip_max_attempts: ClassVar[int] = 30
+    driver_bank_check_rate_limit_ip_window_seconds: ClassVar[int] = 3600
     driver_onboarding_access_ttl_seconds: ClassVar[int] = 86400
     driver_account_setup_ttl_seconds: ClassVar[int] = 86400
     driver_account_setup_public_url: str = ""

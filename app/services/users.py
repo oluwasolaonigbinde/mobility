@@ -15,6 +15,7 @@ from app.core.security import hash_password_async, verify_password_async
 from app.models.audit import AuditEvent
 from app.models.contact import PasswordResetToken
 from app.models.disbursement import CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID
+from app.models.driver import DriverProfile
 from app.models.driver_application import DriverAccountSetupToken, DriverApplication
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.users import UserCreate, UserUpdate
@@ -186,6 +187,7 @@ async def list_users(
     role: str | None,
     user_status: str | None,
     q: str | None = None,
+    without_driver_profile: bool = False,
 ) -> tuple[list[User], int]:
     human_account = User.id.not_in([CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID, REPORT_ACTOR_ID])
     statement: Select[tuple[User]] = select(User).where(human_account)
@@ -200,6 +202,13 @@ async def list_users(
     if user_status is not None:
         statement = statement.where(User.status == user_status)
         count_statement = count_statement.where(User.status == user_status)
+
+    if without_driver_profile:
+        eligible_login = (User.role == UserRole.DRIVER) & ~exists().where(
+            DriverProfile.user_id == User.id
+        )
+        statement = statement.where(eligible_login)
+        count_statement = count_statement.where(eligible_login)
 
     total = await session.scalar(count_statement)
     result = await session.execute(
