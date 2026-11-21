@@ -1725,31 +1725,30 @@ def test_demo_seed_runs_with_immutable_guards_from_alembic_head(
         asyncio.run(drop_database(migration_url))
 
 
-def test_demo_seed_reuses_only_seed_owned_legacy_organization_billing_identity(
+def test_demo_seed_reuses_only_seed_owned_current_organization_billing_identity(
     postgis_db_sessionmaker,
 ) -> None:
     async def scenario() -> None:
         async with postgis_db_sessionmaker() as session:
-            legacy = AdvertiserOrganization(
+            ordinary = AdvertiserOrganization(
                 name="Marula Kitchens",
-                billing_email="billing@demo.mobility.local",
+                billing_email=demo.DEMO_BILLING_EMAIL,
                 country_code="NG",
                 currency="NGN",
                 status="active",
             )
             seeded = await demo.upsert_organization(session)
-            seeded.billing_email = "billing@demo.mobility.local"
-            session.add(legacy)
+            session.add(ordinary)
             await session.commit()
-            seed_id, legacy_id = seeded.id, legacy.id
+            seed_id, ordinary_id = seeded.id, ordinary.id
 
         async with postgis_db_sessionmaker() as session:
             current = await demo.upsert_organization(session)
             await session.commit()
-            assert current.id == seed_id != legacy_id
+            assert current.id == seed_id != ordinary_id
             assert current.billing_email == "accounts@marulakitchens.ng"
-            assert (await session.get(AdvertiserOrganization, legacy_id)).billing_email == (
-                "billing@demo.mobility.local"
+            assert (await session.get(AdvertiserOrganization, ordinary_id)).billing_email == (
+                demo.DEMO_BILLING_EMAIL
             )
             assert (
                 await session.scalar(
@@ -3071,7 +3070,7 @@ def test_run_seed_rejects_identity_conflict_before_writes(
                 if collision == "organization_name"
                 else "Existing Co",
                 billing_email=(
-                    "billing@demo.mobility.local"
+                    demo.DEMO_BILLING_EMAIL
                     if collision == "billing_email"
                     else "existing@cardvert-check.ng"
                 ),
@@ -3107,6 +3106,243 @@ def test_run_seed_rejects_identity_conflict_before_writes(
             } == before
 
     asyncio.run(exercise())
+
+
+def test_demo_payout_bank_selection_requires_seed_owned_version(db_sessionmaker, settings):
+    from conftest import create_test_driver_profile, create_test_user
+
+    from app.models.payee import PayeeBankAccountVersion
+    from app.seeds.demo_authority import ensure_demo_verified_bank
+    from app.seeds.driver_story import seed_payout_bank_version
+
+    driver = create_test_user(
+        db_sessionmaker, email="bank-driver@cardvert-check.ng", role=UserRole.DRIVER
+    )
+    admin = create_test_user(db_sessionmaker, email="bank-reviewer@cardvert-check.ng")
+    profile = create_test_driver_profile(db_sessionmaker, user_id=driver.id)
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            assert await seed_payout_bank_version(session, driver_profile_id=profile.id) is None
+            await ensure_demo_verified_bank(
+                session,
+                driver=driver,
+                profile=profile,
+                admin=admin,
+                settings=settings,
+                verified_at=datetime.now(UTC),
+            )
+            seeded = await seed_payout_bank_version(session, driver_profile_id=profile.id)
+            assert seeded is not None
+            ordinary = PayeeBankAccountVersion(
+                bank_account_id=seeded.bank_account_id,
+                payee_version_id=seeded.payee_version_id,
+                version=2,
+                encrypted_details=seeded.encrypted_details,
+                encryption_algorithm=seeded.encryption_algorithm,
+                encryption_key_version=seeded.encryption_key_version,
+                verification_reference_sha256="2" * 64,
+                verified_by_user_id=admin.id,
+            )
+            session.add(ordinary)
+            await session.commit()
+            seeded_id, ordinary_id = seeded.id, ordinary.id
+
+        async with db_sessionmaker() as session:
+            selected = await seed_payout_bank_version(session, driver_profile_id=profile.id)
+            assert selected.id == seeded_id != ordinary_id
+
+    asyncio.run(exercise())
+
+
+def test_demo_seed_leaves_ordinary_trips_and_earnings_untouched(
+    postgis_db_sessionmaker, settings, monkeypatch
+):
+    from conftest import (
+        create_test_campaign,
+        create_test_campaign_assignment,
+        create_test_impression_estimate,
+        create_test_payout_rule,
+        create_test_trip_analytics,
+        create_test_trip_session,
+    )
+    from test_email_delivery import _seed_advertiser
+
+    from app.models.campaign import CampaignStatus
+    from app.models.campaign_assignment import CampaignAssignmentStatus
+    from app.models.disbursement import PayoutBatchLine
+    from app.models.trip import TripSessionStatus
+    from app.seeds import driver_story
+    from app.services import earnings_release, trip_processing
+
+    db = postgis_db_sessionmaker
+    monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
+    email = "driver@demo.mobility.local"
+    moment = report_midnight(datetime.now(UTC)) - timedelta(days=3) + timedelta(hours=10)
+
+    async def create_driver():
+        async with db() as session:
+            user = await demo.upsert_user(
+                session,
+                email=email,
+                password=DEMO_PASSWORDS[email],
+                full_name="Emeka Nwankwo",
+                role=UserRole.DRIVER,
+                settings=settings,
+            )
+            profile = await demo.upsert_driver_profile(session, driver=user)
+            vehicle = await demo.upsert_vehicle(session, profile=profile)
+            await session.commit()
+            return user.id, profile.id, vehicle.id
+
+    driver_id, profile_id, vehicle_id = asyncio.run(create_driver())
+    owner_id, organization_id = asyncio.run(_seed_advertiser(db))
+    campaign = create_test_campaign(
+        db,
+        organization_id=organization_id,
+        created_by_user_id=owner_id,
+        name="Ordinary campaign with client metadata",
+        campaign_status=CampaignStatus.ACTIVE,
+        start_at=moment - timedelta(hours=2),
+        end_at=moment + timedelta(days=10),
+        metadata={"demo": True},
+    )
+    assignment = create_test_campaign_assignment(
+        db,
+        campaign_id=campaign.id,
+        driver_profile_id=profile_id,
+        vehicle_id=vehicle_id,
+        assigned_by_user_id=owner_id,
+        assignment_status=CampaignAssignmentStatus.ACTIVE,
+        offered_at=moment - timedelta(hours=2),
+        accepted_at=moment - timedelta(hours=1),
+        activated_at=moment - timedelta(minutes=30),
+    )
+    scope = dict(
+        campaign_id=campaign.id,
+        assignment_id=assignment.id,
+        driver_profile_id=profile_id,
+        vehicle_id=vehicle_id,
+    )
+    unprocessed, payable = [
+        create_test_trip_session(
+            db,
+            **scope,
+            started_by_user_id=driver_id,
+            trip_status=TripSessionStatus.SEALED,
+            started_at=moment + timedelta(hours=offset),
+            ended_at=moment + timedelta(hours=offset, minutes=30),
+            metadata={"demo": True},
+        )
+        for offset in (0, 1)
+    ]
+    analytics = create_test_trip_analytics(
+        db,
+        **scope,
+        trip_session_id=payable.id,
+        started_at=payable.started_at,
+        ended_at=payable.ended_at,
+    )
+    estimate = create_test_impression_estimate(
+        db, **scope, trip_session_id=payable.id, trip_analytics_id=analytics.id
+    )
+    rule = create_test_payout_rule(db, campaign_id=campaign.id, created_by_user_id=owner_id)
+
+    async def create_due_work():
+        async with db() as session:
+            calculation = PayoutCalculation(
+                **scope,
+                trip_session_id=payable.id,
+                trip_analytics_id=analytics.id,
+                impression_estimate_id=estimate.id,
+                payout_rule_id=rule.id,
+                status="calculated",
+                currency="NGN",
+                gross_payout=Decimal("100"),
+                final_payout=Decimal("100"),
+                eligible_seconds=1800,
+                excluded_seconds_by_reason={},
+                inputs_fingerprint="a" * 64,
+                amount_by_day={moment.date().isoformat(): "100.00"},
+                distance_m_by_day={moment.date().isoformat(): 1000},
+                calculated_at=payable.ended_at,
+            )
+            flag = FraudFlag(
+                **scope,
+                trip_session_id=payable.id,
+                trip_analytics_id=analytics.id,
+                flag_type="route_replay",
+                severity="medium",
+                description="Ordinary trip flag",
+                detected_at=moment - timedelta(days=settings.fraud_review_sla_days),
+            )
+            session.add_all([calculation, flag])
+            await session.flush()
+            credit = EarningsLedgerEntry(
+                campaign_id=campaign.id,
+                driver_profile_id=profile_id,
+                driver_user_id=driver_id,
+                vehicle_id=vehicle_id,
+                trip_session_id=payable.id,
+                payout_calculation_id=calculation.id,
+                entry_type="trip_payout",
+                status="pending",
+                amount=Decimal("100"),
+                currency="NGN",
+                occurred_at=payable.ended_at,
+                release_at=payable.ended_at + timedelta(hours=1),
+            )
+            session.add(credit)
+            await session.commit()
+            due = await trip_processing.find_unprocessed_trip_page(
+                session, limit=100, settings=settings
+            )
+            assert unprocessed.id in {row.id for row in due}
+            assert payable.id in await earnings_release.find_pending_release_trip_ids(
+                session, limit=100
+            )
+            assert flag.id in await earnings_release.find_due_fraud_flag_ids(
+                session, limit=100, review_sla_days=settings.fraud_review_sla_days
+            )
+            return credit.id, flag.id
+
+    credit_id, flag_id = asyncio.run(create_due_work())
+
+    def reject_ordinary_work(service, identity_key, ordinary_ids):
+        async def check(session, **kwargs):
+            assert kwargs[identity_key] not in ordinary_ids, service.__name__
+            return await service(session, **kwargs)
+
+        return check
+
+    trips = {unprocessed.id, payable.id}
+    process = reject_ordinary_work(trip_processing.process_ended_trip, "trip_id", trips)
+    release = reject_ordinary_work(
+        earnings_release.release_pending_earnings_for_trip, "trip_id", trips
+    )
+    escalate = reject_ordinary_work(
+        earnings_release.escalate_fraud_flag_if_due, "flag_id", {flag_id}
+    )
+    monkeypatch.setattr(trip_processing, "process_ended_trip", process)
+    monkeypatch.setattr(driver_story, "process_ended_trip", process)
+    monkeypatch.setattr(earnings_release, "release_pending_earnings_for_trip", release)
+    monkeypatch.setattr(driver_story, "release_pending_earnings_for_trip", release)
+    monkeypatch.setattr(earnings_release, "escalate_fraud_flag_if_due", escalate)
+
+    seed_demo_graph(db, settings)
+
+    async def verify():
+        async with db() as session:
+            assert not await session.scalar(
+                select(TripAnalytics.id).where(TripAnalytics.trip_session_id == unprocessed.id)
+            )
+            assert (await session.get(FraudFlag, flag_id)).escalated_at is None
+            assert (await session.get(EarningsLedgerEntry, credit_id)).status == "pending"
+            assert not await session.scalar(
+                select(PayoutBatchLine.id).where(PayoutBatchLine.ledger_entry_id == credit_id)
+            )
+
+    asyncio.run(verify())
 
 
 def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(

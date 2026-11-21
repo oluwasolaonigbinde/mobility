@@ -2306,8 +2306,9 @@ async def ensure_portal_payouts(session, *, graph, staff, settings):
         PayoutBatch,
         PayoutLineReconciliationEvent,
     )
-    from app.models.payee import Payee, PayeeBankAccount, PayeeBankAccountVersion, PayeeVersion
+    from app.models.payee import PayeeVersion
     from app.models.payout import EarningsLedgerEntry
+    from app.seeds.driver_story import seed_payout_bank_version
     from app.services.disbursements import build_frozen_payout_line, freeze_batch_instruction_set
 
     # Keep Finance's reserved/blocked examples off the settled driver walkthrough.
@@ -2330,16 +2331,13 @@ async def ensure_portal_payouts(session, *, graph, staff, settings):
         # A zero-density fixture deliberately omits this driver's work history.
         await _ensure_payout_review_history(session, graph=graph, staff=staff, settings=settings)
         return ()
+    account = await seed_payout_bank_version(session, driver_profile_id=payout_profile.id)
+    if account is None:
+        return tuple(entry.id for entry in entries[:3])
+    version = await session.get(PayeeVersion, account.payee_version_id)
     entries = await _prepare_portal_earnings(session, entries, settings)
     if len(entries) < 3:
         raise ValueError("The Finance demo driver needs three released trips")
-    payee = await session.scalar(select(Payee).where(Payee.subject_id == payout_profile.id))
-    version = await session.scalar(select(PayeeVersion).where(PayeeVersion.payee_id == payee.id))
-    account = await session.scalar(
-        select(PayeeBankAccountVersion)
-        .join(PayeeBankAccount)
-        .where(PayeeBankAccount.payee_id == payee.id)
-    )
     now = datetime.now(UTC)
     for index, state in ((0, "completed"), (2, "reserved")):
         key = uuid5(NAMESPACE_URL, f"cardvert-preview:payout:{index}")

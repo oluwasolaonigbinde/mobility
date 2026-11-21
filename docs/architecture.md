@@ -3458,6 +3458,9 @@ login requires a seed ownership record before its credentials or profile can
 be reused. The seed command checks all configured login emails and
 organisation names and billing emails before writing to the database or object
 storage. It stops if an existing matching identity has no seed ownership record.
+Seed trip processing, release, fraud escalation and job document setup require
+campaign ownership. Simulated payout history also requires a seed-created bank
+version and uses the payee version linked to that account snapshot.
 
 REQ-217 replaces the two-step measurement/issuance workflow with one
 `campaign_reports` row: queued, ready or failed. It freezes an allowlisted snapshot

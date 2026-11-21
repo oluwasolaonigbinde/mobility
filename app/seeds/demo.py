@@ -117,7 +117,6 @@ DEMO_DRIVER_PHONE_NUMBERS = {
 }
 DEMO_ORGANIZATION_NAME = "Marula Kitchens"
 DEMO_BILLING_EMAIL = "accounts@marulakitchens.ng"
-LEGACY_DEMO_BILLING_EMAIL = "billing@demo.mobility.local"
 PRODUCTION_ENVIRONMENTS = {"prod", "production"}
 
 
@@ -268,13 +267,6 @@ async def upsert_organization(session: AsyncSession) -> AdvertiserOrganization:
             seed_identity_exists("organization", AdvertiserOrganization.id),
         )
     )
-    if organization is None:
-        organization = await session.scalar(
-            select(AdvertiserOrganization).where(
-                AdvertiserOrganization.billing_email == LEGACY_DEMO_BILLING_EMAIL,
-                seed_identity_exists("organization", AdvertiserOrganization.id),
-            )
-        )
     created = organization is None
     if organization is None:
         organization = AdvertiserOrganization(
@@ -1796,8 +1788,16 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
         settle_seed_driver_notifications,
     )
 
+    seed_campaign_ids = list(
+        await session.scalars(select(Campaign.id).where(is_seed_campaign(Campaign.id)))
+    )
     await settle_demo_driver_history(
-        session, driver_profile_id=graph.driver_profile.id, staff=staff, settings=settings
+        session,
+        driver_profile_id=graph.driver_profile.id,
+        staff=staff,
+        settings=settings,
+        campaign_ids=seed_campaign_ids,
+        require_released=True,
     )
     finance_example_ids = await ensure_portal_payouts(
         session, graph=graph, staff=staff, settings=settings
@@ -1985,13 +1985,16 @@ async def process_demo_trip_backlog(session: AsyncSession, *, settings: Settings
     )
     from app.services.trip_processing import find_unprocessed_trip_page, process_ended_trip
 
+    seed_trip = select(TripSession.id).where(
+        TripSession.trip_metadata["demo"].as_string() == "true",
+        is_seed_campaign(TripSession.campaign_id),
+    )
     after = None
     while page := await find_unprocessed_trip_page(
         session, limit=100, settings=settings, after=after
     ):
         for due in page:
-            trip = await session.get(TripSession, due.id)
-            if trip and trip.trip_metadata.get("demo"):
+            if await session.scalar(seed_trip.where(TripSession.id == due.id)):
                 await process_ended_trip(session, trip_id=due.id, settings=settings)
                 await release_pending_earnings_for_trip(session, trip_id=due.id, settings=settings)
         after = page[-1].ended_at, page[-1].id
@@ -1999,8 +2002,7 @@ async def process_demo_trip_backlog(session: AsyncSession, *, settings: Settings
     after_id = None
     while trip_ids := await find_pending_release_trip_ids(session, limit=100, after=after_id):
         for trip_id in trip_ids:
-            trip = await session.get(TripSession, trip_id)
-            if trip and trip.trip_metadata.get("demo"):
+            if await session.scalar(seed_trip.where(TripSession.id == trip_id)):
                 await release_pending_earnings_for_trip(session, trip_id=trip_id, settings=settings)
         after_id = trip_ids[-1]
 
@@ -2020,7 +2022,8 @@ async def settle_demo_worker_reviews(session: AsyncSession, *, settings: Setting
         .join(TripSession, TripSession.id == FraudFlag.trip_session_id)
         .where(
             FraudFlag.id.in_(due_ids),
-            TripSession.trip_metadata["demo"].as_boolean().is_(True),
+            TripSession.trip_metadata["demo"].as_string() == "true",
+            is_seed_campaign(TripSession.campaign_id),
         )
     )
     for flag_id in demo_ids:
@@ -2121,7 +2124,6 @@ async def preflight_seed_identities(session: AsyncSession) -> None:
     names = [DEMO_ORGANIZATION_NAME, *(name for name, _, _ in BUSINESS_CONTACTS)]
     billing_emails = [
         DEMO_BILLING_EMAIL,
-        LEGACY_DEMO_BILLING_EMAIL,
         *(email for _, _, email in BUSINESS_CONTACTS),
     ]
     conflict = await session.scalar(

@@ -16,7 +16,10 @@ from app.adapters.disbursement.provider import (
 from app.models.disbursement import PayoutBatch, PayoutBatchLine, PayoutSubmissionIntent
 from app.models.payee import Payee, PayeeBankAccount, PayeeBankAccountVersion, PayeeVersion
 from app.models.payout import EarningsLedgerEntry, PayoutCalculation
+from app.models.trip import TripSession
 from app.seeds.history import initial_action_history
+from app.seeds.identity import seed_identity_exists
+from app.services.campaign_reports import is_seed_campaign
 from app.services.disbursements import (
     _apply_verified_line_evidence,
     build_frozen_payout_line,
@@ -46,46 +49,55 @@ def workday_processing_time(trip):
     return trip.ended_at + timedelta(minutes=5) if trip.trip_metadata.get("full_workday") else None
 
 
-async def settle_demo_driver_history(
-    session, *, driver_profile_id, staff, settings, campaign_ids=None, protected_entry_ids=()
-):
-    from app.models.trip import TripSession
-
-    today = datetime.now(UTC).astimezone(ZoneInfo("Africa/Lagos")).date().isoformat()
-    payee = await session.scalar(select(Payee).where(Payee.subject_id == driver_profile_id))
-    version = await session.scalar(
-        select(PayeeVersion)
-        .where(PayeeVersion.payee_id == payee.id)
-        .order_by(PayeeVersion.version.desc())
-    )
-    account = await session.scalar(
+async def seed_payout_bank_version(session, *, driver_profile_id):
+    return await session.scalar(
         select(PayeeBankAccountVersion)
         .join(PayeeBankAccount)
-        .where(PayeeBankAccount.payee_id == payee.id)
-        .order_by(PayeeBankAccountVersion.version.desc())
-    )
-    entries = (
-        await session.scalars(
-            select(EarningsLedgerEntry).where(
-                EarningsLedgerEntry.driver_profile_id == driver_profile_id,
-                EarningsLedgerEntry.entry_type == "trip_payout",
-                EarningsLedgerEntry.status.in_(["pending", "available"]),
-                *(
-                    [EarningsLedgerEntry.campaign_id.in_(campaign_ids)]
-                    if campaign_ids is not None
-                    else []
-                ),
-                EarningsLedgerEntry.id.not_in(protected_entry_ids),
-                ~select(PayoutBatchLine.id)
-                .where(PayoutBatchLine.ledger_entry_id == EarningsLedgerEntry.id)
-                .exists(),
-            )
+        .join(Payee, Payee.id == PayeeBankAccount.payee_id)
+        .where(
+            Payee.payee_type == "driver",
+            Payee.subject_id == driver_profile_id,
+            seed_identity_exists("bank_account_version", PayeeBankAccountVersion.id),
         )
-    ).all()
+        .order_by(PayeeBankAccountVersion.version.desc(), PayeeBankAccountVersion.id)
+        .limit(1)
+    )
+
+
+async def settle_demo_driver_history(  # noqa: C901
+    session,
+    *,
+    driver_profile_id,
+    staff,
+    settings,
+    campaign_ids,
+    protected_entry_ids=(),
+    require_released=False,
+):
+    account = await seed_payout_bank_version(session, driver_profile_id=driver_profile_id)
+    if account is None:
+        return
+    version = await session.get(PayeeVersion, account.payee_version_id)
+    today = datetime.now(UTC).astimezone(ZoneInfo("Africa/Lagos")).date().isoformat()
+    entries = await session.execute(
+        select(EarningsLedgerEntry, PayoutCalculation.amount_by_day)
+        .join(TripSession, TripSession.id == EarningsLedgerEntry.trip_session_id)
+        .join(PayoutCalculation, PayoutCalculation.id == EarningsLedgerEntry.payout_calculation_id)
+        .where(
+            EarningsLedgerEntry.driver_profile_id == driver_profile_id,
+            EarningsLedgerEntry.campaign_id.in_(campaign_ids),
+            TripSession.campaign_id == EarningsLedgerEntry.campaign_id,
+            is_seed_campaign(TripSession.campaign_id),
+            EarningsLedgerEntry.entry_type == "trip_payout",
+            EarningsLedgerEntry.status.in_(["pending", "available"]),
+            EarningsLedgerEntry.id.not_in(protected_entry_ids),
+            ~select(PayoutBatchLine.id)
+            .where(PayoutBatchLine.ledger_entry_id == EarningsLedgerEntry.id)
+            .exists(),
+        )
+    )
     by_day = {}
-    for entry in entries:
-        calculation = await session.get(PayoutCalculation, entry.payout_calculation_id)
-        days = calculation.amount_by_day or {} if calculation else {}
+    for entry, days in entries:
         if not days or max(days) >= today or entry.amount <= Decimal(0):
             continue
         if len(days) != 1:
@@ -98,7 +110,7 @@ async def settle_demo_driver_history(
             session, trip_id=entry.trip_session_id, settings=settings
         )
         if entry.status != "available" or not released.assessment_current or released.hold_active:
-            if campaign_ids is not None:
+            if not require_released:
                 continue
             from app.models.trip_analytics import FraudFlag
 

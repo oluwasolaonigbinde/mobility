@@ -1001,6 +1001,8 @@ async def ensure_demo_documents(session, *, driver, profile, vehicle, reviewer, 
 
 
 async def ensure_demo_verified_bank(session, *, driver, profile, admin, settings, verified_at):
+    from app.seeds.identity import record_seed_identity
+
     if not await session.scalar(
         select(Payee.id).where(
             Payee.tenant_id == driver.id,
@@ -1054,6 +1056,7 @@ async def ensure_demo_verified_bank(session, *, driver, profile, admin, settings
         )
         session.add(bank_version)
         await session.flush()
+        await record_seed_identity(session, "bank_account_version", bank_version.id)
         from app.models.payee import PayeeBankAccountPayoutVerification
 
         session.add(
@@ -1296,6 +1299,7 @@ async def ensure_demo_start_authority(
 
 async def ensure_job_driver_documents(session, *, reviewer, settings):
     from app.seeds.history import initial_action_history
+    from app.services.campaign_reports import is_seed_campaign
 
     rows = await session.execute(
         select(User, DriverProfile, Vehicle, func.min(Campaign.start_at))
@@ -1305,7 +1309,7 @@ async def ensure_job_driver_documents(session, *, reviewer, settings):
         .join(Campaign, Campaign.id == CampaignAssignment.campaign_id)
         .where(
             User.id.in_(session.info.get("demo_seed_user_ids", set())),
-            Campaign.campaign_metadata["demo"].as_boolean().is_(True),
+            is_seed_campaign(Campaign.id),
         )
         .group_by(User.id, DriverProfile.id, Vehicle.id)
         .order_by(User.id, Vehicle.id)
