@@ -977,7 +977,8 @@ async def build_rich_seed(
     existing_trip_count = int(
         await session.scalar(
             select(func.count(TripSession.id)).where(
-                TripSession.trip_metadata["seed_version"].as_string() == F7_SEED_VERSION
+                TripSession.trip_metadata["seed_version"].as_string() == F7_SEED_VERSION,
+                is_seed_campaign(TripSession.campaign_id),
             )
         )
         or 0
@@ -1135,7 +1136,9 @@ async def ensure_portal_people(session, *, graph, settings):
         ("Ayodele Bakare", "ayodele.bakare@demo.mobility.local", "approved"),
         ("Suleiman Idris", "suleiman.idris@demo.mobility.local", "rejected"),
     ):
-        existing_person = await session.scalar(select(User).where(User.email == email))
+        existing_person = await session.scalar(
+            select(User).where(User.email == email, seed_identity_exists("user", User.id))
+        )
         person = await upsert_user(
             session,
             email=email,
@@ -2308,7 +2311,7 @@ async def ensure_portal_payouts(session, *, graph, staff, settings):
     )
     from app.models.payee import PayeeVersion
     from app.models.payout import EarningsLedgerEntry
-    from app.seeds.driver_story import seed_payout_bank_version
+    from app.seeds.driver_story import select_seed_bank_version
     from app.services.disbursements import build_frozen_payout_line, freeze_batch_instruction_set
 
     # Keep Finance's reserved/blocked examples off the settled driver walkthrough.
@@ -2331,7 +2334,7 @@ async def ensure_portal_payouts(session, *, graph, staff, settings):
         # A zero-density fixture deliberately omits this driver's work history.
         await _ensure_payout_review_history(session, graph=graph, staff=staff, settings=settings)
         return ()
-    account = await seed_payout_bank_version(session, driver_profile_id=payout_profile.id)
+    account = await select_seed_bank_version(session, driver_profile_id=payout_profile.id)
     if account is None:
         return tuple(entry.id for entry in entries[:3])
     version = await session.get(PayeeVersion, account.payee_version_id)
@@ -2521,7 +2524,9 @@ async def ensure_reporting_live_car(
 
     now = (now or utc_now()).replace(microsecond=0)
     if (
-        campaign_display_status(campaign.status, campaign.end_at, now=now) != "active"
+        assignment.campaign_id != campaign.id
+        or not await session.scalar(select(is_seed_campaign(campaign.id)))
+        or campaign_display_status(campaign.status, campaign.end_at, now=now) != "active"
         or (campaign.start_at and campaign.start_at > now)
         or assignment.status != "active"
     ):
@@ -2529,6 +2534,7 @@ async def ensure_reporting_live_car(
     existing = await session.scalar(
         select(TripSession).where(
             TripSession.assignment_id == assignment.id,
+            TripSession.campaign_id == campaign.id,
             TripSession.trip_metadata["seed_version"].as_string() == LIVE_CAR_VERSION,
             TripSession.status == "active",
         )

@@ -3108,22 +3108,33 @@ def test_run_seed_rejects_identity_conflict_before_writes(
     asyncio.run(exercise())
 
 
-def test_demo_payout_bank_selection_requires_seed_owned_version(db_sessionmaker, settings):
-    from conftest import create_test_driver_profile, create_test_user
+@pytest.mark.parametrize("newer_unmarked", [False, True])
+def test_demo_payout_and_initial_kyc_require_seed_owned_bank_version(
+    db_sessionmaker, settings, seed_private_storage, newer_unmarked
+):
+    from conftest import create_test_driver_profile, create_test_user, create_test_vehicle
 
     from app.models.payee import PayeeBankAccountVersion
-    from app.seeds.demo_authority import ensure_demo_verified_bank
-    from app.seeds.driver_story import seed_payout_bank_version
+    from app.seeds.demo_authority import ensure_demo_documents, ensure_demo_verified_bank
+    from app.seeds.driver_story import select_seed_bank_version
 
     driver = create_test_user(
         db_sessionmaker, email="bank-driver@cardvert-check.ng", role=UserRole.DRIVER
     )
     admin = create_test_user(db_sessionmaker, email="bank-reviewer@cardvert-check.ng")
     profile = create_test_driver_profile(db_sessionmaker, user_id=driver.id)
+    vehicle = create_test_vehicle(db_sessionmaker, driver_profile_id=profile.id)
+
+    def snapshot(version):
+        return {
+            column.key: getattr(version, column.key)
+            for column in PayeeBankAccountVersion.__table__.columns
+        }
 
     async def exercise():
+        ordinary = None
         async with db_sessionmaker() as session:
-            assert await seed_payout_bank_version(session, driver_profile_id=profile.id) is None
+            assert await select_seed_bank_version(session, driver_profile_id=profile.id) is None
             await ensure_demo_verified_bank(
                 session,
                 driver=driver,
@@ -3132,25 +3143,55 @@ def test_demo_payout_bank_selection_requires_seed_owned_version(db_sessionmaker,
                 settings=settings,
                 verified_at=datetime.now(UTC),
             )
-            seeded = await seed_payout_bank_version(session, driver_profile_id=profile.id)
+            seeded = await select_seed_bank_version(session, driver_profile_id=profile.id)
             assert seeded is not None
-            ordinary = PayeeBankAccountVersion(
-                bank_account_id=seeded.bank_account_id,
-                payee_version_id=seeded.payee_version_id,
-                version=2,
-                encrypted_details=seeded.encrypted_details,
-                encryption_algorithm=seeded.encryption_algorithm,
-                encryption_key_version=seeded.encryption_key_version,
-                verification_reference_sha256="2" * 64,
-                verified_by_user_id=admin.id,
-            )
-            session.add(ordinary)
+            if newer_unmarked:
+                ordinary = PayeeBankAccountVersion(
+                    bank_account_id=seeded.bank_account_id,
+                    payee_version_id=seeded.payee_version_id,
+                    version=2,
+                    encrypted_details=seeded.encrypted_details,
+                    encryption_algorithm=seeded.encryption_algorithm,
+                    encryption_key_version=seeded.encryption_key_version,
+                    verification_reference_sha256="2" * 64,
+                    verified_by_user_id=admin.id,
+                )
+                session.add(ordinary)
             await session.commit()
-            seeded_id, ordinary_id = seeded.id, ordinary.id
+            seeded_id = seeded.id
+            ordinary_before = snapshot(ordinary) if ordinary is not None else None
 
         async with db_sessionmaker() as session:
-            selected = await seed_payout_bank_version(session, driver_profile_id=profile.id)
-            assert selected.id == seeded_id != ordinary_id
+            selected = await select_seed_bank_version(session, driver_profile_id=profile.id)
+            assert selected.id == seeded_id
+            await ensure_demo_documents(
+                session,
+                driver=driver,
+                profile=profile,
+                vehicle=vehicle,
+                reviewer=admin,
+                settings=settings,
+            )
+            await session.commit()
+
+        async with db_sessionmaker() as session:
+            submission = await session.scalar(
+                select(DriverKycSubmission).where(
+                    DriverKycSubmission.driver_profile_id == profile.id
+                )
+            )
+            if ordinary is not None:
+                assert submission is None
+                assert not seed_private_storage.objects
+                unchanged = await session.get(PayeeBankAccountVersion, ordinary.id)
+                assert snapshot(unchanged) == ordinary_before
+                assert not await session.scalar(
+                    select(AuditEvent.id).where(AuditEvent.entity_id == str(ordinary.id)).limit(1)
+                )
+            else:
+                assert submission.bank_account_version_id == seeded_id
+                assert submission.status == "approved"
+                assert seed_private_storage.objects
 
     asyncio.run(exercise())
 
@@ -3352,12 +3393,14 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
 
     from test_email_delivery import RecordingEmailAdapter, _seed_advertiser
 
+    from app.jobs import trip_processing as trip_jobs
     from app.jobs.worker import WorkerSettings
     from app.models.billing import CommercialQuotationRevision, InvoiceIssuerProfile
     from app.models.campaign_report import CampaignReport
     from app.models.evidence_verification import EvidenceVerification
     from app.models.notification import Notification, NotificationType
     from app.models.payout import PayoutCorrectionOrder
+    from app.seeds.live_car import LIVE_CAR_VERSION
     from app.services import report_scheduling
     from app.services.campaign_report_delivery import publish_campaign_report
     from app.services.email_delivery import process_email_notification
@@ -3627,6 +3670,18 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
                 )
             )
             assert pending_seed_mail is None
+        async with postgis_db_sessionmaker() as session:
+            latest_live_ping = await session.scalar(
+                select(func.max(LocationPing.received_at))
+                .join(TripSession, TripSession.id == LocationPing.trip_session_id)
+                .where(
+                    TripSession.status == "active",
+                    TripSession.trip_metadata["seed_version"].as_string() == LIVE_CAR_VERSION,
+                )
+            )
+        assert latest_live_ping is not None
+        # Check the post-seed state before the live fixtures legitimately time out.
+        monkeypatch.setattr(trip_jobs, "utc_now", lambda: latest_live_ping)
         for job in WorkerSettings.cron_jobs:
             await job.coroutine(ctx)
             async with postgis_db_sessionmaker() as session:

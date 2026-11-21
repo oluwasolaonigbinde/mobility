@@ -27,6 +27,7 @@ from app.models.trip import LocationPing, LocationPingBatch, TripSession
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.schemas.trips import LocationPingBatchCreate, LocationPingCreate
+from app.services.campaign_reports import is_seed_campaign
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +185,7 @@ async def _catch_up(
     from app.services.trips import ingest_location_ping_batch
 
     trip = await session.get(TripSession, trip_id)
-    if trip is None:
+    if trip is None or not await session.scalar(select(is_seed_campaign(trip.campaign_id))):
         return 0, 0
     profile = await session.get(DriverProfile, trip.driver_profile_id)
     if profile is None:
@@ -289,6 +290,7 @@ async def refresh_demo_live_cars(
                 .where(
                     TripSession.trip_metadata["seed_version"].as_string() == LIVE_CAR_VERSION,
                     TripSession.status == "active",
+                    is_seed_campaign(TripSession.campaign_id),
                 )
                 .order_by(TripSession.id)
             )

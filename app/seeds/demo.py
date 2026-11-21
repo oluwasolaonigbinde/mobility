@@ -1884,7 +1884,8 @@ async def counts(session: AsyncSession, graph: DemoGraph) -> dict[str, int]:
     rich_trip_count = int(
         await session.scalar(
             select(func.count(TripSession.id)).where(
-                TripSession.trip_metadata["seed_version"].as_string() == F7_SEED_VERSION
+                TripSession.trip_metadata["seed_version"].as_string() == F7_SEED_VERSION,
+                is_seed_campaign(TripSession.campaign_id),
             )
         )
         or 0
@@ -1893,7 +1894,8 @@ async def counts(session: AsyncSession, graph: DemoGraph) -> dict[str, int]:
         "users": int(
             await session.scalar(
                 select(func.count(User.id)).where(
-                    User.email.in_([normalize_email(email) for email in DEMO_PASSWORDS])
+                    User.email.in_([normalize_email(email) for email in DEMO_PASSWORDS]),
+                    seed_identity_exists("user", User.id),
                 )
             )
             or 0

@@ -52,6 +52,7 @@ from app.models.stored_file import (
 )
 from app.models.user import User
 from app.models.vehicle import Vehicle, VehicleType
+from app.seeds.identity import record_seed_identity, seed_identity_exists
 from app.services.bank_capture import check_account_name
 from app.services.billing.authority import reserve_assignment_liability
 from app.services.campaign_assignments import (
@@ -241,7 +242,10 @@ async def prepare_daily_offer(
         from app.services.campaigns import decide_creative_review, submit_creative_for_review
 
         compliance = await session.scalar(
-            select(User).where(User.email == "olumide.fashola@terraxmedia.com")
+            select(User).where(
+                User.email == "olumide.fashola@terraxmedia.com",
+                seed_identity_exists("user", User.id),
+            )
         )
         review_at = offered_at - timedelta(hours=2)
 
@@ -852,6 +856,7 @@ async def ensure_demo_documents(session, *, driver, profile, vehicle, reviewer, 
         PersonPayeeReviewDecisionCreate,
         VehicleReviewDecisionCreate,
     )
+    from app.seeds.driver_story import select_seed_bank_version
     from app.services.driver_onboarding import review_application_person_payee
     from app.services.kyc import reveal_driver_nin, submit_driver_kyc, submit_vehicle_evidence
     from app.services.payees import read_verified_bank_account
@@ -896,15 +901,11 @@ async def ensure_demo_documents(session, *, driver, profile, vehicle, reviewer, 
     if not await session.scalar(
         select(DriverKycSubmission.id).where(DriverKycSubmission.driver_profile_id == profile.id)
     ):
-        bank = await session.scalar(
-            select(PayeeBankAccountVersion)
-            .join(PayeeBankAccount)
-            .join(Payee)
-            .where(Payee.subject_id == profile.id, Payee.tenant_id == driver.id)
-            .order_by(PayeeBankAccountVersion.version.desc())
-            .limit(1)
+        bank = await select_seed_bank_version(
+            session, driver_profile_id=profile.id, current_only=True
         )
-        bank = require_seed_value(bank, "primary driver bank account")
+        if bank is None:
+            return
         files = await documents(("driver_license", "driver_photo"), FilePurpose.DRIVER_KYC.value)
         view = await submit_driver_kyc(
             session,
@@ -1001,8 +1002,6 @@ async def ensure_demo_documents(session, *, driver, profile, vehicle, reviewer, 
 
 
 async def ensure_demo_verified_bank(session, *, driver, profile, admin, settings, verified_at):
-    from app.seeds.identity import record_seed_identity
-
     if not await session.scalar(
         select(Payee.id).where(
             Payee.tenant_id == driver.id,
@@ -1085,11 +1084,19 @@ async def ensure_demo_start_authority(
     from app.models.user import User
 
     operations = await session.scalar(
-        select(User).where(User.email == "ibrahim.danjuma@terraxmedia.com")
+        select(User).where(
+            User.email == "ibrahim.danjuma@terraxmedia.com", seed_identity_exists("user", User.id)
+        )
     )
-    finance = await session.scalar(select(User).where(User.email == "hauwa.sani@terraxmedia.com"))
+    finance = await session.scalar(
+        select(User).where(
+            User.email == "hauwa.sani@terraxmedia.com", seed_identity_exists("user", User.id)
+        )
+    )
     compliance = await session.scalar(
-        select(User).where(User.email == "olumide.fashola@terraxmedia.com")
+        select(User).where(
+            User.email == "olumide.fashola@terraxmedia.com", seed_identity_exists("user", User.id)
+        )
     )
     admin = operations or admin
     profile, assignment, campaign, vehicle = (

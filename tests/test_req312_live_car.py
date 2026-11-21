@@ -11,6 +11,7 @@ from conftest import (
     create_test_campaign_assignment,
     create_test_driver_profile,
     create_test_organization,
+    create_test_trip_session,
     create_test_user,
     create_test_vehicle,
 )
@@ -553,6 +554,7 @@ def test_catch_up_records_the_same_gps_attempt_as_ingest(settings, monkeypatch):
     now = datetime(2026, 11, 13, 9, 0, tzinfo=UTC)
     trip = TripSession(
         id=UUID(int=1),
+        campaign_id=UUID(int=4),
         driver_profile_id=UUID(int=2),
         status="active",
         started_at=now - FIVE,
@@ -568,7 +570,7 @@ def test_catch_up_records_the_same_gps_attempt_as_ingest(settings, monkeypatch):
         SimpleNamespace(status="active"),
     ]
     session.scalar.return_value = 0
-    session.scalar.side_effect = [None, 0]
+    session.scalar.side_effect = [True, None, 0]
     ingest = AsyncMock(return_value=SimpleNamespace(duplicate=False))
     record = AsyncMock()
     monkeypatch.setattr(trip_service, "ingest_location_ping_batch", ingest)
@@ -579,13 +581,77 @@ def test_catch_up_records_the_same_gps_attempt_as_ingest(settings, monkeypatch):
     record.assert_awaited_once_with(settings, ingest.await_args.kwargs["telemetry"])
 
 
+def test_refresh_ignores_ordinary_active_trip_with_demo_metadata(postgis_db_sessionmaker, settings):
+    maker = postgis_db_sessionmaker
+    now = live_car.live_car_slot(datetime.now(UTC))
+    driver = create_test_user(maker, email="ordinary-live-car@example.test", role=UserRole.DRIVER)
+    profile = create_test_driver_profile(
+        maker, user_id=driver.id, onboarding_status=DriverOnboardingStatus.ACTIVE
+    )
+    vehicle = create_test_vehicle(
+        maker, driver_profile_id=profile.id, vehicle_status=VehicleStatus.ACTIVE
+    )
+    admin = create_test_user(maker, email="ordinary-live-car-admin@example.test")
+    org, _ = create_test_organization(maker)
+    campaign = create_test_campaign(
+        maker,
+        organization_id=org.id,
+        created_by_user_id=admin.id,
+        campaign_status=CampaignStatus.ACTIVE,
+        start_at=now - timedelta(days=1),
+        end_at=now + timedelta(days=1),
+    )
+    assignment = create_test_campaign_assignment(
+        maker,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        assigned_by_user_id=admin.id,
+        assignment_status=CampaignAssignmentStatus.ACTIVE,
+    )
+    trip = create_test_trip_session(
+        maker,
+        assignment_id=assignment.id,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        started_by_user_id=driver.id,
+        started_at=now - live_car.LIVE_CAR_CAP,
+        metadata={"seed_version": live_car.LIVE_CAR_VERSION, "path_offset": 1},
+    )
+    enabled = settings.model_copy(update={"demo_live_car_refresh": True})
+
+    async def exercise():
+        assert await live_car.refresh_demo_live_cars(maker, settings=enabled, now=now) == {
+            "trips": 0,
+            "accepted": 0,
+            "duplicates": 0,
+        }
+        async with maker() as session:
+            assert await live_car._catch_up(
+                session, trip_id=trip.id, settings=enabled, now=now
+            ) == (0, 0)
+            await session.commit()
+        assert await _row_counts(maker, [trip.id]) == (0, 0)
+        async with maker() as session:
+            unchanged = await session.get(TripSession, trip.id)
+            assert unchanged.status == "active" and unchanged.ended_at is None
+            assert unchanged.started_at == trip.started_at
+            assert unchanged.trip_metadata == trip.trip_metadata
+            assert set(await session.scalars(select(TripSession.id))) == {trip.id}
+
+    asyncio.run(exercise())
+
+
 def test_live_car_rollover_and_health_check_use_real_demo_evidence(
     postgis_db_sessionmaker, settings, monkeypatch
 ):
     from app.core.gps_health import record_attempt
+    from app.models.audit import AuditEvent
     from app.models.disbursement import PayoutAutomaticAlert
     from app.seeds.rich import ensure_reporting_live_car
     from app.services.business_health import health_counts, publish_health_alerts
+    from app.services.campaign_reports import SEED_CAMPAIGN_CREATED
 
     maker = postgis_db_sessionmaker
     driver = create_test_user(maker, email="live-car-driver@example.test", role=UserRole.DRIVER)
@@ -626,6 +692,12 @@ def test_live_car_rollover_and_health_check_use_real_demo_evidence(
 
     async def exercise():
         async with maker() as session:
+            session.add(
+                AuditEvent(
+                    action=SEED_CAMPAIGN_CREATED, entity_type="campaign", entity_id=str(campaign.id)
+                )
+            )
+            await session.flush()
             await ensure_reporting_live_car(
                 session,
                 campaign=campaign,

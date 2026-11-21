@@ -7,6 +7,7 @@ from uuid import NAMESPACE_URL, uuid4, uuid5
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import event, select
+from sqlalchemy.orm import aliased
 
 from app.adapters.disbursement.provider import (
     DisbursementInstruction,
@@ -14,6 +15,7 @@ from app.adapters.disbursement.provider import (
     VerifiedLineEvidence,
 )
 from app.models.disbursement import PayoutBatch, PayoutBatchLine, PayoutSubmissionIntent
+from app.models.driver import DriverProfile
 from app.models.payee import Payee, PayeeBankAccount, PayeeBankAccountVersion, PayeeVersion
 from app.models.payout import EarningsLedgerEntry, PayoutCalculation
 from app.models.trip import TripSession
@@ -49,19 +51,32 @@ def workday_processing_time(trip):
     return trip.ended_at + timedelta(minutes=5) if trip.trip_metadata.get("full_workday") else None
 
 
-async def seed_payout_bank_version(session, *, driver_profile_id):
-    return await session.scalar(
+async def select_seed_bank_version(session, *, driver_profile_id, current_only=False):
+    statement = (
         select(PayeeBankAccountVersion)
         .join(PayeeBankAccount)
         .join(Payee, Payee.id == PayeeBankAccount.payee_id)
+        .join(DriverProfile, DriverProfile.id == Payee.subject_id)
         .where(
             Payee.payee_type == "driver",
-            Payee.subject_id == driver_profile_id,
+            DriverProfile.id == driver_profile_id,
+            Payee.tenant_id == DriverProfile.user_id,
             seed_identity_exists("bank_account_version", PayeeBankAccountVersion.id),
         )
         .order_by(PayeeBankAccountVersion.version.desc(), PayeeBankAccountVersion.id)
         .limit(1)
     )
+    if current_only:
+        newer = aliased(PayeeBankAccountVersion)
+        statement = statement.where(
+            ~select(newer.id)
+            .where(
+                newer.bank_account_id == PayeeBankAccountVersion.bank_account_id,
+                newer.version > PayeeBankAccountVersion.version,
+            )
+            .exists()
+        )
+    return await session.scalar(statement)
 
 
 async def settle_demo_driver_history(  # noqa: C901
@@ -74,7 +89,7 @@ async def settle_demo_driver_history(  # noqa: C901
     protected_entry_ids=(),
     require_released=False,
 ):
-    account = await seed_payout_bank_version(session, driver_profile_id=driver_profile_id)
+    account = await select_seed_bank_version(session, driver_profile_id=driver_profile_id)
     if account is None:
         return
     version = await session.get(PayeeVersion, account.payee_version_id)

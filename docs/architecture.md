@@ -3461,6 +3461,11 @@ storage. It stops if an existing matching identity has no seed ownership record.
 Seed trip processing, release, fraud escalation and job document setup require
 campaign ownership. Simulated payout history also requires a seed-created bank
 version and uses the payee version linked to that account snapshot.
+Live-car refresh checks campaign ownership both when listing trips and before
+adding pings or rolling over a trip. The live-car metadata identifies the
+fixture type within those campaigns. Initial seed KYC uses a current seed-created
+bank version belonging to the driver. It skips initial KYC if there is no
+eligible version.
 
 REQ-217 replaces the two-step measurement/issuance workflow with one
 `campaign_reports` row: queued, ready or failed. It freezes an allowlisted snapshot
