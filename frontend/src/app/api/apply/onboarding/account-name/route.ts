@@ -1,15 +1,22 @@
 import { ApiError } from "@/lib/api/errors";
 import { bffResponse } from "@/lib/api/route-response";
+import { loginClientIpHeader } from "@/lib/auth/client-ip";
+import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const body = await request.json();
+  const clientIp = loginClientIpHeader(
+    request.headers,
+    env().LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER,
+  );
   let limiterCode: "BANK_CHECK_LIMITED" | "BANK_CHECK_LIMIT_UNAVAILABLE" | undefined;
   let retryAfter: string | undefined;
   const response = await bffResponse(async (api) => {
     try {
       return await api.POST("/api/v1/auth/driver-onboarding/account-name", {
         body,
+        ...(clientIp ? { headers: { "X-Client-IP": clientIp } } : {}),
         middleware: [
           {
             // The client normalizes errors after this route-specific middleware runs.

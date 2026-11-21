@@ -269,7 +269,16 @@ async def submit_application_person_payee(
         return PersonPayeeView(view.submission, None, view.document_file_ids)
 
     require_agreement(payload.agreement_version, payload.agreement_accepted)
-    receipt_sha256 = require_bank_check(payload, user_id=user_id, settings=settings)
+    receipt_sha256, outcome = require_bank_check(payload, user_id=user_id, settings=settings)
+    if outcome == "refused" and await session.scalar(
+        select(DriverKycSubmission.id)
+        .where(
+            DriverKycSubmission.driver_profile_id == profile.id,
+            DriverKycSubmission.bank_check_receipt_sha256 == receipt_sha256,
+        )
+        .limit(1)
+    ):
+        raise _error("BANK_CHECK_INVALID", "Check your bank and account details again", 422)
     current = await session.scalar(
         select(DriverKycSubmission)
         .where(DriverKycSubmission.driver_profile_id == profile.id)

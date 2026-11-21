@@ -2055,6 +2055,7 @@ async def settle_demo_reports(
                 storage=storage,
                 limit=max(limit or 0, 1),
                 full_scan=True,
+                seed=True,
             )
             if not created:
                 break

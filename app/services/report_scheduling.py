@@ -15,7 +15,7 @@ from app.models.campaign_report import CampaignReport
 from app.models.report_schedule import ReportScheduleCursor
 from app.services.audit import create_audit_event
 from app.services.campaign_report_data import aware
-from app.services.campaign_reports import _request_lock, create_report
+from app.services.campaign_reports import _request_lock, create_report, seed_report_fingerprint
 from app.services.disclosure import _canonical_hash, after_day, load_cells, midnight
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 from app.services.report_authorization import REPORT_ACTOR_ID, require_report_operator
@@ -133,7 +133,7 @@ async def rerun_campaign_report(
     )
 
 
-async def _discover_campaign_report(session, *, campaign_id, settings, storage) -> int:
+async def _discover_campaign_report(session, *, campaign_id, settings, storage, seed=False) -> int:
     await acquire_campaign_terms_lock(session, campaign_id)
     campaign = await session.get(Campaign, campaign_id, populate_existing=True)
     if campaign is None:
@@ -172,7 +172,11 @@ async def _discover_campaign_report(session, *, campaign_id, settings, storage) 
                 actor_user_id=REPORT_ACTOR_ID,
                 campaigns=[campaign],
                 request_id=request_id,
-                request_fingerprint=_canonical_hash(str(request_id)),
+                request_fingerprint=(
+                    seed_report_fingerprint(request_id)
+                    if seed
+                    else _canonical_hash(str(request_id))
+                ),
                 start=midnight(campaign.start_at),
                 end=due[0],
                 kind=due[1],
@@ -193,7 +197,7 @@ async def _discover_campaign_report(session, *, campaign_id, settings, storage) 
     return 1
 
 
-async def discover_reports(session, *, settings, storage, limit, full_scan=False):
+async def discover_reports(session, *, settings, storage, limit, full_scan=False, seed=False):
     """Commit once per campaign so a report build holds only its own campaign key."""
     await require_report_operator(session, REPORT_ACTOR_ID)
     await session.execute(
@@ -225,7 +229,7 @@ async def discover_reports(session, *, settings, storage, limit, full_scan=False
     created = 0
     for campaign_id in campaign_ids:
         created += await _discover_campaign_report(
-            session, campaign_id=campaign_id, settings=settings, storage=storage
+            session, campaign_id=campaign_id, settings=settings, storage=storage, seed=seed
         )
         # Duplicate reports are excluded by the campaign key and the known
         # periods it guards, so a concurrent sweep only repeats a no-op.

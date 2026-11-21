@@ -99,6 +99,15 @@ def test_trusted_proxy_can_supply_validated_client_ip() -> None:
     assert login_client_ip(request, settings) == "198.51.100.8"
 
 
+@pytest.mark.parametrize("headers", [[], [(b"x-client-ip", b"not-an-ip")]])
+def test_trusted_proxy_with_missing_or_invalid_ip_uses_peer(headers) -> None:
+    settings = Settings(
+        login_rate_limit_trust_client_ip_header=True,
+        login_rate_limit_trusted_proxy_cidrs="10.0.0.0/8",
+    )
+    assert login_client_ip(request_with_headers("10.0.0.7", headers), settings) == "10.0.0.7"
+
+
 def test_registration_client_ip_has_its_own_trust_boundary() -> None:
     request = request_with_headers("10.0.0.7", [(b"x-client-ip", b"198.51.100.8")])
     settings = Settings(
@@ -556,6 +565,20 @@ def test_bank_check_redis_limits_are_atomic_and_separate_from_registration(setti
             assert await redis.get(f"ratelimit:bank-check:app:{applications[0]}") == "5"
             assert (await registration.reserve(ip, "bank-apply@cardvert-check.ng")).allowed
             assert await redis.get(f"ratelimit:driver-registration:ip:{ip}") == "1"
+
+            ip_key = f"ratelimit:bank-check:ip:{ip}"
+            app_key = f"ratelimit:bank-check:app:{applications[0]}"
+            await redis.expire(ip_key, 30)
+            await redis.expire(app_key, 600)
+            longest = await bank.reserve(ip, applications[0])
+            assert longest.bucket == "application"
+            assert 590 <= longest.retry_after_seconds <= 600
+
+            await redis.expire(app_key, 10000)
+            bounded = await bank.reserve(ip, applications[0])
+            assert bounded.bucket == "application"
+            assert bounded.retry_after_seconds == 900
+            assert 899 <= await redis.ttl(app_key) <= 900
         finally:
             await redis.aclose()
 

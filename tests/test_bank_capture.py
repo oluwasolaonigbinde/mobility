@@ -54,7 +54,7 @@ def test_bank_catalog_orders_popular_names_and_follows_all_cursor_pages():
     ]
 
 
-@pytest.mark.parametrize("status", [429, 500, 503])
+@pytest.mark.parametrize("status", [500, 503])
 def test_provider_outage_permits_manual_name_fallback(status):
     checked = adapter(lambda _: httpx.Response(status, json={"status": False}))
     assert asyncio.run(checked.resolve("058", "0123456789")) is None
@@ -272,12 +272,11 @@ def test_bank_capture_requires_an_explicit_recognized_receipt(settings, receipt_
         (403, "Forbidden", "unavailable"),
         (429, "Account lookup quota exceeded", "unavailable"),
         (400, "Account lookup quota exceeded", "unavailable"),
-        (404, "Account check limit reached", "unavailable"),
+        (404, "Account lookup rate limit reached", "unavailable"),
         (422, "Unavailable in test mode", "unavailable"),
         (400, "Could not resolve account", "refused"),
         (404, "Could not resolve account", "refused"),
         (422, "Could not resolve account", "refused"),
-        (409, "Account lookup failed", "refused"),
     ],
 )
 def test_paystack_refusal_logs_safe_detail_and_mints_unconfirmed_receipt(
@@ -313,3 +312,35 @@ def test_paystack_refusal_logs_safe_detail_and_mints_unconfirmed_receipt(
     )
     with pytest.raises(AppError):
         require_bank_check(payload(result.bank_check_receipt), user_id=user_id, settings=settings)
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.Response(409, json={"message": "Could not resolve account"}),
+        httpx.Response(404, text="Could not resolve account"),
+        httpx.Response(400, json={"message": "Account check limit reached"}),
+        httpx.Response(422, json={"message": "Invalid account transfer limit"}),
+        httpx.Response(429, json={"message": "An unexpected error occurred"}),
+    ],
+)
+def test_unclassified_client_errors_never_grant_typed_name(response):
+    with pytest.raises(BankLookupInvalid):
+        asyncio.run(adapter(lambda _: response).resolve("058", "1234567890"))
+
+
+@pytest.mark.parametrize("separator", [".", "-", " ", " / "])
+def test_resolve_warning_masks_submitted_account_with_separators(caplog, separator):
+    from app.adapters.banks import BankLookupRefused
+
+    rendered = f"12345{separator}67890"
+    checked = adapter(
+        lambda _: httpx.Response(422, json={"message": f"Could not resolve {rendered}; ref 987654"})
+    )
+    with pytest.raises(BankLookupRefused):
+        asyncio.run(checked.resolve("058", "1234567890"))
+    warning = next(
+        record.getMessage() for record in caplog.records if record.name == "app.adapters.banks"
+    )
+    assert "Could not resolve [redacted]; ref [redacted]" in warning
+    assert rendered not in warning

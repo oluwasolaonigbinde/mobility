@@ -1,6 +1,6 @@
 import hashlib
 from datetime import UTC, datetime, timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import jwt
 
@@ -45,6 +45,7 @@ async def check_account_name(
             "name_digest": digest(name) if name else None,
             "outcome": outcome,
             "iat": now,
+            "jti": str(uuid4()),
             "exp": now + timedelta(minutes=15),
         },
         settings.jwt_secret_key,
@@ -53,7 +54,7 @@ async def check_account_name(
     return AccountNameCheckRead(outcome=outcome, account_name=name, bank_check_receipt=receipt)
 
 
-def require_bank_check(payload, *, user_id: UUID, settings: Settings) -> str:
+def require_bank_check(payload, *, user_id: UUID, settings: Settings) -> tuple[str, str]:
     receipt = payload.bank_check_receipt
     if receipt is None:
         raise _invalid()
@@ -74,11 +75,12 @@ def require_bank_check(payload, *, user_id: UUID, settings: Settings) -> str:
         or claims.get("account_digest") != digest(payload.account_number.get_secret_value())
     ):
         raise _invalid()
-    if claims.get("outcome") == "resolved":
+    outcome = claims.get("outcome")
+    if outcome == "resolved":
         if not payload.account_name_confirmed or claims.get("name_digest") != digest(
             payload.account_name.get_secret_value().strip()
         ):
             raise _invalid()
-    elif claims.get("outcome") not in ("unavailable", "refused") or payload.account_name_confirmed:
+    elif outcome not in ("unavailable", "refused") or payload.account_name_confirmed:
         raise _invalid()
-    return digest(raw)
+    return digest(raw), outcome

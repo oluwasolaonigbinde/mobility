@@ -19,6 +19,7 @@ from app.services.campaign_report_rendering import (
     render_campaign_csv,
     render_campaign_pdf,
 )
+from app.services.campaign_reports import seed_portal_report_key, seed_report_fingerprint
 from app.services.disclosure import _canonical_hash
 from app.services.notifications import create_advertiser_business_notifications
 from app.services.payout_rule_serialization import database_clock
@@ -169,6 +170,14 @@ async def _ready(maker, *, report_id, token, artifacts, storage):
             metadata={"version": report.version, "snapshot_sha256": report.snapshot_sha256},
         )
         if report.kind in {"weekly", "final"} and report.campaign_id is not None:
+            portal_seed_key = seed_portal_report_key(report.campaign_id)
+            seed_report = report.request_fingerprint == seed_report_fingerprint(
+                report.client_request_id
+            )
+            portal_seed_report = (
+                report.client_request_id == portal_seed_key
+                and report.request_fingerprint == _canonical_hash(str(portal_seed_key))
+            )
             await create_advertiser_business_notifications(
                 session,
                 advertiser_organization_id=report.organization_id,
@@ -178,6 +187,7 @@ async def _ready(maker, *, report_id, token, artifacts, storage):
                     f"{aware(report.period_end_at).isoformat()}"
                 ),
                 payload={"campaign_id": str(report.campaign_id), "report_kind": report.kind},
+                send_email=not (seed_report or portal_seed_report),
             )
         if lease_end <= await database_clock(session):
             await session.rollback()

@@ -8,12 +8,17 @@ const mocks = vi.hoisted(() => ({
   client: vi.fn(),
   get: vi.fn(),
   post: vi.fn(),
+  relay: false,
+}));
+vi.mock("@/lib/env", () => ({
+  env: () => ({ LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER: mocks.relay }),
 }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: mocks.session }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: mocks.client }));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.relay = false;
   mocks.session.mockResolvedValue(undefined);
   mocks.client.mockReturnValue({ GET: mocks.get, POST: mocks.post });
 });
@@ -135,3 +140,23 @@ it.each([
     expect(await response.json()).toEqual({ error: { code } });
   },
 );
+
+it.each([false, true])("forwards the edge client IP only when relay is %s", async (relay) => {
+  mocks.relay = relay;
+  mocks.post.mockResolvedValue({ data: { outcome: "resolved" } });
+  for (const clientIp of ["198.51.100.17", "198.51.100.18"]) {
+    const response = await accountName(
+      new Request("http://localhost/api/apply/onboarding/account-name", {
+        method: "POST",
+        headers: { "x-client-ip": clientIp, "x-forwarded-for": "192.0.2.55" },
+        body: "{}",
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(mocks.post).toHaveBeenLastCalledWith("/api/v1/auth/driver-onboarding/account-name", {
+      body: {},
+      middleware: [expect.objectContaining({ onResponse: expect.any(Function) })],
+      ...(relay ? { headers: { "X-Client-IP": clientIp } } : {}),
+    });
+  }
+});
