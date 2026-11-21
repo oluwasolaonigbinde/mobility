@@ -193,7 +193,7 @@ async def _discover_campaign_report(session, *, campaign_id, settings, storage) 
     return 1
 
 
-async def discover_reports(session, *, settings, storage, limit):
+async def discover_reports(session, *, settings, storage, limit, full_scan=False):
     """Commit once per campaign so a report build holds only its own campaign key."""
     await require_report_operator(session, REPORT_ACTOR_ID)
     await session.execute(
@@ -201,9 +201,11 @@ async def discover_reports(session, *, settings, storage, limit):
         .values(name="campaigns")
         .on_conflict_do_nothing(index_elements=[ReportScheduleCursor.name])
     )
-    cursor_id = await session.scalar(
-        select(ReportScheduleCursor.campaign_id).where(ReportScheduleCursor.name == "campaigns")
-    )
+    cursor_id = None
+    if not full_scan:
+        cursor_id = await session.scalar(
+            select(ReportScheduleCursor.campaign_id).where(ReportScheduleCursor.name == "campaigns")
+        )
     query = (
         select(Campaign.id)
         .where(
