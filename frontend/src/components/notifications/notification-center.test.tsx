@@ -124,6 +124,7 @@ describe("NotificationCenter", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 });
     renderCentre(false, true);
     const trigger = screen.getByRole("button", { name: /^notifications/i });
+    expect(trigger).toHaveClass("min-h-11");
     trigger.getBoundingClientRect = () =>
       ({ top: 20, bottom: 56, left: 334, right: 370, width: 36, height: 36 }) as DOMRect;
     fireEvent.click(trigger);

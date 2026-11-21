@@ -120,7 +120,12 @@ it("offers typed name only after the server reports unavailable", async () => {
   );
   render(<ApplicationBankDetails accessToken="private-code" />);
   await fill();
-  expect(await screen.findByLabelText("Name on bank account")).toBeRequired();
+  const name = await screen.findByLabelText("Name on bank account");
+  expect(name).toBeRequired();
+  expect(name).toHaveAttribute("data-feedback-private");
+  expect(screen.getByRole("region", { name: "Bank details" })).toHaveAttribute(
+    "data-feedback-private",
+  );
   expect(screen.queryByRole("button", { name: "This is me" })).toBeNull();
 });
 

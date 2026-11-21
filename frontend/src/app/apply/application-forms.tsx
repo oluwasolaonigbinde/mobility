@@ -15,6 +15,7 @@ export function DriverApplicationForms() {
     submitDriverApplicationAction,
     {} as DriverApplicationState,
   );
+  const fieldErrors = pending ? undefined : state.fieldErrors;
   return (
     <>
       <Panel className="mt-5 p-6">
@@ -31,7 +32,7 @@ export function DriverApplicationForms() {
               autoComplete="name"
               defaultValue={state.values?.full_name}
               required
-              error={state.fieldErrors?.full_name}
+              error={fieldErrors?.full_name}
             />
             <Field
               label="Email"
@@ -40,7 +41,7 @@ export function DriverApplicationForms() {
               autoComplete="email"
               defaultValue={state.values?.email}
               required
-              error={state.fieldErrors?.email}
+              error={fieldErrors?.email}
             />
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
@@ -49,7 +50,7 @@ export function DriverApplicationForms() {
                 type="tel"
                 autoComplete="tel"
                 defaultValue={state.values?.phone}
-                error={state.fieldErrors?.phone}
+                error={fieldErrors?.phone}
               />
               <Field
                 label="City you drive in"
@@ -58,7 +59,7 @@ export function DriverApplicationForms() {
                 required
                 maxLength={128}
                 defaultValue={state.values?.service_city}
-                error={state.fieldErrors?.service_city}
+                error={fieldErrors?.service_city}
               />
             </div>
             <input type="hidden" name="country_code" value="NG" />

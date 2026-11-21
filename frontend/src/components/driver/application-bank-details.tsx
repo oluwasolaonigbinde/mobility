@@ -119,7 +119,13 @@ export function ApplicationBankDetails({ accessToken }: { accessToken: string })
           <p className="text-muted text-sm">
             We can&apos;t check the name right now. Enter it as shown on your bank account.
           </p>
-          <Field name="account_name" label="Name on bank account" required autoComplete="off" />
+          <Field
+            name="account_name"
+            label="Name on bank account"
+            required
+            autoComplete="off"
+            data-feedback-private
+          />
         </>
       ) : null}
       {error ? (
