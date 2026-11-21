@@ -4493,7 +4493,7 @@ export interface components {
              * Outcome
              * @enum {string}
              */
-            outcome: "resolved" | "unavailable";
+            outcome: "resolved" | "unavailable" | "refused";
         };
         /** AdminApplicantRead */
         AdminApplicantRead: {
@@ -4527,6 +4527,11 @@ export interface components {
             phone: string | null;
             /** Service City */
             service_city: string | null;
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "Waiting for ID and bank details" | "ID and bank to review" | "ID or bank sent back for changes" | "Waiting for car details" | "Car to review" | "Car sent back for changes" | "Ready for account setup" | "Added by staff";
             /**
              * User Id
              * Format: uuid
@@ -5251,6 +5256,8 @@ export interface components {
             bank_account_verified: boolean;
             /** Bank Account Version Id */
             bank_account_version_id?: string | null;
+            /** Bank Name Confirmed */
+            bank_name_confirmed?: boolean | null;
             /** Created At */
             created_at?: string | null;
             /** Decided At */
@@ -17735,6 +17742,7 @@ export interface operations {
                 role?: components["schemas"]["UserRole"] | null;
                 status?: components["schemas"]["UserStatus"] | null;
                 q?: string | null;
+                without_driver_profile?: boolean;
             };
             header?: never;
             path?: never;
@@ -19832,6 +19840,26 @@ export interface operations {
             /** @description Request validation failed */
             422: {
                 headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Bank check limit reached */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Bank check limiter storage unavailable */
+            503: {
+                headers: {
+                    "Retry-After"?: 1;
                     [name: string]: unknown;
                 };
                 content: {

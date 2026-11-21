@@ -4,7 +4,7 @@ from uuid import UUID
 
 import jwt
 
-from app.adapters.banks import BankAdapter, BankLookupInvalid
+from app.adapters.banks import BankAdapter, BankLookupInvalid, BankLookupRefused
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.schemas.banks import AccountNameCheckRead
@@ -29,9 +29,12 @@ async def check_account_name(
         raise _invalid()
     try:
         name = await adapter.resolve(bank_code, account_number)
+        outcome = "resolved" if name else "unavailable"
+    except BankLookupRefused:
+        name = None
+        outcome = "refused"
     except BankLookupInvalid:
         raise _invalid() from None
-    outcome = "resolved" if name else "unavailable"
     now = datetime.now(UTC)
     receipt = jwt.encode(
         {
@@ -76,6 +79,6 @@ def require_bank_check(payload, *, user_id: UUID, settings: Settings) -> str:
             payload.account_name.get_secret_value().strip()
         ):
             raise _invalid()
-    elif claims.get("outcome") != "unavailable":
+    elif claims.get("outcome") not in ("unavailable", "refused") or payload.account_name_confirmed:
         raise _invalid()
     return digest(raw)

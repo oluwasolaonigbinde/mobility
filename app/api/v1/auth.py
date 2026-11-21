@@ -1,5 +1,7 @@
+from datetime import datetime, timedelta
 from typing import Annotated
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Request, Response
 from starlette import status
@@ -7,6 +9,7 @@ from starlette import status
 from app.adapters.crypto import EnvelopeCryptoProvider
 from app.api.v1.dependencies import (
     BankAdapterDependency,
+    BankCheckRateLimiterDependency,
     CurrentUserDependency,
     RateLimiterDependency,
     RegistrationRateLimiterDependency,
@@ -48,6 +51,7 @@ from app.schemas.driver_onboarding import (
     PersonPayeeSubmissionCreate,
     VehicleStageRead,
 )
+from app.schemas.errors import ErrorResponse
 from app.services.account_recovery import (
     PASSWORD_RESET_RESPONSE,
     complete_password_reset,
@@ -108,13 +112,28 @@ async def onboarding_banks(adapter: BankAdapterDependency) -> list[BankRead]:
     return [BankRead(code=bank.code, name=bank.name) for bank in await adapter.banks()]
 
 
-@router.post("/driver-onboarding/account-name", response_model=AccountNameCheckRead)
+@router.post(
+    "/driver-onboarding/account-name",
+    response_model=AccountNameCheckRead,
+    responses={
+        429: {
+            "model": ErrorResponse,
+            "description": "Bank check limit reached",
+            "headers": {"Retry-After": {"schema": {"type": "integer", "minimum": 1}}},
+        },
+        503: {
+            "model": ErrorResponse,
+            "description": "Bank check limiter storage unavailable",
+            "headers": {"Retry-After": {"schema": {"type": "integer", "const": 1}}},
+        },
+    },
+)
 async def onboarding_account_name(
     payload: AccountNameCheckCreate,
     session: SessionDependency,
     settings: SettingsDependency,
     adapter: BankAdapterDependency,
-    limiter: RegistrationRateLimiterDependency,
+    limiter: BankCheckRateLimiterDependency,
     request: Request,
 ) -> AccountNameCheckRead:
     # Capability and local limiter failures never grant manual fallback.
@@ -124,15 +143,24 @@ async def onboarding_account_name(
         settings=settings,
         lock=False,
     )
-    decision = await limiter.reserve(
-        registration_client_ip(request, settings), f"bank-check:{application.id}"
-    )
-    if not decision.storage_available or not decision.allowed:
+    decision = await limiter.reserve(registration_client_ip(request, settings), application.id)
+    if not decision.storage_available:
+        raise AppError(
+            "BANK_CHECK_LIMIT_UNAVAILABLE",
+            "Bank checks are paused for a moment. Try again shortly.",
+            status_code=503,
+            headers={"Retry-After": "1"},
+        )
+    if not decision.allowed:
+        retry_after = max(decision.retry_after_seconds, 1)
+        retry_at = datetime.now(ZoneInfo("Africa/Lagos")) + timedelta(seconds=retry_after)
+        if retry_at.second or retry_at.microsecond:
+            retry_at += timedelta(minutes=1)
         raise AppError(
             "BANK_CHECK_LIMITED",
-            "Try checking your account again in a few minutes",
-            status_code=429 if decision.storage_available else 503,
-            headers={"Retry-After": str(max(decision.retry_after_seconds, 1))},
+            f"Try again after {retry_at:%H:%M}",
+            status_code=429,
+            headers={"Retry-After": str(retry_after)},
         )
     result = await check_account_name(
         user_id=application.user_id,

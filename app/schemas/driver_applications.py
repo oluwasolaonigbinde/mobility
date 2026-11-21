@@ -90,7 +90,20 @@ class DriverApplicationAdminRead(BaseModel):
     vehicle: AdminVehicleStageRead = Field(default_factory=AdminVehicleStageRead)
 
 
+AdminApplicantStage = Literal[
+    "Waiting for ID and bank details",
+    "ID and bank to review",
+    "ID or bank sent back for changes",
+    "Waiting for car details",
+    "Car to review",
+    "Car sent back for changes",
+    "Ready for account setup",
+    "Added by staff",
+]
+
+
 class AdminApplicantRead(BaseModel):
+    stage: AdminApplicantStage
     kind: Literal["application", "staff_added"]
     id: UUID
     application_id: UUID | None

@@ -1,7 +1,9 @@
 import ipaddress
 import logging
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Protocol
+from uuid import UUID
 
 from fastapi import Request
 from redis.asyncio import Redis
@@ -84,6 +86,10 @@ class LoginRateLimiter(Protocol):
 
 class RegistrationRateLimiter(Protocol):
     async def reserve(self, ip: str, email: str) -> RateLimitDecision: ...
+
+
+class BankCheckRateLimiter(Protocol):
+    async def reserve(self, ip: str, application_id: UUID) -> RateLimitDecision: ...
 
 
 class NoopLoginRateLimiter:
@@ -178,11 +184,7 @@ class RedisLoginRateLimiter:
             values = [int(value) for value in raw]
             if values == [1, 0, 0, 0]:
                 return RateLimitDecision(allowed=True)
-            if (
-                values[0] != 0
-                or values[2] < 1
-                or values[3] not in (0, 1)
-            ):
+            if values[0] != 0 or values[2] < 1 or values[3] not in (0, 1):
                 raise ValueError("invalid reserve response values")
             bucket = {1: "ip", 2: "account"}.get(values[1])
             if bucket is None:
@@ -241,6 +243,7 @@ for i = 1, 2 do
       redis.call('EXPIRE', KEYS[i], ttls[i])
       ttl = ttls[i]
     end
+    if ARGV[5] == 'bank-check' then return {0, i, ttl, 0} end
     local marker = 'ratelimit:driver-registration:notify:' .. KEYS[i]
     local notified = redis.call('SET', marker, '1', 'NX', 'EX', math.max(ttl, 1))
     return {0, i, ttl, notified and 1 or 0}
@@ -301,6 +304,72 @@ class RedisRegistrationRateLimiter:
                 retry_after_seconds=60,
                 storage_available=False,
             )
+
+
+class RedisBankCheckRateLimiter:
+    def __init__(self, redis: Redis, limits: tuple[int, int, int, int]) -> None:
+        self.reserve_script = redis.register_script(RESERVE_REGISTRATION_ATTEMPT)
+        self.limits = limits
+
+    async def reserve(self, ip: str, application_id: UUID) -> RateLimitDecision:
+        try:
+            raw = await self.reserve_script(
+                keys=[
+                    f"ratelimit:bank-check:ip:{ip}",
+                    f"ratelimit:bank-check:app:{application_id}",
+                ],
+                args=[*self.limits, "bank-check"],
+            )
+            if raw == [1, 0, 0, 0]:
+                return RateLimitDecision(allowed=True)
+            if (
+                isinstance(raw, list)
+                and len(raw) == 4
+                and raw[0] == 0
+                and raw[1] in (1, 2)
+                and type(raw[2]) is int
+                and raw[2] >= 0
+                and raw[3] == 0
+            ):
+                return RateLimitDecision(
+                    allowed=False,
+                    bucket="ip" if raw[1] == 1 else "application",
+                    retry_after_seconds=max(raw[2], 1),
+                )
+            raise ValueError("malformed bank-check reserve response")
+        except (RedisError, TypeError, ValueError) as exc:
+            logger.warning("Bank-check rate limiter unavailable: %s", exc)
+            return RateLimitDecision(allowed=False, storage_available=False)
+
+
+class FailClosedBankCheckRateLimiter:
+    async def reserve(self, ip: str, application_id: UUID) -> RateLimitDecision:
+        return RateLimitDecision(allowed=False, storage_available=False)
+
+
+@lru_cache(maxsize=8)
+def _cached_bank_check_limiter(
+    redis_url: str, limits: tuple[int, int, int, int]
+) -> BankCheckRateLimiter:
+    try:
+        return RedisBankCheckRateLimiter(Redis.from_url(redis_url, decode_responses=True), limits)
+    except (RedisError, TypeError, ValueError) as exc:
+        logger.warning("Bank-check rate limiter configuration unavailable: %s", exc)
+        return FailClosedBankCheckRateLimiter()
+
+
+def build_bank_check_rate_limiter(settings: Settings) -> BankCheckRateLimiter:
+    if not settings.redis_url:
+        return FailClosedBankCheckRateLimiter()
+    return _cached_bank_check_limiter(
+        settings.redis_url,
+        (
+            settings.driver_bank_check_rate_limit_ip_max_attempts,
+            settings.driver_bank_check_rate_limit_ip_window_seconds,
+            settings.driver_bank_check_rate_limit_app_max_attempts,
+            settings.driver_bank_check_rate_limit_app_window_seconds,
+        ),
+    )
 
 
 def login_client_ip(request: Request, settings: Settings) -> str:
