@@ -19,6 +19,7 @@ from app.models.user import UserRole, UserStatus
 PASSWORD = "long-secure-password"
 # These entries complement the route-generated matrix with the approved read options.
 READ_OPTIONS = {
+    "/api/v1/admin/users": {"without_driver_profile": "true"},
     "/api/v1/admin/campaigns/{campaign_id}/payout-rules/{rule_id}/revisions": {
         "effective_before": "2026-10-02T00:00:00Z"
     },
@@ -151,6 +152,7 @@ def test_unified_applicants_has_one_filtered_total_and_staff_identity(db_client,
     assert data["applicants"][0]["driver_profile_id"] == str(profile.id)
     assert data["applicants"][0]["application_id"] is None
     assert data["applicants"][0]["kind"] == "staff_added"
+    assert data["applicants"][0]["stage"] == "Added by staff"
 
 
 def test_applicant_list_shows_the_account_phone_the_driver_page_shows(db_client, db_sessionmaker):
@@ -189,7 +191,81 @@ def test_applicant_list_shows_the_account_phone_the_driver_page_shows(db_client,
         params={"include_staff_added": "true", "q": driver.email},
     )
     assert listed.status_code == 200, listed.text
+    assert listed.json()["applicants"][0]["stage"] == "Waiting for ID and bank details"
     detail = db_client.get(f"/api/v1/admin/drivers/{profile.id}", headers=headers)
     assert detail.status_code == 200, detail.text
     assert detail.json()["phone"] == "+2348030000999"
     assert [row["phone"] for row in listed.json()["applicants"]] == [detail.json()["phone"]]
+
+
+def test_user_filter_only_counts_driver_logins_without_a_profile(db_client, db_sessionmaker):
+    admin = create_test_user(db_sessionmaker, email="driver-filter-admin@example.com")
+    profiled = create_test_user(
+        db_sessionmaker, email="driver-filter-profiled@example.com", role=UserRole.DRIVER
+    )
+    unprofiled = create_test_user(
+        db_sessionmaker, email="driver-filter-unprofiled@example.com", role=UserRole.DRIVER
+    )
+    create_test_driver_profile(db_sessionmaker, user_id=profiled.id)
+    headers = auth_headers(db_client, admin.email, PASSWORD)
+    params = {"without_driver_profile": "true", "q": "driver-filter", "limit": 1}
+    filtered = db_client.get("/api/v1/admin/users", headers=headers, params=params)
+    assert filtered.status_code == 200, filtered.text
+    assert filtered.json()["total"] == 1
+    assert [row["id"] for row in filtered.json()["items"]] == [str(unprofiled.id)]
+    params["without_driver_profile"] = "false"
+    unfiltered = db_client.get("/api/v1/admin/users", headers=headers, params=params)
+    assert unfiltered.json()["total"] == 3
+
+
+def test_applicant_list_follows_current_person_and_car_review_stage(
+    db_client, db_sessionmaker, settings
+):
+    from test_driver_vehicle_approval import (
+        _approved_applicant,
+        _seed_vehicle_files,
+        _vehicle_payload,
+    )
+
+    from app.models.kyc import DriverKycSubmission, VehicleEvidenceSubmission
+
+    token, application, admin = _approved_applicant(
+        db_client, db_sessionmaker, settings, suffix="worklist-stage"
+    )
+    headers = auth_headers(db_client, admin.email, PASSWORD)
+
+    def stage():
+        listed = db_client.get(
+            "/api/v1/admin/driver-applications",
+            headers=headers,
+            params={"include_staff_added": "true", "q": application.email},
+        )
+        assert listed.status_code == 200, listed.text
+        row = listed.json()["applicants"][0]
+        assert row["email"] == application.email and row["created_at"]
+        return row["stage"]
+
+    assert stage() == "Waiting for car details"
+    files = _seed_vehicle_files(db_sessionmaker, application=application, suffix="worklist-stage")
+    car = db_client.post(
+        "/api/v1/auth/driver-onboarding/vehicle", json=_vehicle_payload(token, files)
+    )
+    assert car.status_code == 201, car.text
+    assert stage() == "Car to review"
+
+    async def set_status(model, status):
+        from sqlalchemy import select
+
+        async with db_sessionmaker() as session:
+            submission = await session.scalar(select(model))
+            submission.status = status
+            await session.commit()
+
+    for status in ("rejected", "expired"):
+        asyncio.run(set_status(VehicleEvidenceSubmission, status))
+        assert stage() == "Car sent back for changes"
+    asyncio.run(set_status(DriverKycSubmission, "pending_review"))
+    assert stage() == "ID and bank to review"
+    for status in ("rejected", "expired"):
+        asyncio.run(set_status(DriverKycSubmission, status))
+        assert stage() == "ID or bank sent back for changes"

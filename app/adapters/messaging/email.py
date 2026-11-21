@@ -81,8 +81,17 @@ class SmtpEmailAdapter:
                         client.login(self.username, self.password or "")
                     client.send_message(smtp_message)
             except smtplib.SMTPRecipientsRefused as exc:
-                raise EmailSendError("email_recipient_rejected", retryable=False) from exc
-            except (OSError, smtplib.SMTPException) as exc:
+                # This adapter sends to one recipient per outbox record.
+                code, _ = next(iter(exc.recipients.values()), (None, b""))
+                if code is None:
+                    raise EmailSendError("email_provider_unavailable", retryable=True) from exc
+                raise EmailSendError(f"email_smtp_{code}", retryable=not 500 <= code < 600) from exc
+            except smtplib.SMTPResponseException as exc:
+                permanent = isinstance(exc, smtplib.SMTPDataError) and 500 <= exc.smtp_code < 600
+                raise EmailSendError(
+                    f"email_smtp_{exc.smtp_code}", retryable=not permanent
+                ) from exc
+            except OSError as exc:
                 raise EmailSendError("email_provider_unavailable", retryable=True) from exc
 
         await asyncio.to_thread(deliver)

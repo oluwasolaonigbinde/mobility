@@ -60,9 +60,12 @@ def test_report_ready_notice_is_small_preference_governed_and_once_per_window(
 ):
     owner, organization, campaign = owner_graph(db_sessionmaker, f"notice-{kind}-{email_enabled}")
     storage, mail = FakeStorageProvider(), CaptureEmail()
+    owner.email = "report-owner@cardvert-check.ng"
 
     async def exercise():
         async with db_sessionmaker() as session:
+            account = await session.get(User, owner.id)
+            account.email = owner.email
             session.add(
                 AdvertiserOrganizationNotificationPreference(
                     advertiser_organization_id=organization.id,

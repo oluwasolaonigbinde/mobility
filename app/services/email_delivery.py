@@ -31,6 +31,7 @@ from app.models.organization import (
 )
 from app.models.user import User, UserRole, UserStatus
 from app.services.audit import create_audit_event
+from app.services.email_recipients import is_undeliverable_recipient
 from app.services.email_templates import render_email_template
 
 
@@ -212,10 +213,17 @@ async def _claim(
             await session.commit()
             return None
         allowed, recipient_or_error = await _preference_allows_delivery(session, notice)
+        if (
+            allowed
+            and recipient_or_error is not None
+            and is_undeliverable_recipient(recipient_or_error)
+        ):
+            allowed, recipient_or_error = False, "email_recipient_undeliverable"
         if not allowed:
             notice.status = NotificationStatus.FAILED.value
             notice.failed_at = now
             notice.last_error_code = recipient_or_error
+            notice.next_attempt_at = None
             notice.delivery_claim_token = None
             notice.delivery_claim_expires_at = None
             await session.commit()

@@ -25,6 +25,7 @@ from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle, VehicleStatus
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
+from app.services.contacts import normalize_phone_input, set_driver_phone
 from app.services.payout_rule_serialization import database_clock
 from app.services.users import _lock_users, validate_password_length
 
@@ -376,7 +377,7 @@ async def complete_driver_account_setup(
             "Driver account setup is invalid or expired",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
-    assert setup is not None
+    assert setup is not None and application is not None and user is not None
     evidence_sha256 = await _current_evidence_digest(session, application=application)
     if not hmac.compare_digest(evidence_sha256, setup.evidence_sha256):
         raise AppError(
@@ -398,6 +399,18 @@ async def complete_driver_account_setup(
     user.status = UserStatus.ACTIVE.value
     user.session_version += 1
     await session.flush()
+    if application.phone:
+        try:
+            async with session.begin_nested():
+                await set_driver_phone(
+                    session,
+                    user_id=user.id,
+                    phone=normalize_phone_input(application.phone),
+                    settings=settings,
+                )
+        except AppError:
+            # Setup remains usable when a previously saved number cannot be set.
+            pass
     await create_audit_event(
         session,
         actor_user_id=user.id,

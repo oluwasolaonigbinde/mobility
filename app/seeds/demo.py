@@ -2027,6 +2027,50 @@ async def settle_demo_worker_reviews(session: AsyncSession, *, settings: Setting
         )
 
 
+async def settle_demo_reports(
+    sessionmaker: async_sessionmaker[AsyncSession], *, settings: Settings
+) -> None:
+    from app.adapters.storage import build_storage_provider
+    from app.models.campaign_report import CampaignReport
+    from app.seeds.history import seed_sessionmaker
+    from app.services.campaign_report_delivery import publish_campaign_report
+    from app.services.report_scheduling import ELIGIBLE, discover_reports
+
+    storage = build_storage_provider(settings)
+    suppressed_sessions = seed_sessionmaker(sessionmaker)
+    async with suppressed_sessions() as session:
+        limit = await session.scalar(
+            select(func.count())
+            .select_from(Campaign)
+            .where(
+                Campaign.status.in_(ELIGIBLE),
+                Campaign.start_at.is_not(None),
+                Campaign.end_at.is_not(None),
+            )
+        )
+        for _ in range(200):
+            created = await discover_reports(
+                session,
+                settings=settings,
+                storage=storage,
+                limit=max(limit or 0, 1),
+                full_scan=True,
+            )
+            if not created:
+                break
+        else:
+            raise RuntimeError("Demo report catch-up exceeded 200 passes")
+
+        report_ids = list(
+            await session.scalars(
+                select(CampaignReport.id).where(CampaignReport.status == "queued")
+            )
+        )
+
+    for report_id in report_ids:
+        await publish_campaign_report(suppressed_sessions, report_id=report_id, storage=storage)
+
+
 async def run_seed(settings: Settings | None = None) -> DemoGraph:
     settings = settings or get_settings()
     ensure_seed_allowed(settings)
@@ -2037,25 +2081,9 @@ async def run_seed(settings: Settings | None = None) -> DemoGraph:
         graph = await build_demo_graph(session, settings)
         summary_counts = await counts(session, graph)
         await session.commit()
-        from app.adapters.storage import build_storage_provider
-        from app.models.campaign_report import CampaignReport
-        from app.services.campaign_report_delivery import publish_campaign_report
-
-        report_ids = list(
-            await session.scalars(
-                select(CampaignReport.id).where(CampaignReport.status == "queued")
-            )
-        )
-        for report_id in report_ids:
-            from app.seeds.history import seed_sessionmaker
-
-            await publish_campaign_report(
-                seed_sessionmaker(sessionmaker),
-                report_id=report_id,
-                storage=build_storage_provider(settings),
-            )
-        print_summary(graph, summary_counts)
-        return graph
+    await settle_demo_reports(sessionmaker, settings=settings)
+    print_summary(graph, summary_counts)
+    return graph
 
 
 def main() -> int:

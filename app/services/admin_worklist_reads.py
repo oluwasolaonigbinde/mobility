@@ -5,17 +5,17 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, literal, select, union_all
+from sqlalchemy import and_, func, literal, or_, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.campaign import Campaign
 from app.models.driver import DriverProfile
-from app.models.driver_application import DriverApplication
+from app.models.driver_application import DriverApplication, DriverApplicationStatus
 from app.models.kyc import KycSubmissionStatus
 from app.models.payout import EarningsLedgerEntry
 from app.models.trip import TripSession
 from app.models.trip_analytics import FraudFlag
-from app.models.user import User
+from app.models.user import User, UserStatus
 from app.models.vehicle import Vehicle
 from app.schemas.driver_applications import AdminApplicantStage
 from app.schemas.driver_onboarding import PersonPayeeStageStatus
@@ -193,7 +193,15 @@ async def applicants(
     submitted = (
         select(*columns(DriverApplication, "application", DriverApplication.id))
         .outerjoin(User, DriverApplication.user_id == User.id)
-        .where(DriverApplication.status == "pending")
+        .where(
+            or_(
+                DriverApplication.status == DriverApplicationStatus.PENDING,
+                and_(
+                    DriverApplication.status == DriverApplicationStatus.APPROVED,
+                    User.status == UserStatus.INVITED,
+                ),
+            )
+        )
     )
     no_application = (
         ~select(DriverApplication.id)

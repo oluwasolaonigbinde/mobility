@@ -71,11 +71,10 @@ def test_network_timeout_and_unconfigured_provider_permit_fallback():
 @pytest.mark.parametrize(
     "status,data",
     [
-        (400, {"status": False}),
-        (404, {"status": False}),
         (200, {"status": True, "data": {"account_number": "1111111111", "account_name": "Wrong"}}),
         (200, {"status": True, "data": {"account_number": "0123456789", "account_name": ""}}),
         (200, {"unexpected": True}),
+        (200, {"status": False, "message": "Unexpected provider response"}),
     ],
 )
 def test_invalid_provider_responses_never_grant_fallback(status, data):
@@ -264,3 +263,53 @@ def test_bank_capture_requires_an_explicit_recognized_receipt(settings, receipt_
     with pytest.raises(AppError) as caught:
         require_bank_check(payload(receipt), user_id=user_id, settings=settings)
     assert caught.value.code == "BANK_CHECK_INVALID"
+
+
+@pytest.mark.parametrize(
+    "status,message,outcome",
+    [
+        (401, "Invalid key", "unavailable"),
+        (403, "Forbidden", "unavailable"),
+        (429, "Account lookup quota exceeded", "unavailable"),
+        (400, "Account lookup quota exceeded", "unavailable"),
+        (404, "Account check limit reached", "unavailable"),
+        (422, "Unavailable in test mode", "unavailable"),
+        (400, "Could not resolve account", "refused"),
+        (404, "Could not resolve account", "refused"),
+        (422, "Could not resolve account", "refused"),
+        (409, "Account lookup failed", "refused"),
+    ],
+)
+def test_paystack_refusal_logs_safe_detail_and_mints_unconfirmed_receipt(
+    settings, caplog, status, message, outcome
+):
+    account = "0123456789"
+    fake = adapter(
+        lambda request: (
+            httpx.Response(200, json={"status": True, "data": [{"code": "058", "name": "GTBank"}]})
+            if request.url.path == "/bank"
+            else httpx.Response(status, json={"status": False, "message": f"{message}: {account}"})
+        )
+    )
+    user_id = uuid4()
+    result = asyncio.run(
+        check_account_name(
+            user_id=user_id,
+            bank_code="058",
+            account_number=account,
+            adapter=fake,
+            settings=settings,
+        )
+    )
+    assert result.outcome == outcome and result.account_name is None
+    log = next(record for record in caplog.records if record.name == "app.adapters.banks")
+    assert log.levelname == "WARNING"
+    assert f"status={status} bank_code=058 message={message}: [redacted]" in log.getMessage()
+    assert account not in log.getMessage()
+    assert require_bank_check(
+        payload(result.bank_check_receipt, account_name_confirmed=False),
+        user_id=user_id,
+        settings=settings,
+    )
+    with pytest.raises(AppError):
+        require_bank_check(payload(result.bank_check_receipt), user_id=user_id, settings=settings)

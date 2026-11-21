@@ -646,7 +646,9 @@ def test_status_references_are_indistinguishable_across_every_mutation_probe(
 def test_fresh_and_duplicate_driver_probes_deliver_separate_non_enumerating_authority(
     db_client, db_sessionmaker, settings, caplog
 ) -> None:
-    fresh_token, fresh = _register(db_client, db_sessionmaker, settings, suffix="access-delivery")
+    fresh_token, fresh = _register(
+        db_client, db_sessionmaker, settings, suffix="access-delivery", domain="cardvert-check.ng"
+    )
 
     async def existing_access_ids() -> set:
         async with db_sessionmaker() as session:
@@ -684,7 +686,7 @@ def test_fresh_and_duplicate_driver_probes_deliver_separate_non_enumerating_auth
         "/api/v1/auth/register-driver",
         json={
             "service_city": "Abuja",
-            "email": "person-payee-access-delivery@example.com",
+            "email": "person-payee-access-delivery@cardvert-check.ng",
             "full_name": "Probe must remain generic",
         },
     )
@@ -741,7 +743,7 @@ def test_fresh_and_duplicate_driver_probes_deliver_separate_non_enumerating_auth
             duplicate_app = await application_from_access_token(
                 session, token=duplicate_token, settings=settings, lock=False
             )
-            assert duplicate_app.email == "person-payee-access-delivery@example.com"
+            assert duplicate_app.email == "person-payee-access-delivery@cardvert-check.ng"
             new_access = await session.scalar(
                 select(DriverApplicationAccessToken).where(
                     DriverApplicationAccessToken.id.not_in(prior_ids)
@@ -763,7 +765,7 @@ def test_fresh_and_duplicate_driver_probes_deliver_separate_non_enumerating_auth
     assert all(set(payload) == {"driver_application_access_id"} for payload in payloads)
     assert fresh_token not in str(payloads)
     assert duplicate_token not in str(payloads)
-    assert "person-payee-access-delivery@example.com" not in delivered_body
+    assert "person-payee-access-delivery@cardvert-check.ng" not in delivered_body
     assert fresh_token not in caplog.text
     assert duplicate_token not in caplog.text
     assert mismatch_code == "driver_onboarding_access_evidence_mismatch"

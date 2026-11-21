@@ -52,7 +52,7 @@ def test_review_outcomes_queue_deduplicated_actionable_email(
     suffix = f"notice-{stage}-{str(approved).lower()}"
     if stage == "car":
         token, application, admin = _approved_applicant(
-            db_client, db_sessionmaker, settings, suffix=suffix
+            db_client, db_sessionmaker, settings, suffix=suffix, domain="cardvert-check.ng"
         )
         files = _seed_vehicle_files(db_sessionmaker, application=application, suffix=suffix)
         submitted = db_client.post(
@@ -84,8 +84,12 @@ def test_review_outcomes_queue_deduplicated_actionable_email(
                 valid_until="2029-01-01T00:00:00Z",
             )
     else:
-        token, _ = _register(db_client, db_sessionmaker, settings, suffix=suffix)
-        application = _application(db_sessionmaker, email=f"person-payee-{suffix}@example.com")
+        token, _ = _register(
+            db_client, db_sessionmaker, settings, suffix=suffix, domain="cardvert-check.ng"
+        )
+        application = _application(
+            db_sessionmaker, email=f"person-payee-{suffix}@cardvert-check.ng"
+        )
         files = _seed_clean_kyc_files(db_sessionmaker, email=application.email)
         submitted = db_client.post(
             "/api/v1/auth/driver-onboarding/person-payee",

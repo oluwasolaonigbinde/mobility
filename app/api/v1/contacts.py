@@ -37,6 +37,7 @@ from app.services.contacts import (
     grant_whatsapp_consent,
     list_manual_driver_contact_tasks,
     list_phone_verification_work,
+    normalize_phone_input,
     phone_verification_available,
     record_phone_verification,
     request_phone_verification,
@@ -118,7 +119,9 @@ async def driver_set_phone(
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> DriverPhoneVersionRead:
-    phone = await set_driver_phone(session, user_id=user.id, phone=payload.phone, settings=settings)
+    phone = await set_driver_phone(
+        session, user_id=user.id, phone=normalize_phone_input(payload.phone), settings=settings
+    )
     await session.commit()
     return phone_read(phone)
 

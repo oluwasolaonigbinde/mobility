@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import ANY, AsyncMock, Mock
 from uuid import UUID, uuid4
 
 import pytest
@@ -645,14 +645,8 @@ def test_demo_seed_command_runs_the_guarded_seed_and_prints_its_summary(
     monkeypatch.setattr(demo, "build_demo_graph", build)
     monkeypatch.setattr(demo, "counts", count_seeded_records)
     monkeypatch.setattr(demo, "print_summary", summary)
-    from app.services import campaign_report_delivery
-
-    publication = AsyncMock()
-    monkeypatch.setattr(campaign_report_delivery, "publish_campaign_report", publication)
-    session.scalars = AsyncMock(return_value=[uuid4()])
-    from app.adapters import storage
-
-    monkeypatch.setattr(storage, "build_storage_provider", lambda selected: object())
+    settle = AsyncMock()
+    monkeypatch.setattr(demo, "settle_demo_reports", settle)
 
     assert asyncio.run(demo.run_seed()) is graph
     guard.assert_called_once_with(settings)
@@ -661,7 +655,7 @@ def test_demo_seed_command_runs_the_guarded_seed_and_prints_its_summary(
     count_seeded_records.assert_awaited_once_with(session, graph)
     session.commit.assert_awaited_once_with()
     summary.assert_called_once_with(graph, {"campaigns": 1})
-    publication.assert_awaited_once()
+    settle.assert_awaited_once_with(ANY, settings=settings)
 
 
 def test_demo_seed_summary_is_human_readable(capsys: pytest.CaptureFixture[str]) -> None:
@@ -775,6 +769,8 @@ def test_openapi_has_frontend_contract_tags_and_examples(client) -> None:
 def seed_demo_graph(
     sessionmaker: async_sessionmaker[AsyncSession],
     settings: Settings,
+    *,
+    catch_up: bool = False,
 ):
     async def seed():
         from app.models.disbursement import CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID
@@ -788,6 +784,10 @@ def seed_demo_graph(
         async with sessionmaker() as session:
             graph = await build_demo_graph(session, settings)
             await session.commit()
+        if catch_up:
+            await demo.settle_demo_reports(sessionmaker, settings=settings)
+            return graph
+
         from app.adapters.storage import build_storage_provider
         from app.models.campaign_report import CampaignReport
         from app.services.campaign_report_delivery import publish_campaign_report
@@ -2967,16 +2967,20 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
     import time
 
     from app.jobs.worker import WorkerSettings
-    from app.models.billing import CommercialQuotationRevision
+    from app.models.billing import CommercialQuotationRevision, InvoiceIssuerProfile
     from app.models.campaign_report import CampaignReport
     from app.models.evidence_verification import EvidenceVerification
     from app.models.notification import Notification, NotificationType
     from app.models.payout import PayoutCorrectionOrder
+    from app.services.email_recipients import is_undeliverable_recipient
+    from app.services.report_scheduling import ELIGIBLE, sweep_scheduled_reports
 
     postgis_db_sessionmaker, settings = migrated_seed_sessionmaker
+    settings = settings.model_copy(update={"worker_sweep_batch_size": 2})
     monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
+    seed_started = datetime.now(UTC)
     started = time.monotonic()
-    seed_demo_graph(postgis_db_sessionmaker, settings)
+    seed_demo_graph(postgis_db_sessionmaker, settings, catch_up=True)
     print(f"Seed graph and publication runtime: {time.monotonic() - started:.2f}s")
 
     async def inspect():
@@ -2990,6 +2994,65 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
         async with postgis_db_sessionmaker() as session:
             audit_ids = set(await session.scalars(select(AuditEvent.id)))
             notice_ids = set(await session.scalars(select(Notification.id)))
+            eligible = await session.scalar(
+                select(func.count())
+                .select_from(Campaign)
+                .where(
+                    Campaign.status.in_(ELIGIBLE),
+                    Campaign.start_at.is_not(None),
+                    Campaign.end_at.is_not(None),
+                )
+            )
+            assert eligible > settings.worker_sweep_batch_size
+            historical_reports = set(
+                await session.scalars(
+                    select(CampaignReport.id).where(CampaignReport.period_end_at < seed_started)
+                )
+            )
+            assert historical_reports
+            issuer_contact = "terraxmediacompany@gmail.com"
+            addresses = set()
+            for column in (
+                User.email,
+                AdvertiserOrganization.billing_email,
+                AdvertiserOrganization.operational_contact_email,
+                InvoiceIssuerProfile.contact_email,
+            ):
+                addresses.update(await session.scalars(select(column).where(column.is_not(None))))
+            assert issuer_contact in addresses
+            assert {
+                address for address in addresses if not is_undeliverable_recipient(address)
+            } == {issuer_contact}
+            for address in (
+                issuer_contact,
+                "someone@terraxmedia.com",
+                "someone@gmail.com",
+                "req337.driver@cardvert-check.ng",
+            ):
+                assert not is_undeliverable_recipient(address)
+
+        for _ in range(3):
+            await sweep_scheduled_reports({**ctx, "settings": settings})
+
+        async with postgis_db_sessionmaker() as session:
+            assert (
+                set(
+                    await session.scalars(
+                        select(CampaignReport.id).where(CampaignReport.period_end_at < seed_started)
+                    )
+                )
+                == historical_reports
+            )
+            pending_seed_mail = await session.scalar(
+                select(Notification.id)
+                .join(User, Notification.recipient_user_id == User.id)
+                .where(
+                    Notification.channel == "transactional_email",
+                    Notification.status == "pending",
+                    User.email.in_(addresses - {issuer_contact}),
+                )
+            )
+            assert pending_seed_mail is None
         for job in WorkerSettings.cron_jobs:
             await job.coroutine(ctx)
             async with postgis_db_sessionmaker() as session:
@@ -3010,11 +3073,6 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
                     if action != "system.payout_automatic_alert.created"
                 ]
                 new_notices = [kind for kind in new_notices if kind != "payout_automatic_alert"]
-            if name == "sweep_scheduled_reports":
-                # The weekly schedule may discover a historical window after the selected report.
-                new_audits = [
-                    action for action in new_audits if action != "campaign_report.requested"
-                ]
             if name == "purge_expired_file_kyc":
                 # The daily retention receipt records the sweep even with no file to remove.
                 new_audits = [
