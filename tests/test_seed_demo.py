@@ -2973,6 +2973,7 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
     from app.models.notification import Notification, NotificationType
     from app.models.payout import PayoutCorrectionOrder
     from app.services.email_recipients import is_undeliverable_recipient
+    from app.services.report_authorization import REPORT_ACTOR_ID
     from app.services.report_scheduling import ELIGIBLE, sweep_scheduled_reports
 
     postgis_db_sessionmaker, settings = migrated_seed_sessionmaker
@@ -3146,12 +3147,18 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
             assert not await session.scalar(
                 select(PayoutCorrectionOrder.id).where(PayoutCorrectionOrder.status == "draft")
             )
-            for report in await session.scalars(
-                select(CampaignReport).where(
-                    CampaignReport.kind == "weekly", CampaignReport.status == "ready"
-                )
+            for report, campaign in await session.execute(
+                select(CampaignReport, Campaign)
+                .join(Campaign, Campaign.id == CampaignReport.campaign_id)
+                .where(CampaignReport.kind == "weekly", CampaignReport.status == "ready")
             ):
-                assert report.period_end_at - report.period_start_at == timedelta(days=7)
+                duration = report.period_end_at - report.period_start_at
+                week = timedelta(days=7)
+                if report.requested_by_user_id == REPORT_ACTOR_ID:
+                    assert report.period_start_at == report_midnight(campaign.start_at)
+                    assert duration >= week and duration % week == timedelta(0)
+                else:
+                    assert duration == week
             assert await session.scalar(
                 select(CampaignReport.id)
                 .join(Campaign, Campaign.id == CampaignReport.campaign_id)
