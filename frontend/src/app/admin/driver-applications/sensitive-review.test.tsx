@@ -70,11 +70,16 @@ it("restarts the minute limit for every explicit read attempt", () => {
   vi.useRealTimers();
 });
 
-it("hides revealed evidence but still navigates a pending foreground document tab", async () => {
+it.each(["success", "failure"])("clears revealed evidence and handles a foreground read %s after hide", async (outcome) => {
   const tab = { opener: window, closed: false, location: { replace: vi.fn() }, close: vi.fn() };
   const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
   const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
-  const read = Promise.withResolvers<{ downloadUrl: string }>();
+  const read = Promise.withResolvers<{ downloadUrl?: string; error?: string }>();
+  const readDocument = vi.fn(() => read.promise);
+  if (outcome === "failure") {
+    open.mockReturnValueOnce(null);
+    readDocument.mockResolvedValueOnce({ error: "First read failed" });
+  }
   const opened = vi.fn();
   try {
     render(
@@ -83,12 +88,18 @@ it("hides revealed evidence but still navigates a pending foreground document ta
           <>
             <button type="button" onClick={show}>Reveal evidence</button>
             <CurrentEvidence />
-            <ReviewDocument read={() => read.promise} onOpened={opened} showFallback={show} />
+            <ReviewDocument read={readDocument} onOpened={opened} showFallback={show} />
           </>
         )}
       </SensitiveReview>,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Reveal evidence" }));
+    if (outcome === "failure") {
+      fireEvent.click(screen.getByRole("button", { name: "Open document" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("First read failed");
+      expect(screen.getByRole("button", { name: "Hide" })).toBeVisible();
+    } else {
+      fireEvent.click(screen.getByRole("button", { name: "Reveal evidence" }));
+    }
     fireEvent.submit(screen.getByRole("button", { name: "View" }).closest("form")!);
     expect(screen.getByText(/Secret NIN/)).toBeInTheDocument();
 
@@ -99,10 +110,20 @@ it("hides revealed evidence but still navigates a pending foreground document ta
     expect(screen.queryByRole("link")).toBeNull();
     expect(tab.close).not.toHaveBeenCalled();
 
-    await act(async () => read.resolve({ downloadUrl: "https://example.invalid/current" }));
     expect(tab.opener).toBeNull();
-    expect(tab.location.replace).toHaveBeenCalledWith("https://example.invalid/current");
-    expect(opened).toHaveBeenCalledOnce();
+    if (outcome === "failure") {
+      await act(async () => read.resolve({ error: "Retry read failed" }));
+      visibility.mockReturnValue("visible");
+      fireEvent(document, new Event("visibilitychange"));
+      expect(tab.close).toHaveBeenCalledOnce();
+      expect(tab.location.replace).not.toHaveBeenCalled();
+      expect(opened).not.toHaveBeenCalled();
+      expect(screen.getByRole("alert")).toHaveTextContent("Retry read failed");
+    } else {
+      await act(async () => read.resolve({ downloadUrl: "https://example.invalid/current" }));
+      expect(tab.location.replace).toHaveBeenCalledWith("https://example.invalid/current");
+      expect(opened).toHaveBeenCalledOnce();
+    }
     expect(screen.queryByRole("link")).toBeNull();
   } finally {
     open.mockRestore();

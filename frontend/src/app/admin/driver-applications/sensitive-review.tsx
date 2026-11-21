@@ -12,7 +12,10 @@ import {
   type ReactNode,
 } from "react";
 
-const ForegroundRead = createContext<((controller: AbortController) => () => void) | null>(null);
+const DocumentReview = createContext<{
+  registerRead: (controller: AbortController) => () => void;
+  setError: (error: string | null) => void;
+} | null>(null);
 
 export function SensitiveReview({
   purpose,
@@ -24,21 +27,23 @@ export function SensitiveReview({
   const [open, setOpen] = useState(false);
   const [generation, setGeneration] = useState(0);
   const [readAttempt, setReadAttempt] = useState(0);
-  const foregroundRead = useRef<AbortController | null>(null);
-  useEffect(() => () => foregroundRead.current?.abort(), []);
-  const registerForegroundRead = useCallback((controller: AbortController) => {
-    foregroundRead.current?.abort();
-    foregroundRead.current = controller;
+  const [error, setError] = useState<string | null>(null);
+  const activeDocumentRead = useRef<AbortController | null>(null);
+  useEffect(() => () => activeDocumentRead.current?.abort(), []);
+  const registerRead = useCallback((controller: AbortController) => {
+    activeDocumentRead.current?.abort();
+    activeDocumentRead.current = controller;
     return () => {
-      if (foregroundRead.current === controller) foregroundRead.current = null;
+      if (activeDocumentRead.current === controller) activeDocumentRead.current = null;
     };
   }, []);
   const hide = useCallback(() => {
     setOpen(false);
+    setError(null);
     setGeneration((value) => value + 1);
   }, []);
   const cancelAndHide = useCallback(() => {
-    foregroundRead.current?.abort();
+    activeDocumentRead.current?.abort();
     hide();
   }, [hide]);
   const show = () => {
@@ -71,11 +76,16 @@ export function SensitiveReview({
           Hide
         </button>
       ) : null}
-      <ForegroundRead.Provider value={registerForegroundRead}>
+      <DocumentReview.Provider value={{ registerRead, setError }}>
         <Fragment key={generation}>
           {typeof children === "function" ? children(show) : children}
         </Fragment>
-      </ForegroundRead.Provider>
+      </DocumentReview.Provider>
+      {error ? (
+        <p role="alert" className="text-coral mt-1 text-xs">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -92,9 +102,9 @@ export function ReviewDocument({
   showFallback: () => void;
 }) {
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useState<DocumentReadResult>({});
+  const [downloadUrl, setDownloadUrl] = useState<string>();
   const currentRead = useRef<AbortController | null>(null);
-  const registerForegroundRead = useContext(ForegroundRead);
+  const review = useContext(DocumentReview);
   useEffect(() => () => currentRead.current?.abort(), []);
 
   async function open() {
@@ -105,32 +115,29 @@ export function ReviewDocument({
     const controller = new AbortController();
     currentRead.current = controller;
     // The tab can take focus and reset this view before the signed URL arrives.
-    const navigation = tab && registerForegroundRead ? new AbortController() : controller;
-    const unregister = navigation !== controller ? registerForegroundRead?.(navigation) : undefined;
+    const navigation = tab && review ? new AbortController() : controller;
+    const unregister = review?.registerRead(navigation);
     navigation.signal.addEventListener("abort", () => tab?.close(), { once: true });
     setPending(true);
-    setResult({});
+    setDownloadUrl(undefined);
+    review?.setError(null);
     try {
       const { downloadUrl, error } = await read();
       if (navigation.signal.aborted) return;
       if (!downloadUrl) {
         tab?.close();
-        if (!controller.signal.aborted) {
-          setResult({ error: error ?? "This document could not be opened. Try again." });
-        }
+        review?.setError(error ?? "This document could not be opened. Try again.");
       } else if (tab && !tab.closed) {
         tab.location.replace(downloadUrl);
         onOpened();
       } else if (!controller.signal.aborted) {
         if (tab) showFallback();
-        setResult({ downloadUrl });
+        setDownloadUrl(downloadUrl);
       }
     } catch {
       if (navigation.signal.aborted) return;
       tab?.close();
-      if (!controller.signal.aborted) {
-        setResult({ error: "This document could not be opened. Try again." });
-      }
+      review?.setError("This document could not be opened. Try again.");
     } finally {
       unregister?.();
       if (!controller.signal.aborted) {
@@ -142,9 +149,9 @@ export function ReviewDocument({
 
   return (
     <div className="border-edge rounded-lg border p-2">
-      {result.downloadUrl ? (
+      {downloadUrl ? (
         <a
-          href={result.downloadUrl}
+          href={downloadUrl}
           target="_blank"
           rel="noopener noreferrer"
           data-feedback-private
@@ -164,11 +171,6 @@ export function ReviewDocument({
           {pending ? "Opening…" : "Open document"}
         </Button>
       )}
-      {result.error ? (
-        <p role="alert" className="text-coral mt-1 text-xs">
-          {result.error}
-        </p>
-      ) : null}
     </div>
   );
 }
