@@ -1049,7 +1049,7 @@ def test_refused_lookup_is_saved_unconfirmed_and_requires_staff_test_payment(
         async def resolve(self, bank_code, account_number):
             raise BankLookupRefused("Could not resolve")
 
-    db_client.app.dependency_overrides[get_bank_adapter] = RefusedBank
+    db_client.app.dependency_overrides[get_bank_adapter] = lambda: RefusedBank()
     check = db_client.post(
         "/api/v1/auth/driver-onboarding/account-name",
         json={
