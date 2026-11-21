@@ -668,6 +668,7 @@ def test_demo_seed_command_runs_the_guarded_seed_and_prints_its_summary(
 
     guard = Mock()
     database_ready = AsyncMock()
+    preflight = AsyncMock()
     build = AsyncMock(return_value=graph)
     count_seeded_records = AsyncMock(return_value={"campaigns": 1})
     summary = Mock()
@@ -682,6 +683,7 @@ def test_demo_seed_command_runs_the_guarded_seed_and_prints_its_summary(
         lambda selected, *, expire_on_commit: SessionFactory(),
     )
     monkeypatch.setattr(demo, "ensure_database_ready", database_ready)
+    monkeypatch.setattr(demo, "preflight_seed_identities", preflight)
     monkeypatch.setattr(demo, "build_demo_graph", build)
     monkeypatch.setattr(demo, "counts", count_seeded_records)
     monkeypatch.setattr(demo, "print_summary", summary)
@@ -691,6 +693,7 @@ def test_demo_seed_command_runs_the_guarded_seed_and_prints_its_summary(
     assert asyncio.run(demo.run_seed()) is graph
     guard.assert_called_once_with(settings)
     database_ready.assert_awaited_once_with(session)
+    preflight.assert_awaited_once_with(session)
     build.assert_awaited_once_with(session, settings)
     count_seeded_records.assert_awaited_once_with(session, graph)
     session.commit.assert_awaited_once_with()
@@ -3039,6 +3042,71 @@ def migrated_seed_sessionmaker(settings, monkeypatch):
     finally:
         asyncio.run(engine.dispose())
         asyncio.run(drop_database(database_url))
+
+
+@pytest.mark.parametrize("collision", ["portal_login", "organization_name", "billing_email"])
+def test_run_seed_rejects_identity_conflict_before_writes(
+    migrated_seed_sessionmaker, monkeypatch, seed_private_storage, collision
+):
+    from sqlalchemy import event
+
+    sessionmaker, settings = migrated_seed_sessionmaker
+    engine = sessionmaker.kw["bind"]
+    monkeypatch.setattr(demo, "get_engine", lambda _: engine)
+    put = AsyncMock(wraps=seed_private_storage.put)
+    monkeypatch.setattr(seed_private_storage, "put", put)
+
+    async def exercise():
+        if collision == "portal_login":
+            existing = User(
+                email="nneka.umeh@demo.mobility.local",
+                full_name="Existing applicant",
+                password_hash="existing-password-hash",
+                role=UserRole.DRIVER.value,
+                status="disabled",
+            )
+        else:
+            existing = AdvertiserOrganization(
+                name="Linden Harbour Clothing"
+                if collision == "organization_name"
+                else "Existing Co",
+                billing_email=(
+                    "billing@demo.mobility.local"
+                    if collision == "billing_email"
+                    else "existing@cardvert-check.ng"
+                ),
+                status="active",
+                currency="NGN",
+            )
+        async with sessionmaker() as session:
+            session.add(existing)
+            await session.commit()
+            await session.refresh(existing)
+        model = type(existing)
+        before = {column.key: getattr(existing, column.key) for column in model.__table__.columns}
+
+        statements = []
+
+        def record_statement(_conn, _cursor, statement, *_args):
+            statements.append(statement)
+
+        with pytest.raises(AppError) as error:
+            event.listen(engine.sync_engine, "before_cursor_execute", record_statement)
+            try:
+                await demo.run_seed(settings)
+            finally:
+                event.remove(engine.sync_engine, "before_cursor_execute", record_statement)
+        assert error.value.code == "DEMO_IDENTITY_CONFLICT"
+        assert statements and all(sql.lstrip().upper().startswith("SELECT") for sql in statements)
+        put.assert_not_awaited()
+        assert not seed_private_storage.objects and not seed_private_storage.contents
+        async with sessionmaker() as session:
+            after = await session.get(model, existing.id)
+            assert {
+                column.key: getattr(after, column.key) for column in model.__table__.columns
+            } == before
+
+    asyncio.run(exercise())
 
 
 def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(

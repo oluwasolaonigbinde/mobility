@@ -3455,7 +3455,9 @@ usual sweep batch.
 The demo seed records organisation and login ownership at creation. Name and
 billing-email lookups only reuse seed-owned organisations, and an existing
 login requires a seed ownership record before its credentials or profile can
-be reused. A directory name collision creates a separate seed organisation.
+be reused. The seed command checks all configured login emails and
+organisation names and billing emails before writing to the database or object
+storage. It stops if an existing matching identity has no seed ownership record.
 
 REQ-217 replaces the two-step measurement/issuance workflow with one
 `campaign_reports` row: queued, ready or failed. It freezes an allowlisted snapshot

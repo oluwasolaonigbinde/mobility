@@ -115,6 +115,9 @@ DEMO_DRIVER_PHONE_NUMBERS = {
         for index in range(1, 4)
     },
 }
+DEMO_ORGANIZATION_NAME = "Marula Kitchens"
+DEMO_BILLING_EMAIL = "accounts@marulakitchens.ng"
+LEGACY_DEMO_BILLING_EMAIL = "billing@demo.mobility.local"
 PRODUCTION_ENVIRONMENTS = {"prod", "production"}
 
 
@@ -261,30 +264,30 @@ async def upsert_user(
 async def upsert_organization(session: AsyncSession) -> AdvertiserOrganization:
     organization = await session.scalar(
         select(AdvertiserOrganization).where(
-            AdvertiserOrganization.billing_email == "accounts@marulakitchens.ng",
+            AdvertiserOrganization.billing_email == DEMO_BILLING_EMAIL,
             seed_identity_exists("organization", AdvertiserOrganization.id),
         )
     )
     if organization is None:
         organization = await session.scalar(
             select(AdvertiserOrganization).where(
-                AdvertiserOrganization.billing_email == "billing@demo.mobility.local",
+                AdvertiserOrganization.billing_email == LEGACY_DEMO_BILLING_EMAIL,
                 seed_identity_exists("organization", AdvertiserOrganization.id),
             )
         )
     created = organization is None
     if organization is None:
         organization = AdvertiserOrganization(
-            name="Marula Kitchens",
-            billing_email="accounts@marulakitchens.ng",
+            name=DEMO_ORGANIZATION_NAME,
+            billing_email=DEMO_BILLING_EMAIL,
             country_code="NG",
             currency="NGN",
             status=OrganizationStatus.ACTIVE.value,
         )
         session.add(organization)
     else:
-        organization.name = "Marula Kitchens"
-        organization.billing_email = "accounts@marulakitchens.ng"
+        organization.name = DEMO_ORGANIZATION_NAME
+        organization.billing_email = DEMO_BILLING_EMAIL
         organization.country_code = "NG"
         organization.currency = "NGN"
         organization.status = OrganizationStatus.ACTIVE.value
@@ -2088,6 +2091,58 @@ async def settle_demo_reports(
         await publish_campaign_report(sessionmaker, report_id=report_id, storage=storage)
 
 
+async def preflight_seed_identities(session: AsyncSession) -> None:
+    from app.seeds.rich import BUSINESS_CONTACTS, STAFF_SPECS
+
+    login_roles = {
+        **dict.fromkeys(DEMO_DRIVER_PHONE_NUMBERS, UserRole.DRIVER),
+        **dict.fromkeys(F7_DRIVER_PASSWORDS, UserRole.DRIVER),
+        **dict.fromkeys(
+            DEMO_PASSWORDS.keys() - DEMO_DRIVER_PHONE_NUMBERS.keys(), UserRole.ADVERTISER
+        ),
+        **{email: UserRole.ADVERTISER for _, _, email in BUSINESS_CONTACTS},
+        **{email: UserRole.ADMIN for _, email, _, _ in STAFF_SPECS},
+        "admin@demo.mobility.local": UserRole.ADMIN,
+    }
+    users = await session.execute(
+        select(User.email, User.role, seed_identity_exists("user", User.id))
+        .where(func.lower(User.email).in_(login_roles))
+        .order_by(User.email)
+    )
+    for email, role, seed_owned in users:
+        if not seed_owned or role != login_roles[normalize_email(email)]:
+            raise AppError(
+                "DEMO_IDENTITY_CONFLICT",
+                "An existing login cannot be reused by the demo seed.",
+                status_code=status.HTTP_409_CONFLICT,
+                details={"email": email},
+            )
+
+    names = [DEMO_ORGANIZATION_NAME, *(name for name, _, _ in BUSINESS_CONTACTS)]
+    billing_emails = [
+        DEMO_BILLING_EMAIL,
+        LEGACY_DEMO_BILLING_EMAIL,
+        *(email for _, _, email in BUSINESS_CONTACTS),
+    ]
+    conflict = await session.scalar(
+        select(AdvertiserOrganization.name)
+        .where(
+            (func.lower(AdvertiserOrganization.name).in_([name.lower() for name in names]))
+            | (func.lower(AdvertiserOrganization.billing_email).in_(billing_emails)),
+            ~seed_identity_exists("organization", AdvertiserOrganization.id),
+        )
+        .order_by(AdvertiserOrganization.id)
+        .limit(1)
+    )
+    if conflict is not None:
+        raise AppError(
+            "DEMO_IDENTITY_CONFLICT",
+            "An existing organisation cannot be reused by the demo seed.",
+            status_code=status.HTTP_409_CONFLICT,
+            details={"organization_name": conflict},
+        )
+
+
 async def run_seed(settings: Settings | None = None) -> DemoGraph:
     settings = settings or get_settings()
     ensure_seed_allowed(settings)
@@ -2095,6 +2150,7 @@ async def run_seed(settings: Settings | None = None) -> DemoGraph:
     sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
     async with sessionmaker() as session:
         await ensure_database_ready(session)
+        await preflight_seed_identities(session)
         graph = await build_demo_graph(session, settings)
         summary_counts = await counts(session, graph)
         await session.commit()
