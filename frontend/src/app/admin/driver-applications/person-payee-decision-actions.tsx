@@ -61,7 +61,15 @@ function EvidenceRead({
   );
 }
 
-function AccountVerification({ versionId, verified }: { versionId: string; verified: boolean }) {
+function AccountVerification({
+  versionId,
+  verified,
+  checkedAt,
+}: {
+  versionId: string;
+  verified: boolean;
+  checkedAt?: string | null;
+}) {
   const [state, action, pending] = useActionState(
     verifyPersonPayeeAccountAction,
     initialEvidenceState,
@@ -69,12 +77,13 @@ function AccountVerification({ versionId, verified }: { versionId: string; verif
   const helpId = useId();
   // Stays mounted after a successful check refreshes the page as verified,
   // so the confirmation replaces the form instead of vanishing with it.
-  if (verified)
+  const verificationDate = state.verifiedAt ?? checkedAt;
+  if (verified || state.done)
     return (
       <p role="status" className="text-green mt-2 text-sm">
-        {state.verifiedAt
-          ? `Bank details checked on ${formatDate(state.verifiedAt)}`
-          : "Bank details checked."}
+        {verificationDate
+          ? `Bank details checked on ${formatDate(verificationDate)}`
+          : "Bank details checked"}
       </p>
     );
   return (
@@ -108,7 +117,6 @@ function AccountVerification({ versionId, verified }: { versionId: string; verif
         {pending ? "Verifying…" : "Check bank details"}
       </Button>
       {state.error ? <p className="text-coral mt-1 text-xs">{state.error}</p> : null}
-      {state.done ? <p className="text-green mt-1 text-xs">{state.done}</p> : null}
     </form>
   );
 }
@@ -119,6 +127,7 @@ export function PersonPayeeDecisionActions({
   submissionId,
   bankAccountVersionId,
   bankAccountVerified,
+  bankCheckedAt,
   bankNameConfirmed,
   documentFileIds,
   agreementVersion,
@@ -130,6 +139,7 @@ export function PersonPayeeDecisionActions({
   submissionId?: string | null;
   bankAccountVersionId?: string | null;
   bankAccountVerified: boolean;
+  bankCheckedAt?: string | null;
   bankNameConfirmed?: boolean | null;
   documentFileIds: Record<string, string>;
   agreementVersion?: string | null;
@@ -230,7 +240,11 @@ export function PersonPayeeDecisionActions({
               </button>
             )}
             {row.kind === "account" && row.id ? (
-              <AccountVerification versionId={row.id} verified={bankAccountVerified} />
+              <AccountVerification
+                versionId={row.id}
+                verified={bankAccountVerified}
+                checkedAt={bankCheckedAt}
+              />
             ) : null}
           </div>
         </section>

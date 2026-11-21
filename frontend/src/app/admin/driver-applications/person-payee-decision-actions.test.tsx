@@ -192,7 +192,7 @@ it.each([
   ).toBeInTheDocument();
   expect(
     within(screen.getByRole("region", { name: "Bank account" })).getByRole("status"),
-  ).toHaveTextContent("Bank details checked.");
+  ).toHaveTextContent(/^Bank details checked$/);
   expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
 });
 
@@ -209,7 +209,7 @@ it("confirms a successful bank check after the page refreshes as checked", async
     "REF-0001",
   );
   await user.click(bank.getByRole("button", { name: "Check bank details" }));
-  await waitFor(() => expect(mocks.verify).toHaveBeenCalledTimes(1));
+  expect(await bank.findByRole("status")).toHaveTextContent("Bank details checked on 21 Nov 2026");
 
   // The successful action refreshes the page, which now reports the account as checked.
   rerender(<PersonPayeeDecisionActions {...props} bankAccountVerified />);
@@ -220,6 +220,17 @@ it("confirms a successful bank check after the page refreshes as checked", async
   expect(
     refreshed.queryByLabelText("Reference of the small test payment you sent to this account"),
   ).toBeNull();
+});
+
+it.each([
+  ["2026-11-20T23:30:00Z", "Bank details checked on 21 Nov 2026"],
+  [null, "Bank details checked"],
+])("shows the stored bank check status on a fresh visit (%s)", (bankCheckedAt, expected) => {
+  render(
+    <PersonPayeeDecisionActions {...props} bankAccountVerified bankCheckedAt={bankCheckedAt} />,
+  );
+  const bank = within(screen.getByRole("region", { name: "Bank account" }));
+  expect(bank.getByRole("status")).toHaveTextContent(new RegExp(`^${expected}$`));
 });
 
 it("does not restore an old response after hide and a newer logged read", async () => {
@@ -362,7 +373,7 @@ it("counts every supplied document and keeps decision feedback when status refre
   expect(checklist).toHaveTextContent("0 of 5 done");
   await user.click(screen.getByRole("button", { name: "Show NIN" }));
   await screen.findByText("protected current identity");
-  expect(checklist).toHaveTextContent("1 of 5 done");
+  await waitFor(() => expect(checklist).toHaveTextContent("1 of 5 done"));
   await user.click(screen.getByRole("button", { name: "Hide" }));
   expect(checklist).toHaveTextContent("1 of 5 done");
   const row = within(screen.getByRole("region", { name: "document" }));
