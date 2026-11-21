@@ -2119,6 +2119,18 @@
             ],
             "title": "Bank Account Version Id"
           },
+          "bank_checked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Checked At"
+          },
           "bank_name_confirmed": {
             "anyOf": [
               {

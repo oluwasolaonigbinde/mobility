@@ -156,6 +156,7 @@ class PersonPayeeReviewDecisionCreate(BaseModel):
 
 class AdminPersonPayeeStageRead(PersonPayeeStageRead):
     bank_name_confirmed: bool | None = None
+    bank_checked_at: datetime | None = None
     document_file_ids: dict[str, UUID] = Field(default_factory=dict)
     bank_account_version_id: UUID | None = None
     encryption_algorithm: str | None = None

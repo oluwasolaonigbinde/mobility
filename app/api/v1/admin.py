@@ -96,6 +96,7 @@ def _admin_person_payee_response(view, now=None) -> AdminPersonPayeeStageRead:
         purged_at=submission.purged_at,
         bank_account_verified=view.bank_account_verified,
         bank_name_confirmed=submission.bank_name_confirmed,
+        bank_checked_at=view.bank_checked_at,
         reason_code=decision.reason_code if decision else None,
         created_at=submission.created_at,
         decided_at=decision.created_at if decision else None,
