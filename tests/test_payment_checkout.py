@@ -567,7 +567,8 @@ def test_paystack_verification_rejects_amount_outside_saved_checkout(
 
 
 @pytest.mark.parametrize(
-    "crash", ["before_dispatch", "after_acceptance", "cancelled_after_acceptance"]
+    "crash",
+    ["before_dispatch", "after_acceptance", "cancelled_after_acceptance", "initialize_not_found"],
 )
 def test_interrupted_checkout_recovers_the_same_saved_reference(
     db_sessionmaker, settings, monkeypatch, crash
@@ -644,6 +645,26 @@ def test_interrupted_checkout_recovers_the_same_saved_reference(
                 if crash == "cancelled_after_acceptance":
                     raise asyncio.CancelledError("synthetic cancellation after provider acceptance")
                 raise RuntimeError("synthetic local persistence failure")
+
+            if crash == "initialize_not_found":
+                from app.core.errors import AppError
+
+                transport.responses.insert(0, httpx.Response(404, json={"status": False}))
+                with pytest.raises(AppError) as error:
+                    await initialize_invoice_payment_checkout(
+                        session,
+                        checkout_id=checkout_id,
+                        adapter=adapter,
+                        return_url=settings.paystack_checkout_return_url,
+                    )
+                assert error.value.code == "PAYMENT_CHECKOUT_INITIALIZATION_FAILED"
+                await session.commit()
+                async with db_sessionmaker() as fresh:
+                    persisted = await fresh.get(PaymentCheckoutIntent, checkout_id)
+                    assert persisted.reference == checkout_reference
+                    assert persisted.status == "initialization_unknown"
+                assert [request.method for request in transport.requests] == ["POST"]
+                return
 
             from app.services.billing import checkout as checkout_service
 

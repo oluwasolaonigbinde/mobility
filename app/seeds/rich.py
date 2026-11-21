@@ -2107,17 +2107,16 @@ async def ensure_completed_report_contributors(session, *, graph, settings):
 
 
 async def ensure_portal_reports(session, *, graph, settings):
+    from app.services.campaign_reports import create_report, is_seed_campaign
+
     campaigns = list(
         await session.scalars(
             select(Campaign).where(
-                Campaign.end_at <= utc_now(), Campaign.status.in_(("active", "paused"))
+                is_seed_campaign(Campaign.id),
+                ((Campaign.end_at <= utc_now()) & Campaign.status.in_(("active", "paused")))
+                | Campaign.id.in_((graph.campaign.id, graph.rich.campaigns[0].id))
+                | (Campaign.name == "Marula Kitchens ? Wuse Lunch Rush"),
             )
-        )
-    )
-    campaigns += [graph.campaign, graph.rich.campaigns[0]]
-    campaigns += list(
-        await session.scalars(
-            select(Campaign).where(Campaign.name == "Marula Kitchens — Wuse Lunch Rush")
         )
     )
     for campaign in campaigns:
@@ -2126,7 +2125,6 @@ async def ensure_portal_reports(session, *, graph, settings):
         ):
             continue
         from app.adapters.storage import build_storage_provider
-        from app.services.campaign_reports import create_report, seed_portal_report_key
         from app.services.disclosure import _canonical_hash, after_day, midnight
         from app.services.report_scheduling import WEEK, latest_due_window
 
@@ -2137,7 +2135,7 @@ async def ensure_portal_reports(session, *, graph, settings):
             continue
         end, kind = due
         start = end - WEEK if kind == "weekly" else midnight(campaign.start_at)
-        key = seed_portal_report_key(campaign.id)
+        key = uuid5(NAMESPACE_URL, f"cardvert-preview:report:{campaign.id}")
         await create_report(
             session,
             actor_user_id=graph.admin.id,

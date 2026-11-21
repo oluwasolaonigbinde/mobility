@@ -2032,13 +2032,12 @@ async def settle_demo_reports(
 ) -> None:
     from app.adapters.storage import build_storage_provider
     from app.models.campaign_report import CampaignReport
-    from app.seeds.history import seed_sessionmaker
     from app.services.campaign_report_delivery import publish_campaign_report
+    from app.services.campaign_reports import is_seed_campaign
     from app.services.report_scheduling import ELIGIBLE, discover_reports
 
     storage = build_storage_provider(settings)
-    suppressed_sessions = seed_sessionmaker(sessionmaker)
-    async with suppressed_sessions() as session:
+    async with sessionmaker() as session:
         limit = await session.scalar(
             select(func.count())
             .select_from(Campaign)
@@ -2046,6 +2045,7 @@ async def settle_demo_reports(
                 Campaign.status.in_(ELIGIBLE),
                 Campaign.start_at.is_not(None),
                 Campaign.end_at.is_not(None),
+                is_seed_campaign(Campaign.id),
             )
         )
         for _ in range(200):
@@ -2054,8 +2054,7 @@ async def settle_demo_reports(
                 settings=settings,
                 storage=storage,
                 limit=max(limit or 0, 1),
-                full_scan=True,
-                seed=True,
+                seed_only=True,
             )
             if not created:
                 break
@@ -2064,12 +2063,14 @@ async def settle_demo_reports(
 
         report_ids = list(
             await session.scalars(
-                select(CampaignReport.id).where(CampaignReport.status == "queued")
+                select(CampaignReport.id).where(
+                    CampaignReport.status == "queued", is_seed_campaign(CampaignReport.campaign_id)
+                )
             )
         )
 
     for report_id in report_ids:
-        await publish_campaign_report(suppressed_sessions, report_id=report_id, storage=storage)
+        await publish_campaign_report(sessionmaker, report_id=report_id, storage=storage)
 
 
 async def run_seed(settings: Settings | None = None) -> DemoGraph:

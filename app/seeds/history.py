@@ -3,7 +3,7 @@
 import hashlib
 from contextlib import asynccontextmanager, contextmanager
 from datetime import UTC, datetime, timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import event
 
@@ -19,6 +19,7 @@ from app.models.payout import EarningsLedgerEntry, PayoutCalculation
 from app.models.trip import TripSession
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.services.campaign_reports import SEED_CAMPAIGN_CREATED
 
 HISTORY_MODELS = (User, AdvertiserOrganization, DriverProfile, Vehicle, DriverApplication, Campaign)
 
@@ -115,10 +116,21 @@ def seed_history(session):
     session.info["demo_seed_user_ids"] = set()
 
     def dates(seed_session, _context, _instances):
-        for row in seed_session.new:
+        for row in list(seed_session.new):
             if isinstance(row, HISTORY_MODELS):
                 _entity_dates(seed_session, row, now)
                 initial[row] = row.updated_at
+                if isinstance(row, Campaign):
+                    if row.id is None:
+                        row.id = uuid4()
+                    seed_session.add(
+                        AuditEvent(
+                            action=SEED_CAMPAIGN_CREATED,
+                            entity_type="campaign",
+                            entity_id=str(row.id),
+                            created_at=row.created_at,
+                        )
+                    )
             else:
                 _dependent_dates(seed_session, row, now)
             if (
