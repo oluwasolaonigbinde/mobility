@@ -130,3 +130,26 @@ def test_path_query_and_body_validation_match_advertised_envelope_without_input_
     }
     assert all(set(problem) == {"loc", "msg"} for problem in error["details"]["errors"])
     assert "private-" not in json.dumps(envelope)
+
+
+def test_onboarding_bank_and_staff_worklist_contract(client):
+    schema = client.get("/openapi.json").json()
+    components = schema["components"]["schemas"]
+    assert set(components["AccountNameCheckRead"]["properties"]["outcome"]["enum"]) == {
+        "resolved",
+        "unavailable",
+        "refused",
+    }
+    assert "stage" in components["AdminApplicantRead"]["required"]
+    confirmation = components["AdminPersonPayeeStageRead"]["properties"]["bank_name_confirmed"]
+    assert {"type": "boolean"} in confirmation["anyOf"]
+    checked_at = components["AdminPersonPayeeStageRead"]["properties"]["bank_checked_at"]
+    assert {"type": "string", "format": "date-time"} in checked_at["anyOf"]
+    assert {"type": "null"} in checked_at["anyOf"]
+    users = schema["paths"]["/api/v1/admin/users"]["get"]
+    assert any(parameter["name"] == "without_driver_profile" for parameter in users["parameters"])
+    bank = schema["paths"]["/api/v1/auth/driver-onboarding/account-name"]["post"]
+    for status, constraint in [("429", "minimum"), ("503", "const")]:
+        response = bank["responses"][status]
+        assert response["headers"]["Retry-After"]["schema"][constraint] == 1
+        assert response["content"]["application/json"]["schema"]["$ref"].endswith("/ErrorResponse")

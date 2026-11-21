@@ -1,6 +1,7 @@
 import hashlib
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -54,7 +55,11 @@ class PersonPayeeView:
     submission: DriverKycSubmission | None
     decision: DriverKycReviewDecision | None
     document_file_ids: dict[str, UUID]
-    bank_account_verified: bool = False
+    bank_checked_at: datetime | None = None
+
+    @property
+    def bank_account_verified(self) -> bool:
+        return self.bank_checked_at is not None
 
     @property
     def status(self) -> PersonPayeeStageStatus:
@@ -88,6 +93,14 @@ async def _documents(session: AsyncSession, submission_id: UUID) -> dict[str, UU
     return {row.document_type: row.stored_file_id for row in rows}
 
 
+async def _bank_checked_at(session: AsyncSession, bank_account_version_id: UUID) -> datetime | None:
+    return await session.scalar(
+        select(PayeeBankAccountPayoutVerification.created_at).where(
+            PayeeBankAccountPayoutVerification.bank_account_version_id == bank_account_version_id
+        )
+    )
+
+
 async def _view_for_profile(session: AsyncSession, *, profile_id: UUID) -> PersonPayeeView:
     submission = await session.scalar(
         select(DriverKycSubmission)
@@ -102,17 +115,11 @@ async def _view_for_profile(session: AsyncSession, *, profile_id: UUID) -> Perso
             DriverKycReviewDecision.submission_id == submission.id
         )
     )
-    payout_verification = await session.scalar(
-        select(PayeeBankAccountPayoutVerification.id).where(
-            PayeeBankAccountPayoutVerification.bank_account_version_id
-            == submission.bank_account_version_id
-        )
-    )
     return PersonPayeeView(
         submission,
         decision,
         await _documents(session, submission.id),
-        payout_verification is not None,
+        await _bank_checked_at(session, submission.bank_account_version_id),
     )
 
 
@@ -736,15 +743,7 @@ async def review_application_person_payee(
             original_submission,
             retry,
             await _documents(session, original_submission.id),
-            (
-                await session.scalar(
-                    select(PayeeBankAccountPayoutVerification.id).where(
-                        PayeeBankAccountPayoutVerification.bank_account_version_id
-                        == original_submission.bank_account_version_id
-                    )
-                )
-                is not None
-            ),
+            await _bank_checked_at(session, original_submission.bank_account_version_id),
         )
     submission = await session.scalar(
         select(DriverKycSubmission)
@@ -846,15 +845,7 @@ async def review_application_person_payee(
         submission,
         decision,
         documents,
-        (
-            await session.scalar(
-                select(PayeeBankAccountPayoutVerification.id).where(
-                    PayeeBankAccountPayoutVerification.bank_account_version_id
-                    == submission.bank_account_version_id
-                )
-            )
-            is not None
-        ),
+        await _bank_checked_at(session, submission.bank_account_version_id),
     )
 
 

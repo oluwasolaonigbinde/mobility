@@ -5256,6 +5256,8 @@ export interface components {
             bank_account_verified: boolean;
             /** Bank Account Version Id */
             bank_account_version_id?: string | null;
+            /** Bank Checked At */
+            bank_checked_at?: string | null;
             /** Bank Name Confirmed */
             bank_name_confirmed?: boolean | null;
             /** Created At */
