@@ -525,3 +525,38 @@ def test_registration_redis_reservations_are_atomic_ttl_bound_and_notify_once() 
         await redis.aclose()
 
     asyncio.run(exercise())
+
+
+def test_bank_check_redis_limits_are_atomic_and_separate_from_registration(settings):
+    redis_url = os.environ.get("RATE_LIMIT_TEST_REDIS_URL")
+    if not redis_url:
+        pytest.skip("Redis rate-limit test URL is not configured")
+
+    from uuid import uuid4
+
+    from app.core.rate_limit import RedisBankCheckRateLimiter, RedisRegistrationRateLimiter
+
+    async def exercise():
+        redis = Redis.from_url(redis_url, decode_responses=True)
+        ip = f"bank-check-test-{uuid4()}"
+        applications = [uuid4() for _ in range(7)]
+        bank = RedisBankCheckRateLimiter(redis, (30, 3600, 5, 900))
+        registration = RedisRegistrationRateLimiter(redis, settings)
+        try:
+            for app in applications[:6]:
+                decisions = await asyncio.gather(*(bank.reserve(ip, app) for _ in range(5)))
+                assert all(decision.allowed for decision in decisions)
+                if app != applications[5]:
+                    blocked = await bank.reserve(ip, app)
+                    assert blocked.bucket == "application"
+                    assert 1 <= blocked.retry_after_seconds <= 900
+            shared_ip = await bank.reserve(ip, applications[6])
+            assert shared_ip.bucket == "ip" and 1 <= shared_ip.retry_after_seconds <= 3600
+            assert await redis.get(f"ratelimit:bank-check:ip:{ip}") == "30"
+            assert await redis.get(f"ratelimit:bank-check:app:{applications[0]}") == "5"
+            assert (await registration.reserve(ip, "bank-apply@cardvert-check.ng")).allowed
+            assert await redis.get(f"ratelimit:driver-registration:ip:{ip}") == "1"
+        finally:
+            await redis.aclose()
+
+    asyncio.run(exercise())

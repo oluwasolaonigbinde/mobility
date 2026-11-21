@@ -60,6 +60,17 @@ _CENT = Decimal("0.01")
 class PaystackError(ValueError):
     """A Paystack call did not produce a usable, verified result."""
 
+    def __init__(
+        self, description: str, *, status_code: int | None = None, message: object = None
+    ) -> None:
+        super().__init__(description)
+        self.status_code = status_code
+        self.message = (
+            re.sub(r"\d(?:[ -]?\d){5,}", "[redacted]", " ".join(message.split()))[:240]
+            if isinstance(message, str)
+            else ""
+        )
+
 
 class PaystackOutcomeUnknownError(PaystackError):
     """Timeout, transport failure, 5xx, 429 or a non-final status: reconcile later."""
@@ -71,17 +82,6 @@ class PaystackMalformedResponseError(PaystackOutcomeUnknownError):
 
 class PaystackRejectedError(PaystackError):
     """Paystack definitively refused the request, or its answer failed our checks."""
-
-    def __init__(
-        self, description: str, *, status_code: int | None = None, message: object = None
-    ) -> None:
-        super().__init__(description)
-        self.status_code = status_code
-        self.message = (
-            re.sub(r"\d(?:[ -]?\d){5,}", "[redacted]", " ".join(message.split()))[:240]
-            if isinstance(message, str)
-            else ""
-        )
 
 
 class PaystackNotFoundError(PaystackRejectedError):
@@ -212,14 +212,16 @@ class PaystackClient:
         except httpx.HTTPError as exc:
             raise PaystackOutcomeUnknownError("Paystack request outcome is unknown") from exc
         status_code = response.status_code
-        if status_code >= 500 or status_code == 429:
-            raise PaystackOutcomeUnknownError("Paystack request outcome is unknown")
         if status_code >= 400:
             try:
                 error = response.json()
             except ValueError:
                 error = None
             message = error.get("message") if isinstance(error, dict) else None
+            if status_code >= 500 or status_code == 429:
+                raise PaystackOutcomeUnknownError(
+                    "Paystack request outcome is unknown", status_code=status_code, message=message
+                )
             if status_code == 404:
                 raise PaystackNotFoundError(
                     "Paystack object was not found", status_code=status_code, message=message

@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
-from conftest import create_test_user
+from conftest import auth_headers, create_test_user
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from test_driver_applications import PASSWORD
@@ -14,7 +14,7 @@ from app.api.v1.dependencies import get_current_user
 from app.core.errors import AppError
 from app.core.security import create_access_token, verify_password
 from app.models.audit import AuditEvent
-from app.models.contact import PasswordResetToken
+from app.models.contact import DriverPhoneVersion, PasswordResetToken
 from app.models.driver_application import (
     DriverAccountSetupToken,
     DriverApplication,
@@ -145,11 +145,26 @@ def test_setup_rechecks_active_admin_before_reading_application(
     )
 
 
+@pytest.mark.parametrize("saved_phone", ["0803 456 7890", "bad saved phone", None])
 def test_driver_account_setup_supersedes_replays_and_activates_atomically(
-    db_client, db_sessionmaker, settings
+    db_client, db_sessionmaker, settings, saved_phone
 ) -> None:
     settings.driver_account_setup_public_url = "https://cardvert.example/driver-account-setup"
+    settings.phone_verification_terrax_number = "+2347074200080"
     application, admin_headers = _approve(db_client, db_sessionmaker, settings)
+
+    async def save_application_phone():
+        async with db_sessionmaker() as session:
+            stored = await session.get(DriverApplication, application.id)
+            stored.phone = saved_phone
+            (await session.get(User, application.user_id)).phone = saved_phone
+            await session.commit()
+
+    asyncio.run(save_application_phone())
+    apps = "/api/v1/admin/driver-applications"
+    list_params = {"include_staff_added": "true", "q": application.email}
+    listed = db_client.get(apps, headers=admin_headers, params=list_params)
+    assert listed.json()["applicants"][0]["stage"] == "Ready for account setup"
     first_request = str(uuid4())
     first = db_client.post(
         f"/api/v1/admin/driver-applications/{application.id}/account-setup",
@@ -286,9 +301,28 @@ def test_driver_account_setup_supersedes_replays_and_activates_atomically(
                 )
                 or 0
             )
-            return user, accesses, initiation_audits, completion_audits
+            phone = await session.scalar(select(DriverPhoneVersion))
+            return user, accesses, initiation_audits, completion_audits, phone
 
-    user, accesses, initiation_audits, completion_audits = asyncio.run(completed_state())
+    user, accesses, initiation_audits, completion_audits, phone = asyncio.run(completed_state())
+    assert db_client.get(apps, headers=admin_headers, params=list_params).json()["total"] == 0
+    driver_headers = auth_headers(db_client, application.email, "replacement-driver-password")
+    contact = db_client.get("/api/v1/driver/contact", headers=driver_headers)
+    assert contact.status_code == 200, contact.text
+    if saved_phone == "0803 456 7890":
+        assert user.phone == "+2348034567890"
+        assert phone is not None and phone.verified_at is None
+        assert contact.json()["phone"]["verified_at"] is None
+        assert contact.json()["verification_available"] is True
+        put = db_client.put(
+            "/api/v1/driver/contact/phone",
+            headers=driver_headers,
+            json={"phone": "0803-456-7890"},
+        )
+        assert put.status_code == 200, put.text
+        assert put.json()["id"] == str(phone.id)
+    else:
+        assert phone is None and contact.json()["phone"] is None
     assert user is not None
     assert user.status == UserStatus.ACTIVE.value
     assert user.must_change_password is False

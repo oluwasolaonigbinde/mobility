@@ -140,7 +140,7 @@ def test_public_registration_creates_pending_graph_and_returns_reference(
         json={
             "email": " New.Driver@Example.com ",
             "full_name": " New Driver ",
-            "phone": "+234 800 000 0000",
+            "phone": "0803 456 7890",
             "service_city": " Lagos ",
             "country_code": "ng",
         },
@@ -180,6 +180,7 @@ def test_public_registration_creates_pending_graph_and_returns_reference(
     assert application is not None
     assert application.status == "pending"
     assert application.status_reference_sha256 != data["application_reference"]
+    assert user.phone == application.phone == "+2348034567890"
     assert unrelated_counts == [0, 0, 0]
 
     login = db_client.post(
@@ -763,3 +764,19 @@ def test_onboarding_access_renewal_obeys_rate_limit_and_terminal_denial(
             )
 
     assert asyncio.run(access_count()) == before
+
+
+def test_invalid_application_phone_returns_field_error(db_client):
+    response = db_client.post(
+        "/api/v1/auth/register-driver",
+        json={
+            "email": "invalid-phone@example.com",
+            "full_name": "Driver Applicant",
+            "service_city": "Abuja",
+            "phone": "0803-456",
+        },
+    )
+    assert response.status_code == 422
+    errors = response.json()["error"]["details"]["errors"]
+    assert errors[0]["loc"] == ["body", "phone"]
+    assert "Enter your number with the country code" in errors[0]["msg"]

@@ -166,18 +166,23 @@ class BankAdapter:
             )
         except PaystackMalformedResponseError:
             raise BankLookupInvalid("Invalid account response") from None
-        except PaystackOutcomeUnknownError:
-            return None
-        except PaystackRejectedError as exc:
-            logger.warning(
-                "Paystack bank resolve refused: status=%s bank_code=%s message=%s",
-                exc.status_code,
-                bank_code,
-                exc.message,
-            )
-            if exc.status_code in (401, 403) or _PROVIDER_RESTRICTION.search(exc.message):
+        except (PaystackRejectedError, PaystackOutcomeUnknownError) as exc:
+            if exc.status_code is not None:
+                logger.warning(
+                    "Paystack bank resolve failed: status=%s bank_code=%s message=%s",
+                    exc.status_code,
+                    bank_code,
+                    exc.message,
+                )
+            if (
+                isinstance(exc, PaystackOutcomeUnknownError)
+                or exc.status_code in (401, 403)
+                or _PROVIDER_RESTRICTION.search(exc.message)
+            ):
                 return None
-            raise BankLookupRefused("Account could not be resolved") from None
+            if exc.status_code is not None and 400 <= exc.status_code < 500:
+                raise BankLookupRefused("Account could not be resolved") from None
+            raise BankLookupInvalid("Invalid account response") from None
         if (
             not isinstance(data, dict)
             or data.get("account_number") != account_number

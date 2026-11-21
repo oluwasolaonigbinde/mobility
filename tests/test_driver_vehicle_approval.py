@@ -73,9 +73,11 @@ def review_reference_uuid(request):
                 event.remove(model, "before_insert", set_submission_id)
 
 
-def _approved_applicant(db_client, db_sessionmaker, settings, *, suffix: str):
-    token, _ = _register(db_client, db_sessionmaker, settings, suffix=suffix)
-    email = f"person-payee-{suffix}@example.com"
+def _approved_applicant(
+    db_client, db_sessionmaker, settings, *, suffix: str, domain: str = "example.com"
+):
+    token, _ = _register(db_client, db_sessionmaker, settings, suffix=suffix, domain=domain)
+    email = f"person-payee-{suffix}@{domain}"
     application = _application(db_sessionmaker, email=email)
     files = _seed_clean_kyc_files(db_sessionmaker, email=email)
     submitted = db_client.post(
