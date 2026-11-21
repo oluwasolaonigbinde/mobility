@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "@/lib/api/errors";
+import { ApiError, toApiError } from "@/lib/api/errors";
 
 const mocks = vi.hoisted(() => ({
   post: vi.fn(),
@@ -69,6 +69,33 @@ describe("driver application actions", () => {
         email: "driver@example.com",
         full_name: "Driver Name",
         phone: "",
+        service_city: "Lagos",
+      },
+    });
+  });
+
+  it("shows the approved phone field error for backend body.phone validation", async () => {
+    mocks.post.mockRejectedValue(toApiError(422, {
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Request validation failed",
+        details: { errors: [{ loc: ["body", "phone"], msg: "Internal validation detail" }] },
+      },
+    }));
+    const form = new FormData();
+    form.set("email", "driver@example.com");
+    form.set("full_name", "Driver Name");
+    form.set("phone", "12345");
+    form.set("service_city", "Lagos");
+
+    await expect(submitDriverApplicationAction({}, form)).resolves.toEqual({
+      fieldErrors: {
+        phone: "Enter your number with the country code, for example +234 803 456 7890",
+      },
+      values: {
+        email: "driver@example.com",
+        full_name: "Driver Name",
+        phone: "12345",
         service_city: "Lagos",
       },
     });

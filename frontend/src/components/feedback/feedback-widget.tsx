@@ -126,8 +126,17 @@ function FeedbackWidgetPanel() {
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(update);
     };
-    const observer = new MutationObserver(schedule);
-    observer.observe(document.body, { childList: true, subtree: true });
+    const observer = new MutationObserver((mutations) => {
+      if (mutations.some(({ type, target }) =>
+        type === "childList" ||
+        (target instanceof Element && target.closest(".maplibregl-ctrl-attrib")),
+      )) schedule();
+    });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributeFilter: ["class", "open"],
+    });
     window.addEventListener("scroll", schedule, true);
     window.addEventListener("resize", schedule);
     schedule();

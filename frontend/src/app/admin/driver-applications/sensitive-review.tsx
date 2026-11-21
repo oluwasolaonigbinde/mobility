@@ -1,7 +1,18 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  Fragment,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+
+const ForegroundRead = createContext<((controller: AbortController) => () => void) | null>(null);
 
 export function SensitiveReview({
   purpose,
@@ -13,17 +24,30 @@ export function SensitiveReview({
   const [open, setOpen] = useState(false);
   const [generation, setGeneration] = useState(0);
   const [readAttempt, setReadAttempt] = useState(0);
+  const foregroundRead = useRef<AbortController | null>(null);
+  useEffect(() => () => foregroundRead.current?.abort(), []);
+  const registerForegroundRead = useCallback((controller: AbortController) => {
+    foregroundRead.current?.abort();
+    foregroundRead.current = controller;
+    return () => {
+      if (foregroundRead.current === controller) foregroundRead.current = null;
+    };
+  }, []);
   const hide = useCallback(() => {
     setOpen(false);
     setGeneration((value) => value + 1);
   }, []);
+  const cancelAndHide = useCallback(() => {
+    foregroundRead.current?.abort();
+    hide();
+  }, [hide]);
   const show = () => {
     setOpen(true);
     setReadAttempt((value) => value + 1);
   };
   useEffect(() => {
     if (!open) return;
-    const timer = window.setTimeout(hide, 60_000);
+    const timer = window.setTimeout(cancelAndHide, 60_000);
     const visibility = () => {
       if (document.visibilityState !== "visible") hide();
     };
@@ -34,7 +58,7 @@ export function SensitiveReview({
       window.removeEventListener("pagehide", hide);
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [open, readAttempt, hide]);
+  }, [open, readAttempt, hide, cancelAndHide]);
   return (
     <div className="min-w-0" onSubmitCapture={typeof children === "function" ? undefined : show}>
       <p className="text-faint text-xs">Purpose: {purpose}</p>
@@ -42,14 +66,16 @@ export function SensitiveReview({
         <button
           type="button"
           className="text-cyan mt-1 min-h-11 min-w-11 text-xs underline md:min-h-0 md:min-w-0"
-          onClick={hide}
+          onClick={cancelAndHide}
         >
           Hide
         </button>
       ) : null}
-      <Fragment key={generation}>
-        {typeof children === "function" ? children(show) : children}
-      </Fragment>
+      <ForegroundRead.Provider value={registerForegroundRead}>
+        <Fragment key={generation}>
+          {typeof children === "function" ? children(show) : children}
+        </Fragment>
+      </ForegroundRead.Provider>
     </div>
   );
 }
@@ -68,6 +94,7 @@ export function ReviewDocument({
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<DocumentReadResult>({});
   const currentRead = useRef<AbortController | null>(null);
+  const registerForegroundRead = useContext(ForegroundRead);
   useEffect(() => () => currentRead.current?.abort(), []);
 
   async function open() {
@@ -77,27 +104,35 @@ export function ReviewDocument({
 
     const controller = new AbortController();
     currentRead.current = controller;
-    controller.signal.addEventListener("abort", () => tab?.close(), { once: true });
+    // The tab can take focus and reset this view before the signed URL arrives.
+    const navigation = tab && registerForegroundRead ? new AbortController() : controller;
+    const unregister = navigation !== controller ? registerForegroundRead?.(navigation) : undefined;
+    navigation.signal.addEventListener("abort", () => tab?.close(), { once: true });
     setPending(true);
     setResult({});
     try {
       const { downloadUrl, error } = await read();
-      if (controller.signal.aborted) return;
+      if (navigation.signal.aborted) return;
       if (!downloadUrl) {
         tab?.close();
-        setResult({ error: error ?? "This document could not be opened. Try again." });
+        if (!controller.signal.aborted) {
+          setResult({ error: error ?? "This document could not be opened. Try again." });
+        }
       } else if (tab && !tab.closed) {
         tab.location.replace(downloadUrl);
         onOpened();
-      } else {
+      } else if (!controller.signal.aborted) {
         if (tab) showFallback();
         setResult({ downloadUrl });
       }
     } catch {
-      if (controller.signal.aborted) return;
+      if (navigation.signal.aborted) return;
       tab?.close();
-      setResult({ error: "This document could not be opened. Try again." });
+      if (!controller.signal.aborted) {
+        setResult({ error: "This document could not be opened. Try again." });
+      }
     } finally {
+      unregister?.();
       if (!controller.signal.aborted) {
         currentRead.current = null;
         setPending(false);

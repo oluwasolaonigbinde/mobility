@@ -62,6 +62,37 @@ it.each([
   await waitFor(() => expect(lift()).toBe(0));
 });
 
+it.each(["class", "open"])("adjusts to attribution expansion and collapse via %s", async (attribute) => {
+  vi.stubGlobal("innerWidth", 390);
+  vi.stubGlobal("innerHeight", 844);
+  render(
+    <>
+      <details className="maplibregl-ctrl-attrib">
+        <summary>Map credit</summary>
+      </details>
+      <FeedbackWidget />
+    </>,
+  );
+  const credit = screen.getByText("Map credit").closest("details")!;
+  const button = screen.getByRole("button", { name: "Feedback" });
+  const lift = () => parseInt(button.style.getPropertyValue("--feedback-map-lift"), 10) || 0;
+  const expanded = () => credit.open || credit.classList.contains("maplibregl-compact-show");
+  credit.getBoundingClientRect = () =>
+    expanded() ? new DOMRect(150, 810, 230, 30) : new DOMRect(150, 830, 20, 10);
+  button.getBoundingClientRect = () => new DOMRect(274, 788 - lift(), 100, 40);
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  expect(lift()).toBe(0);
+
+  const toggle = (open: boolean) => {
+    if (attribute === "open") credit.open = open;
+    else credit.classList.toggle("maplibregl-compact-show", open);
+  };
+  toggle(true);
+  await waitFor(() => expect(lift()).toBe(26));
+  toggle(false);
+  await waitFor(() => expect(lift()).toBe(0));
+});
+
 it("renders nothing unless the build flag is 1, and nothing on the review page", () => {
   vi.stubEnv("NEXT_PUBLIC_FEEDBACK_ENABLED", "");
   const { container, rerender } = render(<FeedbackWidget />);
