@@ -94,6 +94,53 @@ function FeedbackWidgetPanel() {
   }, [phase]);
 
   useEffect(() => {
+    const button = trigger.current;
+    if (!button) return;
+    let frame = 0;
+    let lift = 0;
+    const update = () => {
+      frame = 0;
+      const buttonRect = button.getBoundingClientRect();
+      const baseTop = buttonRect.top + lift;
+      const baseBottom = buttonRect.bottom + lift;
+      let nextLift = 0;
+      for (const credit of document.querySelectorAll(".maplibregl-ctrl-attrib")) {
+        const rect = credit.getBoundingClientRect();
+        if (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.top < Math.min(baseBottom, window.innerHeight) &&
+          rect.bottom > Math.max(baseTop, 0) &&
+          rect.left < Math.min(buttonRect.right, window.innerWidth) &&
+          rect.right > Math.max(buttonRect.left, 0) &&
+          getComputedStyle(credit).visibility === "visible"
+        ) {
+          nextLift = Math.max(nextLift, Math.ceil(baseBottom - rect.top) + 8);
+        }
+      }
+      if (nextLift === lift) return;
+      lift = nextLift;
+      if (lift) button.style.setProperty("--feedback-map-lift", `${lift}px`);
+      else button.style.removeProperty("--feedback-map-lift");
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    const observer = new MutationObserver(schedule);
+    observer.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener("scroll", schedule, true);
+    window.addEventListener("resize", schedule);
+    schedule();
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("scroll", schedule, true);
+      window.removeEventListener("resize", schedule);
+      button.style.removeProperty("--feedback-map-lift");
+    };
+  }, [pathname, phase]);
+
+  useEffect(() => {
     if (phase !== "open" && phase !== "marking" && phase !== "sent") return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
@@ -184,7 +231,7 @@ function FeedbackWidgetPanel() {
           onClick={open}
           aria-haspopup="dialog"
           className="bg-ink fixed right-4 z-40 inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-medium text-white shadow-lg transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2"
-          style={{ bottom }}
+          style={{ bottom: `calc(${bottom} + var(--feedback-map-lift, 0px))` }}
         >
           Feedback
         </button>
