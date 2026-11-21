@@ -277,8 +277,10 @@ it("opens a car document in one tap without an opener and keeps its tick when th
   expect(checklist).toHaveTextContent("car registration: Opened");
   expect(checklist).toHaveTextContent("car insurance: Not opened");
   mocks.decide.mockResolvedValueOnce({ error: "Open each document above, then approve again." });
-  await user.click(screen.getByRole("button", { name: "Approve" }));
-  expect(screen.getByRole("alert")).toHaveTextContent(
+  const approve = screen.getByRole("button", { name: "Approve" });
+  expect(approve).toBeEnabled();
+  await user.click(approve);
+  expect(await screen.findByRole("alert")).toHaveTextContent(
     "Open each document above, then approve again.",
   );
   expect(checklist).toHaveTextContent("car registration: Opened");
