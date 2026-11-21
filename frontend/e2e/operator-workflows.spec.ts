@@ -141,10 +141,11 @@ test("approved driver account setup stays provider-neutral through its visible t
 
   await expect(
     page.getByRole("status").filter({
-      hasText: "Password setup email requested.",
+      hasText: "Setup email on its way to",
     }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Start account setup" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Send another link" })).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`/admin/drivers/applicant/${applicant.applicationId}$`));
 });
 

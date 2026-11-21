@@ -20,7 +20,10 @@ async function createDriver(page: Page, email: string) {
   await expect(
     page.getByRole("region", { name: "Add profile for an existing login" }),
   ).toBeVisible();
-  await expect(page.getByLabel("Driver user")).toBeVisible();
+  // The list holds only driver logins without a profile, so it can be empty.
+  await expect(
+    page.getByLabel("Driver user").or(page.getByText("Every driver login already has a profile.")),
+  ).toBeVisible();
   await page.getByLabel("Full name").fill("F7 driver");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Temporary password").fill(TEMPORARY_PASSWORD);
