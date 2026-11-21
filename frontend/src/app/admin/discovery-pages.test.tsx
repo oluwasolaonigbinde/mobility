@@ -190,8 +190,20 @@ it("Applicants includes applications and staff-added pending profiles in one pag
   mocks.get.mockResolvedValue({
     data: {
       applicants: [
-        { id: "a", kind: "application", application_id: "a", full_name: "New applicant" },
-        { id: "d", kind: "staff_added", driver_profile_id: "d", full_name: "Pending profile" },
+        {
+          id: "a",
+          kind: "application",
+          application_id: "a",
+          full_name: "New applicant",
+          stage: "ID and bank to review",
+        },
+        {
+          id: "d",
+          kind: "staff_added",
+          driver_profile_id: "d",
+          full_name: "Pending profile",
+          stage: "Added by staff",
+        },
       ],
       total: 80,
     },
@@ -205,7 +217,7 @@ it("Applicants includes applications and staff-added pending profiles in one pag
     "href",
     "/admin/drivers/d",
   );
-  expect(screen.getByText("Application for review")).toBeVisible();
+  expect(screen.getByText("ID and bank to review")).toBeVisible();
   expect(screen.getByText("Added by staff")).toBeVisible();
   expect(mocks.get).toHaveBeenCalledExactlyOnceWith("/api/v1/admin/driver-applications", {
     params: { query: { limit: 25, offset: 25, q: "Pending", include_staff_added: true } },
