@@ -52,6 +52,8 @@ from app.schemas.trips import (
     LocationPingCreate,
     TripEvidenceManifestEntryCreate,
 )
+from app.seeds.identity import record_seed_identity, require_seed_identity, seed_identity_exists
+from app.services.campaign_reports import is_seed_campaign
 from app.services.campaign_zones import geometry_expression, validate_geometry_with_postgis
 from app.services.impressions import estimate_trip_impressions
 from app.services.payouts.engine import calculate_trip_payout
@@ -201,6 +203,7 @@ async def _upsert_driver(session: AsyncSession, *, index: int, settings: Setting
     password = F7_DRIVER_PASSWORDS[email]
     validate_password_length(password, settings)
     user = await session.scalar(select(User).where(User.email == normalize_email(email)))
+    created = user is None
     if user is None:
         user = User(
             email=normalize_email(email),
@@ -214,11 +217,14 @@ async def _upsert_driver(session: AsyncSession, *, index: int, settings: Setting
     else:
         if user.role != UserRole.DRIVER.value:
             raise AppError("F7_SEED_USER_CONFLICT", f"{email} is not a driver")
+        await require_seed_identity(session, "user", user.id)
         user.full_name = DRIVER_NAMES[index - 1]
         user.status = UserStatus.ACTIVE.value
         _set_known_credential_flag(user)
     user.phone = DEMO_DRIVER_PHONE_NUMBERS[email]
     await session.flush()
+    if created:
+        await record_seed_identity(session, "user", user.id)
     if "demo_seed_user_ids" in session.info:
         session.info["demo_seed_user_ids"].add(user.id)
 
@@ -293,6 +299,7 @@ async def _upsert_campaign(
         select(Campaign).where(
             Campaign.organization_id == organization.id,
             Campaign.name == name,
+            is_seed_campaign(Campaign.id),
         )
     )
     if campaign is None:
@@ -1264,7 +1271,10 @@ async def _ensure_advertiser_directory(session, *, settings):
             settings=settings,
         )
         organization = await session.scalar(
-            select(AdvertiserOrganization).where(AdvertiserOrganization.name == company)
+            select(AdvertiserOrganization).where(
+                AdvertiserOrganization.name == company,
+                seed_identity_exists("organization", AdvertiserOrganization.id),
+            )
         )
         if organization is None:
             organization = AdvertiserOrganization(
@@ -1278,6 +1288,7 @@ async def _ensure_advertiser_directory(session, *, settings):
             )
             session.add(organization)
             await session.flush()
+            await record_seed_identity(session, "organization", organization.id)
         await upsert_membership(
             session,
             organization=organization,
@@ -1290,15 +1301,27 @@ async def _ensure_advertiser_directory(session, *, settings):
 async def business_owner(session, campaign_name):
     company = campaign_name.split(" — ")[0]
     organization = await session.scalar(
-        select(AdvertiserOrganization).where(AdvertiserOrganization.name == company)
+        select(AdvertiserOrganization).where(
+            AdvertiserOrganization.name == company,
+            seed_identity_exists("organization", AdvertiserOrganization.id),
+        )
     )
     from app.models.organization import OrganizationMembership
 
+    if organization is None:
+        raise ValueError(f"Missing seed-owned organisation for {company}")
+    email = (
+        "advertiser@demo.mobility.local"
+        if company == "Marula Kitchens"
+        else next(contact_email for name, _, contact_email in BUSINESS_CONTACTS if name == company)
+    )
     person = await session.scalar(
         select(User)
         .join(OrganizationMembership)
         .where(
             OrganizationMembership.organization_id == organization.id,
+            User.email == email,
+            seed_identity_exists("user", User.id),
             OrganizationMembership.role == "advertiser",
             OrganizationMembership.status == "active",
         )
@@ -1615,7 +1638,13 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
     for name, state, description in names:
         organization, advertiser = await business_owner(session, name)
         key = uuid5(NAMESPACE_URL, f"cardvert-preview:campaign:{name}")
-        campaign = await session.get(Campaign, key)
+        campaign = await session.scalar(
+            select(Campaign).where(
+                Campaign.id == key,
+                Campaign.organization_id == organization.id,
+                is_seed_campaign(Campaign.id),
+            )
+        )
         if campaign is None:
             # Q16: Wuse Weekend Catering's accepting drivers' cars run Abuja Lunch
             # Routes, so it starts the day after that ends.
@@ -1824,7 +1853,9 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
                     },
                     dedupe_key=f"cardvert-preview:notice:{i}:{j}",
                 )
-    for paused in await session.scalars(select(Campaign).where(Campaign.status == "paused")):
+    for paused in await session.scalars(
+        select(Campaign).where(Campaign.status == "paused", is_seed_campaign(Campaign.id))
+    ):
         key = uuid5(NAMESPACE_URL, f"cardvert-preview:pause:{paused.id}")
         if not await session.get(AuditEvent, key):
             session.add(
@@ -1873,7 +1904,10 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
     )
 
     campaign = await session.scalar(
-        select(Campaign).where(Campaign.name == "Marula Kitchens — Wuse Weekend Catering")
+        select(Campaign).where(
+            Campaign.name == "Marula Kitchens — Wuse Weekend Catering",
+            is_seed_campaign(Campaign.id),
+        )
     )
     for email, accept in (
         ("driver@demo.mobility.local", False),
@@ -1882,7 +1916,11 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
         ("yewande.afolabi@demo.mobility.local", True),
         ("obinna.onyekachi@demo.mobility.local", True),
     ):
-        person = await session.scalar(select(User).where(User.email == email))
+        person = await session.scalar(
+            select(User).where(User.email == email, seed_identity_exists("user", User.id))
+        )
+        if person is None:
+            raise ValueError(f"Missing seed-owned driver for {email}")
         profile = await session.scalar(
             select(DriverProfile).where(DriverProfile.user_id == person.id)
         )
@@ -2004,6 +2042,7 @@ async def ensure_completed_report_contributors(session, *, graph, settings):
     campaigns = await session.scalars(
         select(Campaign).where(
             Campaign.campaign_metadata["driver_story"].as_boolean() == True,  # noqa: E712
+            is_seed_campaign(Campaign.id),
             # S23 maps former completed campaigns to stored active. Keep the
             # original active/finished cohort; paused campaigns were excluded.
             Campaign.status == "active",
@@ -2107,7 +2146,7 @@ async def ensure_completed_report_contributors(session, *, graph, settings):
 
 
 async def ensure_portal_reports(session, *, graph, settings):
-    from app.services.campaign_reports import create_report, is_seed_campaign
+    from app.services.campaign_reports import create_report
 
     campaigns = list(
         await session.scalars(
@@ -2115,7 +2154,7 @@ async def ensure_portal_reports(session, *, graph, settings):
                 is_seed_campaign(Campaign.id),
                 ((Campaign.end_at <= utc_now()) & Campaign.status.in_(("active", "paused")))
                 | Campaign.id.in_((graph.campaign.id, graph.rich.campaigns[0].id))
-                | (Campaign.name == "Marula Kitchens ? Wuse Lunch Rush"),
+                | (Campaign.name == "Marula Kitchens — Wuse Lunch Rush"),
             )
         )
     )
@@ -2576,6 +2615,7 @@ async def ensure_reporting_contributors(
         select(Campaign).where(
             Campaign.organization_id == graph.organization.id,
             Campaign.name == campaign_name,
+            is_seed_campaign(Campaign.id),
         )
     )
     for index in range(3):

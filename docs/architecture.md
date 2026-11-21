@@ -3452,6 +3452,11 @@ email, including when an ordinary worker discovers the report first. In-app noti
 still follow the normal publication path. Worker discovery keeps its cursor and
 usual sweep batch.
 
+The demo seed records organisation and login ownership at creation. Name and
+billing-email lookups only reuse seed-owned organisations, and an existing
+login requires a seed ownership record before its credentials or profile can
+be reused. A directory name collision creates a separate seed organisation.
+
 REQ-217 replaces the two-step measurement/issuance workflow with one
 `campaign_reports` row: queued, ready or failed. It freezes an allowlisted snapshot
 once, then the existing ARQ/outbox pattern prepares CSV and PDF. One automatic

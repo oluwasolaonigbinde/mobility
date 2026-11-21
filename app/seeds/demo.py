@@ -68,7 +68,9 @@ from app.schemas.trips import (
     TripEvidenceManifestEntryCreate,
 )
 from app.seeds.driver_story import workday_processing_time
+from app.seeds.identity import record_seed_identity, require_seed_identity, seed_identity_exists
 from app.seeds.rich import F7_DRIVER_PASSWORDS, F7_SEED_VERSION, RichSeedResult, build_rich_seed
+from app.services.campaign_reports import is_seed_campaign
 from app.services.campaign_zones import geometry_expression, validate_geometry_with_postgis
 from app.services.impressions import estimate_trip_impressions
 from app.services.payouts.engine import calculate_trip_payout
@@ -213,6 +215,7 @@ async def upsert_user(
     validate_password_length(password, settings)
     normalized_email = normalize_email(email)
     user = await session.scalar(select(User).where(User.email == normalized_email))
+    created = user is None
     if user is None:
         user = User(
             email=normalized_email,
@@ -235,6 +238,7 @@ async def upsert_user(
             },
         )
     else:
+        await require_seed_identity(session, "user", user.id)
         user.full_name = full_name
         user.status = status_value
         if normalized_email in DEMO_DRIVER_PHONE_NUMBERS:
@@ -247,6 +251,8 @@ async def upsert_user(
         user.must_change_password = False
     await session.flush()
     await session.refresh(user)
+    if created:
+        await record_seed_identity(session, "user", user.id)
     if "demo_seed_user_ids" in session.info:
         session.info["demo_seed_user_ids"].add(user.id)
     return user
@@ -255,15 +261,18 @@ async def upsert_user(
 async def upsert_organization(session: AsyncSession) -> AdvertiserOrganization:
     organization = await session.scalar(
         select(AdvertiserOrganization).where(
-            AdvertiserOrganization.billing_email == "accounts@marulakitchens.ng"
+            AdvertiserOrganization.billing_email == "accounts@marulakitchens.ng",
+            seed_identity_exists("organization", AdvertiserOrganization.id),
         )
     )
     if organization is None:
         organization = await session.scalar(
             select(AdvertiserOrganization).where(
-                AdvertiserOrganization.billing_email == "billing@demo.mobility.local"
+                AdvertiserOrganization.billing_email == "billing@demo.mobility.local",
+                seed_identity_exists("organization", AdvertiserOrganization.id),
             )
         )
+    created = organization is None
     if organization is None:
         organization = AdvertiserOrganization(
             name="Marula Kitchens",
@@ -281,6 +290,8 @@ async def upsert_organization(session: AsyncSession) -> AdvertiserOrganization:
         organization.status = OrganizationStatus.ACTIVE.value
     await session.flush()
     await session.refresh(organization)
+    if created:
+        await record_seed_identity(session, "organization", organization.id)
     return organization
 
 
@@ -291,6 +302,8 @@ async def upsert_membership(
     user: User,
     role: MembershipRole,
 ) -> OrganizationMembership:
+    await require_seed_identity(session, "organization", organization.id)
+    await require_seed_identity(session, "user", user.id)
     membership = await session.scalar(
         select(OrganizationMembership).where(
             OrganizationMembership.organization_id == organization.id,
@@ -390,6 +403,7 @@ async def upsert_campaign(
         select(Campaign).where(
             Campaign.organization_id == organization.id,
             Campaign.name == "Marula Kitchens — Abuja Lunch Routes",
+            is_seed_campaign(Campaign.id),
         )
     )
     values = {
@@ -1040,6 +1054,7 @@ async def upsert_driver_story_campaigns(
             select(Campaign).where(
                 Campaign.organization_id == organization.id,
                 Campaign.name == spec["name"],
+                is_seed_campaign(Campaign.id),
             )
         )
         campaign_values = {
@@ -1415,6 +1430,7 @@ async def upsert_palmpay_graph(  # noqa: C901
         select(Campaign).where(
             Campaign.organization_id == organization.id,
             Campaign.name == "Marula Kitchens — Wuse Lunch Rush",
+            is_seed_campaign(Campaign.id),
         )
     )
     campaign_values = {
@@ -1813,7 +1829,7 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
         await session.scalars(
             select(Campaign.id).where(
                 Campaign.end_at <= utc_now(),
-                Campaign.campaign_metadata["demo"].as_boolean().is_(True),
+                is_seed_campaign(Campaign.id),
             )
         )
     )
@@ -2013,7 +2029,7 @@ async def settle_demo_worker_reviews(session: AsyncSession, *, settings: Setting
         .join(Campaign, Campaign.id == CampaignAssignment.campaign_id)
         .where(
             CampaignAssignment.status == "active",
-            Campaign.campaign_metadata["demo"].as_boolean().is_(True),
+            is_seed_campaign(Campaign.id),
         )
     )
     for assignment_id in assignment_ids:
@@ -2033,7 +2049,6 @@ async def settle_demo_reports(
     from app.adapters.storage import build_storage_provider
     from app.models.campaign_report import CampaignReport
     from app.services.campaign_report_delivery import publish_campaign_report
-    from app.services.campaign_reports import is_seed_campaign
     from app.services.report_scheduling import ELIGIBLE, discover_reports
 
     storage = build_storage_provider(settings)

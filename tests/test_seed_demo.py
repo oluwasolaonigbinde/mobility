@@ -4,7 +4,7 @@ from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import ANY, AsyncMock, Mock
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
 from database_helpers import (
@@ -427,6 +427,46 @@ def test_demo_seed_refuses_an_existing_user_with_an_incompatible_role(
 
     assert exc.value.code == "DEMO_USER_CONFLICT"
     assert exc.value.details["actual_role"] == "driver"
+
+
+@pytest.mark.parametrize("rich_driver", [False, True])
+def test_demo_seed_refuses_an_unmarked_login_with_the_matching_role(
+    db_sessionmaker, settings, rich_driver
+):
+    from app.seeds.rich import _upsert_driver
+
+    email = "driver01@demo.mobility.local" if rich_driver else "advertiser@demo.mobility.local"
+    role = UserRole.DRIVER if rich_driver else UserRole.ADVERTISER
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            user = User(
+                email=email,
+                password_hash="unchanged",
+                full_name="Existing Person",
+                role=role.value,
+                status="disabled",
+            )
+            session.add(user)
+            await session.commit()
+            with pytest.raises(AppError) as error:
+                if rich_driver:
+                    await _upsert_driver(session, index=1, settings=settings)
+                else:
+                    await demo.upsert_user(
+                        session,
+                        email=email,
+                        password=DEMO_PASSWORDS[email],
+                        full_name="Seed Login",
+                        role=role,
+                        settings=settings,
+                    )
+            assert error.value.code == "DEMO_IDENTITY_CONFLICT"
+            assert user.full_name == "Existing Person"
+            assert user.password_hash == "unchanged"
+            assert user.status == "disabled"
+
+    asyncio.run(exercise())
 
 
 def test_demo_seed_refuses_a_vehicle_owned_by_another_driver() -> None:
@@ -1682,7 +1722,7 @@ def test_demo_seed_runs_with_immutable_guards_from_alembic_head(
         asyncio.run(drop_database(migration_url))
 
 
-def test_demo_seed_reuses_legacy_organization_billing_identity(
+def test_demo_seed_reuses_only_seed_owned_legacy_organization_billing_identity(
     postgis_db_sessionmaker,
 ) -> None:
     async def scenario() -> None:
@@ -1694,25 +1734,65 @@ def test_demo_seed_reuses_legacy_organization_billing_identity(
                 currency="NGN",
                 status="active",
             )
+            seeded = await demo.upsert_organization(session)
+            seeded.billing_email = "billing@demo.mobility.local"
             session.add(legacy)
             await session.commit()
-            legacy_id = legacy.id
+            seed_id, legacy_id = seeded.id, legacy.id
 
         async with postgis_db_sessionmaker() as session:
             current = await demo.upsert_organization(session)
             await session.commit()
-            assert current.id == legacy_id
+            assert current.id == seed_id != legacy_id
             assert current.billing_email == "accounts@marulakitchens.ng"
+            assert (await session.get(AdvertiserOrganization, legacy_id)).billing_email == (
+                "billing@demo.mobility.local"
+            )
             assert (
                 await session.scalar(
                     select(func.count(AdvertiserOrganization.id)).where(
                         AdvertiserOrganization.name == "Marula Kitchens"
                     )
                 )
-                == 1
+                == 2
             )
 
     asyncio.run(scenario())
+
+
+def test_seed_directory_reuses_only_its_committed_organization(
+    db_sessionmaker, settings, monkeypatch
+):
+    from app.seeds import rich
+
+    contact = next(
+        contact for contact in rich.BUSINESS_CONTACTS if contact[0] == "Linden Harbour Clothing"
+    )
+    monkeypatch.setattr(rich, "BUSINESS_CONTACTS", (contact,))
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            real = AdvertiserOrganization(name=contact[0], status="active", currency="NGN")
+            session.add(real)
+            await session.commit()
+            real_id = real.id
+
+        async with db_sessionmaker() as session:
+            await rich._ensure_advertiser_directory(session, settings=settings)
+            seeded, user = await rich.business_owner(session, f"{contact[0]} \u2014 Abuja Commute")
+            assert seeded.id != real_id
+            seeded_id, user_id = seeded.id, user.id
+            await session.commit()
+
+        async with db_sessionmaker() as session:
+            await rich._ensure_advertiser_directory(session, settings=settings)
+            seeded, user = await rich.business_owner(session, f"{contact[0]} \u2014 Abuja Commute")
+            assert (seeded.id, user.id) == (seeded_id, user_id)
+            memberships = set(await session.scalars(select(OrganizationMembership.organization_id)))
+            assert memberships == {seeded_id}
+            await session.commit()
+
+    asyncio.run(exercise())
 
 
 def test_seed_business_ownership_and_applicant_financial_separation(
@@ -2989,6 +3069,19 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
     interleaved_scheduler_reports = set()
     real_campaign_id = uuid4()
     real_email = "real-report-owner@cardvert-check.ng"
+    company = "Linden Harbour Clothing"
+
+    async def create_real_organization():
+        owner_id, organization_id = await _seed_advertiser(
+            postgis_db_sessionmaker, email=real_email
+        )
+        async with postgis_db_sessionmaker() as session:
+            organization = await session.get(AdvertiserOrganization, organization_id)
+            organization.name = company
+            await session.commit()
+        return owner_id, organization_id
+
+    real_owner_id, real_organization_id = asyncio.run(create_real_organization())
     worker_discovered_first = False
 
     async def worker_interleaves_with_seed(*args, **kwargs):
@@ -3011,16 +3104,13 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
                 assert first_worker_report_ids
             # Before seed discovery starts, add an ordinary overdue campaign to
             # the same database. User-supplied metadata cannot establish seed provenance.
-            owner_id, organization_id = await _seed_advertiser(
-                postgis_db_sessionmaker, email=real_email
-            )
             async with postgis_db_sessionmaker() as worker_session:
                 today = report_midnight(datetime.now(UTC))
                 worker_session.add(
                     Campaign(
                         id=real_campaign_id,
-                        organization_id=organization_id,
-                        created_by_user_id=owner_id,
+                        organization_id=real_organization_id,
+                        created_by_user_id=real_owner_id,
                         name="Ordinary advertiser report",
                         status="active",
                         start_at=today - timedelta(days=10),
@@ -3076,7 +3166,41 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
             "engine": postgis_db_sessionmaker.kw["bind"],
             "storage": seed_private_storage,
         }
+        from app.seeds.identity import seed_identity_exists
+
         async with postgis_db_sessionmaker() as session:
+            members = set(
+                await session.scalars(
+                    select(OrganizationMembership.user_id).where(
+                        OrganizationMembership.organization_id == real_organization_id
+                    )
+                )
+            )
+            assert members == {real_owner_id}
+            campaigns = set(
+                await session.scalars(
+                    select(Campaign.id).where(Campaign.organization_id == real_organization_id)
+                )
+            )
+            assert campaigns == {real_campaign_id}
+            assert not await session.scalar(
+                select(seed_identity_exists("organization", real_organization_id))
+            )
+            seed_organization_id = await session.scalar(
+                select(AdvertiserOrganization.id).where(
+                    AdvertiserOrganization.name == company,
+                    seed_identity_exists("organization", AdvertiserOrganization.id),
+                )
+            )
+            assert seed_organization_id is not None and seed_organization_id != real_organization_id
+            assert await session.scalar(
+                select(OrganizationMembership.id)
+                .join(User, User.id == OrganizationMembership.user_id)
+                .where(
+                    OrganizationMembership.organization_id == seed_organization_id,
+                    User.email == "funmilayo.ajayi@lindenharbour.ng",
+                )
+            )
             audit_ids = set(await session.scalars(select(AuditEvent.id)))
             notice_ids = set(await session.scalars(select(Notification.id)))
             eligible = await session.scalar(
@@ -3304,15 +3428,23 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
                     assert duration >= week and duration % week == timedelta(0)
                 else:
                     assert duration == week
-            assert await session.scalar(
-                select(CampaignReport.id)
-                .join(Campaign, Campaign.id == CampaignReport.campaign_id)
-                .where(
-                    Campaign.name == "Marula Kitchens \u2014 Wuse Lunch Rush",
+            marula_campaign_id = await session.scalar(
+                select(Campaign.id).where(Campaign.name == "Marula Kitchens \u2014 Wuse Lunch Rush")
+            )
+            assert marula_campaign_id is not None
+            portal_request_id = uuid5(
+                NAMESPACE_URL, f"cardvert-preview:report:{marula_campaign_id}"
+            )
+            portal_report = await session.scalar(
+                select(CampaignReport).where(
+                    CampaignReport.campaign_id == marula_campaign_id,
+                    CampaignReport.client_request_id == portal_request_id,
                     CampaignReport.status == "ready",
                     CampaignReport.kind == "weekly",
                 )
             )
+            assert portal_report is not None
+            assert portal_report.period_end_at - portal_report.period_start_at == timedelta(days=7)
             teleport = list(
                 await session.scalars(
                     select(TripSession).where(
