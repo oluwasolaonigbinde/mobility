@@ -57,6 +57,12 @@ _EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 _CENT = Decimal("0.01")
 
 
+def _redact_account_number(message: object, account: str | None) -> object:
+    if isinstance(message, str) and account and account.isdecimal():
+        return re.sub(r"\D*".join(map(re.escape, account)), "[redacted]", message)
+    return message
+
+
 class PaystackError(ValueError):
     """A Paystack call did not produce a usable, verified result."""
 
@@ -212,12 +218,18 @@ class PaystackClient:
         except httpx.HTTPError as exc:
             raise PaystackOutcomeUnknownError("Paystack request outcome is unknown") from exc
         status_code = response.status_code
+        account = (params or {}).get("account_number")
+
         if status_code >= 400:
             try:
                 error = response.json()
             except ValueError:
                 error = None
-            message = error.get("message") if isinstance(error, dict) else None
+            message = (
+                _redact_account_number(error.get("message"), account)
+                if isinstance(error, dict)
+                else None
+            )
             if status_code >= 500 or status_code == 429:
                 raise PaystackOutcomeUnknownError(
                     "Paystack request outcome is unknown", status_code=status_code, message=message
@@ -241,7 +253,7 @@ class PaystackClient:
             raise PaystackRejectedError(
                 "Paystack rejected the request",
                 status_code=status_code,
-                message=body.get("message"),
+                message=_redact_account_number(body.get("message"), account),
             )
         return body if include_meta else body.get("data")
 

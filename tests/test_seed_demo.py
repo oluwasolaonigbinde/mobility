@@ -2962,9 +2962,11 @@ def migrated_seed_sessionmaker(settings, monkeypatch):
 
 
 def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
-    migrated_seed_sessionmaker, monkeypatch, seed_private_storage
+    migrated_seed_sessionmaker, monkeypatch, seed_private_storage, db_sessionmaker
 ):
     import time
+
+    from test_email_delivery import RecordingEmailAdapter, _seed_advertiser
 
     from app.jobs.worker import WorkerSettings
     from app.models.billing import CommercialQuotationRevision, InvoiceIssuerProfile
@@ -2972,16 +2974,50 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
     from app.models.evidence_verification import EvidenceVerification
     from app.models.notification import Notification, NotificationType
     from app.models.payout import PayoutCorrectionOrder
+    from app.services import report_scheduling
+    from app.services.campaign_report_delivery import publish_campaign_report
+    from app.services.email_delivery import process_email_notification
     from app.services.email_recipients import is_undeliverable_recipient
+    from app.services.notifications import create_advertiser_email_notification
     from app.services.report_authorization import REPORT_ACTOR_ID
     from app.services.report_scheduling import ELIGIBLE, sweep_scheduled_reports
 
     postgis_db_sessionmaker, settings = migrated_seed_sessionmaker
     settings = settings.model_copy(update={"worker_sweep_batch_size": 2})
     monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
+    discover = report_scheduling.discover_reports
+    interleaved_scheduler_reports = set()
+
+    async def worker_publishes_after_discovery(*args, **kwargs):
+        created = await discover(*args, **kwargs)
+        if not kwargs.get("seed"):
+            return created
+        # An ordinary worker can see the committed reports and claim them before
+        # the seed's publisher starts. Its session has no seed history hook.
+        async with postgis_db_sessionmaker() as worker_session:
+            queued = (
+                await worker_session.execute(
+                    select(CampaignReport.id, CampaignReport.requested_by_user_id).where(
+                        CampaignReport.status == "queued"
+                    )
+                )
+            ).all()
+        for report_id, actor_id in queued:
+            assert (
+                await publish_campaign_report(
+                    postgis_db_sessionmaker, report_id=report_id, storage=seed_private_storage
+                )
+                == "ready"
+            )
+            if actor_id == REPORT_ACTOR_ID:
+                interleaved_scheduler_reports.add(report_id)
+        return created
+
+    monkeypatch.setattr(report_scheduling, "discover_reports", worker_publishes_after_discovery)
     seed_started = datetime.now(UTC)
     started = time.monotonic()
     seed_demo_graph(postgis_db_sessionmaker, settings, catch_up=True)
+    assert interleaved_scheduler_reports
     print(f"Seed graph and publication runtime: {time.monotonic() - started:.2f}s")
 
     async def inspect():
@@ -3031,6 +3067,47 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
                 "req337.driver@cardvert-check.ng",
             ):
                 assert not is_undeliverable_recipient(address)
+
+            assert not await session.scalar(
+                select(Notification.id)
+                .where(
+                    Notification.type_key == NotificationType.REPORT_READY,
+                    Notification.channel == "transactional_email",
+                )
+                .limit(1)
+            )
+
+        mail = RecordingEmailAdapter()
+        now = datetime.now(UTC)
+        for address in sorted(addresses):
+            user_id, organization_id = await _seed_advertiser(db_sessionmaker, email=address)
+            async with db_sessionmaker() as claim_session:
+                notice = await create_advertiser_email_notification(
+                    claim_session,
+                    advertiser_organization_id=organization_id,
+                    recipient_user_id=user_id,
+                    type_key=NotificationType.FRAUD_HOLD_RAISED,
+                    payload={},
+                    dedupe_key="seed-recipient-check",
+                )
+                assert notice is not None
+                await claim_session.commit()
+            deliverable = address == issuer_contact
+            sent_before = len(mail.messages)
+            assert await process_email_notification(
+                db_sessionmaker,
+                notification_id=notice.id,
+                settings=settings,
+                email_adapter=mail,
+                now=now,
+            ) == ("sent" if deliverable else "skipped")
+            assert len(mail.messages) == sent_before + int(deliverable)
+            async with db_sessionmaker() as claim_session:
+                stored = await claim_session.get(Notification, notice.id)
+                assert stored.attempt_count == int(deliverable)
+                if not deliverable:
+                    assert stored.last_error_code == "email_recipient_undeliverable"
+        assert [message.recipient for message in mail.messages] == [issuer_contact]
 
         for _ in range(3):
             await sweep_scheduled_reports({**ctx, "settings": settings})

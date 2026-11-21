@@ -1,7 +1,7 @@
 """One D118 report request, frozen once; issued files are never regenerated."""
 
 from datetime import datetime, time, timedelta
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from sqlalchemy import cast, func, literal, select, text, union_all
 from sqlalchemy.dialects.postgresql import JSONB
@@ -90,6 +90,15 @@ async def get_report(session, *, report_id, actor_user_id, admin):
     if report is None:
         raise not_found()
     return await authorize_report(session, report=report, actor_user_id=actor_user_id, admin=admin)
+
+
+def seed_report_fingerprint(request_id: UUID) -> str:
+    # Stored on the immutable report request before any publisher can claim it.
+    return _canonical_hash({"seed_report": str(request_id)})
+
+
+def seed_portal_report_key(campaign_id: UUID) -> UUID:
+    return uuid5(NAMESPACE_URL, f"cardvert-preview:report:{campaign_id}")
 
 
 async def create_report(

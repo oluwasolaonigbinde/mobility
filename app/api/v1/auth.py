@@ -143,7 +143,7 @@ async def onboarding_account_name(
         settings=settings,
         lock=False,
     )
-    decision = await limiter.reserve(registration_client_ip(request, settings), application.id)
+    decision = await limiter.reserve(login_client_ip(request, settings), application.id)
     if not decision.storage_available:
         raise AppError(
             "BANK_CHECK_LIMIT_UNAVAILABLE",

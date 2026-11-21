@@ -2126,7 +2126,7 @@ async def ensure_portal_reports(session, *, graph, settings):
         ):
             continue
         from app.adapters.storage import build_storage_provider
-        from app.services.campaign_reports import create_report
+        from app.services.campaign_reports import create_report, seed_portal_report_key
         from app.services.disclosure import _canonical_hash, after_day, midnight
         from app.services.report_scheduling import WEEK, latest_due_window
 
@@ -2137,7 +2137,7 @@ async def ensure_portal_reports(session, *, graph, settings):
             continue
         end, kind = due
         start = end - WEEK if kind == "weekly" else midnight(campaign.start_at)
-        key = uuid5(NAMESPACE_URL, f"cardvert-preview:report:{campaign.id}")
+        key = seed_portal_report_key(campaign.id)
         await create_report(
             session,
             actor_user_id=graph.admin.id,

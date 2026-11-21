@@ -36,7 +36,15 @@ class _AccountLookupLogFilter(logging.Filter):
 
 logging.getLogger("httpx").addFilter(_AccountLookupLogFilter())
 logger = logging.getLogger(__name__)
-_PROVIDER_RESTRICTION = re.compile(r"\b(?:quota|limits?|test[ -]mode)\b", re.IGNORECASE)
+_PROVIDER_RESTRICTION = re.compile(
+    r"\b(?:quota\s+(?:exceeded|exhausted|reached)|(?:exceeded|exhausted|reached)\s+(?:the\s+)?quota"
+    r"|rate[ -]limit(?:ed|ing)?|too many requests|test[ -]mode)\b",
+    re.IGNORECASE,
+)
+_PROVIDER_RESOLVE_REFUSAL = re.compile(
+    r"\b(?:could(?: not|n't)|cannot|can(?: not|'t)|unable to|failed to)\s+resolve\b",
+    re.IGNORECASE,
+)
 
 # Extracted from the renewal picker; digital-bank additions support Apply too.
 FALLBACK_BANKS = (
@@ -175,12 +183,12 @@ class BankAdapter:
                     exc.message,
                 )
             if (
-                isinstance(exc, PaystackOutcomeUnknownError)
+                (isinstance(exc, PaystackOutcomeUnknownError) and exc.status_code != 429)
                 or exc.status_code in (401, 403)
                 or _PROVIDER_RESTRICTION.search(exc.message)
             ):
                 return None
-            if exc.status_code is not None and 400 <= exc.status_code < 500:
+            if exc.status_code in (400, 404, 422) and _PROVIDER_RESOLVE_REFUSAL.search(exc.message):
                 raise BankLookupRefused("Account could not be resolved") from None
             raise BankLookupInvalid("Invalid account response") from None
         if (

@@ -243,7 +243,6 @@ for i = 1, 2 do
       redis.call('EXPIRE', KEYS[i], ttls[i])
       ttl = ttls[i]
     end
-    if ARGV[5] == 'bank-check' then return {0, i, ttl, 0} end
     local marker = 'ratelimit:driver-registration:notify:' .. KEYS[i]
     local notified = redis.call('SET', marker, '1', 'NX', 'EX', math.max(ttl, 1))
     return {0, i, ttl, notified and 1 or 0}
@@ -306,9 +305,36 @@ class RedisRegistrationRateLimiter:
             )
 
 
+RESERVE_BANK_CHECK = """
+local limits = {tonumber(ARGV[1]), tonumber(ARGV[3])}
+local windows = {tonumber(ARGV[2]), tonumber(ARGV[4])}
+local blocked_bucket, retry_after = 0, 0
+for i = 1, 2 do
+  local current = tonumber(redis.call('GET', KEYS[i]) or '0')
+  if current >= limits[i] then
+    local ttl = redis.call('TTL', KEYS[i])
+    if ttl < 0 or ttl > windows[i] then
+      redis.call('EXPIRE', KEYS[i], windows[i])
+      ttl = windows[i]
+    end
+    ttl = math.max(ttl, 1)
+    if ttl > retry_after then
+      blocked_bucket, retry_after = i, ttl
+    end
+  end
+end
+if blocked_bucket ~= 0 then return {blocked_bucket, retry_after} end
+for i = 1, 2 do
+  local value = redis.call('INCR', KEYS[i])
+  if value == 1 then redis.call('EXPIRE', KEYS[i], windows[i]) end
+end
+return {0, 0}
+"""
+
+
 class RedisBankCheckRateLimiter:
     def __init__(self, redis: Redis, limits: tuple[int, int, int, int]) -> None:
-        self.reserve_script = redis.register_script(RESERVE_REGISTRATION_ATTEMPT)
+        self.reserve_script = redis.register_script(RESERVE_BANK_CHECK)
         self.limits = limits
 
     async def reserve(self, ip: str, application_id: UUID) -> RateLimitDecision:
@@ -318,24 +344,22 @@ class RedisBankCheckRateLimiter:
                     f"ratelimit:bank-check:ip:{ip}",
                     f"ratelimit:bank-check:app:{application_id}",
                 ],
-                args=[*self.limits, "bank-check"],
+                args=list(self.limits),
             )
-            if raw == [1, 0, 0, 0]:
+            if raw == [0, 0]:
                 return RateLimitDecision(allowed=True)
-            if (
-                isinstance(raw, list)
-                and len(raw) == 4
-                and raw[0] == 0
-                and raw[1] in (1, 2)
-                and type(raw[2]) is int
-                and raw[2] >= 0
-                and raw[3] == 0
-            ):
-                return RateLimitDecision(
-                    allowed=False,
-                    bucket="ip" if raw[1] == 1 else "application",
-                    retry_after_seconds=max(raw[2], 1),
-                )
+            if isinstance(raw, list) and len(raw) == 2:
+                bucket, ttl = raw
+                if (
+                    bucket in (1, 2)
+                    and type(ttl) is int
+                    and 1 <= ttl <= self.limits[2 * bucket - 1]
+                ):
+                    return RateLimitDecision(
+                        allowed=False,
+                        bucket="ip" if bucket == 1 else "application",
+                        retry_after_seconds=ttl,
+                    )
             raise ValueError("malformed bank-check reserve response")
         except (RedisError, TypeError, ValueError) as exc:
             logger.warning("Bank-check rate limiter unavailable: %s", exc)

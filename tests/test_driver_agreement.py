@@ -312,3 +312,41 @@ def test_sixth_bank_check_is_limited_by_its_application(
     assert limited.status_code == 429, limited.text
     assert 1 <= int(limited.headers["Retry-After"]) <= 900
     assert re.fullmatch(r"Try again after \d{2}:\d{2}", limited.json()["error"]["message"])
+
+
+def test_bank_check_separates_relayed_clients_behind_the_same_bff(
+    db_client, db_sessionmaker, settings, monkeypatch
+):
+    import os
+    from ipaddress import IPv6Address
+
+    from fastapi.testclient import TestClient
+    from redis.asyncio import Redis
+
+    from app.core.rate_limit import RedisBankCheckRateLimiter
+
+    redis_url = os.environ.get("RATE_LIMIT_TEST_REDIS_URL")
+    if not redis_url:
+        pytest.skip("Redis rate-limit test URL is not configured")
+    token, _ = _register(db_client, db_sessionmaker, settings, suffix="bank-ip-relay")
+    monkeypatch.setattr(settings, "login_rate_limit_trust_client_ip_header", True)
+    monkeypatch.setattr(settings, "login_rate_limit_trusted_proxy_cidrs", "10.27.0.0/24")
+    monkeypatch.setattr(settings, "driver_registration_rate_limit_trust_client_ip_header", False)
+
+    async def limiter():
+        async with Redis.from_url(redis_url, decode_responses=True) as redis:
+            yield RedisBankCheckRateLimiter(redis, (1, 3600, 5, 900))
+
+    db_client.app.dependency_overrides[get_bank_check_rate_limiter] = limiter
+    body = {
+        "application_access_token": token,
+        "bank_code": "058",
+        "account_number": "0123456789",
+    }
+    path = "/api/v1/auth/driver-onboarding/account-name"
+    first, second = (str(IPv6Address(uuid4().int)) for _ in range(2))
+    with TestClient(db_client.app, client=("10.27.0.3", 50000)) as bff:
+        assert bff.post(path, json=body, headers={"X-Client-IP": first}).status_code == 200
+        assert bff.post(path, json=body, headers={"X-Client-IP": first}).status_code == 429
+        assert bff.post(path, json=body, headers={"X-Client-IP": second}).status_code == 200
+        assert bff.post(path, json=body, headers={"X-Client-IP": second}).status_code == 429
