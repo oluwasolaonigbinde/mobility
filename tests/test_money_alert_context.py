@@ -147,8 +147,12 @@ def test_sparse_blocked_alerts_identify_actual_payment_without_changing_records(
 def test_finance_demo_alert_references_its_actual_reserved_payment(
     db_sessionmaker, settings, monkeypatch
 ):
+    from app.models.audit import AuditEvent
     from app.models.disbursement import PayoutBatchLine
+    from app.models.payee import Payee, PayeeBankAccount, PayeeBankAccountVersion
     from app.seeds import rich
+    from app.seeds.identity import record_seed_identity
+    from app.services.campaign_reports import SEED_CAMPAIGN_CREATED
 
     graph = build_graph(db_sessionmaker, f"seed-alert-{uuid4().hex[:8]}")
     graph.rich = SimpleNamespace(
@@ -166,15 +170,33 @@ def test_finance_demo_alert_references_its_actual_reserved_payment(
 
     async def exercise():
         async with db_sessionmaker() as session:
+            session.add(
+                AuditEvent(
+                    action=SEED_CAMPAIGN_CREATED,
+                    entity_type="campaign",
+                    entity_id=str(graph.campaign.id),
+                )
+            )
             for _ in range(3):
                 await _seed_authority(session, graph, amount="100.07")
+            bank_version_id = await session.scalar(
+                select(PayeeBankAccountVersion.id)
+                .join(PayeeBankAccount)
+                .join(Payee, Payee.id == PayeeBankAccount.payee_id)
+                .where(Payee.tenant_id == graph.driver.id, Payee.subject_id == graph.profile.id)
+                .order_by(PayeeBankAccountVersion.version.desc())
+                .limit(1)
+            )
+            assert bank_version_id is not None
+            await record_seed_identity(session, "bank_account_version", bank_version_id)
             await rich.ensure_portal_payouts(
                 session, graph=graph, staff=[graph.admin] * 5, settings=settings
             )
             alert = await session.scalar(select(PayoutAutomaticAlert))
-            assert alert.line_id is not None
+            assert alert is not None and alert.line_id is not None
             line = await session.get(PayoutBatchLine, alert.line_id)
             assert line.reservation_active
+            assert line.bank_account_version_id == bank_version_id
             assert (alert.batch_id, alert.ledger_entry_id, alert.amount, alert.currency) == (
                 line.batch_id,
                 line.ledger_entry_id,
