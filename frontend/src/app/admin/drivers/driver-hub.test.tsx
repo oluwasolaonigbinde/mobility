@@ -330,6 +330,7 @@ it.each(["invited", "active"])(
       expect(mocks.setup).toHaveBeenCalledWith({
         applicationId: appId,
         applicantName: driver.full_name,
+        applicantEmail: application.email,
       });
     else expect(mocks.setup).not.toHaveBeenCalled();
   },

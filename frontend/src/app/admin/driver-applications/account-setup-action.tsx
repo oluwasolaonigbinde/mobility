@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { formatDateTime } from "@/lib/format";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { initiateDriverAccountSetupAction, type DriverAccountSetupState } from "./actions";
 
@@ -10,47 +11,67 @@ const initialState: DriverAccountSetupState = {};
 export function AccountSetupAction({
   applicationId,
   applicantName,
+  applicantEmail,
 }: {
   applicationId: string;
   applicantName: string;
+  applicantEmail: string;
 }) {
   const [state, action, pending] = useActionState(initiateDriverAccountSetupAction, initialState);
-  const [confirming, setConfirming] = useState(false);
-  const [clientRequestId] = useState(() => crypto.randomUUID());
+  const [confirmationId, setConfirmationId] = useState<string>();
+  const confirming = Boolean(confirmationId && confirmationId !== state.requestId);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const actionFormRef = useRef<HTMLFormElement>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
-    if (state.done) statusRef.current?.focus();
-  }, [state.done]);
+    if (state.requestId) statusRef.current?.focus();
+  }, [state.requestId]);
 
-  if (state.done) {
-    return (
-      <p ref={statusRef} role="status" tabIndex={-1} className="text-green text-sm outline-none">
-        {state.done}
-      </p>
-    );
+  function sendLink() {
+    if (!confirmationId) return;
+    const data = new FormData();
+    data.set("application_id", applicationId);
+    data.set("client_request_id", confirmationId);
+    startTransition(() => action(data));
   }
 
   return (
     <div>
-      <Button ref={triggerRef} type="button" onClick={() => setConfirming(true)} disabled={pending}>
-        Start account setup
+      {state.requestedAt ? (
+        <p
+          ref={statusRef}
+          role="status"
+          tabIndex={-1}
+          className="text-green mb-2 text-sm outline-none"
+        >
+          Setup email on its way to{" "}
+          <span className="break-all" data-feedback-private>
+            {applicantEmail}
+          </span>{" "}
+          (requested {formatDateTime(state.requestedAt)})
+        </p>
+      ) : null}
+      <Button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setConfirmationId(crypto.randomUUID())}
+        disabled={pending}
+      >
+        {state.requestedAt ? "Send another link" : "Start account setup"}
       </Button>
-      <form ref={actionFormRef} action={action} className="hidden" aria-hidden="true">
-        <input type="hidden" name="application_id" value={applicationId} />
-        <input type="hidden" name="client_request_id" value={clientRequestId} />
-      </form>
       <ConfirmationDialog
         open={confirming}
-        onOpenChange={setConfirming}
+        onOpenChange={(open) => {
+          if (!open) setConfirmationId(undefined);
+        }}
         title={`Email ${applicantName} a link to set their password?`}
         description="A new link replaces any earlier unused setup link."
         cancelLabel="Cancel"
         confirmLabel="Send link"
-        onConfirm={() => actionFormRef.current?.requestSubmit()}
-        returnFocusRef={triggerRef}
+        onConfirm={sendLink}
+        returnFocusRef={
+          state.requestId && state.requestId === confirmationId ? statusRef : triggerRef
+        }
         pending={pending}
         error={state.error}
       />

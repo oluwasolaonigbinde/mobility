@@ -354,6 +354,7 @@ export default async function DriverHub({
                   <AccountSetupAction
                     applicationId={application.id}
                     applicantName={person.full_name}
+                    applicantEmail={application.email}
                   />
                 </div>
               ) : null}
