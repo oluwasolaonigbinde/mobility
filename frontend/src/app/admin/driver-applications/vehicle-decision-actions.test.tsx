@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ read: vi.fn(), decide: vi.fn() }));
 vi.mock("./actions", () => ({
@@ -43,8 +43,11 @@ const props = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.spyOn(window, "open").mockReturnValue(null);
   mocks.read.mockResolvedValue({ downloadUrl: "https://example.invalid/current" });
 });
+
+afterEach(() => vi.restoreAllMocks());
 
 it("requires staff to choose a rejection reason", () => {
   render(<VehicleDecisionActions {...props} />);
@@ -54,15 +57,18 @@ it.each([
   ["car registration", "registration-1"],
   ["car insurance", "insurance-1"],
   ["car photo", "photo-1"],
-])("directly reads the current %s once per View", async (name, fileId) => {
+])("directly reads the current %s once per Open document", async (name, fileId) => {
   const user = userEvent.setup();
   render(<VehicleDecisionActions {...props} />);
   expect(mocks.read).not.toHaveBeenCalled();
   const row = within(screen.getByRole("region", { name }));
   expect(row.queryByRole("checkbox")).toBeNull();
   expect(row.getByText("Purpose: Vehicle review")).toBeInTheDocument();
-  await user.click(row.getByRole("button", { name: "View" }));
-  expect(await row.findByRole("link")).toHaveAttribute("href", "https://example.invalid/current");
+  await user.click(row.getByRole("button", { name: "Open document" }));
+  const link = await row.findByRole("link", { name: "Open document" });
+  expect(link).toHaveAttribute("href", "https://example.invalid/current");
+  expect(link).toHaveAttribute("data-feedback-private");
+  expect(link).toHaveAttribute("rel", "noopener noreferrer");
   expect(mocks.read).toHaveBeenCalledTimes(1);
   const payload = mocks.read.mock.calls[0]![1] as FormData;
   expect(payload.get("file_id")).toBe(fileId);
@@ -73,12 +79,12 @@ it("hides one car document independently and logs its reopened read", async () =
   render(<VehicleDecisionActions {...props} />);
   const registration = within(screen.getByRole("region", { name: "car registration" }));
   const insurance = within(screen.getByRole("region", { name: "car insurance" }));
-  await user.click(registration.getByRole("button", { name: "View" }));
-  await user.click(insurance.getByRole("button", { name: "View" }));
+  await user.click(registration.getByRole("button", { name: "Open document" }));
+  await user.click(insurance.getByRole("button", { name: "Open document" }));
   await user.click(registration.getByRole("button", { name: "Hide" }));
   expect(registration.queryByRole("link")).toBeNull();
   expect(insurance.getByRole("link")).toBeInTheDocument();
-  await user.click(registration.getByRole("button", { name: "View" }));
+  await user.click(registration.getByRole("button", { name: "Open document" }));
   expect(await registration.findByRole("link")).toBeInTheDocument();
   expect(mocks.read).toHaveBeenCalledTimes(3);
 });
@@ -87,12 +93,12 @@ it("clears failed reads on hide and retries with a fresh audited read", async ()
   mocks.read.mockResolvedValueOnce({ error: "Evidence unavailable" });
   render(<VehicleDecisionActions {...props} />);
   const row = within(screen.getByRole("region", { name: "car registration" }));
-  await user.click(row.getByRole("button", { name: "View" }));
+  await user.click(row.getByRole("button", { name: "Open document" }));
   await row.findByText("Evidence unavailable");
   expect(row.queryByRole("link")).toBeNull();
   await user.click(row.getByRole("button", { name: "Hide" }));
   expect(row.queryByText("Evidence unavailable")).toBeNull();
-  await user.click(row.getByRole("button", { name: "View" }));
+  await user.click(row.getByRole("button", { name: "Open document" }));
   await row.findByRole("link");
   expect(mocks.read).toHaveBeenCalledTimes(2);
 });
@@ -117,7 +123,7 @@ it.each(["manual", "file", "submission", "vehicle"])(
       );
     const { rerender } = render(<VehicleDecisionActions {...props} />);
     let row = within(screen.getByRole("region", { name: "car registration" }));
-    await user.click(row.getByRole("button", { name: "View" }));
+    await user.click(row.getByRole("button", { name: "Open document" }));
     expect(row.getByRole("button", { name: "Opening…" })).toBeDisabled();
     if (reset === "manual") await user.click(row.getByRole("button", { name: "Hide" }));
     else
@@ -132,9 +138,9 @@ it.each(["manual", "file", "submission", "vehicle"])(
         />,
       );
     row = within(screen.getByRole("region", { name: "car registration" }));
-    expect(row.getByRole("button", { name: "View" })).toBeEnabled();
+    expect(row.getByRole("button", { name: "Open document" })).toBeEnabled();
     expect(row.queryByRole("link")).toBeNull();
-    await user.click(row.getByRole("button", { name: "View" }));
+    await user.click(row.getByRole("button", { name: "Open document" }));
     await act(async () => newResolve({ downloadUrl: "https://example.invalid/new" }));
     await act(async () => oldResolve({ downloadUrl: "https://example.invalid/old" }));
     expect(await row.findByRole("link")).toHaveAttribute("href", "https://example.invalid/new");
@@ -152,7 +158,7 @@ it.each(["timeout", "pagehide", "visibilitychange"])(
     try {
       render(<VehicleDecisionActions {...props} />);
       const row = within(screen.getByRole("region", { name: "car registration" }));
-      await act(async () => fireEvent.click(row.getByRole("button", { name: "View" })));
+      await act(async () => fireEvent.click(row.getByRole("button", { name: "Open document" })));
       expect(row.getByRole("link")).toBeInTheDocument();
       if (event === "timeout") act(() => vi.advanceTimersByTime(60000));
       else if (event === "pagehide") fireEvent(window, new Event("pagehide"));
@@ -165,7 +171,7 @@ it.each(["timeout", "pagehide", "visibilitychange"])(
         });
       }
       expect(row.queryByRole("link")).toBeNull();
-      expect(row.getByRole("button", { name: "View" })).toBeEnabled();
+      expect(row.getByRole("button", { name: "Open document" })).toBeEnabled();
     } finally {
       vi.useRealTimers();
     }
@@ -173,7 +179,7 @@ it.each(["timeout", "pagehide", "visibilitychange"])(
 );
 it("does not read empty collections and preserves the approved-car decision branch", () => {
   const { rerender } = render(<VehicleDecisionActions {...props} documentFileIds={{}} />);
-  expect(screen.queryByRole("button", { name: "View" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Open document" })).toBeNull();
   expect(mocks.read).not.toHaveBeenCalled();
   expect(screen.getByLabelText("Car approval valid until (Nigeria time)")).toBeRequired();
   for (const name of [
@@ -187,7 +193,7 @@ it("does not read empty collections and preserves the approved-car decision bran
   expect(screen.getByRole("button", { name: "Reject" })).toHaveAttribute("formnovalidate");
   rerender(<VehicleDecisionActions {...props} status="approved" />);
   expect(screen.getByText("Current approved car")).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "View" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Open document" })).toBeNull();
   expect(mocks.read).not.toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "Mark expired" })).toBeEnabled();
 });
@@ -198,9 +204,13 @@ it("times each vehicle document independently", async () => {
     render(<VehicleDecisionActions {...props} />);
     const registration = within(screen.getByRole("region", { name: "car registration" }));
     const insurance = within(screen.getByRole("region", { name: "car insurance" }));
-    await act(async () => fireEvent.click(registration.getByRole("button", { name: "View" })));
+    await act(async () =>
+      fireEvent.click(registration.getByRole("button", { name: "Open document" })),
+    );
     act(() => vi.advanceTimersByTime(45000));
-    await act(async () => fireEvent.click(insurance.getByRole("button", { name: "View" })));
+    await act(async () =>
+      fireEvent.click(insurance.getByRole("button", { name: "Open document" })),
+    );
     act(() => vi.advanceTimersByTime(15000));
     expect(registration.queryByRole("link")).toBeNull();
     expect(insurance.getByRole("link")).toBeInTheDocument();
@@ -219,7 +229,16 @@ it("keeps the staff-entered approval date after a failed approval instead of the
   render(<VehicleDecisionActions {...props} defaultValidUntil="2027-10-19T09:30" />);
   const validUntil = screen.getByLabelText("Car approval valid until (Nigeria time)");
   fireEvent.change(validUntil, { target: { value: "2027-06-01T08:00" } });
-  await user.click(screen.getByRole("button", { name: "Approve" }));
+  const owner = screen.getByLabelText("Owner matches");
+  const [registration] = screen.getAllByLabelText("Outcome");
+  await user.click(owner);
+  await user.selectOptions(registration!, "accepted");
+  const approve = screen.getByRole("button", { name: "Approve" });
+  expect(approve).toBeEnabled();
+  await user.click(approve);
+  expect(owner).toBeChecked();
+  expect(registration).toHaveValue("accepted");
+  expect((mocks.decide.mock.calls[0]![1] as FormData).get("intent")).toBe("approve");
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Complete every vehicle approval confirmation.",
   );
@@ -235,4 +254,46 @@ it.each(["expired", "rejected"])("requires new evidence for a terminal %s revisi
   expect(
     screen.getByText("This car needs a fresh document submission before it can be reviewed again."),
   ).toBeVisible();
+});
+
+it("opens a car document in one tap without an opener and keeps its tick when the page hides", async () => {
+  const user = userEvent.setup();
+  const tab = { opener: window, closed: false, location: { replace: vi.fn() }, close: vi.fn() };
+  vi.mocked(window.open).mockReturnValue(tab as unknown as Window);
+  const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+  mocks.read.mockImplementationOnce(async () => {
+    expect(tab.opener).toBeNull();
+    fireEvent(document, new Event("visibilitychange"));
+    return { downloadUrl: "https://example.invalid/current" };
+  });
+  render(<VehicleDecisionActions {...props} defaultValidUntil="2027-10-19T09:30" />);
+  const row = within(screen.getByRole("region", { name: "car registration" }));
+  await user.click(row.getByRole("button", { name: "Open document" }));
+  visibility.mockReturnValue("visible");
+  expect(window.open).toHaveBeenCalledWith("", "_blank");
+  expect(tab.location.replace).toHaveBeenCalledWith("https://example.invalid/current");
+  expect(row.queryByRole("link")).toBeNull();
+  const checklist = screen.getByRole("group", { name: "Opened in this visit" });
+  expect(checklist).toHaveTextContent("car registration: Opened");
+  expect(checklist).toHaveTextContent("car insurance: Not opened");
+  mocks.decide.mockResolvedValueOnce({ error: "Open each document above, then approve again." });
+  const approve = screen.getByRole("button", { name: "Approve" });
+  expect(approve).toBeEnabled();
+  await user.click(approve);
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Open each document above, then approve again.",
+  );
+  expect(checklist).toHaveTextContent("car registration: Opened");
+});
+
+it("closes the pre-opened tab when the audited read fails", async () => {
+  const tab = { opener: window, closed: false, location: { replace: vi.fn() }, close: vi.fn() };
+  vi.mocked(window.open).mockReturnValue(tab as unknown as Window);
+  mocks.read.mockResolvedValueOnce({ error: "Evidence unavailable" });
+  render(<VehicleDecisionActions {...props} />);
+  const row = within(screen.getByRole("region", { name: "car registration" }));
+  await userEvent.click(row.getByRole("button", { name: "Open document" }));
+  expect(row.getByRole("alert")).toHaveTextContent("Evidence unavailable");
+  expect(tab.close).toHaveBeenCalledOnce();
+  expect(tab.location.replace).not.toHaveBeenCalled();
 });

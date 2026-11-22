@@ -6,12 +6,12 @@
   },
   "critical": {
     "backend": {
-      "branch_covered": 6464,
-      "branch_percent": 84.6073,
-      "branch_total": 7640,
-      "line_covered": 30429,
-      "line_percent": 94.7885,
-      "line_total": 32102,
+      "branch_covered": 6548,
+      "branch_percent": 84.687,
+      "branch_total": 7732,
+      "line_covered": 30694,
+      "line_percent": 94.7989,
+      "line_total": 32378,
       "paths": [
         "app/__init__.py",
         "app/adapters/banks.py",
@@ -207,6 +207,7 @@
         "app/seeds/demo_authority.py",
         "app/seeds/driver_story.py",
         "app/seeds/history.py",
+        "app/seeds/identity.py",
         "app/seeds/live_car.py",
         "app/seeds/renewals.py",
         "app/seeds/rich.py",
@@ -265,6 +266,7 @@
         "app/services/earnings_release.py",
         "app/services/email_availability.py",
         "app/services/email_delivery.py",
+        "app/services/email_recipients.py",
         "app/services/email_templates.py",
         "app/services/evidence_verification.py",
         "app/services/exposure_scores.py",
@@ -322,12 +324,12 @@
       ]
     },
     "frontend": {
-      "branch_covered": 8463,
-      "branch_percent": 82.7839,
-      "branch_total": 10223,
-      "line_covered": 8109,
-      "line_percent": 89.4737,
-      "line_total": 9063,
+      "branch_covered": 8594,
+      "branch_percent": 82.9937,
+      "branch_total": 10355,
+      "line_covered": 8268,
+      "line_percent": 89.7233,
+      "line_total": 9215,
       "paths": [
         "frontend/src/app/admin/advertisers/[organizationId]/company/actions.ts",
         "frontend/src/app/admin/advertisers/[organizationId]/invite-actions.ts",
@@ -755,39 +757,28 @@
       ]
     }
   },
-  "eligible_inventory_sha256": "38968e0c6efabd858f0b5c407c5ede35f3d4dc620e582391485a4de45ef68796",
+  "eligible_inventory_sha256": "8af8a161aedc3b78607dbf0ca42dbb50dcfe638d7860fae9464b7b87cecf91f6",
   "global": {
-    "branch_covered": 14927,
-    "branch_percent": 83.5638,
-    "branch_total": 17863,
-    "line_covered": 38538,
-    "line_percent": 93.6184,
-    "line_total": 41165
+    "branch_covered": 15142,
+    "branch_percent": 83.7176,
+    "branch_total": 18087,
+    "line_covered": 38962,
+    "line_percent": 93.6744,
+    "line_total": 41593
   },
   "policy_sha256": "a9c855e61beb9ace90dcb0372073ee743405ba1a1736725acfe502a1cc36ce99",
   "refresh": {
     "inventory_changes": {
       "added": [
-        "app/api/v1/project_feedback.py",
-        "app/models/project_feedback.py",
-        "app/schemas/project_feedback.py",
-        "app/services/project_feedback.py",
-        "frontend/src/app/api/feedback/[feedbackId]/screenshot/route.ts",
-        "frontend/src/app/api/feedback/export/route.ts",
-        "frontend/src/app/api/feedback/route.ts",
-        "frontend/src/app/feedback/actions.ts",
-        "frontend/src/app/feedback/page-label.ts",
-        "frontend/src/app/feedback/page.tsx",
-        "frontend/src/components/feedback/actions.ts",
-        "frontend/src/components/feedback/capture.ts",
-        "frontend/src/components/feedback/feedback-widget.tsx"
+        "app/seeds/identity.py",
+        "app/services/email_recipients.py"
       ],
       "removed": []
     },
-    "previous_baseline_sha256": "a4e22446ee3bca36022866edb1fb4ffede166e2fd8c389dc79a42db9d7b06c4f",
-    "reason": "REQ-336 feedback button and open review page (D172, D173): inventory/policy change"
+    "previous_baseline_sha256": "edeb6925d28fbede46241afa2030ca85660218f12909cf8a3e1959b81cc3eae9",
+    "reason": "REQ-337/REQ-339 add-driver fixes and feedback button"
   },
-  "source_parent_sha": "dc44fc9d4d0808c28b5f177d6cd34363599a40cc",
-  "source_sha256": "0d7940365d0b24f4b54caa23ea035b1609204b2dbdb3f5685722c3cdf6850daa",
+  "source_parent_sha": "bb01c19f95ee315a9e9a515b5b5e26d376841d30",
+  "source_sha256": "bdb945e885c53daad5fd07186bf334fee9e9613fe0c453127cfab6322ee4d292",
   "version": 3
 }

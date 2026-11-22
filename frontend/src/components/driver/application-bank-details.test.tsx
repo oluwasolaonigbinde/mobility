@@ -109,25 +109,36 @@ it("shows the resolved name and binds confirmation until an account edit", async
   );
 });
 
-it("offers typed name only after the server reports unavailable", async () => {
-  vi.mocked(fetch).mockImplementation(async (url) =>
-    String(url).endsWith("/banks")
-      ? Response.json(banks)
-      : Response.json({
-          outcome: "unavailable",
-          bank_check_receipt: "fallback",
-        }),
-  );
-  render(<ApplicationBankDetails accessToken="private-code" />);
-  await fill();
-  expect(await screen.findByLabelText("Name on bank account")).toBeRequired();
-  expect(screen.queryByRole("button", { name: "This is me" })).toBeNull();
-});
+it.each(["unavailable", "refused"])(
+  "offers the private typed name after an authoritative %s outcome",
+  async (outcome) => {
+    vi.mocked(fetch).mockImplementation(async (url) =>
+      String(url).endsWith("/banks")
+        ? Response.json(banks)
+        : Response.json({
+            outcome,
+            bank_check_receipt: "fallback",
+          }),
+    );
+    const { container } = render(<ApplicationBankDetails accessToken="private-code" />);
+    await fill();
+    const name = await screen.findByLabelText("Name on bank account");
+    expect(name).toBeRequired();
+    expect(container.querySelector("input[name=bank_check_outcome]")).toHaveValue(outcome);
+    expect(container.querySelector("input[name=bank_check_receipt]")).toHaveValue("fallback");
+    expect(container.querySelector("input[name=account_name_confirmed]")).toHaveValue("false");
+    expect(name).toHaveAttribute("data-feedback-private");
+    expect(screen.getByRole("region", { name: "Bank details" })).toHaveAttribute(
+      "data-feedback-private",
+    );
+    expect(screen.queryByRole("button", { name: "This is me" })).toBeNull();
+  },
+);
 
 it.each([
   ["BANK_CHECK_INVALID", 422, "Check your bank and account details again"],
-  ["BANK_CHECK_LIMITED", 429, "Try checking your account again in a few minutes"],
-  ["BANK_CHECK_LIMITED", 503, "Try checking your account again in a few minutes"],
+  ["BANK_CHECK_LIMITED", 429, "Too many bank checks. Try again shortly."],
+  ["BANK_CHECK_LIMIT_UNAVAILABLE", 503, "Bank checks are paused for a moment. Try again shortly."],
 ])("does not offer typed name after %s (%s)", async (code, status, message) => {
   vi.mocked(fetch).mockImplementation(async (url) =>
     String(url).endsWith("/banks")
@@ -161,4 +172,38 @@ it("discards an in-flight name result after the bank or access code changes", as
     }),
   );
   await waitFor(() => expect(screen.queryByText(/STALE DRIVER/)).toBeNull());
+});
+
+it("shows a Lagos retry time based on Retry-After", async () => {
+  const now = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-11-21T08:58:30Z"));
+  vi.mocked(fetch).mockImplementation(async (url) =>
+    String(url).endsWith("/banks")
+      ? Response.json(banks)
+      : Response.json(
+          { error: { code: "BANK_CHECK_LIMITED" } },
+          { status: 429, headers: { "retry-after": "50" } },
+        ),
+  );
+  try {
+    render(<ApplicationBankDetails accessToken="private-code" />);
+    await fill();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Try again after 10:00");
+    expect(screen.queryByLabelText("Name on bank account")).toBeNull();
+  } finally {
+    now.mockRestore();
+  }
+});
+
+it("does not grant manual entry for an unrecognized outcome", async () => {
+  vi.mocked(fetch).mockImplementation(async (url) =>
+    String(url).endsWith("/banks")
+      ? Response.json(banks)
+      : Response.json({ outcome: "unknown", bank_check_receipt: "receipt" }),
+  );
+  const { container } = render(<ApplicationBankDetails accessToken="private-code" />);
+  await fill();
+  await waitFor(() =>
+    expect(container.querySelector("input[name=bank_check_outcome]")).toHaveValue("unknown"),
+  );
+  expect(screen.queryByLabelText("Name on bank account")).toBeNull();
 });

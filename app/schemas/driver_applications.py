@@ -4,11 +4,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.errors import AppError
 from app.models.driver_application import DriverApplicationStatus
 from app.schemas.driver_onboarding import (
     AdminPersonPayeeStageRead,
     AdminVehicleStageRead,
 )
+from app.services.contacts import normalize_phone_input
 from app.services.users import normalize_email
 
 
@@ -54,8 +56,14 @@ class DriverApplicationCreate(BaseModel):
 
     @field_validator("phone")
     @classmethod
-    def trim_optional_text(cls, value: str | None) -> str | None:
-        return _trim(value)
+    def normalize_optional_phone(cls, value: str | None) -> str | None:
+        value = _trim(value)
+        if value is None:
+            return None
+        try:
+            return normalize_phone_input(value)
+        except AppError as exc:
+            raise ValueError(exc.message) from exc
 
     @field_validator("country_code")
     @classmethod
@@ -90,7 +98,20 @@ class DriverApplicationAdminRead(BaseModel):
     vehicle: AdminVehicleStageRead = Field(default_factory=AdminVehicleStageRead)
 
 
+AdminApplicantStage = Literal[
+    "Waiting for ID and bank details",
+    "ID and bank to review",
+    "ID or bank sent back for changes",
+    "Waiting for car details",
+    "Car to review",
+    "Car sent back for changes",
+    "Ready for account setup",
+    "Added by staff",
+]
+
+
 class AdminApplicantRead(BaseModel):
+    stage: AdminApplicantStage
     kind: Literal["application", "staff_added"]
     id: UUID
     application_id: UUID | None

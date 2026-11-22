@@ -16,7 +16,8 @@ it("keeps the selected File for the upload caller and clears removal and form re
   expect(input.files?.[0]).toBe(file);
   expect(onFile).toHaveBeenLastCalledWith(file);
   expect(screen.getByText("licence.pdf")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Replace" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Replace" })).toHaveClass("h-11");
+  expect(screen.getByRole("button", { name: "Remove" })).toHaveClass("h-11");
   await userEvent.click(screen.getByRole("button", { name: "Remove" }));
   expect(input.files).toHaveLength(0);
   expect(onFile).toHaveBeenLastCalledWith(undefined);

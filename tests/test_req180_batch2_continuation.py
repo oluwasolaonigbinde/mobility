@@ -31,7 +31,11 @@ def test_continuation_email_resolves_current_step_and_body_capability(
     monkeypatch.setattr(driver_applications, "datetime", IssuanceClock)
     if approved:
         token, application, _ = _approved_applicant(
-            db_client, db_sessionmaker, settings, suffix="continue-approved"
+            db_client,
+            db_sessionmaker,
+            settings,
+            suffix="continue-approved",
+            domain="cardvert-check.ng",
         )
         # Approval replaces the original link; test the explicit recovery email.
         response = db_client.post(
@@ -40,7 +44,9 @@ def test_continuation_email_resolves_current_step_and_body_capability(
         assert response.status_code == 202
         token = _current_access_token(db_sessionmaker, settings, application)
     else:
-        token, response = _register(db_client, db_sessionmaker, settings, suffix="continue-new")
+        token, response = _register(
+            db_client, db_sessionmaker, settings, suffix="continue-new", domain="cardvert-check.ng"
+        )
         assert token not in response.text
     expected = "car" if approved else "details"
 

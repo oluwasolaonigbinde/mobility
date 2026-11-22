@@ -345,8 +345,9 @@ async def create_advertiser_business_notifications(
     type_key: NotificationType,
     event_key: str,
     payload: dict[str, Any],
+    send_email: bool = True,
 ) -> list[Notification]:
-    """Create in-app plus preference-governed email rows from one authoritative event key."""
+    """Create in-app and optionally preference-governed email for one event."""
     recipients = list(
         await session.scalars(
             select(User)
@@ -376,6 +377,8 @@ async def create_advertiser_business_notifications(
                 dedupe_key=f"{event_key}:in_app",
             )
         )
+        if not send_email:
+            continue
         email = await create_advertiser_email_notification(
             session,
             advertiser_organization_id=advertiser_organization_id,

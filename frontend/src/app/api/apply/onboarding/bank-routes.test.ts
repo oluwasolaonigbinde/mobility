@@ -8,12 +8,17 @@ const mocks = vi.hoisted(() => ({
   client: vi.fn(),
   get: vi.fn(),
   post: vi.fn(),
+  relay: false,
+}));
+vi.mock("@/lib/env", () => ({
+  env: () => ({ LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER: mocks.relay }),
 }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: mocks.session }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: mocks.client }));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.relay = false;
   mocks.session.mockResolvedValue(undefined);
   mocks.client.mockReturnValue({ GET: mocks.get, POST: mocks.post });
 });
@@ -27,7 +32,7 @@ it("makes the shared catalog public and uncacheable", async () => {
   expect(await response.json()).toEqual([{ code: "999992", name: "OPay" }]);
 });
 
-it.each(["resolved", "unavailable"])(
+it.each(["resolved", "unavailable", "refused"])(
   "relays the authoritative %s check and keeps the capability in the body",
   async (outcome) => {
     const payload = {
@@ -50,6 +55,7 @@ it.each(["resolved", "unavailable"])(
     );
     expect(mocks.post).toHaveBeenCalledWith("/api/v1/auth/driver-onboarding/account-name", {
       body: payload,
+      middleware: [expect.objectContaining({ onResponse: expect.any(Function) })],
     });
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(await response.json()).toEqual(checked);
@@ -93,4 +99,64 @@ it("preserves a denied account check as an error while redacting private backend
   expect(JSON.stringify(denied)).not.toMatch(
     /private|0123456789|account_number|application_access_token/,
   );
+});
+
+it.each([
+  [429, "BANK_CHECK_LIMITED", "300", "300"],
+  [429, "BANK_CHECK_LIMITED", "3600", "3600"],
+  [429, "BANK_CHECK_LIMITED", "3601", null],
+  [429, "BANK_CHECK_LIMITED", "0", null],
+  [429, "BANK_CHECK_LIMITED", "1.5", null],
+  [429, "BANK_CHECK_LIMITED", "secret", null],
+  [503, "BANK_CHECK_LIMIT_UNAVAILABLE", "1", "1"],
+  [503, "BANK_CHECK_LIMIT_UNAVAILABLE", "2", null],
+])(
+  "relays only the validated retry header for %s %s (%s)",
+  async (status, code, provided, expected) => {
+    mocks.post.mockImplementationOnce(async (_path, { middleware }) => {
+      middleware[0].onResponse({
+        response: new Response(null, {
+          status,
+          headers: { "retry-after": provided, "x-private": "example" },
+        }),
+      });
+      throw new ApiError(status, {
+        code,
+        message: "private",
+        details: { private: "example" },
+        request_id: "unrelated",
+      });
+    });
+    const response = await accountName(
+      new Request("http://localhost/api/apply/onboarding/account-name", {
+        method: "POST",
+        body: "{}",
+      }),
+    );
+    expect(response.status).toBe(status);
+    expect(response.headers.get("retry-after")).toBe(expected);
+    expect(response.headers.get("x-private")).toBeNull();
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({ error: { code } });
+  },
+);
+
+it.each([false, true])("forwards the edge client IP only when relay is %s", async (relay) => {
+  mocks.relay = relay;
+  mocks.post.mockResolvedValue({ data: { outcome: "resolved" } });
+  for (const clientIp of ["198.51.100.17", "198.51.100.18"]) {
+    const response = await accountName(
+      new Request("http://localhost/api/apply/onboarding/account-name", {
+        method: "POST",
+        headers: { "x-client-ip": clientIp, "x-forwarded-for": "192.0.2.55" },
+        body: "{}",
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(mocks.post).toHaveBeenLastCalledWith("/api/v1/auth/driver-onboarding/account-name", {
+      body: {},
+      middleware: [expect.objectContaining({ onResponse: expect.any(Function) })],
+      ...(relay ? { headers: { "X-Client-IP": clientIp } } : {}),
+    });
+  }
 });

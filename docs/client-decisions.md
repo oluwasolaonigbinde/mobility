@@ -475,6 +475,21 @@ flagged after seven inactive days (Q20).
 
 ### Drivers and vehicles
 
+**21 November update (REQ-337, D175):** Apply accepts a typed account name after a
+signed genuine lookup refusal or provider unavailability. Application records mark
+the name unconfirmed. Staff see that status and confirm the account with a small
+test payment before approval under D89. The reference field asks for the reference
+from that payment and shows the bank and account name in the private review area.
+Bank checks use five attempts per application in 15 minutes and 30 per IP in an
+hour, independent of Apply.
+
+The staff list shows the current review stage through account setup. Add driver
+offers driver logins without profiles. Phone entry accepts Nigerian local numbers
+and international numbers. Setup carries the application phone into Profile as
+unverified when it can be normalized. Staff review checklists give guidance, and
+decision and setup actions show their results. A new setup send supersedes the old
+link under D106/D131.
+
 **Bank verification update (D89, REQ-187, 18 October):** When automatic account-name
 checking is unavailable, staff confirm the new driver's account with a small test
 transfer and type its bank reference. Any trimmed nonempty reference up to 512
@@ -493,7 +508,7 @@ creating a login does not approve documents or activate driving. Drivers upload 
 approved by an admin before working (Q13); approved accounts are activated by
 the driver after admin authorisation (D28). Required: licence, vehicle
 registration, insurance, NIN, vehicle photos, a verified bank account and a
-legally approved driver agreement and consent (Q26). The driver reads the agreement and gives one required in-app acceptance, replacing the signed-file upload (D77, REQ-158). The application records its version and acceptance time; staff see the version/date. The displayed version-1 wording is internally a draft awaiting Terrax's lawyer under REQ-032; screens use normal agreement wording. Apply and renewals share one searchable bank picker, with popular banks first and provider bank codes or a built-in fallback (D78, REQ-159). Apply checks the account name through the adapter and asks the driver to confirm it; an unavailable provider permits a typed name. Staff bank verification and the first-payout-to-a-new-account rule (D40b) remain. In the pilot the vehicle
+legally approved driver agreement and consent (Q26). The driver reads the agreement and gives one required in-app acceptance, replacing the signed-file upload (D77, REQ-158). The application records its version and acceptance time; staff see the version/date. The displayed version-1 wording is internally a draft awaiting Terrax's lawyer under REQ-032; screens use normal agreement wording. Apply and renewals share one searchable bank picker, with popular banks first and provider bank codes or a built-in fallback (D78, REQ-159). Apply checks the account name through the adapter and asks the driver to confirm a resolved name (typed-name fallback follows D175 above). Staff bank verification and the first-payout-to-a-new-account rule (D40b) remain. In the pilot the vehicle
 is registered to its driver, who is the payee; no fleet owners (Q23). Vehicle
 approval ends on an admin-entered date (D31). The **pilot is car-only;
 motorcycles deferred** until the owner or client raises them again (Q19, D88,
@@ -523,6 +538,7 @@ renewal periods stay unset (D69, REQ-137). Mark expired retains the recorded out
 - **2026-10-20** — Owner-approved pre-push fixes (REQ-208): the approved-driver account set-up link lasts 24 hours instead of 30 minutes (D106), and Apply no longer needs the `DRIVER_REGISTRATION_ENABLED` switch, which a fresh deployment left off. Rate limits, expiry and single use are unchanged.
 - **2026-10-19** — Owner follow-up to audit D8 (REQ-195): the continuation link now returns the step's state (needed, in review or changes needed) and a plain reason from the existing applicant wording. Previously it returned only the step, so a rejected or expired applicant saw no reason. Authority and expiry are unchanged.
 - **2026-10-18** — D94 / REQ-192 replaces the pasted application code with a 24-hour link to the current step, preserving capability authority and renewal behavior.
+- **2026-11-21** — Owner approved REQ-337 after the 19 November phone walkthrough. D175 extends the D78 unavailable-only fallback to genuine refusals and separates bank checks from the Apply IP bucket. The former bank cap was three checks per application per hour; Apply stored raw optional phones without a phone version. The owner approved the existing D89 test-payment process with clearer staff wording and the existing D106/D131 setup resend authority. Backend built in `c40ee896`, `841274c7` and `b4069458`. The staff bank-check date comes from the current bank version verification. Integrated delivery is in progress.
 - **2026-10-18** — Owner accepts audit D9: staff may confirm an account by a small test transfer and type any bank reference (D89, REQ-187). Previously the backend demanded 32–512 bytes with no spaces/high-entropy syntax, and the form required 16 characters. New normalized 1–512-character references retain exact-version verification and first manual payout. Local implementation and specialist verification are in progress; no transfer or provider action authorized.
 
 - **2026-10-12** - Owner chose in-app versioned agreement/privacy acceptance in place of a signed-file upload, plus the shared searchable bank picker and confirmed adapter account-name check with unavailable-provider typed-name fallback (D77/D78, REQ-158/159). The previous signed agreement was a required KYC file and Apply asked for a typed 3-digit bank code and account name. Legal wording remains a draft internally (REQ-032); existing payout authority remains. Built in `a349c2e5`, with final repairs/evidence in `9e7f6147`; non-squash master merge `f77870fd`. Final local verification and independent reviews PASS. Under the one-off REQ-160/D79 exception, full CI/source-bound coverage evaluation is deferred until after Waves 3/4; the accepted integrated run failed, not green.
@@ -736,6 +752,13 @@ company-wide visibility, [REQ-024](requests.md) erasure.
 
 ### Notifications and contact
 
+**21 November update (D176, REQ-337):** Dispatch suppresses reserved recipient
+domains and the specified demo business domains and staff addresses before SMTP.
+The owner confirmed on 20 November that the issuer Gmail address is a real inbox
+and can receive mail. Recipient and message SMTP 5xx replies are terminal.
+Login, sender, 4xx and transport failures use bounded retries; SMTP replies store
+the numeric code. The demo seed drains due report windows with mail suppression.
+
 **Historical 7 Oct demo correction (D73, REQ-145; superseded 20 Oct by D117):** Nigerian-format synthetic driver phones; the owner’s +2347068369842 is the temporary local/preview Terrax destination. The PM’s real preview WhatsApp number is [REQ-143](requests.md). Live operator/wording gates remain.
 
 
@@ -772,6 +795,7 @@ runtime verification and independent security checkpoint PASS (gpt-6.1-sol/high)
 Built locally in `f85ffbb8`; final integrated delivery review and merge remain pending.
 
 **History:**
+- **2026-11-21** — Owner approved D176 after seeded mail reached preview dispatch and permanent refusals retried. Previously seed-session suppression did not cover subsequent worker work, recipient refusals shared a generic permanent outcome, and other SMTP failures retried without the reply code. Backend built in `c4c7a42f`.
 - **2026-10-24** — Owner (D132, REQ-234): weekly and final reports send a report-ready notice. Previously reports appeared in the portal with no notice.
 - **2026-10-20** — D117 supersedes operator provisioning and signed email receipts, using the client support number and fixed existing security values; REQ-216. The previous rule required a named approved operator and approval reference for live phone verification.
 - **2026-10-07** — Owner Claude polish review requires sentence-case notification titles/body in the body font, retaining capitals for small labels (REQ-139); notification content and access checks are unchanged. Built in `78ad5580` and real integration `21239a6d`.
@@ -941,7 +965,7 @@ since 18 Nov 2026.
 [REQ-043](requests.md) domain connection; [REQ-033](requests.md) which address (for example app.terraxmedia.com); [REQ-032](requests.md) residency and legal prerequisites.
 
 **History:**
-- **2026-11-20** — Owner switched the map to MapTiler ("lets set up maptiler next") and supplied the MapTiler account (D174, REQ-338). Previously the map was the free OpenFreeMap style, which needed no account or key (D170).
+- **2026-11-20** — Owner switched the map to MapTiler ("lets set up maptiler next") and supplied the MapTiler account (D174, REQ-338). Previously the map was the free OpenFreeMap style, which needed no account or key (D170). Built in `aea85d2d`.
 - **2026-11-19** — Owner chose the free OpenFreeMap street map ("Yes, free map", 18 Nov) and approved replacing MapTiler everywhere (D170, REQ-335). Previously maps were to come from MapTiler, which needs an account and a restricted key (D44).
 - **2026-11-18** — Preview deployed on the shared Contabo VPS from master `9485d03d` with capped memory. Release-template faults it found are logged as REQ-330, Built in `e7b027de`. Built on the server only; no repo commit.
 - **2026-11-17** — Owner: preview on the owner's Contabo VPS until a Hetzner CX33 is available (REQ-329). Previously there was no hosted preview, and Hetzner had no account access.

@@ -3,11 +3,12 @@
 from datetime import datetime, time, timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy import cast, func, literal, select, text, union_all
+from sqlalchemy import String, cast, func, literal, select, text, union_all
 from sqlalchemy.dialects.postgresql import JSONB
 
 from app.core.errors import AppError
 from app.core.outbox_enqueue import pending_job
+from app.models.audit import AuditEvent
 from app.models.campaign import Campaign
 from app.models.campaign_report import CampaignReport
 from app.models.measurement import MeasurementRun
@@ -90,6 +91,22 @@ async def get_report(session, *, report_id, actor_user_id, admin):
     if report is None:
         raise not_found()
     return await authorize_report(session, report=report, actor_user_id=actor_user_id, admin=admin)
+
+
+SEED_CAMPAIGN_CREATED = "system.demo_seed.campaign_created"
+
+
+def is_seed_campaign(campaign_id):
+    entity_id = str(campaign_id) if isinstance(campaign_id, UUID) else cast(campaign_id, String)
+    return (
+        select(AuditEvent.id)
+        .where(
+            AuditEvent.action == SEED_CAMPAIGN_CREATED,
+            AuditEvent.entity_type == "campaign",
+            AuditEvent.entity_id == entity_id,
+        )
+        .exists()
+    )
 
 
 async def create_report(

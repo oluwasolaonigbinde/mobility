@@ -52,6 +52,8 @@ from app.schemas.trips import (
     LocationPingCreate,
     TripEvidenceManifestEntryCreate,
 )
+from app.seeds.identity import record_seed_identity, require_seed_identity, seed_identity_exists
+from app.services.campaign_reports import is_seed_campaign
 from app.services.campaign_zones import geometry_expression, validate_geometry_with_postgis
 from app.services.impressions import estimate_trip_impressions
 from app.services.payouts.engine import calculate_trip_payout
@@ -201,6 +203,7 @@ async def _upsert_driver(session: AsyncSession, *, index: int, settings: Setting
     password = F7_DRIVER_PASSWORDS[email]
     validate_password_length(password, settings)
     user = await session.scalar(select(User).where(User.email == normalize_email(email)))
+    created = user is None
     if user is None:
         user = User(
             email=normalize_email(email),
@@ -214,11 +217,14 @@ async def _upsert_driver(session: AsyncSession, *, index: int, settings: Setting
     else:
         if user.role != UserRole.DRIVER.value:
             raise AppError("F7_SEED_USER_CONFLICT", f"{email} is not a driver")
+        await require_seed_identity(session, "user", user.id)
         user.full_name = DRIVER_NAMES[index - 1]
         user.status = UserStatus.ACTIVE.value
         _set_known_credential_flag(user)
     user.phone = DEMO_DRIVER_PHONE_NUMBERS[email]
     await session.flush()
+    if created:
+        await record_seed_identity(session, "user", user.id)
     if "demo_seed_user_ids" in session.info:
         session.info["demo_seed_user_ids"].add(user.id)
 
@@ -293,6 +299,7 @@ async def _upsert_campaign(
         select(Campaign).where(
             Campaign.organization_id == organization.id,
             Campaign.name == name,
+            is_seed_campaign(Campaign.id),
         )
     )
     if campaign is None:
@@ -970,7 +977,8 @@ async def build_rich_seed(
     existing_trip_count = int(
         await session.scalar(
             select(func.count(TripSession.id)).where(
-                TripSession.trip_metadata["seed_version"].as_string() == F7_SEED_VERSION
+                TripSession.trip_metadata["seed_version"].as_string() == F7_SEED_VERSION,
+                is_seed_campaign(TripSession.campaign_id),
             )
         )
         or 0
@@ -1128,7 +1136,9 @@ async def ensure_portal_people(session, *, graph, settings):
         ("Ayodele Bakare", "ayodele.bakare@demo.mobility.local", "approved"),
         ("Suleiman Idris", "suleiman.idris@demo.mobility.local", "rejected"),
     ):
-        existing_person = await session.scalar(select(User).where(User.email == email))
+        existing_person = await session.scalar(
+            select(User).where(User.email == email, seed_identity_exists("user", User.id))
+        )
         person = await upsert_user(
             session,
             email=email,
@@ -1264,7 +1274,10 @@ async def _ensure_advertiser_directory(session, *, settings):
             settings=settings,
         )
         organization = await session.scalar(
-            select(AdvertiserOrganization).where(AdvertiserOrganization.name == company)
+            select(AdvertiserOrganization).where(
+                AdvertiserOrganization.name == company,
+                seed_identity_exists("organization", AdvertiserOrganization.id),
+            )
         )
         if organization is None:
             organization = AdvertiserOrganization(
@@ -1278,6 +1291,7 @@ async def _ensure_advertiser_directory(session, *, settings):
             )
             session.add(organization)
             await session.flush()
+            await record_seed_identity(session, "organization", organization.id)
         await upsert_membership(
             session,
             organization=organization,
@@ -1290,15 +1304,27 @@ async def _ensure_advertiser_directory(session, *, settings):
 async def business_owner(session, campaign_name):
     company = campaign_name.split(" — ")[0]
     organization = await session.scalar(
-        select(AdvertiserOrganization).where(AdvertiserOrganization.name == company)
+        select(AdvertiserOrganization).where(
+            AdvertiserOrganization.name == company,
+            seed_identity_exists("organization", AdvertiserOrganization.id),
+        )
     )
     from app.models.organization import OrganizationMembership
 
+    if organization is None:
+        raise ValueError(f"Missing seed-owned organisation for {company}")
+    email = (
+        "advertiser@demo.mobility.local"
+        if company == "Marula Kitchens"
+        else next(contact_email for name, _, contact_email in BUSINESS_CONTACTS if name == company)
+    )
     person = await session.scalar(
         select(User)
         .join(OrganizationMembership)
         .where(
             OrganizationMembership.organization_id == organization.id,
+            User.email == email,
+            seed_identity_exists("user", User.id),
             OrganizationMembership.role == "advertiser",
             OrganizationMembership.status == "active",
         )
@@ -1615,7 +1641,13 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
     for name, state, description in names:
         organization, advertiser = await business_owner(session, name)
         key = uuid5(NAMESPACE_URL, f"cardvert-preview:campaign:{name}")
-        campaign = await session.get(Campaign, key)
+        campaign = await session.scalar(
+            select(Campaign).where(
+                Campaign.id == key,
+                Campaign.organization_id == organization.id,
+                is_seed_campaign(Campaign.id),
+            )
+        )
         if campaign is None:
             # Q16: Wuse Weekend Catering's accepting drivers' cars run Abuja Lunch
             # Routes, so it starts the day after that ends.
@@ -1824,7 +1856,9 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
                     },
                     dedupe_key=f"cardvert-preview:notice:{i}:{j}",
                 )
-    for paused in await session.scalars(select(Campaign).where(Campaign.status == "paused")):
+    for paused in await session.scalars(
+        select(Campaign).where(Campaign.status == "paused", is_seed_campaign(Campaign.id))
+    ):
         key = uuid5(NAMESPACE_URL, f"cardvert-preview:pause:{paused.id}")
         if not await session.get(AuditEvent, key):
             session.add(
@@ -1873,7 +1907,10 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
     )
 
     campaign = await session.scalar(
-        select(Campaign).where(Campaign.name == "Marula Kitchens — Wuse Weekend Catering")
+        select(Campaign).where(
+            Campaign.name == "Marula Kitchens — Wuse Weekend Catering",
+            is_seed_campaign(Campaign.id),
+        )
     )
     for email, accept in (
         ("driver@demo.mobility.local", False),
@@ -1882,7 +1919,11 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
         ("yewande.afolabi@demo.mobility.local", True),
         ("obinna.onyekachi@demo.mobility.local", True),
     ):
-        person = await session.scalar(select(User).where(User.email == email))
+        person = await session.scalar(
+            select(User).where(User.email == email, seed_identity_exists("user", User.id))
+        )
+        if person is None:
+            raise ValueError(f"Missing seed-owned driver for {email}")
         profile = await session.scalar(
             select(DriverProfile).where(DriverProfile.user_id == person.id)
         )
@@ -2004,6 +2045,7 @@ async def ensure_completed_report_contributors(session, *, graph, settings):
     campaigns = await session.scalars(
         select(Campaign).where(
             Campaign.campaign_metadata["driver_story"].as_boolean() == True,  # noqa: E712
+            is_seed_campaign(Campaign.id),
             # S23 maps former completed campaigns to stored active. Keep the
             # original active/finished cohort; paused campaigns were excluded.
             Campaign.status == "active",
@@ -2107,17 +2149,16 @@ async def ensure_completed_report_contributors(session, *, graph, settings):
 
 
 async def ensure_portal_reports(session, *, graph, settings):
+    from app.services.campaign_reports import create_report
+
     campaigns = list(
         await session.scalars(
             select(Campaign).where(
-                Campaign.end_at <= utc_now(), Campaign.status.in_(("active", "paused"))
+                is_seed_campaign(Campaign.id),
+                ((Campaign.end_at <= utc_now()) & Campaign.status.in_(("active", "paused")))
+                | Campaign.id.in_((graph.campaign.id, graph.rich.campaigns[0].id))
+                | (Campaign.name == "Marula Kitchens — Wuse Lunch Rush"),
             )
-        )
-    )
-    campaigns += [graph.campaign, graph.rich.campaigns[0]]
-    campaigns += list(
-        await session.scalars(
-            select(Campaign).where(Campaign.name == "Marula Kitchens — Wuse Lunch Rush")
         )
     )
     for campaign in campaigns:
@@ -2126,7 +2167,6 @@ async def ensure_portal_reports(session, *, graph, settings):
         ):
             continue
         from app.adapters.storage import build_storage_provider
-        from app.services.campaign_reports import create_report
         from app.services.disclosure import _canonical_hash, after_day, midnight
         from app.services.report_scheduling import WEEK, latest_due_window
 
@@ -2269,8 +2309,9 @@ async def ensure_portal_payouts(session, *, graph, staff, settings):
         PayoutBatch,
         PayoutLineReconciliationEvent,
     )
-    from app.models.payee import Payee, PayeeBankAccount, PayeeBankAccountVersion, PayeeVersion
+    from app.models.payee import PayeeVersion
     from app.models.payout import EarningsLedgerEntry
+    from app.seeds.driver_story import select_seed_bank_version
     from app.services.disbursements import build_frozen_payout_line, freeze_batch_instruction_set
 
     # Keep Finance's reserved/blocked examples off the settled driver walkthrough.
@@ -2293,16 +2334,13 @@ async def ensure_portal_payouts(session, *, graph, staff, settings):
         # A zero-density fixture deliberately omits this driver's work history.
         await _ensure_payout_review_history(session, graph=graph, staff=staff, settings=settings)
         return ()
+    account = await select_seed_bank_version(session, driver_profile_id=payout_profile.id)
+    if account is None:
+        return tuple(entry.id for entry in entries[:3])
+    version = await session.get(PayeeVersion, account.payee_version_id)
     entries = await _prepare_portal_earnings(session, entries, settings)
     if len(entries) < 3:
         raise ValueError("The Finance demo driver needs three released trips")
-    payee = await session.scalar(select(Payee).where(Payee.subject_id == payout_profile.id))
-    version = await session.scalar(select(PayeeVersion).where(PayeeVersion.payee_id == payee.id))
-    account = await session.scalar(
-        select(PayeeBankAccountVersion)
-        .join(PayeeBankAccount)
-        .where(PayeeBankAccount.payee_id == payee.id)
-    )
     now = datetime.now(UTC)
     for index, state in ((0, "completed"), (2, "reserved")):
         key = uuid5(NAMESPACE_URL, f"cardvert-preview:payout:{index}")
@@ -2486,7 +2524,9 @@ async def ensure_reporting_live_car(
 
     now = (now or utc_now()).replace(microsecond=0)
     if (
-        campaign_display_status(campaign.status, campaign.end_at, now=now) != "active"
+        assignment.campaign_id != campaign.id
+        or not await session.scalar(select(is_seed_campaign(campaign.id)))
+        or campaign_display_status(campaign.status, campaign.end_at, now=now) != "active"
         or (campaign.start_at and campaign.start_at > now)
         or assignment.status != "active"
     ):
@@ -2494,6 +2534,7 @@ async def ensure_reporting_live_car(
     existing = await session.scalar(
         select(TripSession).where(
             TripSession.assignment_id == assignment.id,
+            TripSession.campaign_id == campaign.id,
             TripSession.trip_metadata["seed_version"].as_string() == LIVE_CAR_VERSION,
             TripSession.status == "active",
         )
@@ -2578,6 +2619,7 @@ async def ensure_reporting_contributors(
         select(Campaign).where(
             Campaign.organization_id == graph.organization.id,
             Campaign.name == campaign_name,
+            is_seed_campaign(Campaign.id),
         )
     )
     for index in range(3):

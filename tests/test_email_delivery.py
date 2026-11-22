@@ -1,4 +1,5 @@
 import asyncio
+import smtplib
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -11,6 +12,7 @@ from app.adapters.messaging import (
     EmailSendError,
     EmailSubmission,
 )
+from app.adapters.messaging.email import SmtpEmailAdapter
 from app.core.config import Settings
 from app.models.driver_application import DriverApplicationStatus
 from app.models.notification import (
@@ -64,7 +66,9 @@ def test_driver_offer_email_rechecks_ownership_and_deduplicates(db_sessionmaker)
     from app.services.notifications import create_driver_business_notification, create_notification
 
     admin = create_test_user(db_sessionmaker, email="offer-admin@example.test")
-    driver = create_test_user(db_sessionmaker, email="offered@example.test", role=UserRole.DRIVER)
+    driver = create_test_user(
+        db_sessionmaker, email="offered@cardvert-check.ng", role=UserRole.DRIVER
+    )
     other = create_test_user(
         db_sessionmaker, email="other-offer@example.test", role=UserRole.DRIVER
     )
@@ -125,10 +129,10 @@ def test_driver_offer_email_rechecks_ownership_and_deduplicates(db_sessionmaker)
     asyncio.run(run())
 
 
-async def _seed_advertiser(sessionmaker, *, enabled: bool | None = True):
+async def _seed_advertiser(sessionmaker, *, enabled: bool | None = True, email=None):
     async with sessionmaker() as session:
         user = User(
-            email=f"advertiser-{uuid4()}@example.test",
+            email=email or f"advertiser-{uuid4()}@cardvert-check.ng",
             password_hash="hash",
             full_name="Advertiser",
             role=UserRole.ADVERTISER,
@@ -345,7 +349,7 @@ def test_driver_onboarding_email_is_not_delivered_after_terminal_application(
                 session,
                 DriverApplicationCreate(
                     service_city="Abuja",
-                    email=f"terminal-email-{terminal_status.value}@example.test",
+                    email=f"terminal-email-{terminal_status.value}@cardvert-check.ng",
                     full_name="Terminal Email Applicant",
                 ),
             )
@@ -1327,3 +1331,121 @@ def test_email_action_links_refuse_credential_or_cross_origin_urls(settings, ori
     settings.public_origin = origin
     with pytest.raises(ValueError, match="^email_public_origin_missing$"):
         public_action_url(settings, path)
+
+
+@pytest.mark.parametrize(
+    "recipient",
+    [
+        "seed@demo.mobility.local",
+        "seed@maplecourtyard.example",
+        "accounts@marulakitchens.ng",
+        "HAUWA.SANI@TERRAXMEDIA.COM",
+        "seed@example.com",
+    ],
+)
+def test_undeliverable_email_is_terminal_before_attempt(db_sessionmaker, recipient):
+    async def run():
+        user_id, org_id = await _seed_advertiser(db_sessionmaker, email=recipient)
+        async with db_sessionmaker() as session:
+            notice = await create_advertiser_email_notification(
+                session,
+                advertiser_organization_id=org_id,
+                recipient_user_id=user_id,
+                type_key=NotificationType.FRAUD_HOLD_RAISED,
+                payload={},
+                dedupe_key="seed-recipient",
+            )
+            await session.commit()
+
+        adapter = RecordingEmailAdapter()
+        assert (
+            await process_email_notification(
+                db_sessionmaker,
+                notification_id=notice.id,
+                settings=_settings(),
+                email_adapter=adapter,
+                now=datetime.now(UTC),
+            )
+            == "skipped"
+        )
+        assert adapter.messages == []
+        async with db_sessionmaker() as session:
+            stored = await session.get(Notification, notice.id)
+            assert stored.status == "failed"
+            assert stored.last_error_code == "email_recipient_undeliverable"
+            assert stored.attempt_count == 0 and stored.next_attempt_at is None
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "failure,code,retry",
+    [
+        (smtplib.SMTPRecipientsRefused({"driver": (550, b"private")}), "email_smtp_550", False),
+        (smtplib.SMTPDataError(554, b"private"), "email_smtp_554", False),
+        (smtplib.SMTPAuthenticationError(535, b"private"), "email_smtp_535", True),
+        (smtplib.SMTPSenderRefused(553, b"private", "private"), "email_smtp_553", True),
+        (smtplib.SMTPDataError(421, b"private"), "email_smtp_421", True),
+        (smtplib.SMTPRecipientsRefused({"driver": (450, b"private")}), "email_smtp_450", True),
+        (TimeoutError("private"), "email_provider_unavailable", True),
+    ],
+)
+def test_smtp_codes_store_retry_or_terminal_result(
+    db_sessionmaker, monkeypatch, failure, code, retry
+):
+    class FakeSmtp:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def login(self, *args):
+            if isinstance(failure, smtplib.SMTPAuthenticationError):
+                raise failure
+
+        def send_message(self, message):
+            raise failure
+
+    monkeypatch.setattr(smtplib, "SMTP", FakeSmtp)
+
+    async def run():
+        user_id, org_id = await _seed_advertiser(db_sessionmaker)
+        async with db_sessionmaker() as session:
+            notice = await create_advertiser_email_notification(
+                session,
+                advertiser_organization_id=org_id,
+                recipient_user_id=user_id,
+                type_key=NotificationType.FRAUD_HOLD_RAISED,
+                payload={},
+                dedupe_key="smtp-failure",
+            )
+            await session.commit()
+
+        settings = _settings(
+            email_sender_address="sender@cardvert-check.ng",
+            email_smtp_host="localhost",
+            email_smtp_username="test-mail-user",
+            email_smtp_starttls=False,
+        )
+        now = datetime.now(UTC)
+        assert await process_email_notification(
+            db_sessionmaker,
+            notification_id=notice.id,
+            settings=settings,
+            email_adapter=SmtpEmailAdapter(settings),
+            now=now,
+        ) == ("retry_scheduled" if retry else "failed")
+        async with db_sessionmaker() as session:
+            stored = await session.get(Notification, notice.id)
+            assert stored.attempt_count == 1
+            assert stored.last_error_code == code
+            if retry:
+                assert stored.status == "pending" and stored.next_attempt_at > now
+            else:
+                assert stored.status == "failed" and stored.next_attempt_at is None
+
+    asyncio.run(run())

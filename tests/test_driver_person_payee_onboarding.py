@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import datetime
 from uuid import UUID, uuid4
 
 import pytest
@@ -8,18 +9,23 @@ from httpx import Response
 from sqlalchemy import func, select
 from test_stored_files import FakeStorageProvider
 
-from app.adapters.banks import BankAdapter
+from app.adapters.banks import BankAdapter, BankLookupRefused
 from app.adapters.crypto import EnvelopeCryptoProvider
 from app.adapters.storage import ObjectMetadata
-from app.api.v1.dependencies import get_registration_rate_limiter, get_storage_provider
+from app.api.v1.dependencies import (
+    get_bank_adapter,
+    get_bank_check_rate_limiter,
+    get_registration_rate_limiter,
+    get_storage_provider,
+)
 from app.core.config import get_settings
 from app.core.errors import AppError
-from app.core.rate_limit import InMemoryRegistrationRateLimiter
+from app.core.rate_limit import InMemoryRegistrationRateLimiter, RateLimitDecision
 from app.models.audit import AuditEvent
 from app.models.driver import DriverProfile
 from app.models.driver_application import DriverApplication, DriverApplicationAccessToken
 from app.models.kyc import DriverKycReviewDecision, DriverKycSubmission
-from app.models.payee import PayeeBankAccountVersion
+from app.models.payee import PayeeBankAccountPayoutVerification, PayeeBankAccountVersion
 from app.models.stored_file import FileScanStatus, FileUploadIntent, StoredFile
 from app.models.user import UserRole
 from app.schemas.driver_applications import DriverApplicationCreate
@@ -112,7 +118,15 @@ def _current_submission_id(maker, profile_id):
     return str(asyncio.run(fetch()))
 
 
-def _register(db_client, db_sessionmaker, settings, *, suffix: str) -> tuple[str, Response]:
+def _register(
+    db_client, db_sessionmaker, settings, *, suffix: str, domain: str = "example.com"
+) -> tuple[str, Response]:
+    class AllowBankChecks:
+        async def reserve(self, ip, application_id):
+            return RateLimitDecision(allowed=True)
+
+    db_client.app.dependency_overrides[get_bank_check_rate_limiter] = AllowBankChecks
+    email = f"person-payee-{suffix}@{domain}"
     db_client.app.dependency_overrides[get_settings] = lambda: settings
     db_client.app.dependency_overrides[get_registration_rate_limiter] = lambda: (
         InMemoryRegistrationRateLimiter()
@@ -120,7 +134,7 @@ def _register(db_client, db_sessionmaker, settings, *, suffix: str) -> tuple[str
     response = db_client.post(
         "/api/v1/auth/register-driver",
         json={
-            "email": f"person-payee-{suffix}@example.com",
+            "email": email,
             "full_name": "Person Payee Driver",
             "service_city": "Abuja",
             "country_code": "NG",
@@ -131,9 +145,7 @@ def _register(db_client, db_sessionmaker, settings, *, suffix: str) -> tuple[str
     async def access_token() -> str:
         async with db_sessionmaker() as session:
             application = await session.scalar(
-                select(DriverApplication).where(
-                    DriverApplication.email == f"person-payee-{suffix}@example.com"
-                )
+                select(DriverApplication).where(DriverApplication.email == email)
             )
             assert application is not None
             access = await session.scalar(
@@ -824,11 +836,25 @@ def test_rejected_or_expired_submission_resubmits_as_new_truthful_version(
     reference, _ = _register(db_client, db_sessionmaker, settings, suffix=suffix)
     application = _application(db_sessionmaker, email=f"person-payee-{suffix}@example.com")
     files = _seed_clean_kyc_files(db_sessionmaker, email=f"person-payee-{suffix}@example.com")
+
+    class RefusedBank(BankAdapter):
+        async def resolve(self, bank_code, account_number):
+            raise BankLookupRefused("Could not resolve")
+
+    db_client.app.dependency_overrides[get_bank_adapter] = lambda: RefusedBank()
     first_request = uuid4()
-    first = db_client.post(
-        "/api/v1/auth/driver-onboarding/person-payee",
-        json=_person_payee_payload(reference, files, db_client, request_id=first_request),
+    first_body = _person_payee_payload(reference, files, db_client, request_id=first_request)
+    capture = "/api/v1/auth/driver-onboarding/person-payee"
+    first = db_client.post(capture, json=first_body)
+    replay = db_client.post(capture, json=first_body)
+    assert replay.status_code == 201, replay.text
+    assert replay.json()["submission_id"] == first.json()["submission_id"]
+    # PyJWT accepts an extra Base64URL padding byte on the signature segment.
+    reencoded_receipt = first_body["bank_check_receipt"] + "="
+    reencoded_replay = db_client.post(
+        capture, json={**first_body, "bank_check_receipt": reencoded_receipt}
     )
+    assert reencoded_replay.status_code == 201, reencoded_replay.text
     admin = create_test_user(
         db_sessionmaker,
         email=f"person-payee-{suffix}-admin@example.com",
@@ -845,10 +871,13 @@ def test_rejected_or_expired_submission_resubmits_as_new_truthful_version(
         },
     )
     reference = _current_access_token(db_sessionmaker, settings, application)
-    second = db_client.post(
-        "/api/v1/auth/driver-onboarding/person-payee",
-        json=_person_payee_payload(reference, files, db_client),
-    )
+    second_body = _person_payee_payload(reference, files, db_client)
+    assert second_body["bank_check_receipt"] != first_body["bank_check_receipt"]
+    denied = db_client.post(capture, json={**second_body, "bank_check_receipt": reencoded_receipt})
+    assert denied.status_code == 422, denied.text
+    assert denied.json()["error"]["code"] == "BANK_CHECK_INVALID"
+    assert "already used" in denied.json()["error"]["message"]
+    second = db_client.post(capture, json=second_body)
 
     assert first.status_code == second.status_code == 201
     assert decided.status_code == 200
@@ -1024,3 +1053,75 @@ def test_postgres_concurrent_conflicting_decisions_serialize_once(
     assert results == sorted([terminal_status, "PERSON_PAYEE_ALREADY_DECIDED"])
     assert terminal_status in {"rejected", "expired"}
     assert decision_count == 1
+
+
+def test_refused_lookup_is_saved_unconfirmed_and_requires_staff_test_payment(
+    db_client, db_sessionmaker, settings
+):
+    token, _ = _register(db_client, db_sessionmaker, settings, suffix="bank-refusal")
+    application = _application(db_sessionmaker, email="person-payee-bank-refusal@example.com")
+    files = _seed_clean_kyc_files(db_sessionmaker, email=application.email)
+
+    class RefusedBank(BankAdapter):
+        async def resolve(self, bank_code, account_number):
+            raise BankLookupRefused("Could not resolve")
+
+    db_client.app.dependency_overrides[get_bank_adapter] = lambda: RefusedBank()
+    check = db_client.post(
+        "/api/v1/auth/driver-onboarding/account-name",
+        json={
+            "application_access_token": token,
+            "bank_code": "058",
+            "account_number": "0123456789",
+        },
+    )
+    assert check.status_code == 200 and check.json()["outcome"] == "refused", check.text
+    body = _person_payee_payload(token, files)
+    body["bank_check_receipt"] = check.json()["bank_check_receipt"]
+    body["account_name_confirmed"] = False
+    submitted = db_client.post("/api/v1/auth/driver-onboarding/person-payee", json=body)
+    assert submitted.status_code == 201, submitted.text
+
+    admin = create_test_user(db_sessionmaker, email="bank-refusal-admin@example.com")
+    headers = auth_headers(db_client, admin.email, PASSWORD)
+    item = db_client.get(
+        "/api/v1/admin/driver-applications",
+        headers=headers,
+        params={"user_id": str(application.user_id)},
+    ).json()["items"][0]
+    assert item["person_payee"]["bank_name_confirmed"] is False
+    assert item["person_payee"]["bank_checked_at"] is None
+    path = f"/api/v1/admin/driver-applications/{application.id}/person-payee-decision"
+    decision = {
+        "submission_id": submitted.json()["submission_id"],
+        "client_request_id": str(uuid4()),
+        "decision": "approved",
+        "reason_code": "complete_current_evidence",
+        "identity_match_confirmed": True,
+        "bank_account_match_confirmed": True,
+        "documents_readable_confirmed": True,
+    }
+    denied = db_client.post(path, json=decision, headers=headers)
+    assert denied.status_code == 409, denied.text
+    assert denied.json()["error"]["code"] == "PERSON_PAYEE_BANK_ACCOUNT_UNVERIFIED"
+    _complete_admin_review(
+        db_client, db_sessionmaker, admin=admin, application=application, files=files
+    )
+
+    async def stored_check_time():
+        async with db_sessionmaker() as session:
+            version_id = UUID(item["person_payee"]["bank_account_version_id"])
+            return await session.scalar(
+                select(PayeeBankAccountPayoutVerification.created_at).where(
+                    PayeeBankAccountPayoutVerification.bank_account_version_id == version_id
+                )
+            )
+
+    reloaded = db_client.get(f"/api/v1/admin/driver-applications/{application.id}", headers=headers)
+    assert reloaded.status_code == 200, reloaded.text
+    checked_at = reloaded.json()["person_payee"]["bank_checked_at"]
+    assert datetime.fromisoformat(checked_at) == asyncio.run(stored_check_time())
+
+    approved = db_client.post(path, json=decision, headers=headers)
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["bank_checked_at"] == checked_at

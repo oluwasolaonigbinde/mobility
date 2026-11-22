@@ -3,8 +3,8 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
-from uuid import UUID, uuid4
+from unittest.mock import ANY, AsyncMock, Mock
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
 from database_helpers import (
@@ -429,6 +429,46 @@ def test_demo_seed_refuses_an_existing_user_with_an_incompatible_role(
     assert exc.value.details["actual_role"] == "driver"
 
 
+@pytest.mark.parametrize("rich_driver", [False, True])
+def test_demo_seed_refuses_an_unmarked_login_with_the_matching_role(
+    db_sessionmaker, settings, rich_driver
+):
+    from app.seeds.rich import _upsert_driver
+
+    email = "driver01@demo.mobility.local" if rich_driver else "advertiser@demo.mobility.local"
+    role = UserRole.DRIVER if rich_driver else UserRole.ADVERTISER
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            user = User(
+                email=email,
+                password_hash="unchanged",
+                full_name="Existing Person",
+                role=role.value,
+                status="disabled",
+            )
+            session.add(user)
+            await session.commit()
+            with pytest.raises(AppError) as error:
+                if rich_driver:
+                    await _upsert_driver(session, index=1, settings=settings)
+                else:
+                    await demo.upsert_user(
+                        session,
+                        email=email,
+                        password=DEMO_PASSWORDS[email],
+                        full_name="Seed Login",
+                        role=role,
+                        settings=settings,
+                    )
+            assert error.value.code == "DEMO_IDENTITY_CONFLICT"
+            assert user.full_name == "Existing Person"
+            assert user.password_hash == "unchanged"
+            assert user.status == "disabled"
+
+    asyncio.run(exercise())
+
+
 def test_demo_seed_refuses_a_vehicle_owned_by_another_driver() -> None:
     profile = SimpleNamespace(id=UUID("11111111-1111-4111-8111-111111111111"))
     vehicle = SimpleNamespace(driver_profile_id=UUID("22222222-2222-4222-8222-222222222222"))
@@ -613,7 +653,7 @@ def test_demo_seed_command_runs_the_guarded_seed_and_prints_its_summary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     graph = SimpleNamespace(id="demo-graph")
-    session = SimpleNamespace(commit=AsyncMock())
+    session = SimpleNamespace(commit=AsyncMock(), info={})
 
     class SessionContext:
         async def __aenter__(self):
@@ -628,6 +668,7 @@ def test_demo_seed_command_runs_the_guarded_seed_and_prints_its_summary(
 
     guard = Mock()
     database_ready = AsyncMock()
+    preflight = AsyncMock()
     build = AsyncMock(return_value=graph)
     count_seeded_records = AsyncMock(return_value={"campaigns": 1})
     summary = Mock()
@@ -642,26 +683,22 @@ def test_demo_seed_command_runs_the_guarded_seed_and_prints_its_summary(
         lambda selected, *, expire_on_commit: SessionFactory(),
     )
     monkeypatch.setattr(demo, "ensure_database_ready", database_ready)
+    monkeypatch.setattr(demo, "preflight_seed_identities", preflight)
     monkeypatch.setattr(demo, "build_demo_graph", build)
     monkeypatch.setattr(demo, "counts", count_seeded_records)
     monkeypatch.setattr(demo, "print_summary", summary)
-    from app.services import campaign_report_delivery
-
-    publication = AsyncMock()
-    monkeypatch.setattr(campaign_report_delivery, "publish_campaign_report", publication)
-    session.scalars = AsyncMock(return_value=[uuid4()])
-    from app.adapters import storage
-
-    monkeypatch.setattr(storage, "build_storage_provider", lambda selected: object())
+    settle = AsyncMock()
+    monkeypatch.setattr(demo, "settle_demo_reports", settle)
 
     assert asyncio.run(demo.run_seed()) is graph
     guard.assert_called_once_with(settings)
     database_ready.assert_awaited_once_with(session)
+    preflight.assert_awaited_once_with(session)
     build.assert_awaited_once_with(session, settings)
     count_seeded_records.assert_awaited_once_with(session, graph)
     session.commit.assert_awaited_once_with()
     summary.assert_called_once_with(graph, {"campaigns": 1})
-    publication.assert_awaited_once()
+    settle.assert_awaited_once_with(ANY, settings=settings)
 
 
 def test_demo_seed_summary_is_human_readable(capsys: pytest.CaptureFixture[str]) -> None:
@@ -775,6 +812,8 @@ def test_openapi_has_frontend_contract_tags_and_examples(client) -> None:
 def seed_demo_graph(
     sessionmaker: async_sessionmaker[AsyncSession],
     settings: Settings,
+    *,
+    catch_up: bool = False,
 ):
     async def seed():
         from app.models.disbursement import CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID
@@ -788,6 +827,10 @@ def seed_demo_graph(
         async with sessionmaker() as session:
             graph = await build_demo_graph(session, settings)
             await session.commit()
+        if catch_up:
+            await demo.settle_demo_reports(sessionmaker, settings=settings)
+            return graph
+
         from app.adapters.storage import build_storage_provider
         from app.models.campaign_report import CampaignReport
         from app.services.campaign_report_delivery import publish_campaign_report
@@ -1682,37 +1725,76 @@ def test_demo_seed_runs_with_immutable_guards_from_alembic_head(
         asyncio.run(drop_database(migration_url))
 
 
-def test_demo_seed_reuses_legacy_organization_billing_identity(
+def test_demo_seed_reuses_only_seed_owned_current_organization_billing_identity(
     postgis_db_sessionmaker,
 ) -> None:
     async def scenario() -> None:
         async with postgis_db_sessionmaker() as session:
-            legacy = AdvertiserOrganization(
+            ordinary = AdvertiserOrganization(
                 name="Marula Kitchens",
-                billing_email="billing@demo.mobility.local",
+                billing_email=demo.DEMO_BILLING_EMAIL,
                 country_code="NG",
                 currency="NGN",
                 status="active",
             )
-            session.add(legacy)
+            seeded = await demo.upsert_organization(session)
+            session.add(ordinary)
             await session.commit()
-            legacy_id = legacy.id
+            seed_id, ordinary_id = seeded.id, ordinary.id
 
         async with postgis_db_sessionmaker() as session:
             current = await demo.upsert_organization(session)
             await session.commit()
-            assert current.id == legacy_id
+            assert current.id == seed_id != ordinary_id
             assert current.billing_email == "accounts@marulakitchens.ng"
+            assert (await session.get(AdvertiserOrganization, ordinary_id)).billing_email == (
+                demo.DEMO_BILLING_EMAIL
+            )
             assert (
                 await session.scalar(
                     select(func.count(AdvertiserOrganization.id)).where(
                         AdvertiserOrganization.name == "Marula Kitchens"
                     )
                 )
-                == 1
+                == 2
             )
 
     asyncio.run(scenario())
+
+
+def test_seed_directory_reuses_only_its_committed_organization(
+    db_sessionmaker, settings, monkeypatch
+):
+    from app.seeds import rich
+
+    contact = next(
+        contact for contact in rich.BUSINESS_CONTACTS if contact[0] == "Linden Harbour Clothing"
+    )
+    monkeypatch.setattr(rich, "BUSINESS_CONTACTS", (contact,))
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            real = AdvertiserOrganization(name=contact[0], status="active", currency="NGN")
+            session.add(real)
+            await session.commit()
+            real_id = real.id
+
+        async with db_sessionmaker() as session:
+            await rich._ensure_advertiser_directory(session, settings=settings)
+            seeded, user = await rich.business_owner(session, f"{contact[0]} \u2014 Abuja Commute")
+            assert seeded.id != real_id
+            seeded_id, user_id = seeded.id, user.id
+            await session.commit()
+
+        async with db_sessionmaker() as session:
+            await rich._ensure_advertiser_directory(session, settings=settings)
+            seeded, user = await rich.business_owner(session, f"{contact[0]} \u2014 Abuja Commute")
+            assert (seeded.id, user.id) == (seeded_id, user_id)
+            memberships = set(await session.scalars(select(OrganizationMembership.organization_id)))
+            assert memberships == {seeded_id}
+            await session.commit()
+
+    asyncio.run(exercise())
 
 
 def test_seed_business_ownership_and_applicant_financial_separation(
@@ -2961,22 +3043,522 @@ def migrated_seed_sessionmaker(settings, monkeypatch):
         asyncio.run(drop_database(database_url))
 
 
-def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
+@pytest.mark.parametrize("collision", ["portal_login", "organization_name", "billing_email"])
+def test_run_seed_rejects_identity_conflict_before_writes(
+    migrated_seed_sessionmaker, monkeypatch, seed_private_storage, collision
+):
+    from sqlalchemy import event
+
+    sessionmaker, settings = migrated_seed_sessionmaker
+    engine = sessionmaker.kw["bind"]
+    monkeypatch.setattr(demo, "get_engine", lambda _: engine)
+    put = AsyncMock(wraps=seed_private_storage.put)
+    monkeypatch.setattr(seed_private_storage, "put", put)
+
+    async def exercise():
+        if collision == "portal_login":
+            existing = User(
+                email="nneka.umeh@demo.mobility.local",
+                full_name="Existing applicant",
+                password_hash="existing-password-hash",
+                role=UserRole.DRIVER.value,
+                status="disabled",
+            )
+        else:
+            existing = AdvertiserOrganization(
+                name="Linden Harbour Clothing"
+                if collision == "organization_name"
+                else "Existing Co",
+                billing_email=(
+                    demo.DEMO_BILLING_EMAIL
+                    if collision == "billing_email"
+                    else "existing@cardvert-check.ng"
+                ),
+                status="active",
+                currency="NGN",
+            )
+        async with sessionmaker() as session:
+            session.add(existing)
+            await session.commit()
+            await session.refresh(existing)
+        model = type(existing)
+        before = {column.key: getattr(existing, column.key) for column in model.__table__.columns}
+
+        statements = []
+
+        def record_statement(_conn, _cursor, statement, *_args):
+            statements.append(statement)
+
+        with pytest.raises(AppError) as error:
+            event.listen(engine.sync_engine, "before_cursor_execute", record_statement)
+            try:
+                await demo.run_seed(settings)
+            finally:
+                event.remove(engine.sync_engine, "before_cursor_execute", record_statement)
+        assert error.value.code == "DEMO_IDENTITY_CONFLICT"
+        assert statements and all(sql.lstrip().upper().startswith("SELECT") for sql in statements)
+        put.assert_not_awaited()
+        assert not seed_private_storage.objects and not seed_private_storage.contents
+        async with sessionmaker() as session:
+            after = await session.get(model, existing.id)
+            assert {
+                column.key: getattr(after, column.key) for column in model.__table__.columns
+            } == before
+
+    asyncio.run(exercise())
+
+
+def test_run_seed_removes_its_images_after_late_same_role_login_collision(
     migrated_seed_sessionmaker, monkeypatch, seed_private_storage
+):
+    from hashlib import sha256
+
+    sessionmaker, settings = migrated_seed_sessionmaker
+    monkeypatch.setattr(demo, "get_engine", lambda _: sessionmaker.kw["bind"])
+    monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
+    preflight = demo.preflight_seed_identities
+    email = "nneka.umeh@demo.mobility.local"
+    prior_key = "campaign-files/previous-success.png"
+    prior_data = b"existing object"
+
+    async def insert_after_preflight(session):
+        await preflight(session)
+        async with sessionmaker() as other_session:
+            other_session.add(
+                User(
+                    email=email,
+                    full_name="Existing applicant",
+                    password_hash="existing-password-hash",
+                    role=UserRole.DRIVER.value,
+                    status="disabled",
+                )
+            )
+            await other_session.commit()
+
+    monkeypatch.setattr(demo, "preflight_seed_identities", insert_after_preflight)
+
+    async def exercise():
+        await seed_private_storage.put(
+            object_key=prior_key,
+            content_type="image/png",
+            data=prior_data,
+            checksum_sha256=sha256(prior_data).hexdigest(),
+        )
+        with pytest.raises(AppError) as error:
+            await demo.run_seed(settings)
+        assert error.value.code == "DEMO_IDENTITY_CONFLICT"
+        assert seed_private_storage.deleted
+        assert prior_key not in seed_private_storage.deleted
+        assert set(seed_private_storage.objects) == {prior_key}
+        assert seed_private_storage.contents == {prior_key: prior_data}
+        async with sessionmaker() as session:
+            users = (await session.scalars(select(User).where(User.email == email))).all()
+            [existing] = users
+            assert (existing.full_name, existing.password_hash, existing.status) == (
+                "Existing applicant",
+                "existing-password-hash",
+                "disabled",
+            )
+            assert not await session.scalar(select(StoredFile.id).limit(1))
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("newer_unmarked", [False, True])
+def test_demo_payout_and_initial_kyc_require_seed_owned_bank_version(
+    db_sessionmaker, settings, seed_private_storage, newer_unmarked
+):
+    from conftest import create_test_driver_profile, create_test_user, create_test_vehicle
+
+    from app.models.payee import PayeeBankAccountVersion
+    from app.seeds.demo_authority import ensure_demo_documents, ensure_demo_verified_bank
+    from app.seeds.driver_story import select_seed_bank_version
+
+    driver = create_test_user(
+        db_sessionmaker, email="bank-driver@cardvert-check.ng", role=UserRole.DRIVER
+    )
+    admin = create_test_user(db_sessionmaker, email="bank-reviewer@cardvert-check.ng")
+    profile = create_test_driver_profile(db_sessionmaker, user_id=driver.id)
+    vehicle = create_test_vehicle(db_sessionmaker, driver_profile_id=profile.id)
+
+    def snapshot(version):
+        return {
+            column.key: getattr(version, column.key)
+            for column in PayeeBankAccountVersion.__table__.columns
+        }
+
+    async def exercise():
+        ordinary = None
+        async with db_sessionmaker() as session:
+            assert await select_seed_bank_version(session, driver_profile_id=profile.id) is None
+            await ensure_demo_verified_bank(
+                session,
+                driver=driver,
+                profile=profile,
+                admin=admin,
+                settings=settings,
+                verified_at=datetime.now(UTC),
+            )
+            seeded = await select_seed_bank_version(session, driver_profile_id=profile.id)
+            assert seeded is not None
+            if newer_unmarked:
+                ordinary = PayeeBankAccountVersion(
+                    bank_account_id=seeded.bank_account_id,
+                    payee_version_id=seeded.payee_version_id,
+                    version=2,
+                    encrypted_details=seeded.encrypted_details,
+                    encryption_algorithm=seeded.encryption_algorithm,
+                    encryption_key_version=seeded.encryption_key_version,
+                    verification_reference_sha256="2" * 64,
+                    verified_by_user_id=admin.id,
+                )
+                session.add(ordinary)
+            await session.commit()
+            seeded_id = seeded.id
+            ordinary_before = snapshot(ordinary) if ordinary is not None else None
+
+        async with db_sessionmaker() as session:
+            selected = await select_seed_bank_version(session, driver_profile_id=profile.id)
+            assert selected.id == seeded_id
+            await ensure_demo_documents(
+                session,
+                driver=driver,
+                profile=profile,
+                vehicle=vehicle,
+                reviewer=admin,
+                settings=settings,
+            )
+            await session.commit()
+
+        async with db_sessionmaker() as session:
+            submission = await session.scalar(
+                select(DriverKycSubmission).where(
+                    DriverKycSubmission.driver_profile_id == profile.id
+                )
+            )
+            if ordinary is not None:
+                assert submission is None
+                assert not seed_private_storage.objects
+                unchanged = await session.get(PayeeBankAccountVersion, ordinary.id)
+                assert snapshot(unchanged) == ordinary_before
+                assert not await session.scalar(
+                    select(AuditEvent.id).where(AuditEvent.entity_id == str(ordinary.id)).limit(1)
+                )
+            else:
+                assert submission.bank_account_version_id == seeded_id
+                assert submission.status == "approved"
+                assert seed_private_storage.objects
+
+    asyncio.run(exercise())
+
+
+def test_demo_seed_leaves_ordinary_trips_and_earnings_untouched(
+    postgis_db_sessionmaker, settings, monkeypatch
+):
+    from conftest import (
+        create_test_campaign,
+        create_test_campaign_assignment,
+        create_test_impression_estimate,
+        create_test_payout_rule,
+        create_test_trip_analytics,
+        create_test_trip_session,
+    )
+    from test_email_delivery import _seed_advertiser
+
+    from app.models.campaign import CampaignStatus
+    from app.models.campaign_assignment import CampaignAssignmentStatus
+    from app.models.disbursement import PayoutBatchLine
+    from app.models.trip import TripSessionStatus
+    from app.seeds import driver_story
+    from app.services import earnings_release, trip_processing
+
+    db = postgis_db_sessionmaker
+    monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
+    email = "driver@demo.mobility.local"
+    moment = report_midnight(datetime.now(UTC)) - timedelta(days=3) + timedelta(hours=10)
+
+    async def create_driver():
+        async with db() as session:
+            user = await demo.upsert_user(
+                session,
+                email=email,
+                password=DEMO_PASSWORDS[email],
+                full_name="Emeka Nwankwo",
+                role=UserRole.DRIVER,
+                settings=settings,
+            )
+            profile = await demo.upsert_driver_profile(session, driver=user)
+            vehicle = await demo.upsert_vehicle(session, profile=profile)
+            await session.commit()
+            return user.id, profile.id, vehicle.id
+
+    driver_id, profile_id, vehicle_id = asyncio.run(create_driver())
+    owner_id, organization_id = asyncio.run(_seed_advertiser(db))
+    campaign = create_test_campaign(
+        db,
+        organization_id=organization_id,
+        created_by_user_id=owner_id,
+        name="Ordinary campaign with client metadata",
+        campaign_status=CampaignStatus.ACTIVE,
+        start_at=moment - timedelta(hours=2),
+        end_at=moment + timedelta(days=10),
+        metadata={"demo": True},
+    )
+    assignment = create_test_campaign_assignment(
+        db,
+        campaign_id=campaign.id,
+        driver_profile_id=profile_id,
+        vehicle_id=vehicle_id,
+        assigned_by_user_id=owner_id,
+        assignment_status=CampaignAssignmentStatus.ACTIVE,
+        offered_at=moment - timedelta(hours=2),
+        accepted_at=moment - timedelta(hours=1),
+        activated_at=moment - timedelta(minutes=30),
+    )
+    scope = dict(
+        campaign_id=campaign.id,
+        assignment_id=assignment.id,
+        driver_profile_id=profile_id,
+        vehicle_id=vehicle_id,
+    )
+    unprocessed, payable = [
+        create_test_trip_session(
+            db,
+            **scope,
+            started_by_user_id=driver_id,
+            trip_status=TripSessionStatus.SEALED,
+            started_at=moment + timedelta(hours=offset),
+            ended_at=moment + timedelta(hours=offset, minutes=30),
+            metadata={"demo": True},
+        )
+        for offset in (0, 1)
+    ]
+    analytics = create_test_trip_analytics(
+        db,
+        **scope,
+        trip_session_id=payable.id,
+        started_at=payable.started_at,
+        ended_at=payable.ended_at,
+    )
+    estimate = create_test_impression_estimate(
+        db, **scope, trip_session_id=payable.id, trip_analytics_id=analytics.id
+    )
+    rule = create_test_payout_rule(db, campaign_id=campaign.id, created_by_user_id=owner_id)
+
+    async def create_due_work():
+        async with db() as session:
+            calculation = PayoutCalculation(
+                **scope,
+                trip_session_id=payable.id,
+                trip_analytics_id=analytics.id,
+                impression_estimate_id=estimate.id,
+                payout_rule_id=rule.id,
+                status="calculated",
+                currency="NGN",
+                gross_payout=Decimal("100"),
+                final_payout=Decimal("100"),
+                eligible_seconds=1800,
+                excluded_seconds_by_reason={},
+                inputs_fingerprint="a" * 64,
+                amount_by_day={moment.date().isoformat(): "100.00"},
+                distance_m_by_day={moment.date().isoformat(): 1000},
+                calculated_at=payable.ended_at,
+            )
+            flag = FraudFlag(
+                **scope,
+                trip_session_id=payable.id,
+                trip_analytics_id=analytics.id,
+                flag_type="route_replay",
+                severity="medium",
+                description="Ordinary trip flag",
+                detected_at=moment - timedelta(days=settings.fraud_review_sla_days),
+            )
+            session.add_all([calculation, flag])
+            await session.flush()
+            credit = EarningsLedgerEntry(
+                campaign_id=campaign.id,
+                driver_profile_id=profile_id,
+                driver_user_id=driver_id,
+                vehicle_id=vehicle_id,
+                trip_session_id=payable.id,
+                payout_calculation_id=calculation.id,
+                entry_type="trip_payout",
+                status="pending",
+                amount=Decimal("100"),
+                currency="NGN",
+                occurred_at=payable.ended_at,
+                release_at=payable.ended_at + timedelta(hours=1),
+            )
+            session.add(credit)
+            await session.commit()
+            due = await trip_processing.find_unprocessed_trip_page(
+                session, limit=100, settings=settings
+            )
+            assert unprocessed.id in {row.id for row in due}
+            assert payable.id in await earnings_release.find_pending_release_trip_ids(
+                session, limit=100
+            )
+            assert flag.id in await earnings_release.find_due_fraud_flag_ids(
+                session, limit=100, review_sla_days=settings.fraud_review_sla_days
+            )
+            return credit.id, flag.id
+
+    credit_id, flag_id = asyncio.run(create_due_work())
+
+    def reject_ordinary_work(service, identity_key, ordinary_ids):
+        async def check(session, **kwargs):
+            assert kwargs[identity_key] not in ordinary_ids, service.__name__
+            return await service(session, **kwargs)
+
+        return check
+
+    trips = {unprocessed.id, payable.id}
+    process = reject_ordinary_work(trip_processing.process_ended_trip, "trip_id", trips)
+    release = reject_ordinary_work(
+        earnings_release.release_pending_earnings_for_trip, "trip_id", trips
+    )
+    escalate = reject_ordinary_work(
+        earnings_release.escalate_fraud_flag_if_due, "flag_id", {flag_id}
+    )
+    monkeypatch.setattr(trip_processing, "process_ended_trip", process)
+    monkeypatch.setattr(driver_story, "process_ended_trip", process)
+    monkeypatch.setattr(earnings_release, "release_pending_earnings_for_trip", release)
+    monkeypatch.setattr(driver_story, "release_pending_earnings_for_trip", release)
+    monkeypatch.setattr(earnings_release, "escalate_fraud_flag_if_due", escalate)
+
+    seed_demo_graph(db, settings)
+
+    async def verify():
+        async with db() as session:
+            assert not await session.scalar(
+                select(TripAnalytics.id).where(TripAnalytics.trip_session_id == unprocessed.id)
+            )
+            assert (await session.get(FraudFlag, flag_id)).escalated_at is None
+            assert (await session.get(EarningsLedgerEntry, credit_id)).status == "pending"
+            assert not await session.scalar(
+                select(PayoutBatchLine.id).where(PayoutBatchLine.ledger_entry_id == credit_id)
+            )
+
+    asyncio.run(verify())
+
+
+def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
+    migrated_seed_sessionmaker, monkeypatch, seed_private_storage, db_sessionmaker
 ):
     import time
 
+    from test_email_delivery import RecordingEmailAdapter, _seed_advertiser
+
+    from app.jobs import trip_processing as trip_jobs
     from app.jobs.worker import WorkerSettings
-    from app.models.billing import CommercialQuotationRevision
+    from app.models.billing import CommercialQuotationRevision, InvoiceIssuerProfile
     from app.models.campaign_report import CampaignReport
     from app.models.evidence_verification import EvidenceVerification
     from app.models.notification import Notification, NotificationType
     from app.models.payout import PayoutCorrectionOrder
+    from app.seeds.live_car import LIVE_CAR_VERSION
+    from app.services import report_scheduling
+    from app.services.campaign_report_delivery import publish_campaign_report
+    from app.services.email_delivery import process_email_notification
+    from app.services.email_recipients import is_undeliverable_recipient
+    from app.services.notifications import create_advertiser_email_notification
+    from app.services.report_authorization import REPORT_ACTOR_ID
+    from app.services.report_scheduling import ELIGIBLE, sweep_scheduled_reports
 
     postgis_db_sessionmaker, settings = migrated_seed_sessionmaker
+    settings = settings.model_copy(update={"worker_sweep_batch_size": 2})
     monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
+    discover = report_scheduling.discover_reports
+    interleaved_scheduler_reports = set()
+    real_campaign_id = uuid4()
+    real_email = "real-report-owner@cardvert-check.ng"
+    company = "Linden Harbour Clothing"
+
+    async def create_real_organization():
+        owner_id, organization_id = await _seed_advertiser(
+            postgis_db_sessionmaker, email=real_email
+        )
+        async with postgis_db_sessionmaker() as session:
+            organization = await session.get(AdvertiserOrganization, organization_id)
+            organization.name = company
+            await session.commit()
+        return owner_id, organization_id
+
+    real_owner_id, real_organization_id = asyncio.run(create_real_organization())
+    worker_discovered_first = False
+
+    async def worker_interleaves_with_seed(*args, **kwargs):
+        nonlocal worker_discovered_first
+        if not kwargs.get("seed_only"):
+            return await discover(*args, **kwargs)
+        if not worker_discovered_first:
+            async with postgis_db_sessionmaker() as worker_session:
+                count = await discover(
+                    worker_session, settings=settings, storage=seed_private_storage, limit=1000
+                )
+                assert count > 0
+                first_worker_report_ids = set(
+                    await worker_session.scalars(
+                        select(CampaignReport.id).where(
+                            CampaignReport.requested_by_user_id == REPORT_ACTOR_ID
+                        )
+                    )
+                )
+                assert first_worker_report_ids
+            # Before seed discovery starts, add an ordinary overdue campaign to
+            # the same database. User-supplied metadata cannot establish seed provenance.
+            async with postgis_db_sessionmaker() as worker_session:
+                today = report_midnight(datetime.now(UTC))
+                worker_session.add(
+                    Campaign(
+                        id=real_campaign_id,
+                        organization_id=real_organization_id,
+                        created_by_user_id=real_owner_id,
+                        name="Ordinary advertiser report",
+                        status="active",
+                        start_at=today - timedelta(days=10),
+                        end_at=today + timedelta(days=10),
+                        budget_amount=Decimal("1000000.00"),
+                        currency="NGN",
+                        campaign_metadata={"demo": True, "seed_version": "f7_rich_v1"},
+                    )
+                )
+                await worker_session.commit()
+            worker_discovered_first = True
+        else:
+            first_worker_report_ids = set()
+        created = await discover(*args, **kwargs)
+        async with postgis_db_sessionmaker() as worker_session:
+            assert (
+                await worker_session.scalar(
+                    select(CampaignReport.id).where(CampaignReport.campaign_id == real_campaign_id)
+                )
+                is None
+            )
+            queued = (
+                await worker_session.execute(
+                    select(CampaignReport.id, CampaignReport.requested_by_user_id).where(
+                        CampaignReport.status == "queued"
+                    )
+                )
+            ).all()
+        for report_id, actor_id in queued:
+            assert (
+                await publish_campaign_report(
+                    postgis_db_sessionmaker, report_id=report_id, storage=seed_private_storage
+                )
+                == "ready"
+            )
+            if actor_id == REPORT_ACTOR_ID:
+                interleaved_scheduler_reports.add(report_id)
+        assert first_worker_report_ids <= interleaved_scheduler_reports
+        return created
+
+    monkeypatch.setattr(report_scheduling, "discover_reports", worker_interleaves_with_seed)
+    seed_started = datetime.now(UTC)
     started = time.monotonic()
-    seed_demo_graph(postgis_db_sessionmaker, settings)
+    seed_demo_graph(postgis_db_sessionmaker, settings, catch_up=True)
+    assert interleaved_scheduler_reports
     print(f"Seed graph and publication runtime: {time.monotonic() - started:.2f}s")
 
     async def inspect():
@@ -2987,9 +3569,175 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
             "engine": postgis_db_sessionmaker.kw["bind"],
             "storage": seed_private_storage,
         }
+        from app.seeds.identity import seed_identity_exists
+
         async with postgis_db_sessionmaker() as session:
+            members = set(
+                await session.scalars(
+                    select(OrganizationMembership.user_id).where(
+                        OrganizationMembership.organization_id == real_organization_id
+                    )
+                )
+            )
+            assert members == {real_owner_id}
+            campaigns = set(
+                await session.scalars(
+                    select(Campaign.id).where(Campaign.organization_id == real_organization_id)
+                )
+            )
+            assert campaigns == {real_campaign_id}
+            assert not await session.scalar(
+                select(seed_identity_exists("organization", real_organization_id))
+            )
+            seed_organization_id = await session.scalar(
+                select(AdvertiserOrganization.id).where(
+                    AdvertiserOrganization.name == company,
+                    seed_identity_exists("organization", AdvertiserOrganization.id),
+                )
+            )
+            assert seed_organization_id is not None and seed_organization_id != real_organization_id
+            assert await session.scalar(
+                select(OrganizationMembership.id)
+                .join(User, User.id == OrganizationMembership.user_id)
+                .where(
+                    OrganizationMembership.organization_id == seed_organization_id,
+                    User.email == "funmilayo.ajayi@lindenharbour.ng",
+                )
+            )
             audit_ids = set(await session.scalars(select(AuditEvent.id)))
             notice_ids = set(await session.scalars(select(Notification.id)))
+            eligible = await session.scalar(
+                select(func.count())
+                .select_from(Campaign)
+                .where(
+                    Campaign.status.in_(ELIGIBLE),
+                    Campaign.start_at.is_not(None),
+                    Campaign.end_at.is_not(None),
+                )
+            )
+            assert eligible > settings.worker_sweep_batch_size
+            historical_reports = set(
+                await session.scalars(
+                    select(CampaignReport.id).where(CampaignReport.period_end_at < seed_started)
+                )
+            )
+            assert historical_reports
+            issuer_contact = "terraxmediacompany@gmail.com"
+            addresses = set()
+            for column in (
+                User.email,
+                AdvertiserOrganization.billing_email,
+                AdvertiserOrganization.operational_contact_email,
+                InvoiceIssuerProfile.contact_email,
+            ):
+                addresses.update(await session.scalars(select(column).where(column.is_not(None))))
+            assert issuer_contact in addresses
+            addresses.remove(real_email)
+            assert {
+                address for address in addresses if not is_undeliverable_recipient(address)
+            } == {issuer_contact}
+            for address in (
+                issuer_contact,
+                "someone@terraxmedia.com",
+                "someone@gmail.com",
+                "req337.driver@cardvert-check.ng",
+            ):
+                assert not is_undeliverable_recipient(address)
+
+            assert not await session.scalar(
+                select(Notification.id)
+                .where(
+                    Notification.type_key == NotificationType.REPORT_READY,
+                    Notification.channel == "transactional_email",
+                )
+                .limit(1)
+            )
+
+        mail = RecordingEmailAdapter()
+        now = datetime.now(UTC)
+        for address in sorted(addresses):
+            user_id, organization_id = await _seed_advertiser(db_sessionmaker, email=address)
+            async with db_sessionmaker() as claim_session:
+                notice = await create_advertiser_email_notification(
+                    claim_session,
+                    advertiser_organization_id=organization_id,
+                    recipient_user_id=user_id,
+                    type_key=NotificationType.FRAUD_HOLD_RAISED,
+                    payload={},
+                    dedupe_key="seed-recipient-check",
+                )
+                assert notice is not None
+                await claim_session.commit()
+            deliverable = address == issuer_contact
+            sent_before = len(mail.messages)
+            assert await process_email_notification(
+                db_sessionmaker,
+                notification_id=notice.id,
+                settings=settings,
+                email_adapter=mail,
+                now=now,
+            ) == ("sent" if deliverable else "skipped")
+            assert len(mail.messages) == sent_before + int(deliverable)
+            async with db_sessionmaker() as claim_session:
+                stored = await claim_session.get(Notification, notice.id)
+                assert stored.attempt_count == int(deliverable)
+                if not deliverable:
+                    assert stored.last_error_code == "email_recipient_undeliverable"
+        assert [message.recipient for message in mail.messages] == [issuer_contact]
+
+        await sweep_scheduled_reports(ctx)
+        for _ in range(3):
+            await sweep_scheduled_reports({**ctx, "settings": settings})
+
+        async with postgis_db_sessionmaker() as session:
+            real_report_id = await session.scalar(
+                select(CampaignReport.id).where(CampaignReport.campaign_id == real_campaign_id)
+            )
+            assert real_report_id is not None
+            real_request_audit = await session.scalar(
+                select(AuditEvent.id).where(
+                    AuditEvent.action == "campaign_report.requested",
+                    AuditEvent.entity_type == "campaign_report",
+                    AuditEvent.entity_id == str(real_report_id),
+                )
+            )
+            assert real_request_audit is not None
+            audit_ids.add(real_request_audit)
+
+        async with postgis_db_sessionmaker() as session:
+            assert (
+                set(
+                    await session.scalars(
+                        select(CampaignReport.id).where(
+                            CampaignReport.period_end_at < seed_started,
+                            CampaignReport.campaign_id != real_campaign_id,
+                        )
+                    )
+                )
+                == historical_reports
+            )
+            pending_seed_mail = await session.scalar(
+                select(Notification.id)
+                .join(User, Notification.recipient_user_id == User.id)
+                .where(
+                    Notification.channel == "transactional_email",
+                    Notification.status == "pending",
+                    User.email.in_(addresses - {issuer_contact}),
+                )
+            )
+            assert pending_seed_mail is None
+        async with postgis_db_sessionmaker() as session:
+            latest_live_ping = await session.scalar(
+                select(func.max(LocationPing.received_at))
+                .join(TripSession, TripSession.id == LocationPing.trip_session_id)
+                .where(
+                    TripSession.status == "active",
+                    TripSession.trip_metadata["seed_version"].as_string() == LIVE_CAR_VERSION,
+                )
+            )
+        assert latest_live_ping is not None
+        # Check the post-seed state before the live fixtures legitimately time out.
+        monkeypatch.setattr(trip_jobs, "utc_now", lambda: latest_live_ping)
         for job in WorkerSettings.cron_jobs:
             await job.coroutine(ctx)
             async with postgis_db_sessionmaker() as session:
@@ -3010,11 +3758,6 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
                     if action != "system.payout_automatic_alert.created"
                 ]
                 new_notices = [kind for kind in new_notices if kind != "payout_automatic_alert"]
-            if name == "sweep_scheduled_reports":
-                # The weekly schedule may discover a historical window after the selected report.
-                new_audits = [
-                    action for action in new_audits if action != "campaign_report.requested"
-                ]
             if name == "purge_expired_file_kyc":
                 # The daily retention receipt records the sweep even with no file to remove.
                 new_audits = [
@@ -3088,21 +3831,35 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
             assert not await session.scalar(
                 select(PayoutCorrectionOrder.id).where(PayoutCorrectionOrder.status == "draft")
             )
-            for report in await session.scalars(
-                select(CampaignReport).where(
-                    CampaignReport.kind == "weekly", CampaignReport.status == "ready"
-                )
-            ):
-                assert report.period_end_at - report.period_start_at == timedelta(days=7)
-            assert await session.scalar(
-                select(CampaignReport.id)
+            for report, campaign in await session.execute(
+                select(CampaignReport, Campaign)
                 .join(Campaign, Campaign.id == CampaignReport.campaign_id)
-                .where(
-                    Campaign.name == "Marula Kitchens \u2014 Wuse Lunch Rush",
+                .where(CampaignReport.kind == "weekly", CampaignReport.status == "ready")
+            ):
+                duration = report.period_end_at - report.period_start_at
+                week = timedelta(days=7)
+                if report.requested_by_user_id == REPORT_ACTOR_ID:
+                    assert report.period_start_at == report_midnight(campaign.start_at)
+                    assert duration >= week and duration % week == timedelta(0)
+                else:
+                    assert duration == week
+            marula_campaign_id = await session.scalar(
+                select(Campaign.id).where(Campaign.name == "Marula Kitchens \u2014 Wuse Lunch Rush")
+            )
+            assert marula_campaign_id is not None
+            portal_request_id = uuid5(
+                NAMESPACE_URL, f"cardvert-preview:report:{marula_campaign_id}"
+            )
+            portal_report = await session.scalar(
+                select(CampaignReport).where(
+                    CampaignReport.campaign_id == marula_campaign_id,
+                    CampaignReport.client_request_id == portal_request_id,
                     CampaignReport.status == "ready",
                     CampaignReport.kind == "weekly",
                 )
             )
+            assert portal_report is not None
+            assert portal_report.period_end_at - portal_report.period_start_at == timedelta(days=7)
             teleport = list(
                 await session.scalars(
                     select(TripSession).where(
@@ -3181,5 +3938,33 @@ def test_finished_seed_is_quiet_and_keeps_consistent_staff_and_driver_data(
                 )
             )
         assert not changes
+        assert (
+            await publish_campaign_report(
+                postgis_db_sessionmaker, report_id=real_report_id, storage=seed_private_storage
+            )
+            == "ready"
+        )
+        async with postgis_db_sessionmaker() as session:
+            real_notice = await session.scalar(
+                select(Notification)
+                .join(User, User.id == Notification.recipient_user_id)
+                .where(
+                    User.email == real_email,
+                    Notification.type_key == NotificationType.REPORT_READY,
+                    Notification.channel == "transactional_email",
+                )
+            )
+            assert real_notice is not None
+        assert (
+            await process_email_notification(
+                postgis_db_sessionmaker,
+                notification_id=real_notice.id,
+                settings=settings,
+                email_adapter=mail,
+                now=datetime.now(UTC),
+            )
+            == "sent"
+        )
+        assert [message.recipient for message in mail.messages] == [issuer_contact, real_email]
 
     asyncio.run(inspect())

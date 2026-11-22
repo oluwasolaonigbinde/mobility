@@ -1,55 +1,16 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { SensitiveReview } from "./sensitive-review";
+import { ReviewDocument, SensitiveReview } from "./sensitive-review";
 import { adminDocumentLabel } from "@/lib/status/admin";
 import {
   reviewVehicleAction,
   reviewVehicleEvidenceAction,
   type VehicleDecisionState,
-  type VehicleEvidenceState,
 } from "./actions";
 
 const initialDecisionState: VehicleDecisionState = {};
-const initialEvidenceState: VehicleEvidenceState = {};
-
-function EvidenceRead({
-  fileId,
-  submissionId,
-  label,
-}: {
-  fileId: string;
-  submissionId: string;
-  label: string;
-}) {
-  const [state, action, pending] = useActionState(
-    reviewVehicleEvidenceAction,
-    initialEvidenceState,
-  );
-  return (
-    <form action={action} className="border-edge rounded-lg border p-2">
-      <input type="hidden" name="file_id" value={fileId} />
-      <input type="hidden" name="submission_id" value={submissionId} />
-      <Button type="submit" disabled={pending} variant="ghost" className="h-8 px-2 text-xs">
-        {pending ? "Opening…" : label}
-      </Button>
-      {state.downloadUrl ? (
-        <a
-          href={state.downloadUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="text-cyan mt-1 block text-xs underline"
-        >
-          Open reviewed document
-        </a>
-      ) : null}
-      {state.error ? <p className="text-coral mt-1 text-xs">{state.error}</p> : null}
-      {state.done ? <p className="text-green mt-1 text-xs">{state.done}</p> : null}
-    </form>
-  );
-}
-
 export function VehicleDecisionActions({
   applicationId,
   driverProfileId,
@@ -70,8 +31,24 @@ export function VehicleDecisionActions({
 }) {
   const [state, action, pending] = useActionState(reviewVehicleAction, initialDecisionState);
   const [decisionRequestId] = useState(() => crypto.randomUUID());
+  const [opened, setOpened] = useState<Set<string>>(() => new Set());
+  const documents = Object.entries(documentFileIds).map(([name, fileId]) => ({
+    key: JSON.stringify([name, vehicleId, submissionId, fileId]),
+    name,
+    fileId,
+  }));
+  const feedback = state.done ? (
+    <p role="status" className="text-green text-sm">
+      {state.done}
+    </p>
+  ) : null;
   if (status !== "approved" && status !== "pending_review") {
-    return <p>This car needs a fresh document submission before it can be reviewed again.</p>;
+    return (
+      <>
+        {feedback}
+        <p>This car needs a fresh document submission before it can be reviewed again.</p>
+      </>
+    );
   }
   if (status === "approved") {
     return (
@@ -90,7 +67,7 @@ export function VehicleDecisionActions({
           value="expire"
           disabled={pending}
           variant="ghost"
-          className="h-8 px-2 text-xs"
+          className="h-11 px-2 text-xs md:h-8"
         >
           Mark expired
         </Button>
@@ -99,29 +76,46 @@ export function VehicleDecisionActions({
             {state.error}
           </p>
         ) : null}
-        {state.done ? (
-          <p role="status" className="text-green text-xs">
-            {state.done}
-          </p>
-        ) : null}
+        {feedback}
       </form>
     );
   }
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      {Object.entries(documentFileIds).map(([name, fileId]) => (
+      {documents.map(({ key, name, fileId }) => (
         <section
-          key={`${name}:${vehicleId}:${submissionId}:${fileId}`}
+          key={key}
           aria-label={adminDocumentLabel(name)}
           className="border-edge border-b py-3"
         >
           <h4 className="mb-2 font-medium first-letter:uppercase">{adminDocumentLabel(name)}</h4>
           <SensitiveReview purpose="Vehicle review">
-            <EvidenceRead fileId={fileId} submissionId={submissionId} label="View" />
+            {(showFallback) => (
+              <ReviewDocument
+                read={() => {
+                  const data = new FormData();
+                  data.set("file_id", fileId);
+                  data.set("submission_id", submissionId);
+                  return reviewVehicleEvidenceAction({}, data);
+                }}
+                onOpened={() => setOpened((previous) => new Set(previous).add(key))}
+                showFallback={showFallback}
+              />
+            )}
           </SensitiveReview>
         </section>
       ))}
-      <form action={action} className="flex flex-col gap-2">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          const formData = new FormData(
+            event.currentTarget,
+            (event.nativeEvent as SubmitEvent).submitter,
+          );
+          startTransition(() => action(formData));
+        }}
+        className="flex min-w-0 flex-col gap-2"
+      >
         <input type="hidden" name="application_id" value={applicationId} />
         {driverProfileId ? (
           <input type="hidden" name="driver_profile_id" value={driverProfileId} />
@@ -151,7 +145,7 @@ export function VehicleDecisionActions({
             type="datetime-local"
             required
             defaultValue={state.validUntil ?? defaultValidUntil}
-            className="border-edge bg-raised text-ink rounded-lg border px-2 py-2 text-xs"
+            className="border-edge bg-raised text-ink min-w-0 rounded-lg border px-2 py-2 text-xs"
           />
         </label>
         <label className="micro text-muted mt-1 flex flex-col gap-1">
@@ -159,7 +153,7 @@ export function VehicleDecisionActions({
           <select
             name="reason_code"
             defaultValue=""
-            className="border-edge bg-raised text-ink rounded-lg border px-2 py-2 text-xs"
+            className="border-edge bg-raised text-ink min-w-0 rounded-lg border px-2 py-2 text-xs"
           >
             <option value="">Choose a reason…</option>
             <option value="unreadable_evidence">Unreadable documents</option>
@@ -171,7 +165,7 @@ export function VehicleDecisionActions({
             <option value="missing_evidence">Missing documents</option>
           </select>
         </label>
-        <fieldset className="border-edge my-2 rounded-lg border p-3 text-xs">
+        <fieldset className="border-edge my-2 min-w-0 rounded-lg border p-3 text-xs">
           <legend>Documents that need changes</legend>
           <div className="my-3">
             <p className="font-medium">Registration</p>
@@ -244,13 +238,25 @@ export function VehicleDecisionActions({
           </div>
           <p>Record each document’s outcome. Accepted documents stay on file during renewal.</p>
         </fieldset>
+        {documents.length > 0 ? (
+          <div role="group" aria-label="Opened in this visit" className="text-muted text-sm">
+            <p>Opened in this visit</p>
+            <ul className="flex flex-wrap gap-x-3">
+              {documents.map(({ key, name }) => (
+                <li key={key} className="first-letter:uppercase">
+                  {adminDocumentLabel(name)}: {opened.has(key) ? "Opened" : "Not opened"}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           <Button
             type="submit"
             name="intent"
             value="approve"
             disabled={pending}
-            className="h-8 px-2 text-xs"
+            className="h-11 px-2 text-xs md:h-8"
           >
             Approve
           </Button>
@@ -261,7 +267,7 @@ export function VehicleDecisionActions({
             formNoValidate
             disabled={pending}
             variant="danger"
-            className="h-8 px-2 text-xs"
+            className="h-11 px-2 text-xs md:h-8"
           >
             Reject
           </Button>
@@ -271,11 +277,7 @@ export function VehicleDecisionActions({
             {state.error}
           </p>
         ) : null}
-        {state.done ? (
-          <p role="status" className="text-green text-xs">
-            {state.done}
-          </p>
-        ) : null}
+        {feedback}
       </form>
     </div>
   );

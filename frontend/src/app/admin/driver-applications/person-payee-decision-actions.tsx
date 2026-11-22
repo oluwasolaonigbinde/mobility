@@ -1,9 +1,10 @@
 "use client";
 
-import { startTransition, useActionState, useState } from "react";
+import { startTransition, useActionState, useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/format";
-import { SensitiveReview } from "./sensitive-review";
+import { adminDocumentLabel } from "@/lib/status/admin";
+import { ReviewDocument, SensitiveReview } from "./sensitive-review";
 import {
   reviewPersonPayeeAction,
   reviewPersonPayeeEvidenceAction,
@@ -19,25 +20,27 @@ function EvidenceRead({
   kind,
   id,
   label,
-  submissionId,
+  onRead,
 }: {
-  kind: "nin" | "account" | "document";
+  kind: "nin" | "account";
   id: string;
   label: string;
-  submissionId?: string;
+  onRead: () => void;
 }) {
   const [state, action, pending] = useActionState(
     reviewPersonPayeeEvidenceAction,
     initialEvidenceState,
   );
-  const idName =
-    kind === "nin" ? "submission_id" : kind === "account" ? "bank_account_version_id" : "file_id";
+  const idName = kind === "nin" ? "submission_id" : "bank_account_version_id";
+  const revealed = Boolean(state.sensitiveValue);
+  useEffect(() => {
+    if (revealed) onRead();
+  }, [revealed, onRead]);
   return (
     <form action={action} className="border-edge rounded-lg border p-2">
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name={idName} value={id} />
-      {submissionId ? <input type="hidden" name="submission_id" value={submissionId} /> : null}
-      <Button type="submit" disabled={pending} variant="ghost" className="h-8 px-2 text-xs">
+      <Button type="submit" disabled={pending} variant="ghost" className="h-11 px-2 text-xs md:h-8">
         {pending ? "Opening…" : label}
       </Button>
       {state.sensitiveValue ? (
@@ -45,16 +48,12 @@ function EvidenceRead({
           {state.sensitiveValue}
         </p>
       ) : null}
-      {state.downloadUrl ? (
-        <a
-          href={state.downloadUrl}
-          target="_blank"
-          rel="noreferrer"
-          data-feedback-private
-          className="text-cyan mt-1 block text-xs underline"
-        >
-          Open reviewed document
-        </a>
+      {state.accountName && state.bankName ? (
+        <p className="mt-1 text-xs break-words">
+          <span data-feedback-private>{state.accountName}</span>
+          {" · "}
+          <span data-feedback-private>{state.bankName}</span>
+        </p>
       ) : null}
       {state.error ? <p className="text-coral mt-1 text-xs">{state.error}</p> : null}
       {state.done ? <p className="text-green mt-1 text-xs">{state.done}</p> : null}
@@ -62,38 +61,62 @@ function EvidenceRead({
   );
 }
 
-function AccountVerification({ versionId, verified }: { versionId: string; verified: boolean }) {
+function AccountVerification({
+  versionId,
+  verified,
+  checkedAt,
+}: {
+  versionId: string;
+  verified: boolean;
+  checkedAt?: string | null;
+}) {
   const [state, action, pending] = useActionState(
     verifyPersonPayeeAccountAction,
     initialEvidenceState,
   );
+  const helpId = useId();
   // Stays mounted after a successful check refreshes the page as verified,
   // so the confirmation replaces the form instead of vanishing with it.
-  if (verified)
+  const verificationDate = state.verifiedAt ?? checkedAt;
+  if (verified || state.done)
     return (
       <p role="status" className="text-green mt-2 text-sm">
-        Bank details checked.
+        {verificationDate
+          ? `Bank details checked on ${formatDate(verificationDate)}`
+          : "Bank details checked"}
       </p>
     );
   return (
     <form action={action} className="border-edge rounded-lg border p-2">
       <input type="hidden" name="bank_account_version_id" value={versionId} />
       <label className="micro text-muted flex flex-col gap-1">
-        Test-transfer reference from your bank
+        Reference of the small test payment you sent to this account
         <input
           name="verification_reference"
-          type="password"
+          type="text"
+          autoComplete="off"
+          aria-describedby={helpId}
+          data-feedback-private
           minLength={1}
           maxLength={512}
           required
           className="border-edge bg-raised text-ink rounded-lg border px-2 py-2 text-xs"
         />
       </label>
-      <Button type="submit" disabled={pending} variant="ghost" className="mt-2 h-8 px-2 text-xs">
+      <p id={helpId} className="text-muted mt-2 text-xs">
+        Send a small payment to the account shown above, copy the reference from your bank&apos;s
+        receipt, and check that the name your bank shows for this payment matches the driver&apos;s
+        ID.
+      </p>
+      <Button
+        type="submit"
+        disabled={pending}
+        variant="ghost"
+        className="mt-2 h-11 px-2 text-xs md:h-8"
+      >
         {pending ? "Verifying…" : "Check bank details"}
       </Button>
       {state.error ? <p className="text-coral mt-1 text-xs">{state.error}</p> : null}
-      {state.done ? <p className="text-green mt-1 text-xs">{state.done}</p> : null}
     </form>
   );
 }
@@ -104,6 +127,8 @@ export function PersonPayeeDecisionActions({
   submissionId,
   bankAccountVersionId,
   bankAccountVerified,
+  bankCheckedAt,
+  bankNameConfirmed,
   documentFileIds,
   agreementVersion,
   agreementAcceptedAt,
@@ -114,6 +139,8 @@ export function PersonPayeeDecisionActions({
   submissionId?: string | null;
   bankAccountVersionId?: string | null;
   bankAccountVerified: boolean;
+  bankCheckedAt?: string | null;
+  bankNameConfirmed?: boolean | null;
   documentFileIds: Record<string, string>;
   agreementVersion?: string | null;
   agreementAcceptedAt?: string | null;
@@ -121,6 +148,30 @@ export function PersonPayeeDecisionActions({
 }) {
   const [state, action, pending] = useActionState(reviewPersonPayeeAction, initialState);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [readKeys, setReadKeys] = useState<Set<string>>(() => new Set());
+  const documentNames = {
+    driver_license: "Driver’s licence",
+    driver_photo: "Driver photo",
+  };
+  const documents = [...new Set([...Object.keys(documentNames), ...Object.keys(documentFileIds)])];
+  const rows = [
+    { name: "Identity (NIN)", label: "Show NIN", kind: "nin" as const, id: submissionId },
+    ...documents.map((key) => ({
+      name: documentNames[key as keyof typeof documentNames] ?? adminDocumentLabel(key),
+      label: "Open document",
+      kind: "document" as const,
+      id: documentFileIds[key],
+    })),
+    {
+      name: "Bank account",
+      label: "Show account number",
+      kind: "account" as const,
+      id: bankAccountVersionId,
+    },
+  ].map((row) => ({ ...row, key: JSON.stringify([row.name, row.kind, submissionId, row.id]) }));
+  const checklist = rows.filter((row) => row.kind !== "document" || row.id);
+  const markRead = (key: string) =>
+    setReadKeys((previous) => (previous.has(key) ? previous : new Set(previous).add(key)));
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <p className="text-faint mb-2 text-xs">
@@ -135,14 +186,9 @@ export function PersonPayeeDecisionActions({
             : "Not agreed yet"}
         </p>
       </section>
-      {[
-        { name: "Identity (NIN)", kind: "nin" as const, id: submissionId },
-        { name: "Driver’s licence", kind: "document" as const, id: documentFileIds.driver_license },
-        { name: "Driver photo", kind: "document" as const, id: documentFileIds.driver_photo },
-        { name: "Bank account", kind: "account" as const, id: bankAccountVersionId },
-      ].map((row) => (
+      {rows.map((row) => (
         <section
-          key={`${row.name}:${submissionId ?? "missing"}:${row.id ?? "missing"}`}
+          key={row.key}
           aria-label={row.name}
           className="border-edge grid gap-3 border-b py-3 sm:grid-cols-[1fr_2fr]"
         >
@@ -158,24 +204,47 @@ export function PersonPayeeDecisionActions({
                     expired: "Expired",
                   }[status] ?? "Status unavailable")}
             </p>
+            {row.kind === "account" && bankNameConfirmed === false ? (
+              <p className="text-muted mt-1 text-sm">Name not confirmed by the bank</p>
+            ) : null}
           </div>
           <div>
             {row.id ? (
               <SensitiveReview purpose="Driver application review">
-                <EvidenceRead
-                  kind={row.kind}
-                  id={row.id}
-                  submissionId={row.kind === "document" ? (submissionId ?? undefined) : undefined}
-                  label={row.kind === "nin" ? "Show NIN" : "View"}
-                />
+                {row.kind === "document" ? (
+                  (showFallback) => (
+                    <ReviewDocument
+                      read={() => {
+                        const data = new FormData();
+                        data.set("kind", "document");
+                        data.set("file_id", row.id!);
+                        data.set("submission_id", submissionId ?? "");
+                        return reviewPersonPayeeEvidenceAction({}, data);
+                      }}
+                      onOpened={() => markRead(row.key)}
+                      showFallback={showFallback}
+                    />
+                  )
+                ) : (
+                  <EvidenceRead
+                    kind={row.kind}
+                    id={row.id}
+                    label={row.label}
+                    onRead={() => markRead(row.key)}
+                  />
+                )}
               </SensitiveReview>
             ) : (
-              <button type="button" disabled className="text-muted text-sm">
-                {row.kind === "nin" ? "Show NIN" : "View"}
+              <button type="button" disabled className="text-muted min-h-11 text-sm md:min-h-0">
+                {row.label}
               </button>
             )}
             {row.kind === "account" && row.id ? (
-              <AccountVerification versionId={row.id} verified={bankAccountVerified} />
+              <AccountVerification
+                versionId={row.id}
+                verified={bankAccountVerified}
+                checkedAt={bankCheckedAt}
+              />
             ) : null}
           </div>
         </section>
@@ -227,7 +296,7 @@ export function PersonPayeeDecisionActions({
               <option value="rejected_evidence">Documents not approved</option>
             </select>
           </label>
-          <fieldset className="border-edge my-2 rounded-lg border p-3 text-xs">
+          <fieldset className="border-edge my-2 min-w-0 rounded-lg border p-3 text-xs">
             <legend>Documents that need changes</legend>
             <div className="my-3">
               <p className="font-medium">Driving licence</p>
@@ -277,13 +346,30 @@ export function PersonPayeeDecisionActions({
             </div>
             <p>Record each document’s outcome. Accepted documents stay on file during renewal.</p>
           </fieldset>
+          <div
+            role="group"
+            aria-label="Identity and bank review checklist"
+            className="text-muted text-sm"
+          >
+            <p>
+              {checklist.filter((row) => readKeys.has(row.key)).length} of {checklist.length} done
+            </p>
+            <ul className="flex flex-wrap gap-x-3">
+              {checklist.map((row) => (
+                <li key={row.key}>
+                  {row.kind === "document" ? row.name : row.label}:{" "}
+                  {readKeys.has(row.key) ? "Done" : "To do"}
+                </li>
+              ))}
+            </ul>
+          </div>
           <div className="flex flex-wrap gap-2">
             <Button
               type="submit"
               name="intent"
               value="approve"
               disabled={pending}
-              className="h-8 px-2 text-xs"
+              className="h-11 px-2 text-xs md:h-8"
             >
               Approve
             </Button>
@@ -293,7 +379,7 @@ export function PersonPayeeDecisionActions({
               value="reject"
               disabled={pending || !rejectionReason}
               variant="danger"
-              className="h-8 px-2 text-xs"
+              className="h-11 px-2 text-xs md:h-8"
             >
               Reject
             </Button>
@@ -301,11 +387,6 @@ export function PersonPayeeDecisionActions({
           {state.error ? (
             <p role="alert" className="text-coral text-xs">
               {state.error}
-            </p>
-          ) : null}
-          {state.done ? (
-            <p role="status" className="text-green text-xs">
-              {state.done}
             </p>
           ) : null}
         </form>
@@ -321,6 +402,11 @@ export function PersonPayeeDecisionActions({
           .
         </p>
       )}
+      {state.done ? (
+        <p role="status" className="text-green text-sm">
+          {state.done}
+        </p>
+      ) : null}
     </div>
   );
 }

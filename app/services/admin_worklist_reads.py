@@ -5,19 +5,24 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, literal, select, union_all
+from sqlalchemy import and_, func, literal, or_, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.campaign import Campaign
 from app.models.driver import DriverProfile
-from app.models.driver_application import DriverApplication
+from app.models.driver_application import DriverApplication, DriverApplicationStatus
+from app.models.kyc import KycSubmissionStatus
 from app.models.payout import EarningsLedgerEntry
 from app.models.trip import TripSession
 from app.models.trip_analytics import FraudFlag
-from app.models.user import User
+from app.models.user import User, UserStatus
 from app.models.vehicle import Vehicle
+from app.schemas.driver_applications import AdminApplicantStage
+from app.schemas.driver_onboarding import PersonPayeeStageStatus
+from app.services.driver_onboarding import application_person_payee_view
 from app.services.fraud_holds import fraud_hold_active_clause
 from app.services.operator_search import operator_search
+from app.services.vehicle_onboarding import application_vehicle_view
 
 
 async def trip_contexts(session: AsyncSession, ids: set[UUID]) -> dict[UUID, dict[str, Any]]:
@@ -138,6 +143,27 @@ async def flag_list_money(
     return result
 
 
+async def _application_stage(
+    session: AsyncSession, application: DriverApplication
+) -> AdminApplicantStage:
+    person = await application_person_payee_view(session, application=application)
+    if person.status == PersonPayeeStageStatus.NOT_SUBMITTED:
+        return "Waiting for ID and bank details"
+    if person.status == PersonPayeeStageStatus.PENDING_REVIEW:
+        return "ID and bank to review"
+    if person.status in (PersonPayeeStageStatus.REJECTED, PersonPayeeStageStatus.EXPIRED):
+        return "ID or bank sent back for changes"
+
+    vehicle = await application_vehicle_view(session, application=application)
+    if vehicle.submission is None:
+        return "Waiting for car details"
+    if vehicle.submission.status == KycSubmissionStatus.PENDING_REVIEW:
+        return "Car to review"
+    if vehicle.submission.status == KycSubmissionStatus.APPROVED:
+        return "Ready for account setup"
+    return "Car sent back for changes"
+
+
 async def applicants(
     session: AsyncSession, *, q: str | None, limit: int, offset: int, oldest_first: bool = False
 ) -> tuple[list[dict[str, Any]], int]:
@@ -167,7 +193,15 @@ async def applicants(
     submitted = (
         select(*columns(DriverApplication, "application", DriverApplication.id))
         .outerjoin(User, DriverApplication.user_id == User.id)
-        .where(DriverApplication.status == "pending")
+        .where(
+            or_(
+                DriverApplication.status == DriverApplicationStatus.PENDING,
+                and_(
+                    DriverApplication.status == DriverApplicationStatus.APPROVED,
+                    User.status == UserStatus.INVITED,
+                ),
+            )
+        )
     )
     no_application = (
         ~select(DriverApplication.id)
@@ -214,4 +248,23 @@ async def applicants(
         .mappings()
         .all()
     )
-    return [dict(row) for row in rows], total
+    application_ids = [row["id"] for row in rows if row["kind"] == "application"]
+    applications = (
+        {
+            application.id: application
+            for application in await session.scalars(
+                select(DriverApplication).where(DriverApplication.id.in_(application_ids))
+            )
+        }
+        if application_ids
+        else {}
+    )
+    return [
+        dict(
+            row,
+            stage=await _application_stage(session, applications[row["id"]])
+            if row["kind"] == "application"
+            else "Added by staff",
+        )
+        for row in rows
+    ], total

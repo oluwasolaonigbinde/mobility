@@ -11,9 +11,22 @@ const initialState: DriverAccountSetupState = {};
 export function DriverAccountSetupForm({ token }: { token: string }) {
   const [state, action, pending] = useActionState(completeDriverAccountSetupAction, initialState);
 
+  if (state.done)
+    return (
+      <div
+        role="status"
+        className="border-green/40 bg-green/10 text-green rounded-lg border p-3 text-sm"
+      >
+        <p>{state.done}</p>
+        <Link href="/login" className="mt-2 inline-block underline">
+          Continue to sign in
+        </Link>
+      </div>
+    );
+
   return (
     <form action={action} className="flex flex-col gap-5" noValidate>
-      {!state.done ? <input type="hidden" name="token" value={token} /> : null}
+      <input type="hidden" name="token" value={token} />
       <Field
         label="New password"
         name="new_password"
@@ -21,7 +34,6 @@ export function DriverAccountSetupForm({ token }: { token: string }) {
         autoComplete="new-password"
         minLength={12}
         required
-        disabled={Boolean(state.done)}
       />
       <Field
         label="Confirm new password"
@@ -30,7 +42,6 @@ export function DriverAccountSetupForm({ token }: { token: string }) {
         autoComplete="new-password"
         minLength={12}
         required
-        disabled={Boolean(state.done)}
       />
       {state.error ? (
         <p
@@ -40,21 +51,9 @@ export function DriverAccountSetupForm({ token }: { token: string }) {
           {state.error}
         </p>
       ) : null}
-      {state.done ? (
-        <div
-          role="status"
-          className="border-green/40 bg-green/10 text-green rounded-lg border p-3 text-sm"
-        >
-          <p>{state.done}</p>
-          <Link href="/login" className="mt-2 inline-block underline">
-            Continue to sign in
-          </Link>
-        </div>
-      ) : (
-        <Button type="submit" disabled={pending} className="w-full">
-          {pending ? "Setting password…" : "Set password"}
-        </Button>
-      )}
+      <Button type="submit" disabled={pending} className="w-full">
+        {pending ? "Setting password…" : "Set password"}
+      </Button>
     </form>
   );
 }

@@ -273,8 +273,8 @@ export function NotificationCenter({
         aria-label={compact ? `Notifications${unread > 0 ? `, ${unread} unread` : ""}` : undefined}
         className={
           compact
-            ? "text-muted hover:text-ink relative inline-flex min-h-9 items-center rounded px-2 py-1 text-sm font-medium whitespace-nowrap transition-colors"
-            : "text-muted hover:text-ink relative rounded px-2 py-1 text-sm font-medium transition-colors"
+            ? "text-muted hover:text-ink relative inline-flex min-h-11 items-center rounded px-2 py-1 text-sm font-medium whitespace-nowrap transition-colors md:min-h-9"
+            : "text-muted hover:text-ink relative min-h-11 rounded px-2 py-1 text-sm font-medium transition-colors md:min-h-0"
         }
       >
         {compact ? (

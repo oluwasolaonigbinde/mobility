@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
@@ -68,7 +69,9 @@ from app.schemas.trips import (
     TripEvidenceManifestEntryCreate,
 )
 from app.seeds.driver_story import workday_processing_time
+from app.seeds.identity import record_seed_identity, require_seed_identity, seed_identity_exists
 from app.seeds.rich import F7_DRIVER_PASSWORDS, F7_SEED_VERSION, RichSeedResult, build_rich_seed
+from app.services.campaign_reports import is_seed_campaign
 from app.services.campaign_zones import geometry_expression, validate_geometry_with_postgis
 from app.services.impressions import estimate_trip_impressions
 from app.services.payouts.engine import calculate_trip_payout
@@ -113,6 +116,8 @@ DEMO_DRIVER_PHONE_NUMBERS = {
         for index in range(1, 4)
     },
 }
+DEMO_ORGANIZATION_NAME = "Marula Kitchens"
+DEMO_BILLING_EMAIL = "accounts@marulakitchens.ng"
 PRODUCTION_ENVIRONMENTS = {"prod", "production"}
 
 
@@ -213,6 +218,7 @@ async def upsert_user(
     validate_password_length(password, settings)
     normalized_email = normalize_email(email)
     user = await session.scalar(select(User).where(User.email == normalized_email))
+    created = user is None
     if user is None:
         user = User(
             email=normalized_email,
@@ -235,6 +241,7 @@ async def upsert_user(
             },
         )
     else:
+        await require_seed_identity(session, "user", user.id)
         user.full_name = full_name
         user.status = status_value
         if normalized_email in DEMO_DRIVER_PHONE_NUMBERS:
@@ -247,6 +254,8 @@ async def upsert_user(
         user.must_change_password = False
     await session.flush()
     await session.refresh(user)
+    if created:
+        await record_seed_identity(session, "user", user.id)
     if "demo_seed_user_ids" in session.info:
         session.info["demo_seed_user_ids"].add(user.id)
     return user
@@ -255,32 +264,30 @@ async def upsert_user(
 async def upsert_organization(session: AsyncSession) -> AdvertiserOrganization:
     organization = await session.scalar(
         select(AdvertiserOrganization).where(
-            AdvertiserOrganization.billing_email == "accounts@marulakitchens.ng"
+            AdvertiserOrganization.billing_email == DEMO_BILLING_EMAIL,
+            seed_identity_exists("organization", AdvertiserOrganization.id),
         )
     )
-    if organization is None:
-        organization = await session.scalar(
-            select(AdvertiserOrganization).where(
-                AdvertiserOrganization.billing_email == "billing@demo.mobility.local"
-            )
-        )
+    created = organization is None
     if organization is None:
         organization = AdvertiserOrganization(
-            name="Marula Kitchens",
-            billing_email="accounts@marulakitchens.ng",
+            name=DEMO_ORGANIZATION_NAME,
+            billing_email=DEMO_BILLING_EMAIL,
             country_code="NG",
             currency="NGN",
             status=OrganizationStatus.ACTIVE.value,
         )
         session.add(organization)
     else:
-        organization.name = "Marula Kitchens"
-        organization.billing_email = "accounts@marulakitchens.ng"
+        organization.name = DEMO_ORGANIZATION_NAME
+        organization.billing_email = DEMO_BILLING_EMAIL
         organization.country_code = "NG"
         organization.currency = "NGN"
         organization.status = OrganizationStatus.ACTIVE.value
     await session.flush()
     await session.refresh(organization)
+    if created:
+        await record_seed_identity(session, "organization", organization.id)
     return organization
 
 
@@ -291,6 +298,8 @@ async def upsert_membership(
     user: User,
     role: MembershipRole,
 ) -> OrganizationMembership:
+    await require_seed_identity(session, "organization", organization.id)
+    await require_seed_identity(session, "user", user.id)
     membership = await session.scalar(
         select(OrganizationMembership).where(
             OrganizationMembership.organization_id == organization.id,
@@ -390,6 +399,7 @@ async def upsert_campaign(
         select(Campaign).where(
             Campaign.organization_id == organization.id,
             Campaign.name == "Marula Kitchens — Abuja Lunch Routes",
+            is_seed_campaign(Campaign.id),
         )
     )
     values = {
@@ -1040,6 +1050,7 @@ async def upsert_driver_story_campaigns(
             select(Campaign).where(
                 Campaign.organization_id == organization.id,
                 Campaign.name == spec["name"],
+                is_seed_campaign(Campaign.id),
             )
         )
         campaign_values = {
@@ -1415,6 +1426,7 @@ async def upsert_palmpay_graph(  # noqa: C901
         select(Campaign).where(
             Campaign.organization_id == organization.id,
             Campaign.name == "Marula Kitchens — Wuse Lunch Rush",
+            is_seed_campaign(Campaign.id),
         )
     )
     campaign_values = {
@@ -1777,8 +1789,16 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
         settle_seed_driver_notifications,
     )
 
+    seed_campaign_ids = list(
+        await session.scalars(select(Campaign.id).where(is_seed_campaign(Campaign.id)))
+    )
     await settle_demo_driver_history(
-        session, driver_profile_id=graph.driver_profile.id, staff=staff, settings=settings
+        session,
+        driver_profile_id=graph.driver_profile.id,
+        staff=staff,
+        settings=settings,
+        campaign_ids=seed_campaign_ids,
+        require_released=True,
     )
     finance_example_ids = await ensure_portal_payouts(
         session, graph=graph, staff=staff, settings=settings
@@ -1813,7 +1833,7 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
         await session.scalars(
             select(Campaign.id).where(
                 Campaign.end_at <= utc_now(),
-                Campaign.campaign_metadata["demo"].as_boolean().is_(True),
+                is_seed_campaign(Campaign.id),
             )
         )
     )
@@ -1865,7 +1885,8 @@ async def counts(session: AsyncSession, graph: DemoGraph) -> dict[str, int]:
     rich_trip_count = int(
         await session.scalar(
             select(func.count(TripSession.id)).where(
-                TripSession.trip_metadata["seed_version"].as_string() == F7_SEED_VERSION
+                TripSession.trip_metadata["seed_version"].as_string() == F7_SEED_VERSION,
+                is_seed_campaign(TripSession.campaign_id),
             )
         )
         or 0
@@ -1874,7 +1895,8 @@ async def counts(session: AsyncSession, graph: DemoGraph) -> dict[str, int]:
         "users": int(
             await session.scalar(
                 select(func.count(User.id)).where(
-                    User.email.in_([normalize_email(email) for email in DEMO_PASSWORDS])
+                    User.email.in_([normalize_email(email) for email in DEMO_PASSWORDS]),
+                    seed_identity_exists("user", User.id),
                 )
             )
             or 0
@@ -1966,13 +1988,16 @@ async def process_demo_trip_backlog(session: AsyncSession, *, settings: Settings
     )
     from app.services.trip_processing import find_unprocessed_trip_page, process_ended_trip
 
+    seed_trip = select(TripSession.id).where(
+        TripSession.trip_metadata["demo"].as_string() == "true",
+        is_seed_campaign(TripSession.campaign_id),
+    )
     after = None
     while page := await find_unprocessed_trip_page(
         session, limit=100, settings=settings, after=after
     ):
         for due in page:
-            trip = await session.get(TripSession, due.id)
-            if trip and trip.trip_metadata.get("demo"):
+            if await session.scalar(seed_trip.where(TripSession.id == due.id)):
                 await process_ended_trip(session, trip_id=due.id, settings=settings)
                 await release_pending_earnings_for_trip(session, trip_id=due.id, settings=settings)
         after = page[-1].ended_at, page[-1].id
@@ -1980,8 +2005,7 @@ async def process_demo_trip_backlog(session: AsyncSession, *, settings: Settings
     after_id = None
     while trip_ids := await find_pending_release_trip_ids(session, limit=100, after=after_id):
         for trip_id in trip_ids:
-            trip = await session.get(TripSession, trip_id)
-            if trip and trip.trip_metadata.get("demo"):
+            if await session.scalar(seed_trip.where(TripSession.id == trip_id)):
                 await release_pending_earnings_for_trip(session, trip_id=trip_id, settings=settings)
         after_id = trip_ids[-1]
 
@@ -2001,7 +2025,8 @@ async def settle_demo_worker_reviews(session: AsyncSession, *, settings: Setting
         .join(TripSession, TripSession.id == FraudFlag.trip_session_id)
         .where(
             FraudFlag.id.in_(due_ids),
-            TripSession.trip_metadata["demo"].as_boolean().is_(True),
+            TripSession.trip_metadata["demo"].as_string() == "true",
+            is_seed_campaign(TripSession.campaign_id),
         )
     )
     for flag_id in demo_ids:
@@ -2013,7 +2038,7 @@ async def settle_demo_worker_reviews(session: AsyncSession, *, settings: Setting
         .join(Campaign, Campaign.id == CampaignAssignment.campaign_id)
         .where(
             CampaignAssignment.status == "active",
-            Campaign.campaign_metadata["demo"].as_boolean().is_(True),
+            is_seed_campaign(Campaign.id),
         )
     )
     for assignment_id in assignment_ids:
@@ -2027,35 +2052,133 @@ async def settle_demo_worker_reviews(session: AsyncSession, *, settings: Setting
         )
 
 
+async def settle_demo_reports(
+    sessionmaker: async_sessionmaker[AsyncSession], *, settings: Settings
+) -> None:
+    from app.adapters.storage import build_storage_provider
+    from app.models.campaign_report import CampaignReport
+    from app.services.campaign_report_delivery import publish_campaign_report
+    from app.services.report_scheduling import ELIGIBLE, discover_reports
+
+    storage = build_storage_provider(settings)
+    async with sessionmaker() as session:
+        limit = await session.scalar(
+            select(func.count())
+            .select_from(Campaign)
+            .where(
+                Campaign.status.in_(ELIGIBLE),
+                Campaign.start_at.is_not(None),
+                Campaign.end_at.is_not(None),
+                is_seed_campaign(Campaign.id),
+            )
+        )
+        for _ in range(200):
+            created = await discover_reports(
+                session,
+                settings=settings,
+                storage=storage,
+                limit=max(limit or 0, 1),
+                seed_only=True,
+            )
+            if not created:
+                break
+        else:
+            raise RuntimeError("Demo report catch-up exceeded 200 passes")
+
+        report_ids = list(
+            await session.scalars(
+                select(CampaignReport.id).where(
+                    CampaignReport.status == "queued", is_seed_campaign(CampaignReport.campaign_id)
+                )
+            )
+        )
+
+    for report_id in report_ids:
+        await publish_campaign_report(sessionmaker, report_id=report_id, storage=storage)
+
+
+async def preflight_seed_identities(session: AsyncSession) -> None:
+    from app.seeds.rich import BUSINESS_CONTACTS, STAFF_SPECS
+
+    login_roles = {
+        **dict.fromkeys(DEMO_DRIVER_PHONE_NUMBERS, UserRole.DRIVER),
+        **dict.fromkeys(F7_DRIVER_PASSWORDS, UserRole.DRIVER),
+        **dict.fromkeys(
+            DEMO_PASSWORDS.keys() - DEMO_DRIVER_PHONE_NUMBERS.keys(), UserRole.ADVERTISER
+        ),
+        **{email: UserRole.ADVERTISER for _, _, email in BUSINESS_CONTACTS},
+        **{email: UserRole.ADMIN for _, email, _, _ in STAFF_SPECS},
+        "admin@demo.mobility.local": UserRole.ADMIN,
+    }
+    users = await session.execute(
+        select(User.email, User.role, seed_identity_exists("user", User.id))
+        .where(func.lower(User.email).in_(login_roles))
+        .order_by(User.email)
+    )
+    for email, role, seed_owned in users:
+        if not seed_owned or role != login_roles[normalize_email(email)]:
+            raise AppError(
+                "DEMO_IDENTITY_CONFLICT",
+                "An existing login cannot be reused by the demo seed.",
+                status_code=status.HTTP_409_CONFLICT,
+                details={"email": email},
+            )
+
+    names = [DEMO_ORGANIZATION_NAME, *(name for name, _, _ in BUSINESS_CONTACTS)]
+    billing_emails = [
+        DEMO_BILLING_EMAIL,
+        *(email for _, _, email in BUSINESS_CONTACTS),
+    ]
+    conflict = await session.scalar(
+        select(AdvertiserOrganization.name)
+        .where(
+            (func.lower(AdvertiserOrganization.name).in_([name.lower() for name in names]))
+            | (func.lower(AdvertiserOrganization.billing_email).in_(billing_emails)),
+            ~seed_identity_exists("organization", AdvertiserOrganization.id),
+        )
+        .order_by(AdvertiserOrganization.id)
+        .limit(1)
+    )
+    if conflict is not None:
+        raise AppError(
+            "DEMO_IDENTITY_CONFLICT",
+            "An existing organisation cannot be reused by the demo seed.",
+            status_code=status.HTTP_409_CONFLICT,
+            details={"organization_name": conflict},
+        )
+
+
 async def run_seed(settings: Settings | None = None) -> DemoGraph:
+    from app.adapters.storage import StorageProvider
+    from app.seeds.demo_authority import SEED_IMAGE_WRITES
+
     settings = settings or get_settings()
     ensure_seed_allowed(settings)
     engine = get_engine(settings)
     sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
     async with sessionmaker() as session:
         await ensure_database_ready(session)
-        graph = await build_demo_graph(session, settings)
-        summary_counts = await counts(session, graph)
+        await preflight_seed_identities(session)
+        writes: list[tuple[StorageProvider, str]] = []
+        session.info[SEED_IMAGE_WRITES] = writes
+        try:
+            graph = await build_demo_graph(session, settings)
+            summary_counts = await counts(session, graph)
+        except Exception:
+            for storage, key in reversed(writes):
+                try:
+                    await storage.delete_all_versions(key)
+                except Exception:
+                    logging.getLogger(__name__).exception(
+                        "Failed to remove demo seed image %s", key
+                    )
+            raise
+        # Once commit starts its outcome can be uncertain. Preserve storage in
+        # that case so a successful commit cannot reference deleted objects.
         await session.commit()
-        from app.adapters.storage import build_storage_provider
-        from app.models.campaign_report import CampaignReport
-        from app.services.campaign_report_delivery import publish_campaign_report
-
-        report_ids = list(
-            await session.scalars(
-                select(CampaignReport.id).where(CampaignReport.status == "queued")
-            )
-        )
-        for report_id in report_ids:
-            from app.seeds.history import seed_sessionmaker
-
-            await publish_campaign_report(
-                seed_sessionmaker(sessionmaker),
-                report_id=report_id,
-                storage=build_storage_provider(settings),
-            )
-        print_summary(graph, summary_counts)
-        return graph
+    await settle_demo_reports(sessionmaker, settings=settings)
+    print_summary(graph, summary_counts)
+    return graph
 
 
 def main() -> int:

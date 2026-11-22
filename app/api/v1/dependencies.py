@@ -14,8 +14,10 @@ from app.core.errors import AppError
 from app.core.payment_enqueue import PaymentEventEnqueuer, build_payment_event_enqueuer
 from app.core.payout_event_enqueue import PayoutEventEnqueuer, build_payout_event_enqueuer
 from app.core.rate_limit import (
+    BankCheckRateLimiter,
     LoginRateLimiter,
     RegistrationRateLimiter,
+    build_bank_check_rate_limiter,
     build_login_rate_limiter,
     build_registration_rate_limiter,
 )
@@ -58,6 +60,15 @@ def get_registration_rate_limiter(settings: SettingsDependency) -> RegistrationR
 
 RegistrationRateLimiterDependency = Annotated[
     RegistrationRateLimiter, Depends(get_registration_rate_limiter)
+]
+
+
+def get_bank_check_rate_limiter(settings: SettingsDependency) -> BankCheckRateLimiter:
+    return build_bank_check_rate_limiter(settings)
+
+
+BankCheckRateLimiterDependency = Annotated[
+    BankCheckRateLimiter, Depends(get_bank_check_rate_limiter)
 ]
 
 

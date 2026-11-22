@@ -99,6 +99,15 @@ def test_trusted_proxy_can_supply_validated_client_ip() -> None:
     assert login_client_ip(request, settings) == "198.51.100.8"
 
 
+@pytest.mark.parametrize("headers", [[], [(b"x-client-ip", b"not-an-ip")]])
+def test_trusted_proxy_with_missing_or_invalid_ip_uses_peer(headers) -> None:
+    settings = Settings(
+        login_rate_limit_trust_client_ip_header=True,
+        login_rate_limit_trusted_proxy_cidrs="10.0.0.0/8",
+    )
+    assert login_client_ip(request_with_headers("10.0.0.7", headers), settings) == "10.0.0.7"
+
+
 def test_registration_client_ip_has_its_own_trust_boundary() -> None:
     request = request_with_headers("10.0.0.7", [(b"x-client-ip", b"198.51.100.8")])
     settings = Settings(
@@ -523,5 +532,54 @@ def test_registration_redis_reservations_are_atomic_ttl_bound_and_notify_once() 
         assert not repeated_alias_block.allowed
         assert not repeated_alias_block.newly_blocked
         await redis.aclose()
+
+    asyncio.run(exercise())
+
+
+def test_bank_check_redis_limits_are_atomic_and_separate_from_registration(settings):
+    redis_url = os.environ.get("RATE_LIMIT_TEST_REDIS_URL")
+    if not redis_url:
+        pytest.skip("Redis rate-limit test URL is not configured")
+
+    from uuid import uuid4
+
+    from app.core.rate_limit import RedisBankCheckRateLimiter, RedisRegistrationRateLimiter
+
+    async def exercise():
+        redis = Redis.from_url(redis_url, decode_responses=True)
+        ip = f"bank-check-test-{uuid4()}"
+        applications = [uuid4() for _ in range(7)]
+        bank = RedisBankCheckRateLimiter(redis, (30, 3600, 5, 900))
+        registration = RedisRegistrationRateLimiter(redis, settings)
+        try:
+            for app in applications[:6]:
+                decisions = await asyncio.gather(*(bank.reserve(ip, app) for _ in range(5)))
+                assert all(decision.allowed for decision in decisions)
+                if app != applications[5]:
+                    blocked = await bank.reserve(ip, app)
+                    assert blocked.bucket == "application"
+                    assert 1 <= blocked.retry_after_seconds <= 900
+            shared_ip = await bank.reserve(ip, applications[6])
+            assert shared_ip.bucket == "ip" and 1 <= shared_ip.retry_after_seconds <= 3600
+            assert await redis.get(f"ratelimit:bank-check:ip:{ip}") == "30"
+            assert await redis.get(f"ratelimit:bank-check:app:{applications[0]}") == "5"
+            assert (await registration.reserve(ip, "bank-apply@cardvert-check.ng")).allowed
+            assert await redis.get(f"ratelimit:driver-registration:ip:{ip}") == "1"
+
+            ip_key = f"ratelimit:bank-check:ip:{ip}"
+            app_key = f"ratelimit:bank-check:app:{applications[0]}"
+            await redis.expire(ip_key, 30)
+            await redis.expire(app_key, 600)
+            longest = await bank.reserve(ip, applications[0])
+            assert longest.bucket == "application"
+            assert 590 <= longest.retry_after_seconds <= 600
+
+            await redis.expire(app_key, 10000)
+            bounded = await bank.reserve(ip, applications[0])
+            assert bounded.bucket == "application"
+            assert bounded.retry_after_seconds == 900
+            assert 899 <= await redis.ttl(app_key) <= 900
+        finally:
+            await redis.aclose()
 
     asyncio.run(exercise())

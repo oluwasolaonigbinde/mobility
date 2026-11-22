@@ -354,6 +354,7 @@ export default async function DriverHub({
                   <AccountSetupAction
                     applicationId={application.id}
                     applicantName={person.full_name}
+                    applicantEmail={application.email}
                   />
                 </div>
               ) : null}
@@ -381,6 +382,8 @@ export default async function DriverHub({
               submissionId={p.submission_id}
               bankAccountVersionId={p.bank_account_version_id}
               bankAccountVerified={p.bank_account_verified}
+              bankCheckedAt={p.bank_checked_at}
+              bankNameConfirmed={p.bank_name_confirmed}
               documentFileIds={p.document_file_ids ?? {}}
               status={p.status}
             />

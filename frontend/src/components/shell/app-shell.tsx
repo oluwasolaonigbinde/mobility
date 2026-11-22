@@ -60,7 +60,7 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Topbar */}
-        <header className="border-edge bg-panel sticky top-0 z-40 flex min-h-14 flex-wrap items-center justify-between gap-3 border-b px-4 py-2 md:px-6">
+        <header className="border-edge bg-panel z-40 flex min-h-14 flex-wrap items-center justify-between gap-3 border-b px-4 py-2 md:sticky md:top-0 md:px-6">
           <div className={search ? "hidden" : "flex items-center gap-3 md:hidden"}>
             <Link href="/" className="font-display text-lg font-semibold">
               Cardvert<span className="text-amber">.</span>

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
@@ -29,6 +29,69 @@ afterEach(() => {
 
 const sentCall = () => fetchMock.mock.calls[0] as [string, RequestInit];
 const sentBody = () => JSON.parse(sentCall()[1].body as string);
+
+it.each([
+  { width: 390, height: 844, path: "/driver/assignments", bottom: 80 },
+  { width: 1280, height: 800, path: "/advertiser", bottom: 16 },
+])("lifts Feedback only over visible map credit at $width x $height", async (viewport) => {
+  mocks.path = viewport.path;
+  vi.stubGlobal("innerWidth", viewport.width);
+  vi.stubGlobal("innerHeight", viewport.height);
+  render(
+    <>
+      <div className="maplibregl-ctrl-attrib">MapTiler and OpenStreetMap contributors</div>
+      <FeedbackWidget />
+    </>,
+  );
+  const credit = screen.getByText("MapTiler and OpenStreetMap contributors");
+  const button = screen.getByRole("button", { name: "Feedback" });
+  const bottom = viewport.height - viewport.bottom;
+  const lift = () => parseInt(button.style.getPropertyValue("--feedback-map-lift"), 10) || 0;
+  button.getBoundingClientRect = () =>
+    new DOMRect(viewport.width - 116, bottom - 40 - lift(), 100, 40);
+  credit.getBoundingClientRect = () => new DOMRect(viewport.width - 250, bottom - 15, 240, 20);
+  await waitFor(() => expect(lift()).toBe(23));
+  expect(button.getBoundingClientRect().bottom).toBeLessThan(credit.getBoundingClientRect().top);
+
+  credit.style.visibility = "hidden";
+  fireEvent.scroll(window);
+  await waitFor(() => expect(lift()).toBe(0));
+  credit.style.visibility = "visible";
+  credit.getBoundingClientRect = () => new DOMRect(0, -40, 200, 20);
+  fireEvent.scroll(window);
+  await waitFor(() => expect(lift()).toBe(0));
+});
+
+it.each(["class", "open"])("adjusts to attribution expansion and collapse via %s", async (attribute) => {
+  vi.stubGlobal("innerWidth", 390);
+  vi.stubGlobal("innerHeight", 844);
+  render(
+    <>
+      <details className="maplibregl-ctrl-attrib">
+        <summary>Map credit</summary>
+      </details>
+      <FeedbackWidget />
+    </>,
+  );
+  const credit = screen.getByText("Map credit").closest("details")!;
+  const button = screen.getByRole("button", { name: "Feedback" });
+  const lift = () => parseInt(button.style.getPropertyValue("--feedback-map-lift"), 10) || 0;
+  const expanded = () => credit.open || credit.classList.contains("maplibregl-compact-show");
+  credit.getBoundingClientRect = () =>
+    expanded() ? new DOMRect(150, 810, 230, 30) : new DOMRect(150, 830, 20, 10);
+  button.getBoundingClientRect = () => new DOMRect(274, 788 - lift(), 100, 40);
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  expect(lift()).toBe(0);
+
+  const toggle = (open: boolean) => {
+    if (attribute === "open") credit.open = open;
+    else credit.classList.toggle("maplibregl-compact-show", open);
+  };
+  toggle(true);
+  await waitFor(() => expect(lift()).toBe(26));
+  toggle(false);
+  await waitFor(() => expect(lift()).toBe(0));
+});
 
 it("renders nothing unless the build flag is 1, and nothing on the review page", () => {
   vi.stubEnv("NEXT_PUBLIC_FEEDBACK_ENABLED", "");

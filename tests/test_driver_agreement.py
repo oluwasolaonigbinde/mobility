@@ -11,7 +11,7 @@ from test_driver_person_payee_onboarding import (
 )
 
 from app.adapters.crypto import EnvelopeCryptoProvider
-from app.api.v1.dependencies import get_registration_rate_limiter
+from app.api.v1.dependencies import get_bank_check_rate_limiter
 from app.core.rate_limit import RateLimitDecision
 from app.models.driver_application import DriverApplication
 from app.models.kyc import DriverKycSubmission
@@ -140,7 +140,7 @@ def test_capability_and_local_rate_failures_never_unlock_manual_fallback(
                 allowed=allowed, storage_available=storage, retry_after_seconds=60
             )
 
-    db_client.app.dependency_overrides[get_registration_rate_limiter] = lambda: Limiter()
+    db_client.app.dependency_overrides[get_bank_check_rate_limiter] = lambda: Limiter()
     for capability, expected in ((token, status), (str(uuid4()), 404)):
         response = db_client.post(
             "/api/v1/auth/driver-onboarding/account-name",
@@ -152,6 +152,14 @@ def test_capability_and_local_rate_failures_never_unlock_manual_fallback(
         )
         assert response.status_code == expected
         assert "bank_check_receipt" not in response.text
+        if expected == 503:
+            assert response.headers["Retry-After"] == "1"
+            assert response.json()["error"]["message"] == (
+                "Bank checks are paused for a moment. Try again shortly."
+            )
+        if expected == 429:
+            assert response.headers["Retry-After"] == "60"
+            assert response.json()["error"]["message"].startswith("Try again after ")
 
 
 def test_staff_created_driver_without_consent_cannot_be_approved_and_can_accept_in_renewal(
@@ -277,3 +285,68 @@ def test_submitted_version_does_not_substitute_for_affirmative_consent():
             submission_agreement(None, current=None, version="1", accepted=False, renewal=True)
         )
     assert caught.value.code == "DRIVER_AGREEMENT_REQUIRED"
+
+
+def test_sixth_bank_check_is_limited_by_its_application(
+    db_client, db_sessionmaker, settings, monkeypatch
+):
+    import os
+    import re
+
+    redis_url = os.environ.get("RATE_LIMIT_TEST_REDIS_URL")
+    if not redis_url:
+        pytest.skip("Redis rate-limit test URL is not configured")
+    token, _ = _register(db_client, db_sessionmaker, settings, suffix="bank-http-limit")
+    monkeypatch.setattr(settings, "redis_url", redis_url)
+    db_client.app.dependency_overrides.pop(get_bank_check_rate_limiter)
+    body = {
+        "application_access_token": token,
+        "bank_code": "058",
+        "account_number": "0123456789",
+    }
+    path = "/api/v1/auth/driver-onboarding/account-name"
+    for _ in range(5):
+        response = db_client.post(path, json=body)
+        assert response.status_code == 200, response.text
+    limited = db_client.post(path, json=body)
+    assert limited.status_code == 429, limited.text
+    assert 1 <= int(limited.headers["Retry-After"]) <= 900
+    assert re.fullmatch(r"Try again after \d{2}:\d{2}", limited.json()["error"]["message"])
+
+
+def test_bank_check_separates_relayed_clients_behind_the_same_bff(
+    db_client, db_sessionmaker, settings, monkeypatch
+):
+    import os
+    from ipaddress import IPv6Address
+
+    from fastapi.testclient import TestClient
+    from redis.asyncio import Redis
+
+    from app.core.rate_limit import RedisBankCheckRateLimiter
+
+    redis_url = os.environ.get("RATE_LIMIT_TEST_REDIS_URL")
+    if not redis_url:
+        pytest.skip("Redis rate-limit test URL is not configured")
+    token, _ = _register(db_client, db_sessionmaker, settings, suffix="bank-ip-relay")
+    monkeypatch.setattr(settings, "login_rate_limit_trust_client_ip_header", True)
+    monkeypatch.setattr(settings, "login_rate_limit_trusted_proxy_cidrs", "10.27.0.0/24")
+    monkeypatch.setattr(settings, "driver_registration_rate_limit_trust_client_ip_header", False)
+
+    async def limiter():
+        async with Redis.from_url(redis_url, decode_responses=True) as redis:
+            yield RedisBankCheckRateLimiter(redis, (1, 3600, 5, 900))
+
+    db_client.app.dependency_overrides[get_bank_check_rate_limiter] = limiter
+    body = {
+        "application_access_token": token,
+        "bank_code": "058",
+        "account_number": "0123456789",
+    }
+    path = "/api/v1/auth/driver-onboarding/account-name"
+    first, second = (str(IPv6Address(uuid4().int)) for _ in range(2))
+    with TestClient(db_client.app, client=("10.27.0.3", 50000)) as bff:
+        assert bff.post(path, json=body, headers={"X-Client-IP": first}).status_code == 200
+        assert bff.post(path, json=body, headers={"X-Client-IP": first}).status_code == 429
+        assert bff.post(path, json=body, headers={"X-Client-IP": second}).status_code == 200
+        assert bff.post(path, json=body, headers={"X-Client-IP": second}).status_code == 429

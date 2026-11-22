@@ -11,10 +11,8 @@ export const metadata: Metadata = { title: "Add driver profile" };
 
 export default async function NewDriverProfilePage() {
   const api = createApiClient(await getSessionToken());
-  // Candidate users: driver-role accounts (profile creation fails cleanly
-  // via the API error if one already exists).
   const { data } = await api.GET("/api/v1/admin/users", {
-    params: { query: { role: "driver", limit: 100 } },
+    params: { query: { role: "driver", without_driver_profile: true, limit: 100 } },
   });
 
   return (
@@ -42,12 +40,15 @@ export default async function NewDriverProfilePage() {
           Add profile for an existing login
         </h2>
         <Panel className="p-6 md:p-8">
-          <DriverProfileForm
-            users={(data?.items ?? []).map((u) => ({
-              id: u.id,
-              label: `${u.full_name} — ${u.email}`,
-            }))}
-          />
+          {data?.items.length ? (
+            <DriverProfileForm
+              users={data.items.map((u) => ({ id: u.id, label: `${u.full_name} — ${u.email}` }))}
+            />
+          ) : data ? (
+            <p className="text-muted">Every driver login already has a profile.</p>
+          ) : (
+            <p className="text-muted">Couldn’t load driver logins. Try again shortly.</p>
+          )}
         </Panel>
       </section>
     </div>

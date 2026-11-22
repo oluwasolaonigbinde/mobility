@@ -14,7 +14,13 @@ beforeEach(() => {
 
 it("uses the shared accessible dialog and returns focus after cancellation", async () => {
   const user = userEvent.setup();
-  render(<AccountSetupAction applicationId="application-1" applicantName="Ada Applicant" />);
+  render(
+    <AccountSetupAction
+      applicationId="application-1"
+      applicantName="Ada Applicant"
+      applicantEmail="ada@example.test"
+    />,
+  );
 
   const trigger = screen.getByRole("button", { name: "Start account setup" });
   await user.click(trigger);
@@ -55,7 +61,13 @@ it("keeps pending confirmation modal and shows a refusal inside it", async () =>
       }),
   );
   const user = userEvent.setup();
-  render(<AccountSetupAction applicationId="application-1" applicantName="Ada Applicant" />);
+  render(
+    <AccountSetupAction
+      applicationId="application-1"
+      applicantName="Ada Applicant"
+      applicantEmail="ada@example.test"
+    />,
+  );
 
   await user.click(screen.getByRole("button", { name: "Start account setup" }));
   await user.click(screen.getByRole("button", { name: "Send link" }));
@@ -81,19 +93,32 @@ it("keeps pending confirmation modal and shows a refusal inside it", async () =>
   );
 });
 
-it("focuses the provider-neutral terminal status after successful confirmation", async () => {
-  initiate.mockResolvedValue({
-    done: "A one-use setup link was created and queued for delivery to the applicant's stored email. Delivery is not confirmed.",
-  });
+it("focuses the dated setup result and sends a new request for another link", async () => {
+  initiate.mockImplementation(async (_previous, data: FormData) => ({
+    requestedAt: "2026-11-21T08:15:00Z",
+    requestId: data.get("client_request_id"),
+  }));
   const user = userEvent.setup();
-  render(<AccountSetupAction applicationId="application-1" applicantName="Ada Applicant" />);
-
+  render(
+    <AccountSetupAction
+      applicationId="application-1"
+      applicantName="Ada Applicant"
+      applicantEmail="ada@example.test"
+    />,
+  );
   await user.click(screen.getByRole("button", { name: "Start account setup" }));
   await user.click(screen.getByRole("button", { name: "Send link" }));
-
   const status = await screen.findByRole("status");
-  expect(status).toHaveTextContent("created and queued for delivery");
-  expect(status).toHaveTextContent("Delivery is not confirmed");
+  expect(status).toHaveTextContent(
+    "Setup email on its way to ada@example.test (requested 21 Nov 2026, 09:15)",
+  );
   expect(status).toHaveFocus();
-  expect(screen.queryByRole("button", { name: "Start account setup" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Send another link" }));
+  await user.click(screen.getByRole("button", { name: "Send link" }));
+  expect(initiate).toHaveBeenCalledTimes(2);
+  expect(initiate.mock.calls[0]![1].get("client_request_id")).not.toBe(
+    initiate.mock.calls[1]![1].get("client_request_id"),
+  );
+  expect(status).toHaveFocus();
 });

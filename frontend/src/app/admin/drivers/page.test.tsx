@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, it, expect, vi } from "vitest";
 const get = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
@@ -15,8 +15,19 @@ it("uses one combined applicants search and preserves each actual identity", asy
           application_id: "app",
           driver_profile_id: "driver",
           full_name: "Ada",
+          email: "ada@example.test",
+          created_at: "2026-11-19T11:25:00Z",
+          stage: "Waiting for ID and bank details",
         },
-        { id: "staff", kind: "staff_added", driver_profile_id: "staff", full_name: "Bola" },
+        {
+          id: "staff",
+          kind: "staff_added",
+          driver_profile_id: "staff",
+          full_name: "Bola",
+          email: "bola@example.test",
+          created_at: "2026-11-20T00:00:00Z",
+          stage: "Added by staff",
+        },
       ],
       total: 2,
     },
@@ -27,6 +38,12 @@ it("uses one combined applicants search and preserves each actual identity", asy
     params: { query: { q: "0803", limit: 25, offset: 0, include_staff_added: true } },
   });
   expect(screen.getAllByRole("search")).toHaveLength(1);
+  const applicant = within(screen.getByRole("link", { name: /Ada/ }));
+  expect(applicant.getByText("ada@example.test")).toBeVisible();
+  expect(applicant.getByText("Applied 19 Nov 2026")).toBeVisible();
+  const staff = within(screen.getByRole("link", { name: /Bola/ }));
+  expect(staff.getByText("bola@example.test")).toBeVisible();
+  expect(staff.getByText("Added 20 Nov 2026")).toBeVisible();
   expect(screen.getByRole("link", { name: /Bola/ })).toHaveAttribute(
     "href",
     "/admin/drivers/staff",
@@ -41,4 +58,31 @@ it("does not claim no waiting applicants when an old page is empty", async () =>
   render(await DriversPage({ searchParams: Promise.resolve({ offset: "25" }) }));
   expect(screen.getByText("No applicants on this page.")).toBeVisible();
   expect(screen.queryByText("No applicants waiting.")).toBeNull();
+});
+
+it("shows every stage returned by the applicant worklist", async () => {
+  const stages = [
+    "Waiting for ID and bank details",
+    "ID and bank to review",
+    "ID or bank sent back for changes",
+    "Waiting for car details",
+    "Car to review",
+    "Car sent back for changes",
+    "Ready for account setup",
+    "Added by staff",
+  ];
+  get.mockResolvedValue({
+    data: {
+      total: stages.length,
+      applicants: stages.map((stage, index) => ({
+        id: String(index),
+        kind: index === stages.length - 1 ? "staff_added" : "application",
+        full_name: `Driver ${index}`,
+        driver_profile_id: String(index),
+        stage,
+      })),
+    },
+  });
+  render(await DriversPage({ searchParams: Promise.resolve({}) }));
+  for (const stage of stages) expect(screen.getByText(stage)).toBeVisible();
 });

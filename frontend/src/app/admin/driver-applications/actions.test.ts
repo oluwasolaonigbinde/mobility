@@ -70,7 +70,9 @@ describe("reviewPersonPayeeAction", () => {
     });
     await expect(reviewPersonPayeeEvidenceAction({}, account)).resolves.toMatchObject({
       done: "Bank details ready to view.",
-      sensitiveValue: "Test Driver · GTBank · 0123456789",
+      sensitiveValue: "0123456789",
+      accountName: "Test Driver",
+      bankName: "GTBank",
     });
     await expect(reviewPersonPayeeEvidenceAction({}, document)).resolves.toMatchObject({
       done: "Document ready to view.",
@@ -130,8 +132,10 @@ describe("reviewPersonPayeeAction", () => {
     data.set("bank_account_version_id", VERSION_ID);
     data.set("verification_reference", "provider-authority-reference-001");
 
+    mocks.post.mockResolvedValueOnce({ data: { payout_verified_at: "2026-11-21T08:15:00Z" } });
     await expect(verifyPersonPayeeAccountAction({}, data)).resolves.toEqual({
-      done: "These bank details have been checked for payouts.",
+      done: "Bank details checked.",
+      verifiedAt: "2026-11-21T08:15:00Z",
     });
     expect(mocks.post).toHaveBeenCalledWith(
       "/api/v1/admin/payees/bank-account-versions/{version_id}/payout-verification",
@@ -173,7 +177,7 @@ describe("reviewPersonPayeeAction", () => {
     expect(mocks.post).not.toHaveBeenCalled();
 
     await expect(reviewPersonPayeeAction({}, form("approve"))).resolves.toEqual({
-      done: "Identity documents and bank details approved.",
+      done: "Identity and bank approved.",
     });
     expect(mocks.post).toHaveBeenCalledWith(
       "/api/v1/admin/driver-applications/{application_id}/person-payee-decision",
@@ -220,14 +224,14 @@ describe("reviewPersonPayeeAction", () => {
       new ApiError(409, { code: "VEHICLE_REVIEW_EVIDENCE_INCOMPLETE", message: "private" }),
     );
     await expect(reviewVehicleAction({}, car)).resolves.toMatchObject({
-      error: "View every car document before approving.",
+      error: "Open each document above, then approve again.",
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
   it("records typed rejection evidence without approval attestations", async () => {
     await expect(reviewPersonPayeeAction({}, form("reject", false))).resolves.toEqual({
-      done: "Identity documents and bank details not approved.",
+      done: "Identity and bank rejected.",
     });
     expect(mocks.post.mock.calls[0]?.[1].body).toMatchObject({
       decision: "rejected",
@@ -378,7 +382,8 @@ describe("reviewPersonPayeeAction", () => {
     });
 
     await expect(initiateDriverAccountSetupAction({}, data)).resolves.toEqual({
-      done: "Password setup email requested.",
+      requestedAt: expect.any(String),
+      requestId: data.get("client_request_id"),
     });
     expect(mocks.post).toHaveBeenLastCalledWith(
       "/api/v1/admin/driver-applications/{application_id}/account-setup",

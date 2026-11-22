@@ -31,6 +31,8 @@ describe("AppShell account controls", () => {
       </AppShell>,
     );
 
+    expect(screen.getByRole("banner")).toHaveClass("md:sticky");
+    expect(screen.getByRole("banner")).not.toHaveClass("sticky");
     await user.click(screen.getByText("Account"));
     const accountControls = screen.getByRole("region", { name: "Account" });
     expect(accountControls.closest("details")).not.toHaveClass("md:hidden");

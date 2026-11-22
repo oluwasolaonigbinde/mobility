@@ -178,9 +178,7 @@ def test_charge_webhook_payload_refusals(body) -> None:
 
 def test_payer_name_falls_back_to_account_name_then_customer_code() -> None:
     adapter = payments(RecordingTransport())
-    body = charge_success(
-        metadata={"commercial_terms_id": "terms-1", "organization_id": "org-1"}
-    )
+    body = charge_success(metadata={"commercial_terms_id": "terms-1", "organization_id": "org-1"})
     body["data"]["customer"].update(first_name=None, last_name=" ")
     body["data"]["authorization"]["account_name"] = "Synthetic Account"
     raw = payload(body)
@@ -769,3 +767,22 @@ def test_non_text_checkout_destination_and_provider_rejection_fail_closed():
     with pytest.raises(PaystackRejectedError):
         asyncio.run(adapter.verify_transaction("cv-synthetic-checkout-0001"))
     assert len(transport.requests) == 2
+
+
+def test_paystack_http_refusal_keeps_bounded_redacted_provider_detail():
+    client = PaystackClient(
+        "sk_test_synthetic",
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(
+                404, json={"message": "Cannot resolve 0123-456-789\n" + "x" * 300}
+            )
+        ),
+    )
+    with pytest.raises(PaystackNotFoundError) as refused:
+        asyncio.run(client.request("GET", "/bank/resolve"))
+    # Not-found stays its own error (not a rejection), so checkout keeps its saved reference.
+    assert not isinstance(refused.value, PaystackRejectedError)
+    assert refused.value.status_code == 404
+    assert len(refused.value.message) == 240
+    assert refused.value.message.startswith("Cannot resolve [redacted] ")
+    assert "Cannot resolve" not in str(refused.value)

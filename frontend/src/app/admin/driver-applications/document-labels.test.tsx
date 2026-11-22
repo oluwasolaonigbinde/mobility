@@ -25,7 +25,14 @@ it("uses clear identity document labels with direct audited reads", () => {
   for (const name of ["Identity (NIN)", "Driver’s licence", "Driver photo", "Bank account"]) {
     const row = within(screen.getByRole("region", { name }));
     expect(
-      row.getByRole("button", { name: name === "Identity (NIN)" ? "Show NIN" : "View" }),
+      row.getByRole("button", {
+        name:
+          name === "Identity (NIN)"
+            ? "Show NIN"
+            : name === "Bank account"
+              ? "Show account number"
+              : "Open document",
+      }),
     ).toBeEnabled();
     expect(row.queryByRole("checkbox")).toBeNull();
     expect(row.getByText(/Purpose:/)).toBeInTheDocument();
@@ -48,7 +55,7 @@ it("uses car document labels and hides unknown internal document keys", () => {
   );
   for (const name of ["car registration", "car insurance", "car photo", "document"]) {
     const row = within(screen.getByRole("region", { name }));
-    expect(row.getByRole("button", { name: "View" })).toBeEnabled();
+    expect(row.getByRole("button", { name: "Open document" })).toBeEnabled();
     expect(row.getByText("Purpose: Vehicle review")).toBeVisible();
     expect(row.queryByRole("checkbox")).toBeNull();
   }

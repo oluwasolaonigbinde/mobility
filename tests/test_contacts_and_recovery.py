@@ -419,7 +419,7 @@ def test_password_reset_delivery_hash_mismatch_leaves_expiring_reclaimable_claim
 ) -> None:
     advertiser = create_test_user(
         db_sessionmaker,
-        email="recover-delivery-mismatch@example.com",
+        email="recover-delivery-mismatch@cardvert-check.ng",
         role=UserRole.ADVERTISER,
     )
     create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
@@ -502,7 +502,7 @@ def test_password_reset_is_non_enumerating_single_use_expiring_and_revokes_sessi
 ) -> None:
     advertiser = create_test_user(
         db_sessionmaker,
-        email="recover-advertiser@example.com",
+        email="recover-advertiser@cardvert-check.ng",
         role=UserRole.ADVERTISER,
     )
     create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)

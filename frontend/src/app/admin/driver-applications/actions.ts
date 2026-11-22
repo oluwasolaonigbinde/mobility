@@ -21,6 +21,9 @@ export interface PersonPayeeEvidenceState {
   error?: string;
   done?: string;
   sensitiveValue?: string;
+  accountName?: string;
+  bankName?: string;
+  verifiedAt?: string | null;
   downloadUrl?: string;
 }
 
@@ -39,7 +42,8 @@ export interface VehicleEvidenceState {
 
 export interface DriverAccountSetupState {
   error?: string;
-  done?: string;
+  requestedAt?: string;
+  requestId?: string;
 }
 
 const evidenceSchema = z.discriminatedUnion("kind", [
@@ -82,9 +86,9 @@ export async function reviewPersonPayeeEvidenceAction(
       );
       return {
         done: "Bank details ready to view.",
-        sensitiveValue: data
-          ? `${data.account_name} · ${bankDisplayName(data.bank_code)} · ${data.account_number}`
-          : undefined,
+        sensitiveValue: data?.account_number,
+        accountName: data?.account_name,
+        bankName: data ? bankDisplayName(data.bank_code) : undefined,
       };
     }
     const { data } = await api.POST("/api/v1/admin/files/{file_id}/download", {
@@ -125,14 +129,16 @@ export async function verifyPersonPayeeAccountAction(
   });
   if (!parsed.success)
     return { error: "Enter the test-transfer reference from your bank (1–512 characters)." };
+  let verifiedAt: string | null | undefined;
   try {
-    await createApiClient(await getSessionToken()).POST(
+    const { data } = await createApiClient(await getSessionToken()).POST(
       "/api/v1/admin/payees/bank-account-versions/{version_id}/payout-verification",
       {
         params: { path: { version_id: parsed.data.bank_account_version_id } },
         body: { verification_reference: parsed.data.verification_reference },
       },
     );
+    verifiedAt = data?.payout_verified_at;
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof ApiError) return { error: publicActionError(error) };
@@ -141,7 +147,7 @@ export async function verifyPersonPayeeAccountAction(
   revalidatePath("/admin/drivers");
   revalidatePath("/admin/drivers/[driverId]", "page");
   revalidatePath("/admin/drivers/applicant/[applicationId]", "page");
-  return { done: "These bank details have been checked for payouts." };
+  return { done: "Bank details checked.", verifiedAt };
 }
 
 const personPayeeDecisionErrors = {
@@ -153,7 +159,7 @@ const personPayeeDecisionErrors = {
 } as const;
 
 const vehicleDecisionErrors = {
-  VEHICLE_REVIEW_EVIDENCE_INCOMPLETE: "View every car document before approving.",
+  VEHICLE_REVIEW_EVIDENCE_INCOMPLETE: "Open each document above, then approve again.",
   VEHICLE_REVISION_STALE: "This car's details changed. Reload the page and review them again.",
   VEHICLE_CURRENT_EVIDENCE_MISMATCH:
     "This car's details changed. Reload the page and review them again.",
@@ -279,7 +285,7 @@ export async function reviewPersonPayeeAction(
   revalidatePath("/admin/drivers/[driverId]", "page");
   revalidatePath("/admin/drivers/applicant/[applicationId]", "page");
   return {
-    done: `Identity documents and bank details ${decision === "rejected" ? "not approved" : decision}.`,
+    done: `Identity and bank ${decision}.`,
   };
 }
 
@@ -488,14 +494,14 @@ const accountSetupSchema = z.object({
 });
 
 export async function initiateDriverAccountSetupAction(
-  _previous: DriverAccountSetupState,
+  previous: DriverAccountSetupState,
   formData: FormData,
 ): Promise<DriverAccountSetupState> {
   const parsed = accountSetupSchema.safeParse({
     application_id: String(formData.get("application_id") ?? ""),
     client_request_id: String(formData.get("client_request_id") ?? ""),
   });
-  if (!parsed.success) return { error: "The account setup request is incomplete." };
+  if (!parsed.success) return { ...previous, error: "The account setup request is incomplete." };
   try {
     await createApiClient(await getSessionToken()).POST(
       "/api/v1/admin/driver-applications/{application_id}/account-setup",
@@ -506,13 +512,11 @@ export async function initiateDriverAccountSetupAction(
     );
   } catch (error) {
     unstable_rethrow(error);
-    if (error instanceof ApiError) return { error: publicActionError(error) };
-    return { error: "Could not reach the server. Try again." };
+    if (error instanceof ApiError) return { ...previous, error: publicActionError(error) };
+    return { ...previous, error: "Could not reach the server. Try again." };
   }
   revalidatePath(`/admin/drivers/applicant/${parsed.data.application_id}`);
   revalidatePath("/admin/drivers/[driverId]", "page");
   revalidatePath("/admin/drivers/applicant/[applicationId]", "page");
-  return {
-    done: "Password setup email requested.",
-  };
+  return { requestedAt: new Date().toISOString(), requestId: parsed.data.client_request_id };
 }

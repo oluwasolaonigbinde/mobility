@@ -32,7 +32,9 @@ from app.services import vehicle_onboarding
 
 
 def prepare(client, maker, settings):
-    token, application, admin = _approved_applicant(client, maker, settings, suffix="convergence")
+    token, application, admin = _approved_applicant(
+        client, maker, settings, suffix="convergence", domain="cardvert-check.ng"
+    )
     files = _seed_vehicle_files(maker, application=application, suffix="convergence")
     response = client.post(
         "/api/v1/auth/driver-onboarding/vehicle", json=_vehicle_payload(token, files)
@@ -51,7 +53,7 @@ def prepare(client, maker, settings):
             await session.commit()
 
     asyncio.run(seed_expired_current_projection())
-    person_files = _seed_clean_kyc_files(maker, email="person-payee-convergence@example.com")
+    person_files = _seed_clean_kyc_files(maker, email=application.email)
     response = client.post(
         "/api/v1/auth/driver-onboarding/person-payee",
         json=_person_payee_payload(token, person_files, client),

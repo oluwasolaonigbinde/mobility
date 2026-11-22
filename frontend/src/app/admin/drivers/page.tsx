@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
+import { formatDate } from "@/lib/format";
 import { adminStatus } from "@/lib/status/admin";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
@@ -31,6 +32,9 @@ export default async function DriversPage({
     key: string;
     name: string;
     phone?: string | null;
+    email?: string;
+    appliedAt?: string;
+    staffAdded?: boolean;
     city?: string | null;
     plate?: string | null;
     status: string;
@@ -48,8 +52,11 @@ export default async function DriversPage({
         key: a.kind + ":" + a.id,
         name: a.full_name,
         phone: a.phone,
+        email: a.email,
+        appliedAt: a.created_at,
         city: a.service_city,
-        status: a.kind === "staff_added" ? "Added by staff" : "Application for review",
+        staffAdded: a.kind === "staff_added",
+        status: a.stage,
         href: a.driver_profile_id
           ? `/admin/drivers/${a.driver_profile_id}${a.application_id ? `?application=${a.application_id}` : ""}`
           : `/admin/drivers/applicant/${a.application_id}`,
@@ -135,11 +142,21 @@ export default async function DriversPage({
                 <Link
                   key={r.key}
                   href={r.href}
-                  className="border-edge hover:bg-raised grid gap-2 rounded-xl border p-4 text-sm md:grid-cols-[2fr_1fr_1fr_1.5fr]"
+                  className="border-edge hover:bg-raised grid min-w-0 gap-2 rounded-xl border p-4 text-sm md:grid-cols-[2fr_1fr_1fr_1.5fr]"
                 >
-                  <div>
+                  <div className="min-w-0 break-words">
                     <h2 className="font-medium">{r.name}</h2>
                     <p className="text-muted">{r.phone ?? "No phone recorded"}</p>
+                    {r.email ? (
+                      <p className="text-muted break-all" data-feedback-private>
+                        {r.email}
+                      </p>
+                    ) : null}
+                    {r.appliedAt ? (
+                      <p className="text-muted">
+                        {r.staffAdded ? "Added" : "Applied"} {formatDate(r.appliedAt)}
+                      </p>
+                    ) : null}
                   </div>
                   <p>{r.city}</p>
                   <p>{r.plate}</p>

@@ -139,7 +139,7 @@ export function FilePicker({
           type="button"
           disabled={disabled}
           onClick={() => inputRef.current?.click()}
-          className="border-edge text-ink hover:border-edge-strong h-9 shrink-0 rounded-full border px-4 text-sm font-medium disabled:opacity-50"
+          className="border-edge text-ink hover:border-edge-strong h-11 shrink-0 rounded-full border px-4 text-sm font-medium disabled:opacity-50 md:h-9"
         >
           {file ? "Replace" : capture ? "Take photo" : "Choose file"}
         </button>
@@ -148,7 +148,7 @@ export function FilePicker({
             type="button"
             disabled={disabled}
             onClick={remove}
-            className="text-muted hover:text-coral h-9 shrink-0 px-2 text-sm disabled:opacity-50"
+            className="text-muted hover:text-coral h-11 shrink-0 px-2 text-sm disabled:opacity-50 md:h-9"
           >
             Remove
           </button>

@@ -15,7 +15,7 @@ from app.models.campaign_report import CampaignReport
 from app.models.report_schedule import ReportScheduleCursor
 from app.services.audit import create_audit_event
 from app.services.campaign_report_data import aware
-from app.services.campaign_reports import _request_lock, create_report
+from app.services.campaign_reports import _request_lock, create_report, is_seed_campaign
 from app.services.disclosure import _canonical_hash, after_day, load_cells, midnight
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 from app.services.report_authorization import REPORT_ACTOR_ID, require_report_operator
@@ -193,7 +193,7 @@ async def _discover_campaign_report(session, *, campaign_id, settings, storage) 
     return 1
 
 
-async def discover_reports(session, *, settings, storage, limit):
+async def discover_reports(session, *, settings, storage, limit, seed_only=False):
     """Commit once per campaign so a report build holds only its own campaign key."""
     await require_report_operator(session, REPORT_ACTOR_ID)
     await session.execute(
@@ -201,9 +201,11 @@ async def discover_reports(session, *, settings, storage, limit):
         .values(name="campaigns")
         .on_conflict_do_nothing(index_elements=[ReportScheduleCursor.name])
     )
-    cursor_id = await session.scalar(
-        select(ReportScheduleCursor.campaign_id).where(ReportScheduleCursor.name == "campaigns")
-    )
+    cursor_id = None
+    if not seed_only:
+        cursor_id = await session.scalar(
+            select(ReportScheduleCursor.campaign_id).where(ReportScheduleCursor.name == "campaigns")
+        )
     query = (
         select(Campaign.id)
         .where(
@@ -214,6 +216,8 @@ async def discover_reports(session, *, settings, storage, limit):
         .order_by(Campaign.id)
         .limit(limit)
     )
+    if seed_only:
+        query = query.where(is_seed_campaign(Campaign.id))
     campaign_ids = list(
         await session.scalars(query.where(Campaign.id > cursor_id) if cursor_id else query)
     )
@@ -225,13 +229,13 @@ async def discover_reports(session, *, settings, storage, limit):
         created += await _discover_campaign_report(
             session, campaign_id=campaign_id, settings=settings, storage=storage
         )
-        # Duplicate reports are excluded by the campaign key and the known
-        # periods it guards, so a concurrent sweep only repeats a no-op.
-        await session.execute(
-            update(ReportScheduleCursor)
-            .where(ReportScheduleCursor.name == "campaigns")
-            .values(campaign_id=campaign_id)
-        )
+        # Seed scans do not advance the ordinary worker's cursor.
+        if not seed_only:
+            await session.execute(
+                update(ReportScheduleCursor)
+                .where(ReportScheduleCursor.name == "campaigns")
+                .values(campaign_id=campaign_id)
+            )
         await session.commit()
     return created
 

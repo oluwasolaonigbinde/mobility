@@ -63,7 +63,7 @@ def test_smtp_recipient_refusal_is_terminal_and_does_not_expose_provider_text(mo
     with pytest.raises(EmailSendError) as refused:
         asyncio.run(SmtpEmailAdapter(settings).send(message))
     assert refused.value.retryable is False
-    assert str(refused.value) == "email_recipient_rejected"
+    assert str(refused.value) == "email_smtp_550"
 
 
 @pytest.mark.parametrize("environment", [None, "", "prod", "invalid"])

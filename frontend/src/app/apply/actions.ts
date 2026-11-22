@@ -97,6 +97,24 @@ export async function submitDriverApplicationAction(
     return { submitted: true };
   } catch (error) {
     unstable_rethrow(error);
+    if (error instanceof ApiError && error.status === 422 && error.code === "VALIDATION_ERROR") {
+      const errors = error.details?.errors;
+      if (
+        Array.isArray(errors) &&
+        errors.some((entry: unknown) => {
+          if (typeof entry !== "object" || entry === null || !("loc" in entry)) return false;
+          const { loc } = entry;
+          return Array.isArray(loc) && loc.length === 2 && loc[0] === "body" && loc[1] === "phone";
+        })
+      ) {
+        return {
+          values: typedValues(formData),
+          fieldErrors: {
+            phone: "Enter your number with the country code, for example +234 803 456 7890",
+          },
+        };
+      }
+    }
     return {
       values: typedValues(formData),
       error:

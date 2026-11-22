@@ -38,10 +38,17 @@ def normalize_phone(phone: str) -> str:
     if not PHONE_PATTERN.fullmatch(normalized):
         raise AppError(
             "INVALID_PHONE_NUMBER",
-            "Phone number must use international E.164 format",
+            "Enter your number with the country code, for example +234 803 456 7890",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     return normalized
+
+
+def normalize_phone_input(phone: str) -> str:
+    local = phone.strip().replace(" ", "").replace("-", "")
+    if re.fullmatch(r"0[0-9]{10}", local):
+        phone = "+234" + local[1:]
+    return normalize_phone(phone)
 
 
 def phone_fingerprint(phone: str, settings: Settings) -> str:

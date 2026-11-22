@@ -16,7 +16,9 @@ from app.adapters.payments.paystack import (
     PaystackClient,
     PaystackError,
     PaystackMalformedResponseError,
+    PaystackNotFoundError,
     PaystackOutcomeUnknownError,
+    PaystackRejectedError,
 )
 from app.core.config import Settings
 
@@ -34,6 +36,17 @@ class _AccountLookupLogFilter(logging.Filter):
 
 
 logging.getLogger("httpx").addFilter(_AccountLookupLogFilter())
+logger = logging.getLogger(__name__)
+_PROVIDER_RESTRICTION = re.compile(
+    r"\b(?:quota\s+(?:exceeded|exhausted|reached)|(?:exceeded|exhausted|reached)\s+(?:the\s+)?quota"
+    r"|rate[ -]limit(?:ed|ing)?|too many requests|test[ -]mode)\b",
+    re.IGNORECASE,
+)
+_PROVIDER_RESOLVE_REFUSAL = re.compile(
+    r"\b(?:could(?: not|n't)|cannot|can(?: not|'t)|unable to|failed to)\s+resolve"
+    r"\s+(?:(?:the|this|an?)\s+)?account(?:\s+(?:name|number)\b|(?=\s*(?:[:.,;!?]|$)))",
+    re.IGNORECASE,
+)
 
 # Extracted from the renewal picker; digital-bank additions support Apply too.
 FALLBACK_BANKS = (
@@ -80,6 +93,10 @@ _POPULAR = (
 
 class BankLookupInvalid(ValueError):
     """Unusable bank/account response; never grants manual fallback."""
+
+
+class BankLookupRefused(ValueError):
+    """Provider refused lookup for a locally valid bank and account."""
 
 
 @dataclass(frozen=True)
@@ -159,10 +176,23 @@ class BankAdapter:
             )
         except PaystackMalformedResponseError:
             raise BankLookupInvalid("Invalid account response") from None
-        except PaystackOutcomeUnknownError:
-            return None
-        except PaystackError:
-            raise BankLookupInvalid("Account could not be checked") from None
+        except (PaystackRejectedError, PaystackNotFoundError, PaystackOutcomeUnknownError) as exc:
+            if exc.status_code is not None:
+                logger.warning(
+                    "Paystack bank resolve failed: status=%s bank_code=%s message=%s",
+                    exc.status_code,
+                    bank_code,
+                    exc.message,
+                )
+            if (
+                (isinstance(exc, PaystackOutcomeUnknownError) and exc.status_code != 429)
+                or exc.status_code in (401, 403)
+                or _PROVIDER_RESTRICTION.search(exc.message)
+            ):
+                return None
+            if exc.status_code in (400, 404, 422) and _PROVIDER_RESOLVE_REFUSAL.search(exc.message):
+                raise BankLookupRefused("Account could not be resolved") from None
+            raise BankLookupInvalid("Invalid account response") from None
         if (
             not isinstance(data, dict)
             or data.get("account_number") != account_number

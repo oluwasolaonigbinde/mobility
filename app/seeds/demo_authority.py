@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.adapters.banks import BankAdapter
 from app.adapters.crypto import AssociatedData, EnvelopeCryptoProvider
 from app.adapters.scanner import MalwareScanVerdict, build_malware_scanner
-from app.adapters.storage import build_storage_provider
+from app.adapters.storage import StorageProvider, build_storage_provider
 from app.core.config import Settings
 from app.models.billing import ProductionStart
 from app.models.campaign import Campaign, CampaignCreative
@@ -52,6 +52,7 @@ from app.models.stored_file import (
 )
 from app.models.user import User
 from app.models.vehicle import Vehicle, VehicleType
+from app.seeds.identity import record_seed_identity, seed_identity_exists
 from app.services.bank_capture import check_account_name
 from app.services.billing.authority import reserve_assignment_liability
 from app.services.campaign_assignments import (
@@ -83,6 +84,9 @@ SYNTHETIC_ISSUER_FACTS = {
 SEED_PLANNED_INVOICES = "cardvert_seed_planned_invoices"
 
 
+SEED_IMAGE_WRITES = "demo_seed_image_writes"
+
+
 async def managed_seed_image(
     session,
     *,
@@ -111,10 +115,14 @@ async def managed_seed_image(
     if scan.verdict != MalwareScanVerdict.CLEAN:
         raise ValueError("Installation image did not pass malware scanning")
     digest = hashlib.sha256(data).hexdigest()
-    key = f"campaign-files/{file_id}.png"
-    await build_storage_provider(settings).put(
-        object_key=key, content_type="image/png", data=data, checksum_sha256=digest
-    )
+    writes: list[tuple[StorageProvider, str]] | None = session.info.get(SEED_IMAGE_WRITES)
+    # A failed or concurrent invocation must own its storage keys independently
+    # of the stable database file IDs used for successful re-seeds.
+    key = f"campaign-files/{uuid4() if writes is not None else file_id}.png"
+    storage = build_storage_provider(settings)
+    await storage.put(object_key=key, content_type="image/png", data=data, checksum_sha256=digest)
+    if writes is not None:
+        writes.append((storage, key))
     now = at or datetime.now(UTC)
     intent = FileUploadIntent(
         subject_user_id=None if organization_id else subject.id,
@@ -241,7 +249,10 @@ async def prepare_daily_offer(
         from app.services.campaigns import decide_creative_review, submit_creative_for_review
 
         compliance = await session.scalar(
-            select(User).where(User.email == "olumide.fashola@terraxmedia.com")
+            select(User).where(
+                User.email == "olumide.fashola@terraxmedia.com",
+                seed_identity_exists("user", User.id),
+            )
         )
         review_at = offered_at - timedelta(hours=2)
 
@@ -852,6 +863,7 @@ async def ensure_demo_documents(session, *, driver, profile, vehicle, reviewer, 
         PersonPayeeReviewDecisionCreate,
         VehicleReviewDecisionCreate,
     )
+    from app.seeds.driver_story import select_seed_bank_version
     from app.services.driver_onboarding import review_application_person_payee
     from app.services.kyc import reveal_driver_nin, submit_driver_kyc, submit_vehicle_evidence
     from app.services.payees import read_verified_bank_account
@@ -896,15 +908,11 @@ async def ensure_demo_documents(session, *, driver, profile, vehicle, reviewer, 
     if not await session.scalar(
         select(DriverKycSubmission.id).where(DriverKycSubmission.driver_profile_id == profile.id)
     ):
-        bank = await session.scalar(
-            select(PayeeBankAccountVersion)
-            .join(PayeeBankAccount)
-            .join(Payee)
-            .where(Payee.subject_id == profile.id, Payee.tenant_id == driver.id)
-            .order_by(PayeeBankAccountVersion.version.desc())
-            .limit(1)
+        bank = await select_seed_bank_version(
+            session, driver_profile_id=profile.id, current_only=True
         )
-        bank = require_seed_value(bank, "primary driver bank account")
+        if bank is None:
+            return
         files = await documents(("driver_license", "driver_photo"), FilePurpose.DRIVER_KYC.value)
         view = await submit_driver_kyc(
             session,
@@ -1054,6 +1062,7 @@ async def ensure_demo_verified_bank(session, *, driver, profile, admin, settings
         )
         session.add(bank_version)
         await session.flush()
+        await record_seed_identity(session, "bank_account_version", bank_version.id)
         from app.models.payee import PayeeBankAccountPayoutVerification
 
         session.add(
@@ -1082,11 +1091,19 @@ async def ensure_demo_start_authority(
     from app.models.user import User
 
     operations = await session.scalar(
-        select(User).where(User.email == "ibrahim.danjuma@terraxmedia.com")
+        select(User).where(
+            User.email == "ibrahim.danjuma@terraxmedia.com", seed_identity_exists("user", User.id)
+        )
     )
-    finance = await session.scalar(select(User).where(User.email == "hauwa.sani@terraxmedia.com"))
+    finance = await session.scalar(
+        select(User).where(
+            User.email == "hauwa.sani@terraxmedia.com", seed_identity_exists("user", User.id)
+        )
+    )
     compliance = await session.scalar(
-        select(User).where(User.email == "olumide.fashola@terraxmedia.com")
+        select(User).where(
+            User.email == "olumide.fashola@terraxmedia.com", seed_identity_exists("user", User.id)
+        )
     )
     admin = operations or admin
     profile, assignment, campaign, vehicle = (
@@ -1296,6 +1313,7 @@ async def ensure_demo_start_authority(
 
 async def ensure_job_driver_documents(session, *, reviewer, settings):
     from app.seeds.history import initial_action_history
+    from app.services.campaign_reports import is_seed_campaign
 
     rows = await session.execute(
         select(User, DriverProfile, Vehicle, func.min(Campaign.start_at))
@@ -1305,7 +1323,7 @@ async def ensure_job_driver_documents(session, *, reviewer, settings):
         .join(Campaign, Campaign.id == CampaignAssignment.campaign_id)
         .where(
             User.id.in_(session.info.get("demo_seed_user_ids", set())),
-            Campaign.campaign_metadata["demo"].as_boolean().is_(True),
+            is_seed_campaign(Campaign.id),
         )
         .group_by(User.id, DriverProfile.id, Vehicle.id)
         .order_by(User.id, Vehicle.id)

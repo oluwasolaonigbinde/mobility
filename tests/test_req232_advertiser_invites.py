@@ -49,7 +49,7 @@ def test_explicit_invite_email_and_password_activate_one_login_without_auto_sign
     url = f"/api/v1/admin/advertiser-organizations/{company.id}"
     assert db_client.get(url + "/members", headers=headers).json()["login_invite_available"] is True
     sent = db_client.post(
-        url + "/login-invite", headers=headers, json={"email": " NEW@EXAMPLE.INVALID "}
+        url + "/login-invite", headers=headers, json={"email": " NEW@CARDVERT-CHECK.NG "}
     )
     assert sent.status_code == 200, sent.text
     assert set(sent.json()) == {"message"}
@@ -129,7 +129,7 @@ def test_explicit_invite_email_and_password_activate_one_login_without_auto_sign
     )
     signed_in = db_client.post(
         "/api/v1/auth/login",
-        json={"email": "new@example.invalid", "password": "chosen-long-password"},
+        json={"email": "new@cardvert-check.ng", "password": "chosen-long-password"},
     )
     assert signed_in.status_code == 200, signed_in.text
     assert signed_in.json()["user"]["status"] == "active"

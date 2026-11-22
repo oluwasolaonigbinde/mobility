@@ -136,6 +136,8 @@ const application = {
     submission_id: "person",
     bank_account_version_id: "bank",
     bank_account_verified: true,
+    bank_checked_at: "2026-11-21T08:15:00Z",
+    bank_name_confirmed: false,
     document_file_ids: { identity: "file" },
   },
   vehicle: {
@@ -238,6 +240,8 @@ it("keeps exact audited document identities and blocks generic activation for a 
     submissionId: "person",
     bankAccountVersionId: "bank",
     bankAccountVerified: true,
+    bankCheckedAt: "2026-11-21T08:15:00Z",
+    bankNameConfirmed: false,
     documentFileIds: { identity: "file" },
     status: "pending_review",
   });
@@ -330,6 +334,7 @@ it.each(["invited", "active"])(
       expect(mocks.setup).toHaveBeenCalledWith({
         applicationId: appId,
         applicantName: driver.full_name,
+        applicantEmail: application.email,
       });
     else expect(mocks.setup).not.toHaveBeenCalled();
   },
