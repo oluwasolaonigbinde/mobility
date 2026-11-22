@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
-    "@sentry/nextjs": "^10.78.0",
+    "@sentry/nextjs": "^11.15.0",
     "@tanstack/react-query": "^5.101.2",
     "maplibre-gl": "6.4.1",
     "modern-screenshot": "4.7.0",
