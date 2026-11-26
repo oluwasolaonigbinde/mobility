@@ -90,7 +90,7 @@ test("assignments section lists the seeded pairing", async ({ page }) => {
   await loginAsAdmin(page);
   await openCampaign(page, "Marula Kitchens — Abuja Lunch Routes");
   await expect(page.getByText("Marula Kitchens — Abuja Lunch Routes").first()).toBeVisible();
-  await expect(page.getByText("Offer a job · Find drivers")).toBeVisible();
+  await expect(page.getByText("Offer a job", { exact: true })).toBeVisible();
   const row = page.locator('#drivers div[id^="job-"]').filter({ hasText: "Emeka Nwankwo" }).first();
   const trigger = row.getByRole("button", { name: "Cancel" });
   await trigger.click();
