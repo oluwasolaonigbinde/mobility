@@ -220,3 +220,48 @@ describe("reviewInstallationEvidenceAction", () => {
     });
   });
 });
+
+describe("decision outcome unknown after a network failure", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.post.mockRejectedValue(new TypeError("fetch failed"));
+  });
+
+  function form(fields: Record<string, string>): FormData {
+    const data = new FormData();
+    for (const [key, value] of Object.entries(fields)) data.set(key, value);
+    return data;
+  }
+
+  it("tells staff to check before retrying instead of claiming the decision failed", async () => {
+    await expect(
+      reviewCampaignChangeAction(
+        {},
+        form({ request_id: CHANGE_ID, intent: "approve", reason: "Funding checked" }),
+      ),
+    ).resolves.toEqual({
+      error:
+        "We couldn't confirm this decision was saved. Refresh the page to check before trying again.",
+    });
+    await expect(reviewCampaignAction({}, reviewForm("approve"))).resolves.toEqual({
+      error:
+        "We couldn't confirm this decision was saved. Refresh the page to check before trying again.",
+    });
+    await expect(
+      reviewCreativeAction({}, form({ creative_id: CREATIVE_ID, intent: "approve", reason: "" })),
+    ).resolves.toEqual({
+      error:
+        "We couldn't confirm this artwork decision was saved. Refresh the page to check before trying again.",
+    });
+    await expect(
+      reviewInstallationEvidenceAction(
+        {},
+        form({ submission_id: EVIDENCE_ID, intent: "approve", reason: "" }),
+      ),
+    ).resolves.toEqual({
+      error:
+        "We couldn't confirm this photo decision was saved. Refresh the page to check before trying again.",
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+});
