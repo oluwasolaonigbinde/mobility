@@ -95,7 +95,7 @@ test("assignments section lists the seeded pairing", async ({ page }) => {
   const trigger = row.getByRole("button", { name: "Cancel" });
   await trigger.click();
   const confirmation = page.getByRole("alertdialog");
-  await expect(confirmation).toContainText("Cancel Emeka Nwankwo?");
+  await expect(confirmation).toContainText("Cancel job: Emeka Nwankwo?");
   await expect(confirmation.getByRole("button", { name: "Keep job" })).toBeFocused();
   for (let index = 0; index < 4; index += 1) {
     await page.keyboard.press("Tab");
