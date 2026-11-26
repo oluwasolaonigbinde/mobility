@@ -13,7 +13,7 @@ describe("StatusActions", () => {
     render(<StatusActions campaignId={CAMPAIGN_ID} status="rejected" />);
 
     expect(screen.getByRole("link", { name: "Edit details" })).toHaveAttribute("href", EDIT_HREF);
-    expect(screen.getByRole("link", { name: "edit the details" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Edit the details" })).toHaveAttribute(
       "href",
       EDIT_HREF,
     );

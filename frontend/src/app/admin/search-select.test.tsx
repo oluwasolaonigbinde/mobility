@@ -79,7 +79,7 @@ describe("SearchSelect behaviour", () => {
       offset: 0,
       parentId: "driver-1",
     });
-    expect(await screen.findByText(/30 results · Final eligibility is rechecked/)).toBeVisible();
+    expect(await screen.findByText(/^30 results$/)).toBeVisible();
     expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
     await clickWhenEnabled(user, "Next");
     expect(await screen.findByRole("button", { name: /Plate 25/ })).toBeVisible();
@@ -102,7 +102,7 @@ describe("SearchSelect behaviour", () => {
     render(<SearchSelect kind="campaign" name="campaign_id" label="Campaign" />);
     await user.click(screen.getByRole("button", { name: "Find campaign" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Selection list is unavailable");
-    expect(screen.queryByText(/results ·/)).toBeNull();
+    expect(screen.queryByText(/^\d+ results?$/)).toBeNull();
   });
 
   it("blocks a second search while one is still loading", async () => {

@@ -223,7 +223,7 @@ it("times each vehicle document independently", async () => {
 it("keeps the staff-entered approval date after a failed approval instead of the prefill", async () => {
   const user = userEvent.setup();
   mocks.decide.mockResolvedValue({
-    error: "Complete every vehicle approval confirmation.",
+    error: "Tick every check before approving.",
     validUntil: "2027-06-01T08:00",
   });
   render(<VehicleDecisionActions {...props} defaultValidUntil="2027-10-19T09:30" />);
@@ -239,9 +239,7 @@ it("keeps the staff-entered approval date after a failed approval instead of the
   expect(owner).toBeChecked();
   expect(registration).toHaveValue("accepted");
   expect((mocks.decide.mock.calls[0]![1] as FormData).get("intent")).toBe("approve");
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Complete every vehicle approval confirmation.",
-  );
+  expect(await screen.findByRole("alert")).toHaveTextContent("Tick every check before approving.");
   expect(screen.getByLabelText("Car approval valid until (Nigeria time)")).toHaveValue(
     "2027-06-01T08:00",
   );

@@ -22,9 +22,6 @@ export function JobArtwork({
           }
         />
       </div>
-      {source && kind !== "image" ? (
-        <p className="text-muted px-4 pt-3 text-sm">Preview shows image files</p>
-      ) : null}
       {source && kind === "document" ? (
         <a
           className="text-green inline-block p-3 text-sm underline"

@@ -42,8 +42,12 @@ export interface ZoneActionState {
   unknownOutcome?: boolean;
 }
 
-function toState(error: unknown): ZoneActionState {
-  if (error instanceof ApiError && error.status < 500) return { error: publicActionError(error) };
+function toState(
+  error: unknown,
+  refusal = "This area couldn't be saved. Try again.",
+): ZoneActionState {
+  if (error instanceof ApiError && error.status < 500)
+    return { error: publicActionError(error, {}, refusal) };
   return {
     error:
       "The area change couldn't be confirmed. Reload to check your areas before making another change.",
@@ -129,7 +133,7 @@ export async function deleteZoneAction(
     });
   } catch (error) {
     unstable_rethrow(error);
-    return toState(error);
+    return toState(error, "This area couldn't be removed. Try again.");
   }
   revalidatePath(`/advertiser/campaigns/${parsed.data.campaignId}/zones`);
   revalidatePath("/advertiser/campaigns/new");

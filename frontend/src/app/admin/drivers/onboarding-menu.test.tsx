@@ -20,8 +20,8 @@ it("names the driver in an on-page rejection confirmation", async () => {
   await user.click(screen.getByRole("button", { name: "Reject" }));
 
   expect(update).not.toHaveBeenCalled();
-  expect(screen.getByRole("alertdialog")).toHaveTextContent("Tunde Driver");
-  await user.click(screen.getByRole("button", { name: "Keep pending" }));
+  expect(screen.getByRole("alertdialog")).toHaveTextContent("Tunde Driver moves to Not approved.");
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
   expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
 });
 

@@ -10,7 +10,7 @@ export function CampaignTabs({ campaignId }: { campaignId: string }) {
       label="Campaign pages"
       items={[
         ["", "Overview"],
-        ["/report", "Results"],
+        ["/report", "Reports"],
         ["/map", "Map"],
         ["/zones", "Areas"],
       ].map(([path, label]) => ({

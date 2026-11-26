@@ -26,7 +26,7 @@ const run = () =>
 it("does not display or edit a company returned for a different identity", async () => {
   mocks.get.mockResolvedValue({ data: { id: "other", name: "Another company", status: "active" } });
   render(await run());
-  expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
+  expect(screen.getByRole("alert")).toHaveTextContent("This section couldn't be loaded.");
   expect(screen.queryByRole("button", { name: "Save company profile" })).toBeNull();
   expect(mocks.get).toHaveBeenCalledTimes(1);
 });
@@ -63,7 +63,7 @@ it("renders only fixed copy for an error code and never echoes URL text", async 
       searchParams: Promise.resolve({ error: "failed" }),
     }),
   );
-  expect(screen.getByText("That didn't work. Please try again.")).toHaveAttribute("role", "alert");
+  expect(screen.getByText("That didn't work. Try again.")).toHaveAttribute("role", "alert");
   render(
     await CompanyHub({
       params: Promise.resolve({ organizationId: "org" }),
@@ -195,14 +195,14 @@ it("shows a single plain failure for a failed section", async () => {
   });
   render(await run());
   expect(screen.getAllByRole("alert")).toHaveLength(1);
-  expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
+  expect(screen.getByRole("alert")).toHaveTextContent("This section couldn't be loaded.");
 });
 it("distinguishes missing companies from a failed read", async () => {
   mocks.get.mockRejectedValue(new ApiError(404, { code: "NOT_FOUND", message: "missing" }));
   await expect(run()).rejects.toThrow("NOT_FOUND");
   mocks.get.mockRejectedValue(new Error("offline"));
   render(await run());
-  expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
+  expect(screen.getByRole("alert")).toHaveTextContent("This section couldn't be loaded.");
 });
 it("keeps each company section and its independent page position scoped to the company", async () => {
   const original = mocks.get.getMockImplementation()!;
@@ -238,6 +238,15 @@ it("keeps each company section and its independent page position scoped to the c
               action: "company_profile_updated",
               metadata: { source: "company" },
             },
+            {
+              id: "event-person",
+              actor_email: "ada@example.invalid",
+              actor_name: "Ada Staff",
+              actor_user_id: "staff-user",
+              created_at: "2026-09-04T00:00:00Z",
+              action: "company_profile_updated",
+              metadata: {},
+            },
           ],
         },
       };
@@ -257,7 +266,9 @@ it("keeps each company section and its independent page position scoped to the c
     "href",
     "/admin/support?tab=complaints&organization_id=org&complaint=complaint",
   );
-  expect(screen.getByText(/System ·/)).toBeVisible();
+  expect(screen.getByText(/Cardvert ·/)).toBeVisible();
+  expect(screen.getByText(/Ada Staff ·/)).toBeVisible();
+  expect(screen.queryByText(/ada@example\.invalid/)).toBeNull();
   const nextLinks = screen.getAllByRole("link", { name: /Next/ });
   expect(nextLinks.map((link) => link.getAttribute("href"))).toEqual([
     "/admin/advertisers/org?people_offset=50&complaint_offset=25&activity_offset=25#people",
@@ -274,7 +285,7 @@ it("shows separate plain failures when company complaints and activity fail", as
   render(await run());
   expect(screen.getAllByRole("alert")).toHaveLength(2);
   for (const alert of screen.getAllByRole("alert"))
-    expect(alert).toHaveTextContent("Couldn't load this section — try again");
+    expect(alert).toHaveTextContent("This section couldn't be loaded.");
   expect(screen.getByText("Amina Yusuf")).toBeVisible();
 });
 

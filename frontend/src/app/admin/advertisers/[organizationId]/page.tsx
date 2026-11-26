@@ -323,8 +323,8 @@ export default async function CompanyHub({
                   {activity.items.map((event) => (
                     <li key={event.id}>
                       <p>
-                        {adminActor(event.actor_email)} · {adminActivity(event.action)} ·{" "}
-                        {formatDate(event.created_at)}
+                        {adminActor(event.actor_email, event.actor_name, event.actor_user_id)} ·{" "}
+                        {adminActivity(event.action)} · {formatDate(event.created_at)}
                       </p>
                     </li>
                   ))}

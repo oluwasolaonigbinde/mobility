@@ -33,7 +33,7 @@ describe("submitFraudDisputeAction", () => {
     await expect(
       submitFraudDisputeAction({}, disputeForm("  GPS paused near the bridge.  ")),
     ).resolves.toEqual({
-      done: "Your dispute was submitted for staff review.",
+      done: "Your dispute was sent to Terrax Media.",
     });
     expect(mocks.post).toHaveBeenCalledWith("/api/v1/driver/fraud-holds/{flag_id}/disputes", {
       params: { path: { flag_id: FLAG_ID } },
@@ -49,20 +49,36 @@ describe("submitFraudDisputeAction", () => {
     expect(mocks.post).not.toHaveBeenCalled();
   });
 
-  it("turns the one-dispute conflict into safe refresh guidance", async () => {
-    mocks.post.mockRejectedValue(
-      new ApiError(409, { code: "CONFLICT", message: "internal conflict detail" }),
-    );
+  it.each([
+    ["FRAUD_DISPUTE_REPLAY_CONFLICT", "A dispute already exists for this trip. Refresh to see it."],
+    [
+      "FRAUD_FLAG_NOT_DISPUTABLE",
+      "This check is closed, so it can't be disputed. Refresh to see the result.",
+    ],
+    ["SOMETHING_NEW", "We couldn't send your dispute. Refresh and try again."],
+  ])("turns conflict %s into fixed refresh guidance", async (code, copy) => {
+    mocks.post.mockRejectedValue(new ApiError(409, { code, message: "internal conflict detail" }));
 
     await expect(submitFraudDisputeAction({}, disputeForm("Please review."))).resolves.toEqual({
-      error: "A dispute already exists for this trip. Refresh to see it.",
+      error: copy,
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
-  it.each([401, 403])("does not retry a revoked or unauthorized session (%s)", async (status) => {
+  it("refuses a forbidden dispute without claiming a sign-out", async () => {
     mocks.post.mockRejectedValue(
-      new ApiError(status, { code: "SESSION_REJECTED", message: "private auth detail" }),
+      new ApiError(403, { code: "FORBIDDEN", message: "private auth detail" }),
+    );
+
+    await expect(submitFraudDisputeAction({}, disputeForm("Please review."))).resolves.toEqual({
+      error: "You can't send a dispute for this trip check.",
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("does not retry a revoked session (401)", async () => {
+    mocks.post.mockRejectedValue(
+      new ApiError(401, { code: "SESSION_REJECTED", message: "private auth detail" }),
     );
 
     await expect(submitFraudDisputeAction({}, disputeForm("Please review."))).resolves.toEqual({

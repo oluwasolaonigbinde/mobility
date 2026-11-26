@@ -80,11 +80,11 @@ export default async function BatchDetailPage({
               {batch.approved_at ? ` · ${formatDateTime(batch.approved_at)}` : ""}
             </p>
             <p className="text-muted text-sm">
-              Follow up problems on{" "}
+              Follow up problems on the{" "}
               <Link className="underline" href="/admin/money?tab=automatic">
-                Automatic payouts
-              </Link>
-              .
+                Automatic
+              </Link>{" "}
+              tab.
             </p>
           </>
         ) : (
@@ -104,8 +104,9 @@ export default async function BatchDetailPage({
           </p>
         ))}
         {(batch.status === "reserved" && !automatic) ||
-        batch.status === "reconciled" ||
-        batch.status === "failed" ? (
+        // The replacement request is refused unless at least one payment failed.
+        ((batch.status === "reconciled" || batch.status === "failed") &&
+          (batch.outcomes.failed ?? 0) > 0) ? (
           <BatchActions
             batchId={batchId}
             status={batch.status}

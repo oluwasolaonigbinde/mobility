@@ -26,7 +26,7 @@ export function CampaignCancellationPanel({
   const [pending, start] = useTransition();
   const request = useRef<string | null>(null);
   const sending = useRef(false);
-  const reasonError = touched && !reason.trim() ? "Please add a short reason." : undefined;
+  const reasonError = touched && !reason.trim() ? "Add a short reason." : undefined;
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setTouched(true);

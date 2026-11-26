@@ -17,20 +17,27 @@ export interface AutomaticActionState {
 const reason = z
   .string()
   .trim()
-  .min(3, "Give a reason of at least 3 characters")
-  .max(500, "Keep the reason under 500 characters");
+  .min(3, "Give a reason of at least 3 characters.")
+  .max(500, "Use no more than 500 characters.");
 
 const switchSchema = z.object({ intent: z.enum(["pause", "resume"]), reason });
 const releaseSchema = z.object({ reason });
 const resolveSchema = z.object({ alert_id: z.string().uuid(), note: reason });
 
+/** Only the typed reason or note has user-facing wording; any other invalid field gets neutral text. */
+function formError(error: z.ZodError, field: "reason" | "note"): string {
+  // Only the first problem decides the message; a bad intent or alert ID wins over the text.
+  const first = error.issues[0];
+  return first?.path[0] === field ? first.message : "Check the form and try again.";
+}
+
 function failure(error: unknown): AutomaticActionState {
   if (error instanceof ApiError)
     return {
       error: publicActionError(error, {
-        PAYOUT_AUTOMATIC_ALREADY_PAUSED: "Automatic payouts are already paused",
-        PAYOUT_AUTOMATIC_NOT_PAUSED: "Automatic payouts are not paused",
-        PAYOUT_AUTOMATIC_ALERT_RESOLVED: "This alert is already followed up",
+        PAYOUT_AUTOMATIC_ALREADY_PAUSED: "Automatic payouts are already paused.",
+        PAYOUT_AUTOMATIC_NOT_PAUSED: "Automatic payouts are not paused.",
+        PAYOUT_AUTOMATIC_ALERT_RESOLVED: "This alert is already followed up.",
       }),
     };
   return { error: "Could not reach the server. Try again." };
@@ -44,7 +51,7 @@ export async function switchAutomaticPayoutsAction(
     intent: formData.get("intent"),
     reason: String(formData.get("reason") ?? ""),
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form" };
+  if (!parsed.success) return { error: formError(parsed.error, "reason") };
   const api = createApiClient(await getSessionToken());
   try {
     if (parsed.data.intent === "pause") {
@@ -74,7 +81,7 @@ export async function releaseUnsentAction(
   formData: FormData,
 ): Promise<AutomaticActionState> {
   const parsed = releaseSchema.safeParse({ reason: String(formData.get("reason") ?? "") });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form" };
+  if (!parsed.success) return { error: formError(parsed.error, "reason") };
   const api = createApiClient(await getSessionToken());
   try {
     const { data } = await api.POST("/api/v1/admin/payouts/automatic/release-unsent", {
@@ -105,7 +112,7 @@ export async function resolveAlertAction(
     alert_id: formData.get("alert_id"),
     note: String(formData.get("note") ?? ""),
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form" };
+  if (!parsed.success) return { error: formError(parsed.error, "note") };
   const api = createApiClient(await getSessionToken());
   try {
     await api.POST("/api/v1/admin/payouts/automatic/alerts/{alert_id}/resolve", {

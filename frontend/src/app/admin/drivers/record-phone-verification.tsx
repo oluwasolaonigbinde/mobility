@@ -30,7 +30,7 @@ export function RecordPhoneVerification({
           <input type="hidden" name="driver_profile_id" value={driverId} />
           <input type="hidden" name="challenge_id" value={challengeId} />
           <p className="text-muted text-sm">
-            Enter the code and sender number from the message Terrax received.
+            Enter the code and sender number from the message Terrax Media received.
           </p>
           <Field
             name="code"

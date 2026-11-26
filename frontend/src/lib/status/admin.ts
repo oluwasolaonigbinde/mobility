@@ -401,11 +401,21 @@ export function adminActivity(action: string): string {
   return actions[action] ?? otherActions[action] ?? "Activity recorded";
 }
 
-export function adminActor(email: string | null | undefined, name?: string | null): string {
+/**
+ * Who did it, for activity lists. Automatic actions say Cardvert (D38a). A person
+ * is shown by name, or as Terrax Media staff when no name is recorded; never by
+ * email address, and never as Cardvert.
+ */
+export function adminActor(
+  email: string | null | undefined,
+  name?: string | null,
+  actorUserId?: string | null,
+): string {
   if (
     email === "report-automation@cardvert.invalid" ||
     email === "automatic-payouts@cardvert.invalid"
   )
-    return "System";
-  return name ?? email ?? "System";
+    return "Cardvert";
+  if (actorUserId || email) return name?.trim() || "Terrax Media staff";
+  return "Cardvert";
 }

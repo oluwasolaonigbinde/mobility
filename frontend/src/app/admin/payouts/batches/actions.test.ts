@@ -152,7 +152,27 @@ describe("payout batch actions", () => {
     form.set("batch_id", "11111111-1111-4111-8111-111111111111");
     form.set("intent", "submit");
     const result = await batchTransitionAction({}, form);
-    expect(result.error).toBe("Run saved, not sent. Payments are not connected.");
+    expect(result.error).toBe(
+      "Payouts aren't available right now. Check the payment run before trying again.",
+    );
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("gives the same provider-unavailable refusal when checking a payment", async () => {
+    mocks.batchApi.mockRejectedValueOnce(
+      new ApiError(503, {
+        code: "DISBURSEMENT_PROVIDER_UNAVAILABLE",
+        message: "Automated submission is not configured",
+      }),
+    );
+    const form = new FormData();
+    form.set("line_id", "11111111-1111-4111-8111-111111111111");
+    form.set("reason", "Check the payment");
+    const result = await pollLineAction({}, form);
+    expect(result.error).toBe(
+      "Payouts aren't available right now. Check the payment run before trying again.",
+    );
+    expect(result.error).not.toMatch(/saved but not sent/);
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
@@ -205,7 +225,7 @@ describe("payout batch actions", () => {
     form.set("reason", "Staff payment review");
     form.set("line_id", "22222222-2222-4222-8222-222222222222");
     const result = await pollLineAction({}, form);
-    expect(result.done).toMatch(/Payment result/i);
+    expect(result.done).toBe("Payment checked.");
     expect(mocks.batchApi).toHaveBeenCalledWith(
       "/lines/22222222-2222-4222-8222-222222222222/poll",
       { method: "POST", body: JSON.stringify({ reason: "Staff payment review" }) },

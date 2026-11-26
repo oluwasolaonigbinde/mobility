@@ -50,15 +50,13 @@ export function NewOrderForm() {
       ) : null}
       {state.created && !state.error ? (
         <p className="border-green/40 bg-green/10 text-green rounded-lg border px-3.5 py-2.5 text-sm">
-          ✓ Pay correction created — open it in the list to approve and apply it with a reason.
+          Pay correction created. Open it in the list to approve it.
         </p>
       ) : null}
 
       {p ? (
         <div className="border-edge bg-raised/50 rounded-lg border px-4 py-3">
-          <p className="micro text-muted mb-2">
-            Expected pay change (preview; checked again when saved)
-          </p>
+          <p className="micro text-muted mb-2">Expected pay change</p>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-xs sm:grid-cols-4">
             <dt className="text-faint">Current total</dt>
             <dd>{formatMoneyExact(p.previousTotal, p.currency)}</dd>

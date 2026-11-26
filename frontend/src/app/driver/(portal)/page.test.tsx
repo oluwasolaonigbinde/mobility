@@ -76,12 +76,12 @@ it("shows the support message for two live jobs without offering Start", async (
     ...ready,
     activationAssignment: null,
     trackerAssignment: null,
-    currentJobError: "Two jobs are live on your account. Please contact support so we can fix it.",
+    currentJobError: "Two jobs are live on your account. Contact support so we can fix it.",
     journey: { canStart: false, steps: [] },
   });
   render(await Home());
   expect(screen.getByRole("alert")).toHaveTextContent(
-    "Two jobs are live on your account. Please contact support so we can fix it.",
+    "Two jobs are live on your account. Contact support so we can fix it.",
   );
   expect(screen.queryByRole("button", { name: "Start trip" })).not.toBeInTheDocument();
 });

@@ -8,11 +8,11 @@ describe("one-admin pay correction", () => {
     render(<OrderActions orderId={orderId} status="draft" requiresReleaseAt={false} />);
     expect(screen.getByRole("button", { name: "Approve and apply" })).toBeEnabled();
     expect(screen.getByLabelText("Approval reason")).toBeRequired();
-    expect(screen.queryByLabelText("Pay on (Nigeria time, WAT)")).toBeNull();
+    expect(screen.queryByLabelText("Make extra pay available at, Nigeria time (WAT)")).toBeNull();
   });
   it("requires a release date for positive extra pay", () => {
     render(<OrderActions orderId={orderId} status="draft" requiresReleaseAt />);
-    expect(screen.getByLabelText("Pay on (Nigeria time, WAT)")).toBeRequired();
+    expect(screen.getByLabelText("Make extra pay available at, Nigeria time (WAT)")).toBeRequired();
   });
   it.each(["executed", "stale"] as const)("%s has no further action", (status) => {
     render(<OrderActions orderId={orderId} status={status} requiresReleaseAt={false} />);

@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/ui/page-header";
 export default function AddStaff() {
   return (
     <div className="mx-auto max-w-2xl">
-      <PageHeader title="Add staff login" eyebrow="Terrax staff only" />
+      <PageHeader title="Add staff login" eyebrow="Terrax Media staff only" />
       <CreateUserForm fixedRole="admin" />
     </div>
   );

@@ -41,7 +41,7 @@ it("asks for masked acting-admin proof only for an admin grant and clears it aft
   const user = userEvent.setup();
   render(<CreateUserForm />);
   expect(screen.queryByLabelText(/Your current password/)).not.toBeInTheDocument();
-  await user.click(screen.getByRole("radio", { name: /Terrax staff/ }));
+  await user.click(screen.getByRole("radio", { name: /Terrax Media staff/ }));
   const proof = screen.getByLabelText(/Your current password/);
   expect(proof).toHaveAttribute("type", "password");
   expect(proof).toBeRequired();

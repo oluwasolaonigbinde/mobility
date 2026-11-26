@@ -62,12 +62,25 @@ export async function submitCampaignEnquiry(
     if (data?.status === "submitted") return { submitted: true };
   } catch (error) {
     unstable_rethrow(error);
-    if (error instanceof ApiError && error.status === 429) {
-      return { values, error: "Please wait before sending another enquiry, or email us directly." };
+    // A 4xx is a definite refusal (campaign_enquiries.py); 5xx and network failures stay uncertain.
+    if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+      if (error.status === 429)
+        return { values, error: "Wait before sending another enquiry, or email us directly." };
+      if (error.status === 422)
+        return {
+          values,
+          error: "Your enquiry wasn't sent. Check the form and try again, or email us directly.",
+        };
+      if (error.status === 413)
+        return {
+          values,
+          error: "Your enquiry is too long. Shorten it and try again, or email us directly.",
+        };
+      return { values, error: "Your enquiry wasn't sent. Try again or email us directly." };
     }
   }
   return {
     values,
-    error: "We could not confirm your enquiry was sent. Please try again or email us directly.",
+    error: "We couldn't confirm your enquiry was sent. Try again or email us directly.",
   };
 }

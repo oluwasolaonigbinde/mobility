@@ -333,7 +333,7 @@ export default async function CampaignDetailPage({
                   commercial={commercial.data}
                   error={
                     query.commercial_error
-                      ? "That request didn't go through. Please try again."
+                      ? "That request didn't go through. Try again."
                       : undefined
                   }
                 />

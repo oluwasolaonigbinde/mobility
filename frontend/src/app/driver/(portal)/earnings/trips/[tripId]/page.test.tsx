@@ -245,7 +245,7 @@ describe("DriverTripEarningsPage", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent(/trip review status is unavailable/i);
-    expect(screen.getByRole("alert")).toHaveTextContent(/couldn't load this trip's pay/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/couldn't load this trip's checks/i);
     expect(screen.queryByText("₦750.00")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Dispute message")).not.toBeInTheDocument();
   });

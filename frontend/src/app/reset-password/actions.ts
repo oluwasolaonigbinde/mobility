@@ -10,12 +10,12 @@ import { publicActionError } from "@/lib/api/public-action-error";
 const completeSchema = z
   .object({
     token: z.string().trim().min(1).max(512),
-    newPassword: z.string().min(12, "Use at least 12 characters"),
+    newPassword: z.string().min(12, "Use at least 12 characters."),
     confirmPassword: z.string(),
   })
   .refine((value) => value.newPassword === value.confirmPassword, {
     path: ["confirmPassword"],
-    message: "Passwords do not match",
+    message: "The passwords don't match.",
   });
 
 export interface PasswordResetCompleteState {
@@ -68,11 +68,11 @@ async function completePasswordAction(
         {
           PASSWORD_RESET_INVALID: "This reset link is invalid, expired, or already used.",
           ADVERTISER_INVITE_INVALID:
-            "This invite link is invalid, expired, or already used. Ask Terrax for a new invite.",
+            "This invite link is invalid, expired, or already used. Ask Terrax Media for a new invite.",
           PASSWORD_TOO_SHORT: "Use at least 12 characters.",
         },
         invite
-          ? "The invite couldn't be completed. Ask Terrax for a new invite."
+          ? "The invite couldn't be completed. Ask Terrax Media for a new invite."
           : "The password could not be reset. Request a new link and try again.",
       ),
     };

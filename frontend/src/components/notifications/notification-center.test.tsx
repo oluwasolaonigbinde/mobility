@@ -195,6 +195,44 @@ describe("NotificationCenter", () => {
     );
   });
 
+  it("does not claim caught up when the unread count fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) =>
+        input === "/api/notifications/unread-count"
+          ? Promise.resolve(new Response("{}", { status: 500 }))
+          : response({ items: [], total: 0, limit: 20, offset: 0 }),
+      ),
+    );
+    renderCentre();
+    fireEvent.click(screen.getByRole("button", { name: /^notifications/i }));
+    expect(
+      await screen.findByText("Could not load notifications.", {}, { timeout: 4000 }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("You are all caught up.")).not.toBeInTheDocument();
+  });
+
+  it("keeps checking, with older pages reachable, when the count and feed disagree", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) =>
+        input === "/api/notifications/unread-count"
+          ? response({ unread_count: 2 })
+          : response({
+              items: [{ ...notice("read-1"), read_at: "2026-08-24T12:00:01Z" }],
+              total: 40,
+              limit: 20,
+              offset: 0,
+            }),
+      ),
+    );
+    renderCentre();
+    fireEvent.click(screen.getByRole("button", { name: /^notifications/i }));
+    expect(await screen.findByText("Checking for notifications…")).toBeInTheDocument();
+    expect(screen.queryByText("You are all caught up.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show older" })).toBeInTheDocument();
+  });
+
   it("polls only the unread count while visible and fetches the list only on open", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn((input: string) => {
@@ -331,7 +369,7 @@ describe("NotificationCenter", () => {
     await screen.findByText("Notice n20");
     expect(screen.queryByText("Notice n21")).not.toBeInTheDocument();
     expect(screen.getByText(/Showing 20 of 25/)).toHaveTextContent(
-      "Mark all read includes older ones",
+      "Mark all read includes older unread notifications.",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Show older" }));
@@ -559,7 +597,9 @@ describe("NotificationCenter", () => {
     act(() => window.dispatchEvent(new Event("offline")));
 
     expect(screen.queryByText("Trip payment on hold")).not.toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent(/reconnect to load current notifications/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "You're offline. Reconnect to see your notifications.",
+    );
     expect(screen.getByRole("button", { name: "Mark all read" })).toBeDisabled();
   });
 

@@ -46,7 +46,8 @@ describe("completeDriverAccountSetupAction", () => {
     const result = await completeDriverAccountSetupAction({}, setupForm());
 
     expect(result).toEqual({
-      error: "This link has expired or has already been used.",
+      error:
+        "This account setup link no longer works. If you've already set your password, sign in. Otherwise, contact Terrax Media for help.",
     });
     expect(JSON.stringify(result)).not.toContain("application 42");
     expect(JSON.stringify(result)).not.toContain("token row 7");
@@ -55,7 +56,7 @@ describe("completeDriverAccountSetupAction", () => {
   it("rejects mismatched passwords without spending the setup authority", async () => {
     await expect(
       completeDriverAccountSetupAction({}, setupForm({ confirm_password: "different-password" })),
-    ).resolves.toEqual({ error: "Passwords do not match" });
+    ).resolves.toEqual({ error: "The passwords don't match." });
     expect(mocks.post).not.toHaveBeenCalled();
   });
 });

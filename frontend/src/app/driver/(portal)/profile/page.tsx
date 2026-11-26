@@ -59,7 +59,7 @@ export default async function DriverProfilePage() {
         <h1 className="font-display text-2xl font-semibold tracking-tight">Profile</h1>
         <DriverDataUnavailable
           title="Current profile is unavailable"
-          detail="We couldn't load your profile. Try again shortly. Try again shortly."
+          detail="We couldn't load your profile. Try again shortly."
           retryHref="/driver/profile"
         />
         <DriverLogoutButton />
@@ -172,9 +172,7 @@ export default async function DriverProfilePage() {
                   </h2>
                 </div>
                 {vs.length === 0 ? (
-                  <p className="text-muted px-5 py-8 text-center text-sm">
-                    No cars yet. Terrax Media adds your car once it is approved.
-                  </p>
+                  <p className="text-muted px-5 py-8 text-center text-sm">No cars yet.</p>
                 ) : (
                   <ul className="divide-edge/60 divide-y">
                     {vs.map((v) => (
@@ -183,7 +181,7 @@ export default async function DriverProfilePage() {
                           <p className="text-sm">{v.plate_number}</p>
                           <p className="text-muted mt-0.5 text-sm">
                             {[v.year, v.make, v.model, v.color].filter(Boolean).join(" ") ||
-                              v.vehicle_type}
+                              "Car details not added"}
                           </p>
                         </div>
                         <StatusChip tone={v.status === "active" ? "green" : "default"}>

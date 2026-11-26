@@ -92,7 +92,7 @@ describe("loadDriverCampaignJourney", () => {
       });
       const result = await loadDriverCampaignJourney();
       expect(result.currentJobError).toBe(
-        "Two jobs are live on your account. Please contact support so we can fix it.",
+        "Two jobs are live on your account. Contact support so we can fix it.",
       );
       expect(result.journey.canStart).toBe(false);
       expect(result.activationAssignment).toBeNull();

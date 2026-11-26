@@ -235,7 +235,7 @@ describe("submitCreativeForReviewAction", () => {
     );
 
     await expect(submitCreativeForReviewAction({}, creativeSubmitForm())).resolves.toEqual({
-      error: "This artwork has changed. Refresh the page. Refresh and try again.",
+      error: "This artwork has changed. Refresh the page and try again.",
     });
   });
 });
@@ -322,7 +322,7 @@ describe("campaign change preview and confirmation", () => {
     form.set("source_sha256", "a".repeat(64));
     form.set("preview_sha256", "b".repeat(64));
     await expect(confirmCampaignChangeAction({}, form)).resolves.toMatchObject({
-      done: "Campaign change confirmed.",
+      done: "Change request recorded.",
       confirmedRequest: {},
     });
     expect(mocks.post).toHaveBeenLastCalledWith(
@@ -341,6 +341,27 @@ describe("campaign change preview and confirmation", () => {
     );
     expect(mocks.revalidatePath).not.toHaveBeenCalledWith(`/advertiser/campaigns/${CAMPAIGN_ID}`);
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns");
+  });
+
+  it.each([
+    ["applied", "Change applied."],
+    // The earlier preview said apply_now; the stored request decides the message.
+    ["pending_admin", "Change sent to Terrax Media for review."],
+    ["pending_funding", "Change saved. It is waiting for payment."],
+    // An idempotent replay of a request that was already rejected.
+    ["rejected", "This change was not approved."],
+    ["something_new", "Change request recorded."],
+    // An inherited object key is not a stored status.
+    ["constructor", "Change request recorded."],
+  ])("reports the stored %s result in plain words", async (status, done) => {
+    const form = submitForm();
+    form.set("client_request_id", CHANGE_REQUEST_ID);
+    form.set("budget_amount", "1200.00");
+    form.set("reason", "Extend the approved campaign scope");
+    form.set("source_sha256", "a".repeat(64));
+    form.set("preview_sha256", "b".repeat(64));
+    mocks.post.mockResolvedValueOnce({ data: { status } });
+    await expect(confirmCampaignChangeAction({}, form)).resolves.toMatchObject({ done });
   });
 
   it("rejects an empty change or missing reason before calling the API", async () => {

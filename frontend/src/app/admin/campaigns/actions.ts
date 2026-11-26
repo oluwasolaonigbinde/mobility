@@ -34,9 +34,12 @@ export async function resumeCampaign(_previous: { error?: string; done?: string 
   } catch (error) {
     unstable_rethrow(error);
     return {
-      error: error instanceof ApiError ? publicActionError(error) : "Could not reach the server.",
+      error:
+        error instanceof ApiError
+          ? publicActionError(error)
+          : "We couldn't confirm the campaign resumed. Refresh the page to check before trying again.",
     };
   }
   revalidatePath(`/admin/campaigns/${parsed.data.campaign_id}`);
-  return { done: "Campaign resumed" };
+  return { done: "Campaign resumed." };
 }

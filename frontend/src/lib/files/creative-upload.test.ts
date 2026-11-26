@@ -77,6 +77,23 @@ describe("uploadCreativeFile", () => {
     ).rejects.toThrow("The upload failed. Try again.");
   });
 
+  it("replaces a rejected fetch's browser text with fixed copy", async () => {
+    vi.stubGlobal("crypto", {
+      randomUUID: () => "00000000-0000-4000-8000-000000000001",
+      subtle: { digest: async () => new Uint8Array(32).buffer },
+    });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+
+    const upload = uploadCreativeFile(
+      new File([new Uint8Array([1])], "wrap.png", { type: "image/png" }),
+      () => undefined,
+    );
+    await expect(upload).rejects.toThrow(
+      "The upload couldn't be finished. Select the file again to retry.",
+    );
+    await expect(upload).rejects.not.toThrow("Failed to fetch");
+  });
+
   it("resumes confirmation after its committed response is lost", async () => {
     vi.stubGlobal("crypto", {
       randomUUID: () => "00000000-0000-4000-8000-000000000001",
@@ -98,7 +115,7 @@ describe("uploadCreativeFile", () => {
     };
 
     await expect(uploadCreativeFile(file, () => undefined, options)).rejects.toThrow(
-      "response lost after commit",
+      "The upload couldn't be finished. Select the file again to retry.",
     );
     await expect(uploadCreativeFile(file, () => undefined, options)).resolves.toEqual({
       storedFileId: "file-lost",

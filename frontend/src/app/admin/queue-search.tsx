@@ -29,7 +29,7 @@ export function QueueSearch({
 export function QueueUnavailable() {
   return (
     <p role="alert" className="border-coral/40 text-coral rounded-lg border p-4">
-      Couldn&apos;t load this section — try again
+      This section couldn&apos;t be loaded.
     </p>
   );
 }

@@ -60,7 +60,19 @@ it("passes a bounded unavailable/rate-limited state without private upstream det
   const response = await GET(new Request(`https://cardvert.example/q/${code}`), params);
   expect(response.status).toBe(429);
   expect(response.headers.get("retry-after")).toBe("45");
-  expect(await response.text()).not.toContain("private detail");
+  expect(await response.text()).toBe("This advert link isn't working right now. Try again later.");
+});
+it("keeps the HEAD unavailable response bodyless and forwards Retry-After", async () => {
+  fetchMock.mockResolvedValue(
+    new Response(null, { status: 429, headers: { "retry-after": "45" } }),
+  );
+  const response = await HEAD(
+    new Request(`https://cardvert.example/q/${code}`, { method: "HEAD" }),
+    params,
+  );
+  expect(response.status).toBe(429);
+  expect(response.headers.get("retry-after")).toBe("45");
+  expect(await response.text()).toBe("");
 });
 it("does not query malformed codes and fails closed on transport failure", async () => {
   expect(
@@ -72,5 +84,7 @@ it("does not query malformed codes and fails closed on transport failure", async
   ).toBe(404);
   expect(fetchMock).not.toHaveBeenCalled();
   fetchMock.mockRejectedValue(new Error("private failure"));
-  expect((await GET(new Request(`https://cardvert.example/q/${code}`), params)).status).toBe(503);
+  const failed = await GET(new Request(`https://cardvert.example/q/${code}`), params);
+  expect(failed.status).toBe(503);
+  expect(await failed.text()).toBe("This advert link isn't working right now. Try again later.");
 });

@@ -72,7 +72,7 @@ it("reports a failed read without a recalculation control", async () => {
   expect(
     screen
       .getAllByRole("alert")
-      .every((section) => section.textContent === "Couldn't load this section — try again"),
+      .every((section) => section.textContent === "This section couldn't be loaded."),
   ).toBe(true);
   expect(screen.queryByRole("button", { name: /Recalculate/ })).toBeNull();
 });

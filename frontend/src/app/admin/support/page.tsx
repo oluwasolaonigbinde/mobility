@@ -166,7 +166,8 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
         {task.driver_name} · {task.masked_phone}
       </p>
       <p className="text-muted text-sm">
-        {task.purpose} · {adminStatus(task.status, "contact")} · {formatWat(task.created_at)}
+        {task.purpose === "campaign_assignment_offer" ? "Job offer" : "Driver contact"} ·{" "}
+        {adminStatus(task.status, "contact")} · {formatWat(task.created_at)}
       </p>
       {task.completed_at ? (
         <p>
@@ -254,10 +255,6 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
         </>
       ) : (
         <>
-          <p className="text-muted mb-4 text-sm">
-            Contact tasks use the driver&apos;s current consent and verified phone. Completed
-            outcomes remain recorded.
-          </p>
           <section className="mb-6">
             <h2 className="mb-3 font-medium">Phone verification</h2>
             {!phoneWork ? (

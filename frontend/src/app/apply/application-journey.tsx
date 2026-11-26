@@ -154,7 +154,7 @@ export function ApplicationJourney({ requestedStep }: { requestedStep?: string }
           <>
             {current.changes_reason ? (
               <Panel className="mt-5 p-6">
-                <h2 className="font-display text-xl font-semibold">Please make a change</h2>
+                <h2 className="font-display text-xl font-semibold">Changes needed</h2>
                 <p className="text-ink mt-2 text-base">{current.changes_reason}</p>
               </Panel>
             ) : null}

@@ -202,11 +202,18 @@ it("labels the literal action codes written by application flows", () => {
     expect(adminActivity(code), code).not.toBe("Activity recorded");
 });
 import { adminActor } from "./admin";
-it("maps automation actors consistently while keeping human names and addresses", () => {
-  expect(adminActor("report-automation@cardvert.invalid", "Report automation")).toBe("System");
-  expect(adminActor("automatic-payouts@cardvert.invalid")).toBe("System");
-  expect(adminActor("staff@example.test", "Ada")).toBe("Ada");
-  expect(adminActor("staff@example.test")).toBe("staff@example.test");
+it("says Cardvert for automation and names people without showing their email", () => {
+  expect(adminActor("report-automation@cardvert.invalid", "Report automation")).toBe("Cardvert");
+  expect(adminActor("automatic-payouts@cardvert.invalid", null, "user-1")).toBe("Cardvert");
+  expect(adminActor("staff@example.test", "Ada", "user-1")).toBe("Ada");
+  expect(adminActor("staff@example.test", "  Ada  ")).toBe("Ada");
+  // A blank name with a populated email: a person, shown without the address.
+  expect(adminActor("staff@example.test", "   ")).toBe("Terrax Media staff");
+  expect(adminActor("staff@example.test")).toBe("Terrax Media staff");
+  expect(adminActor(null, null, "user-1")).toBe("Terrax Media staff");
+  expect(adminActor(null, null, null)).toBe("Cardvert");
+  for (const label of [adminActor("staff@example.test", "   "), adminActor("staff@example.test")])
+    expect(label).not.toContain("staff@example.test");
 });
 
 it.each([

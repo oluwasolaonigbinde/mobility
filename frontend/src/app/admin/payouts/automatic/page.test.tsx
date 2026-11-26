@@ -259,7 +259,7 @@ describe("AutomaticPayoutsPage", () => {
     api({ status: null, alerts: null, day: null });
     render(await page("not-a-day"));
     expect(screen.getAllByRole("alert")).toHaveLength(3);
-    expect(screen.getAllByText("Couldn't load this section — try again")).toHaveLength(3);
+    expect(screen.getAllByText("This section couldn't be loaded.")).toHaveLength(3);
   });
   it("pages daily payments and problems independently while preserving a selected drawer", async () => {
     api({ status: RUNNING, alerts: [ALERT], day: { ...DAY, total: 250 } });

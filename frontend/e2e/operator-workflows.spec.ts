@@ -95,7 +95,7 @@ test("activation readiness never invites a second activation of active work", as
     .click();
   const drawer = page.getByRole("dialog");
   await expect(drawer.getByText(/This job has already started\./)).toBeVisible();
-  await expect(drawer.getByRole("button", { name: /retry start|activate/i })).toHaveCount(0);
+  await expect(drawer.getByRole("button", { name: /start job|activate/i })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
   await page.goto("/admin/campaigns?tab=getting-ready&q=Airport");
   await page.getByRole("link", { name: "Sable Ridge Travel — Airport Arrivals" }).click();
@@ -103,7 +103,7 @@ test("activation readiness never invites a second activation of active work", as
   await expect(
     page.getByRole("heading", { name: "Sable Ridge Travel — Airport Arrivals" }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: /retry start|activate/i })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /start job|activate/i })).toHaveCount(0);
 });
 
 test("evidence and contact queues show recorded work and useful empty searches", async ({

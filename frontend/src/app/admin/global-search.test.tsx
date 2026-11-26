@@ -68,7 +68,21 @@ it("reports a failed search and hides results when cleared", async () => {
   await act(async () => {
     vi.advanceTimersByTime(300);
   });
-  expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
+  expect(screen.getByRole("alert")).toHaveTextContent("Search couldn't load. Try again.");
   fireEvent.change(screen.getByRole("searchbox"), { target: { value: "" } });
   expect(screen.queryByRole("alert")).toBeNull();
+});
+it("reports a partial failure only for the group that failed", async () => {
+  mocks.search.mockResolvedValue([
+    { name: "Drivers", items: [{ name: "Ada", href: "/admin/drivers/ada" }] },
+    { name: "Cars", items: [], unavailable: true },
+  ]);
+  render(<GlobalSearch />);
+  fireEvent.change(screen.getByRole("searchbox"), { target: { value: "Ada" } });
+  await act(async () => {
+    vi.advanceTimersByTime(300);
+  });
+  expect(screen.getByRole("link", { name: "Ada" })).toBeTruthy();
+  expect(screen.getByRole("alert")).toHaveTextContent("These results couldn't be loaded.");
+  expect(screen.queryByText("Search couldn't load. Try again.")).toBeNull();
 });

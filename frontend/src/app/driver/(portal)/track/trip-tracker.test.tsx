@@ -228,6 +228,122 @@ describe("plain evidence delivery status", () => {
     expect(screen.queryByText("Pings synced")).not.toBeInTheDocument();
     expect(screen.queryByText("Buffered")).not.toBeInTheDocument();
     expect(screen.queryByText(/retained batches/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Trip updates are saved on this phone. Reconnect so Cardvert can try sending them.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("says Sent only when nothing is waiting on this phone", async () => {
+    installRuntime();
+    pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    await waitFor(() => expect(screen.getByTestId("tracking-health")).toHaveTextContent("Sent"));
+  });
+
+  it("moves from Sent back to Tracking when a new fix is queued after an acknowledged batch", async () => {
+    const runtime = installRuntime();
+    const store = { unsynced: 1, recorded: 1, batches: [BATCH] as (typeof BATCH)[] };
+    const queue = fakeQueue({
+      addPing: vi.fn().mockImplementation(async () => {
+        store.unsynced += 1;
+        store.recorded += 1;
+        return { sequence_number: store.recorded - 1 };
+      }),
+      listBatches: vi.fn().mockImplementation(async () => store.batches),
+      acknowledgeBatch: vi.fn().mockImplementation(async () => {
+        store.unsynced = 0;
+        store.batches = [];
+      }),
+      unsyncedCount: vi.fn().mockImplementation(async () => store.unsynced),
+      pendingCount: vi.fn().mockImplementation(async () => (store.batches.length ? 20 : 1)),
+      meta: vi.fn().mockImplementation(async () => ({
+        tripId: TRIP_ID,
+        nextSeq: store.recorded,
+        batchesCut: 1,
+        pingsRecorded: store.recorded,
+      })),
+    });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+    const capture = runtime.watchPosition.mock.calls[0]![0] as PositionCallback;
+    const fix = {
+      timestamp: Date.now(),
+      coords: { latitude: 9.06, longitude: 7.49, accuracy: 10, speed: 5, heading: 90 },
+    } as GeolocationPosition;
+    await act(async () => capture(fix));
+    await waitFor(() => expect(queue.acknowledgeBatch).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByTestId("tracking-health")).toHaveTextContent("Sent"));
+    await act(async () => capture({ ...fix, timestamp: Date.now() + 1000 } as GeolocationPosition));
+    await waitFor(() =>
+      expect(screen.getByTestId("tracking-health")).toHaveTextContent("Tracking"),
+    );
+    expect(screen.getByTestId("tracking-health")).not.toHaveTextContent("Sent");
+  });
+
+  it("says Sending while a batch is still being sent", async () => {
+    const runtime = installRuntime();
+    pingQueue.openPingQueue.mockResolvedValue(
+      fakeQueue({
+        listBatches: vi.fn().mockResolvedValue([BATCH]),
+        unsyncedCount: vi.fn().mockResolvedValue(1),
+        pendingCount: vi.fn().mockResolvedValue(20),
+      }),
+    );
+    actions.sendPingBatchAction.mockReturnValue(new Promise(() => undefined));
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+    const capture = runtime.watchPosition.mock.calls[0]![0] as PositionCallback;
+    await act(async () =>
+      capture({
+        timestamp: Date.now(),
+        coords: { latitude: 9.06, longitude: 7.49, accuracy: 10, speed: 5, heading: 90 },
+      } as GeolocationPosition),
+    );
+    await waitFor(() => expect(actions.sendPingBatchAction).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByTestId("tracking-health")).toHaveTextContent("Sending"));
+  });
+
+  it("does not say Sent while a newer update is still queued", async () => {
+    installRuntime();
+    pingQueue.openPingQueue.mockResolvedValue(
+      fakeQueue({
+        unsyncedCount: vi.fn().mockResolvedValue(1),
+        meta: vi
+          .fn()
+          .mockResolvedValue({ tripId: TRIP_ID, nextSeq: 4, batchesCut: 2, pingsRecorded: 4 }),
+      }),
+    );
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    await waitFor(() =>
+      expect(screen.getByTestId("tracking-health")).toHaveTextContent("Tracking"),
+    );
+    expect(screen.getByTestId("tracking-health")).not.toHaveTextContent("Sent");
+  });
+
+  it("says Waiting to send when updates are queued and the session is unavailable", async () => {
+    installRuntime();
+    pingQueue.openPingQueue.mockResolvedValue(
+      fakeQueue({ unsyncedCount: vi.fn().mockResolvedValue(2) }),
+    );
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    await waitFor(() =>
+      expect(screen.getByTestId("tracking-health")).toHaveTextContent("Tracking"),
+    );
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 503,
+      type: "basic",
+      json: vi.fn().mockResolvedValue({}),
+    } as never);
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("tracking-health")).toHaveTextContent("Waiting to send"),
+    );
   });
 });
 
@@ -2227,6 +2343,11 @@ it("retains settled rejected-sample receipts when recovering an earlier trip", a
   await waitFor(() =>
     expect(screen.getByRole("alert")).toHaveTextContent(/location updates need checking/i),
   );
+  // One category is zero and there are no reasons: no "0 …" and no empty sentence.
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Earlier location updates need checking: 1 not accepted. They remain on this phone and will not be sent again.",
+  );
+  expect(screen.getByRole("alert")).not.toHaveTextContent(/\b0 waiting|\. \./);
 });
 
 it("restores a frozen End after reload without reopening capture and retries it identically", async () => {

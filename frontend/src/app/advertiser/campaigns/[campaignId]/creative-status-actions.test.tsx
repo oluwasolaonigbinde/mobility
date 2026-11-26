@@ -101,9 +101,9 @@ describe("CreativeStatusActions", () => {
     await user.click(screen.getByRole("button", { name: "Resubmit current artwork" }));
     expect(await screen.findByRole("button", { name: "Submitting…" })).toBeDisabled();
 
-    finish({ error: "This artwork has changed. Refresh the page. Refresh and try again." });
+    finish({ error: "This artwork has changed. Refresh the page and try again." });
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "This artwork has changed. Refresh the page. Refresh and try again.",
+      "This artwork has changed. Refresh the page and try again.",
     );
     expect(screen.getByRole("button", { name: "Resubmit current artwork" })).toBeEnabled();
     expect(screen.queryByText(/✓/)).not.toBeInTheDocument();

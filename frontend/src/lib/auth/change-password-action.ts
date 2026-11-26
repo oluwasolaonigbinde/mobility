@@ -10,12 +10,12 @@ import { getSessionToken, setSessionCookie } from "@/lib/auth/session";
 
 const schema = z
   .object({
-    currentPassword: z.string().min(1, "Enter your current password"),
-    newPassword: z.string().min(12, "Use at least 12 characters"),
-    confirmPassword: z.string().min(1, "Confirm your new password"),
+    currentPassword: z.string().min(1, "Enter your current password."),
+    newPassword: z.string().min(12, "Use at least 12 characters."),
+    confirmPassword: z.string().min(1, "Confirm your new password."),
   })
   .refine((value) => value.newPassword === value.confirmPassword, {
-    message: "Passwords do not match",
+    message: "The passwords don't match.",
     path: ["confirmPassword"],
   });
 
@@ -52,15 +52,16 @@ export async function changePasswordAction(
         new_password: parsed.data.newPassword,
       },
     });
-    if (!data) return { error: "Unexpected empty response from the server." };
+    if (!data)
+      return { error: "We couldn't confirm your password change. Sign in again to check." };
     await setSessionCookie(data.access_token, data.expires_in);
     redirect(roleHome(data.user.role));
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof ApiError) {
-      if (error.status === 429) return { error: "Too many attempts. Please try again shortly." };
+      if (error.status === 429) return { error: "Too many attempts. Try again shortly." };
       if (error.code === "CURRENT_PASSWORD_INCORRECT") {
-        return { fieldErrors: { currentPassword: "Current password is incorrect" } };
+        return { fieldErrors: { currentPassword: "Your current password is incorrect." } };
       }
       return { error: publicActionError(error) };
     }

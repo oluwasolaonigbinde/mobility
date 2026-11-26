@@ -168,7 +168,7 @@ def notification_feed_response(
         label = (
             f"{kind} report" if isinstance(kind, str) and kind in {"weekly", "final"} else "report"
         )
-        body = f"Your {label} for {context[0]} is ready" if context else "Your report is ready."
+        body = f"Your {label} for {context[0]} is ready." if context else "Your report is ready."
     return NotificationFeedItemRead(
         id=notice.id,
         type_key=notice.type_key,

@@ -26,7 +26,7 @@ function assertActive(progress: DocumentUploadProgress) {
 }
 
 const CODE_NOT_WORKING = "This link doesn't work any more. Ask for a new one on the Apply page.";
-const CHOOSE_FILES_AGAIN = "Please choose your files again, then send.";
+const CHOOSE_FILES_AGAIN = "Choose your files again, then send.";
 const CHECK_DETAILS = "Some details aren't right. Check what you typed, then send again.";
 const bankRetryTime = new Intl.DateTimeFormat("en-NG", {
   timeZone: "Africa/Lagos",
@@ -40,7 +40,7 @@ const bankRetryTime = new Intl.DateTimeFormat("en-NG", {
  * shares one message, as the server does, so the text never reveals which check failed.
  */
 const APPLICANT_MESSAGES: Record<string, string> = {
-  BANK_CHECK_INVALID: "Check your bank and account details again",
+  BANK_CHECK_INVALID: "Check your bank and account details again.",
   BANK_CHECK_LIMITED: "Too many bank checks. Try again shortly.",
   BANK_CHECK_LIMIT_UNAVAILABLE: "Bank checks are paused for a moment. Try again shortly.",
   ONBOARDING_ACCESS_INVALID: CODE_NOT_WORKING,
@@ -58,7 +58,7 @@ const APPLICANT_MESSAGES: Record<string, string> = {
   INVALID_PLATE_NUMBER: "Enter your plate number as it appears on the car.",
   DUPLICATE_VEHICLE_PLATE:
     "A car with this plate number is already registered. Check the plate number.",
-  VEHICLE_NOT_FOUND: "We couldn't find that car. Tap Find my cars and choose again.",
+  VEHICLE_NOT_FOUND: "We couldn't find that car. Reload this page and choose your car again.",
   VEHICLE_REVIEW_PENDING: "We're still checking this car. You can send it again after we finish.",
   FILE_UPLOAD_RETRY_CONFLICT: CHOOSE_FILES_AGAIN,
   FILE_UPLOAD_ALREADY_CLOSED: CHOOSE_FILES_AGAIN,
@@ -74,12 +74,12 @@ export async function onboardingResponseJson<T>(response: Response): Promise<T> 
       const seconds = Number(response.headers.get("retry-after"));
       if (Number.isInteger(seconds) && seconds > 0 && seconds <= 3600) {
         const nextMinute = Math.ceil((Date.now() + seconds * 1000) / 60_000) * 60_000;
-        throw new Error(`Try again after ${bankRetryTime.format(nextMinute)}`);
+        throw new Error(`Try again after ${bankRetryTime.format(nextMinute)}.`);
       }
     }
     throw new Error(
       (error?.code ? APPLICANT_MESSAGES[error.code] : undefined) ||
-        "Something went wrong. Please try again.",
+        "Something went wrong. Try again.",
     );
   }
   return body as T;
@@ -116,7 +116,7 @@ async function waitForClean(
     }
     await new Promise((resolve) => window.setTimeout(resolve, 1500));
   }
-  throw new Error("We're still checking your files. Please try again in a minute.");
+  throw new Error("We're still checking your files. Try again in a minute.");
 }
 
 // Mirrors the server's per-purpose upload policy (client answer #12).

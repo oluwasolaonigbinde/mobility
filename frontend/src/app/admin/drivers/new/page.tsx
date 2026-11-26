@@ -23,10 +23,7 @@ export default async function NewDriverProfilePage() {
         </Link>{" "}
         / <span className="text-muted">Add profile</span>
       </nav>
-      <PageHeader
-        title="Add driver profile"
-        eyebrow="Add driving details to an existing driver login"
-      />
+      <PageHeader title="Add driver profile" />
       <section aria-labelledby="create-driver-login" className="mb-6">
         <h2 id="create-driver-login" className="mb-3 text-lg font-medium">
           Create driver login

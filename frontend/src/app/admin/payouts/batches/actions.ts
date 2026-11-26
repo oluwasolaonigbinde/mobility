@@ -51,7 +51,8 @@ export async function previewSelectionAction(
 }
 
 const moneyErrors: Record<string, string> = {
-  DISBURSEMENT_PROVIDER_UNAVAILABLE: "Run saved, not sent. Payments are not connected.",
+  DISBURSEMENT_PROVIDER_UNAVAILABLE:
+    "Payouts aren't available right now. Check the payment run before trying again.",
   PAYOUT_BATCH_NOT_APPROVED: "An admin must approve the payment run before submission.",
   PAYOUT_ENTRY_HELD: "A selected payment is now on hold. Refresh the list.",
   PAYOUT_ASSESSMENT_NOT_CURRENT: "A selected payment needs checking. Refresh the list.",
@@ -167,7 +168,7 @@ export async function batchTransitionAction(
     revalidatePath("/admin/money");
     return {
       done: {
-        approve: "Payment run approved",
+        approve: "Payment run approved.",
         submit: "Sending started. Check each payment for the result.",
         retry_failed: "Replacement ready. Approve it to send.",
         void: "Payment run cancelled.",
@@ -206,7 +207,7 @@ export async function pollLineAction(
       body: JSON.stringify({ reason: parsed.data.reason }),
     });
     revalidatePath("/admin/money");
-    return { done: "Payment result added." };
+    return { done: "Payment checked." };
   } catch (error) {
     unstable_rethrow(error);
     return {

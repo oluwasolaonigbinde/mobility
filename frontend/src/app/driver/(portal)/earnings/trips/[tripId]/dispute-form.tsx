@@ -14,7 +14,7 @@ export function DisputeForm({ flagId, tripId }: { flagId: string; tripId: string
       <input type="hidden" name="flag_id" value={flagId} />
       <input type="hidden" name="trip_id" value={tripId} />
       <label className="flex flex-col gap-1">
-        <span className="micro text-muted">What should staff review?</span>
+        <span className="micro text-muted">What should Terrax Media review?</span>
         <textarea
           name="message"
           required
@@ -26,7 +26,7 @@ export function DisputeForm({ flagId, tripId }: { flagId: string; tripId: string
       </label>
       <div className="flex items-start justify-between gap-3">
         <p className="micro text-faint max-w-sm">
-          You can submit one dispute for this trip. Staff will reply here.
+          You can submit one dispute for this trip. Terrax Media will reply here.
         </p>
         <Button type="submit" disabled={pending} className="h-9 shrink-0 px-3 text-xs">
           {pending ? "Submitting…" : "Submit dispute"}

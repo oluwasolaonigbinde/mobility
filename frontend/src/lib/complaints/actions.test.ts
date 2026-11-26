@@ -177,7 +177,7 @@ describe("follow-up actions", () => {
     const values = { complaint_id: COMPLAINT, message: "x", client_request_id: REQUEST };
     mocks.post.mockRejectedValueOnce(apiError(409, "COMPLAINT_MESSAGE_LIMIT"));
     expect(await followUpDriverComplaintAction({}, form(values))).toEqual({
-      error: "This conversation is full. Please send a new message instead.",
+      error: "This conversation is full. A new conversation is needed.",
     });
     mocks.post.mockRejectedValueOnce(apiError(404, "COMPLAINT_NOT_FOUND"));
     expect(await followUpDriverComplaintAction({}, form(values))).toEqual({
@@ -223,7 +223,6 @@ describe("staff actions", () => {
   it.each([
     [{ status: "resolved" }, { status: "resolved" }],
     [{ status: "open" }, { status: "open" }],
-    [{ status: "" }, {}],
   ])("maps the status form %#", async (values, body) => {
     expect(await updateComplaintAction({}, form({ complaint_id: COMPLAINT, ...values }))).toEqual({
       done: "Saved.",
@@ -232,6 +231,13 @@ describe("staff actions", () => {
       params: { path: { complaint_id: COMPLAINT } },
       body,
     });
+  });
+
+  it("makes no change when no status is chosen", async () => {
+    expect(await updateComplaintAction({}, form({ complaint_id: COMPLAINT, status: "" }))).toEqual({
+      done: "No change made.",
+    });
+    expect(mocks.patch).not.toHaveBeenCalled();
   });
 
   it("refuses an invalid status", async () => {

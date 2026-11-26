@@ -51,6 +51,6 @@ it("shows a fixed unavailable reply instead of promising mail when email is off"
   form.set("email", "person@example.test");
   expect(await requestPasswordResetAction({}, form)).toEqual({
     email: "person@example.test",
-    error: "Password reset isn't available right now. Please contact Terrax Media.",
+    error: "Password reset isn't available right now. Contact Terrax Media.",
   });
 });

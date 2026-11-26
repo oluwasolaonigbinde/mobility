@@ -271,7 +271,7 @@ export default async function DriverHub({
       />
       <StatusChip tone={adminTone(status)}>
         {next === "Next: complete sign-in setup."
-          ? "Waiting for driver to set a password"
+          ? "Sign-in not set up yet"
           : adminStatus(status, "driver")}
       </StatusChip>
       {applicationAvailable && !application ? (
@@ -641,7 +641,7 @@ export default async function DriverHub({
           ) : (
             <>
               {!reviews.data?.items.length ? (
-                <p>No matching trip reviews.</p>
+                <p>No trip reviews for this driver.</p>
               ) : (
                 reviews.data?.items.map((review) => (
                   <Link
@@ -704,7 +704,7 @@ export default async function DriverHub({
                   activity.data?.items.map((event) => (
                     <p className="mb-2 text-sm" key={event.id}>
                       {formatDate(event.created_at)} · {adminActivity(event.action)} ·{" "}
-                      {adminActor(event.actor_email)}
+                      {adminActor(event.actor_email, event.actor_name, event.actor_user_id)}
                     </p>
                   ))
                 )}

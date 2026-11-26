@@ -70,7 +70,7 @@ describe("DriverAssignmentsPage history availability", () => {
     });
     render(await DriverAssignmentsPage({}));
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Two jobs are live on your account. Please contact support so we can fix it.",
+      "Two jobs are live on your account. Contact support so we can fix it.",
     );
     expect(screen.queryByText("Photo status is unavailable")).not.toBeInTheDocument();
   });

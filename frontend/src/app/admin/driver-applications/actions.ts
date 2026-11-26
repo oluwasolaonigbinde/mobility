@@ -393,7 +393,7 @@ async function decideVehicle(
     parsed.data.documents_readable_confirmed,
   ];
   if (intent === "approve" && !confirmations.every(Boolean)) {
-    return { error: "Complete every vehicle approval confirmation." };
+    return { error: "Tick every check before approving." };
   }
   let validUntil: string | null = null;
   if (intent === "approve") {

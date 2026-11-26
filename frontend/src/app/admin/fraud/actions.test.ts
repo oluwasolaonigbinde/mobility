@@ -48,7 +48,7 @@ describe("reviewFraudFlagAction", () => {
 
   it("rejects a blank note without calling the backend", async () => {
     await expect(reviewFraudFlagAction({}, reviewForm("confirm", "   "))).resolves.toEqual({
-      error: "A review note is required",
+      error: "A review note is required.",
     });
     expect(mocks.post).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
@@ -67,7 +67,7 @@ describe("replyFraudDisputeAction", () => {
     form.set("reply", "  We reviewed the route and cleared the hold.  ");
 
     await expect(replyFraudDisputeAction({}, form)).resolves.toEqual({
-      done: "Reply sent to driver",
+      done: "Reply sent to driver.",
     });
     expect(mocks.post).toHaveBeenCalledWith("/api/v1/admin/fraud-disputes/{dispute_id}/reply", {
       params: { path: { dispute_id: DISPUTE_ID } },
@@ -82,7 +82,7 @@ describe("replyFraudDisputeAction", () => {
     form.set("reply", "   ");
 
     await expect(replyFraudDisputeAction({}, form)).resolves.toEqual({
-      error: "A driver reply is required",
+      error: "A driver reply is required.",
     });
     expect(mocks.post).not.toHaveBeenCalled();
   });
@@ -95,8 +95,8 @@ describe("physical spot-check actions", () => {
   });
 
   it.each([
-    ["passed", "In-person check passed"],
-    ["failed", "Failure sent to trip review"],
+    ["passed", "In-person check passed."],
+    ["failed", "Check failed. Result recorded."],
   ])("records %s with the inspector note and stable request id", async (outcome, done) => {
     const form = new FormData();
     form.set("assignment_id", "00000000-0000-4000-8000-000000000001");

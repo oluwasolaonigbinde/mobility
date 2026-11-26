@@ -582,9 +582,7 @@ it.each(["readiness", "installation-evidence"])(
     render(await page({ job: jobId }));
     const drawer = screen.getByRole("dialog");
     expect(within(drawer).getAllByRole("alert")).toHaveLength(1);
-    expect(within(drawer).getByRole("alert")).toHaveTextContent(
-      "Couldn't load this section — try again",
-    );
+    expect(within(drawer).getByRole("alert")).toHaveTextContent("This section couldn't be loaded.");
     expect(screen.queryByRole("button", { name: "Start job" })).toBeNull();
     expect(mocks.photo).not.toHaveBeenCalled();
   },

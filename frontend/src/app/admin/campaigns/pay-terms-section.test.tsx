@@ -85,6 +85,6 @@ describe("Current Pay terms", () => {
   it("failed current reads show one section failure", async () => {
     get.mockRejectedValue(new Error("offline"));
     render(await Section({ campaignId: "campaign" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
+    expect(screen.getByRole("alert")).toHaveTextContent("This section couldn't be loaded.");
   });
 });

@@ -27,12 +27,12 @@ export interface SpotCheckActionState {
 const reviewSchema = z.object({
   flag_id: z.string().uuid(),
   intent: z.enum(["confirm", "dismiss"]),
-  note: z.string().trim().min(1, "A review note is required").max(2000),
+  note: z.string().trim().min(1, "A review note is required.").max(2000),
 });
 
 const disputeReplySchema = z.object({
   dispute_id: z.string().uuid(),
-  reply: z.string().trim().min(1, "A driver reply is required").max(2000),
+  reply: z.string().trim().min(1, "A driver reply is required.").max(2000),
 });
 
 const spotCheckSchema = z.object({
@@ -40,7 +40,7 @@ const spotCheckSchema = z.object({
   trip_session_id: z.string().uuid(),
   client_request_id: z.string().uuid(),
   outcome: z.enum(["passed", "failed"]),
-  note: z.string().trim().min(1, "A result note is required").max(2000),
+  note: z.string().trim().min(1, "A result note is required.").max(2000),
 });
 export async function reviewFraudFlagAction(
   _prev: FraudReviewActionState,
@@ -75,7 +75,7 @@ export async function reviewFraudFlagAction(
 
   revalidatePath("/admin/trip-checks");
   return {
-    done: intent === "confirm" ? "Problem confirmed" : "Trip cleared",
+    done: intent === "confirm" ? "Problem confirmed." : "Trip cleared.",
   };
 }
 
@@ -105,7 +105,7 @@ export async function replyFraudDisputeAction(
   }
 
   revalidatePath("/admin/trip-checks");
-  return { done: "Reply sent to driver" };
+  return { done: "Reply sent to driver." };
 }
 
 export async function recordSpotCheckAction(
@@ -134,6 +134,8 @@ export async function recordSpotCheckAction(
   revalidatePath("/admin/trip-checks");
   return {
     done:
-      parsed.data.outcome === "passed" ? "In-person check passed" : "Failure sent to trip review",
+      parsed.data.outcome === "passed"
+        ? "In-person check passed."
+        : "Check failed. Result recorded.",
   };
 }

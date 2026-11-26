@@ -8,6 +8,8 @@ const event = {
   id: "event-id",
   created_at: "2026-10-18T22:30:00Z",
   actor_email: "staff@example.com",
+  actor_name: "Ada Staff",
+  actor_user_id: "user-1",
   action: "auth.login.succeeded",
   entity_type: "user",
   entity_id: "private-id",
@@ -31,7 +33,8 @@ it("uses human filters with exact API values, and displays actor/action/date wit
   expect(screen.getByRole("combobox", { name: "About" })).toHaveValue("user");
   expect(screen.getByRole("option", { name: "Signed in" })).toBeInTheDocument();
   expect(screen.getByRole("cell", { name: "Signed in" })).toBeInTheDocument();
-  expect(screen.getByRole("cell", { name: "staff@example.com" })).toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: "Ada Staff" })).toBeInTheDocument();
+  expect(container).not.toHaveTextContent("staff@example.com");
   expect(container).not.toHaveTextContent(
     /private-id|private_field|private value|auth.login.succeeded|Recorded activity|Technical reference/,
   );
@@ -58,20 +61,20 @@ it("preserves unknown URL filters in a human-labelled selected option", async ()
 it("keeps genuine empty history separate from unavailable history", async () => {
   get.mockResolvedValue({ data: { items: [], total: 0 } });
   const empty = render(await AdminAuditPage({ searchParams: Promise.resolve({}) }));
-  expect(screen.getByText("No matching events.")).toBeInTheDocument();
+  expect(screen.getByText("No activity recorded.")).toBeInTheDocument();
   empty.unmount();
   get.mockRejectedValue(new Error("offline"));
   render(await AdminAuditPage({ searchParams: Promise.resolve({}) }));
   expect(screen.getAllByRole("alert")).toHaveLength(1);
-  expect(screen.queryByText("No matching events.")).toBeNull();
+  expect(screen.queryByText("No activity recorded.")).toBeNull();
 });
 
 it.each(["report-automation@cardvert.invalid", "automatic-payouts@cardvert.invalid"])(
-  "shows automation actor %s as System",
+  "shows automation actor %s as Cardvert",
   async (email) => {
     get.mockResolvedValue({ data: { items: [{ ...event, actor_email: email }], total: 1 } });
     render(await AdminAuditPage({ searchParams: Promise.resolve({}) }));
-    expect(screen.getByRole("cell", { name: "System" })).toBeVisible();
+    expect(screen.getByRole("cell", { name: "Cardvert" })).toBeVisible();
     expect(screen.queryByText(email)).not.toBeInTheDocument();
   },
 );

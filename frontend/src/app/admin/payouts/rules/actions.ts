@@ -36,7 +36,11 @@ export async function publishDailyRateAction(
   const parsed = dailyRateFormSchema.safeParse(raw);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
-    return { error: issue?.message ?? "Invalid input", field: issue?.path.join("."), values: raw };
+    return {
+      error: issue?.message ?? "Check the form and try again.",
+      field: issue?.path.join("."),
+      values: raw,
+    };
   }
   const { campaign_id, ...body } = parsed.data;
   try {

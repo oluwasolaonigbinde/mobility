@@ -31,7 +31,7 @@ export const dailyRateFormSchema = z.object({
       (v) => new Date(v).getTime() > Date.now(),
       "The start must be in the future — past days change only through a correction",
     ),
-  reason: z.string().trim().min(1, "A reason is required"),
+  reason: z.string().trim().min(1, "Add a reason."),
 });
 
 export type DailyRateFormValues = z.infer<typeof dailyRateFormSchema>;

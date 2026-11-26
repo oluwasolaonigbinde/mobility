@@ -179,3 +179,57 @@ it("restores only this login and company's uncertain request after a reload", as
     "another-user-request",
   );
 });
+
+it("shows the restored-request hint in plain words", async () => {
+  sessionStorage.setItem(
+    "campaign-report-request:owner:company:all",
+    JSON.stringify({ client_request_id: "r", start_date: "2026-10-12", end_date: "2026-10-18" }),
+  );
+  show();
+  expect(
+    await screen.findByText("Select Check request to see whether your last request went through."),
+  ).toBeInTheDocument();
+});
+
+it("clears the request and shows the public refusal on a readable 4xx", async () => {
+  fetchMock.mockImplementation(async (_url: string, init?: RequestInit) => {
+    if (init?.method === "POST")
+      return Response.json(
+        {
+          error: {
+            code: "REPORT_TOO_LARGE",
+            message: "Choose fewer campaigns or a shorter reporting period.",
+          },
+        },
+        { status: 422 },
+      );
+    return Response.json(empty);
+  });
+  show();
+  await screen.findByText("No reports yet.");
+  fireEvent.click(screen.getByRole("button", { name: "Create report" }));
+  await screen.findByText("Choose fewer campaigns or a shorter reporting period.");
+  expect(screen.getByRole("button", { name: "Create report" })).toBeEnabled();
+  expect(sessionStorage.getItem("campaign-report-request:owner:company:all")).toBeNull();
+});
+
+it.each([
+  ["an unreadable 4xx", () => new Response("not json", { status: 409 })],
+  ["a 5xx", () => Response.json({ error: { code: "X", message: "x" } }, { status: 502 })],
+])("keeps the request after %s and retries with the same payload", async (_name, reply) => {
+  const sent: unknown[] = [];
+  fetchMock.mockImplementation(async (_url: string, init?: RequestInit) => {
+    if (init?.method === "POST") {
+      sent.push(JSON.parse(String(init.body)));
+      return sent.length === 1 ? reply() : Response.json({ id: "report" }, { status: 202 });
+    }
+    return Response.json(empty);
+  });
+  show();
+  await screen.findByText("No reports yet.");
+  fireEvent.click(screen.getByRole("button", { name: "Create report" }));
+  await screen.findByText(/We couldn't confirm this request/);
+  fireEvent.click(screen.getByRole("button", { name: "Check request" }));
+  await screen.findByText(/Report requested/);
+  expect(sent[1]).toEqual(sent[0]);
+});

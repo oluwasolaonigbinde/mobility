@@ -32,10 +32,11 @@ it("uses invite wording, removes the fragment and returns to manual sign-in", as
 
 it("gives an expired or used invite a plain staff recovery message", async () => {
   complete.mockResolvedValue({
-    error: "This invite link is invalid, expired, or already used. Ask Terrax for a new invite.",
+    error:
+      "This invite link is invalid, expired, or already used. Ask Terrax Media for a new invite.",
   });
   render(<Page />);
   await userEvent.click(await screen.findByRole("button", { name: "Set password" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Ask Terrax for a new invite");
+  expect(await screen.findByRole("alert")).toHaveTextContent("Ask Terrax Media for a new invite");
   expect(screen.queryByRole("link", { name: "Send a new link" })).toBeNull();
 });

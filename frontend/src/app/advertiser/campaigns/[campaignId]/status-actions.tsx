@@ -54,9 +54,9 @@ export function StatusActions({
       </div>
       {status === "rejected" ? (
         <p className="micro text-coral max-w-xs text-right">
-          Read the reason below,{" "}
+          Check Details for campaign updates.{" "}
           <Link href={`/advertiser/campaigns/${campaignId}/edit`} className="underline">
-            edit the details
+            Edit the details
           </Link>
           , then resubmit.
         </p>

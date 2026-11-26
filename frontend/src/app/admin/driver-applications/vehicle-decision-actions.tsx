@@ -236,7 +236,7 @@ export function VehicleDecisionActions({
               />
             </label>
           </div>
-          <p>Record each document’s outcome. Accepted documents stay on file during renewal.</p>
+          <p>Accepted documents stay on file during renewal.</p>
         </fieldset>
         {documents.length > 0 ? (
           <div role="group" aria-label="Opened in this visit" className="text-muted text-sm">

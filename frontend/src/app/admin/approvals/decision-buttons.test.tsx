@@ -124,7 +124,7 @@ it("keeps only the retry approval for an approved change waiting for funding", a
   );
   expect(
     screen.getByText(
-      "This change is approved. The approval stays in place. When there is enough funding, press Retry approved change to apply it.",
+      "This change is approved. When there is enough funding, press Retry approved change to apply it.",
     ),
   ).toBeVisible();
   expect(screen.queryByRole("button", { name: "Reject change" })).toBeNull();
@@ -138,7 +138,7 @@ it("keeps only the retry approval for an approved change waiting for funding", a
       response: new Response(JSON.stringify({ status: "pending_funding" }), { status: 200 }),
     }),
   );
-  expect(screen.getByText("Approval kept. Still waiting for enough funding.")).toBeVisible();
+  expect(screen.getByText("Approval kept. The change is still waiting for funding.")).toBeVisible();
   expect(screen.queryByRole("alert")).toBeNull();
   expect(screen.queryByText(/Change approved/)).toBeNull();
   expect(screen.getByRole("button", { name: "Retry approved change" })).toBeEnabled();

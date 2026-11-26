@@ -19,7 +19,7 @@ export interface CampaignReviewActionState {
 const campaignChangeReviewSchema = z.object({
   request_id: z.string().uuid(),
   intent: z.enum(["approve", "reject"]),
-  reason: z.string().trim().min(1, "A decision reason is required").max(1000),
+  reason: z.string().trim().min(1, "Add a decision reason.").max(1000),
 });
 
 export async function reviewCampaignChangeAction(
@@ -49,12 +49,16 @@ export async function reviewCampaignChangeAction(
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof ApiError) return { error: publicActionError(error) };
-    return { error: "Could not reach the server." };
+    return {
+      error:
+        "We couldn't confirm this decision was saved. Refresh the page to check before trying again.",
+    };
   }
   revalidatePath("/admin/campaigns");
   revalidatePath("/admin/campaigns/[campaignId]", "page");
-  if (waitingForFunding) return { notice: "Approval kept. Still waiting for enough funding." };
-  return { done: parsed.data.intent === "approve" ? "Change approved" : "Change rejected" };
+  if (waitingForFunding)
+    return { notice: "Approval kept. The change is still waiting for funding." };
+  return { done: parsed.data.intent === "approve" ? "Change approved." : "Change rejected." };
 }
 
 const reviewSchema = z.discriminatedUnion("intent", [
@@ -62,7 +66,7 @@ const reviewSchema = z.discriminatedUnion("intent", [
   z.object({
     campaign_id: z.string().uuid(),
     intent: z.literal("reject"),
-    reason: z.string().trim().min(1, "A rejection reason is required").max(2000),
+    reason: z.string().trim().min(1, "Add a rejection reason.").max(2000),
   }),
 ]);
 
@@ -98,15 +102,18 @@ export async function reviewCampaignAction(
       return {
         error: publicActionError(error, {
           CAMPAIGN_REVIEW_STATE_CONFLICT:
-            "This campaign has changed. Refresh the page. Refresh and try again.",
+            "This campaign has changed. Refresh the page and try again.",
         }),
       };
-    return { error: "Could not reach the server." };
+    return {
+      error:
+        "We couldn't confirm this decision was saved. Refresh the page to check before trying again.",
+    };
   }
 
   revalidatePath("/admin/campaigns");
   revalidatePath("/admin/campaigns/[campaignId]", "page");
-  return { done: parsed.data.intent === "approve" ? "Campaign approved" : "Campaign rejected" };
+  return { done: parsed.data.intent === "approve" ? "Campaign approved." : "Campaign rejected." };
 }
 
 const creativeReviewSchema = z.discriminatedUnion("intent", [
@@ -114,7 +121,7 @@ const creativeReviewSchema = z.discriminatedUnion("intent", [
   z.object({
     creative_id: z.string().uuid(),
     intent: z.literal("reject"),
-    reason: z.string().trim().min(1, "A rejection reason is required").max(2000),
+    reason: z.string().trim().min(1, "Add a rejection reason.").max(2000),
   }),
 ]);
 
@@ -147,12 +154,15 @@ export async function reviewCreativeAction(
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof ApiError) return { error: publicActionError(error) };
-    return { error: "Could not reach the server." };
+    return {
+      error:
+        "We couldn't confirm this artwork decision was saved. Refresh the page to check before trying again.",
+    };
   }
 
   revalidatePath("/admin/campaigns");
   revalidatePath("/admin/campaigns/[campaignId]", "page");
-  return { done: parsed.data.intent === "approve" ? "Creative approved" : "Creative rejected" };
+  return { done: parsed.data.intent === "approve" ? "Artwork approved." : "Artwork rejected." };
 }
 
 const installationReviewSchema = z.discriminatedUnion("intent", [
@@ -160,7 +170,7 @@ const installationReviewSchema = z.discriminatedUnion("intent", [
   z.object({
     submission_id: z.string().uuid(),
     intent: z.literal("reject"),
-    reason: z.string().trim().min(1, "A rejection reason is required").max(2000),
+    reason: z.string().trim().min(1, "Add a rejection reason.").max(2000),
   }),
 ]);
 
@@ -180,7 +190,7 @@ export async function reviewInstallationEvidenceAction(
   }
   const api = createApiClient(await getSessionToken());
   const path = { params: { path: { submission_id: parsed.data.submission_id } } };
-  let done = "Installation rejected";
+  let done = "Installation rejected.";
   try {
     if (parsed.data.intent === "approve") {
       const { data } = await api.POST(
@@ -204,7 +214,10 @@ export async function reviewInstallationEvidenceAction(
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof ApiError) return { error: publicActionError(error) };
-    return { error: "Could not reach the server." };
+    return {
+      error:
+        "We couldn't confirm this photo decision was saved. Refresh the page to check before trying again.",
+    };
   }
   revalidatePath("/admin/campaigns");
   revalidatePath("/admin/campaigns/[campaignId]", "page");

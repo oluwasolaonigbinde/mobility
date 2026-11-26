@@ -57,7 +57,7 @@ test("advertiser preview and reasoned admin decision complete a mid-flight chang
     await expect(expansionPreview.getByText("Can apply now")).toBeVisible();
     await expect(expansionPreview.getByText("₦3,500,000.00 → ₦999,999,999.00")).toBeVisible();
     await expansionPreview.getByRole("button", { name: "Confirm this change" }).click();
-    await expect(page.getByText("✓ Campaign change confirmed.")).toBeVisible();
+    await expect(page.getByText("✓ Change applied.")).toBeVisible();
     await expect(page.getByText("Applied", { exact: true }).first()).toBeVisible();
 
     await page.getByLabel("Total budget").fill("999999998.00");

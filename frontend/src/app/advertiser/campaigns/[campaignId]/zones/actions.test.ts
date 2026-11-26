@@ -66,6 +66,11 @@ it("does not turn a definite backend refusal into a successful area", async () =
   expect(state.error).toBeTruthy();
   expect(state.zone).toBeUndefined();
 });
+it("says the area couldn't be saved for an unlisted refusal", async () => {
+  mocks.post.mockRejectedValue(new ApiError(422, { code: "ZONE_UNLISTED", message: "internal" }));
+  const state = await createZoneAction({ campaignId, name: "Wuse", zoneType: "target", geometry });
+  expect(state.error).toBe("This area couldn't be saved. Try again.");
+});
 it("checks updated zone identity and campaign membership", async () => {
   mocks.patch.mockResolvedValue({ data: { ...zone, id: campaignId } });
   expect(
@@ -78,4 +83,12 @@ it("keeps the authorised route in a confirmed delete", async () => {
     "/api/v1/advertiser/campaigns/{campaign_id}/zones/{zone_id}",
     { params: { path: { campaign_id: campaignId, zone_id: zoneId } } },
   );
+});
+it("says the area couldn't be removed when the DELETE is refused", async () => {
+  mocks.remove.mockRejectedValueOnce(
+    new ApiError(409, { code: "ZONE_UNLISTED", message: "internal" }),
+  );
+  expect(await deleteZoneAction({ campaignId, zoneId })).toEqual({
+    error: "This area couldn't be removed. Try again.",
+  });
 });

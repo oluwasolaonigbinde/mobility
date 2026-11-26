@@ -24,8 +24,12 @@ export async function resolveOperation(_state: { error?: string; done?: string }
       outcome: form.get("outcome") ?? "attempted",
       confirmed: form.get("confirmed") === "on",
     });
-  if (!parsed.success)
-    return { error: "Confirm the action and provide its reason or recorded contact outcome." };
+  if (!parsed.success) {
+    const fields = parsed.error.issues.map((issue) => issue.path[0]);
+    return fields.every((field) => field === "note" || field === "confirmed")
+      ? { error: "Add a note and tick the box." }
+      : { error: "This task couldn't be recorded. Refresh the page and try again." };
+  }
   const { id, note, outcome } = parsed.data;
   const api = createApiClient(await getSessionToken());
   try {
@@ -41,7 +45,7 @@ export async function resolveOperation(_state: { error?: string; done?: string }
       error:
         error instanceof ApiError
           ? publicActionError(error)
-          : "No result was confirmed. Reload or retry the same action and note.",
+          : "We couldn't confirm the contact outcome was saved. Refresh the page to check before trying again.",
     };
   }
 }

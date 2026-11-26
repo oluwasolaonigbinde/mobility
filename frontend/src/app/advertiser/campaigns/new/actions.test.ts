@@ -107,7 +107,7 @@ describe("createCampaignAction", () => {
     );
 
     expect(state).toEqual({
-      error: "Your advertiser access is unavailable. Ask Terrax to check your account.",
+      error: "Your advertiser access is unavailable. Ask Terrax Media to check your account.",
     });
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
@@ -180,6 +180,7 @@ it("retries attachments against the created campaign without creating another", 
   };
   const state = await createCampaignAction(input);
   expect(state.createdCampaignId).toBe(CAMPAIGN_ID);
+  expect(state.error).toBe("Your draft is saved. Check its artwork before trying again.");
   mocks.post.mockResolvedValue({ data: { id: "creative" } });
   await createCampaignAction(input, state.createdCampaignId);
   expect(
@@ -259,4 +260,37 @@ it("rejects an invalid recovery target before any API mutation", async () => {
   );
   expect(result.error).toBeTruthy();
   expect(mocks.post).not.toHaveBeenCalled();
+});
+
+it.each([
+  ["CREATIVE_FILE_NOT_CLEARED", "That file hasn't passed its security scan."],
+  ["CAMPAIGN_ARTWORK_LOCKED", "This campaign's artwork is locked. Ask Terrax to change it."],
+])("names a definite %s artwork refusal", async (code, reason) => {
+  mocks.post.mockReset();
+  mocks.post
+    .mockResolvedValueOnce({ data: { id: CAMPAIGN_ID } })
+    .mockRejectedValueOnce(new ApiError(409, { code, message: "internal detail" }));
+  const state = await createCampaignAction({
+    basics: {
+      name: "Refused",
+      description: "",
+      start_at: "",
+      end_at: "",
+      budget_amount: "",
+      daily_budget_amount: "",
+    },
+    creatives: [
+      {
+        name: "Wrap",
+        creative_type: "image" as const,
+        placement: "vehicle_exterior" as const,
+        stored_file_id: "00000000-0000-4000-8000-000000000001",
+        original_filename: "wrap.png",
+      },
+    ],
+  });
+  expect(state).toEqual({
+    error: `Your draft is saved, but artwork 1 ("Wrap") couldn't be added. ${reason}`,
+    createdCampaignId: CAMPAIGN_ID,
+  });
 });

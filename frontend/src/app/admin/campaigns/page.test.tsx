@@ -171,3 +171,27 @@ it("includes all review sources by default", async () => {
     expect(get.mock.calls.some(([called]) => called === path)).toBe(true);
   expect(screen.getByRole("region", { name: "Campaign details" })).toBeTruthy();
 });
+
+it.each([
+  [
+    { tab: "live", source: "active" },
+    "Nothing in this list. Choose another status or change the search.",
+  ],
+  [{ tab: "needs-review", source: "artwork" }, "Nothing in this list. Choose another status."],
+])("gates each empty-list instruction on its own control (%o)", async (query, text) => {
+  get.mockImplementation(async () => ({ data: { items: [], total: 0 } }));
+  render(await page(query));
+  expect(screen.getByText(text)).toBeInTheDocument();
+});
+it("names only the controls the embedded lists show", async () => {
+  get.mockImplementation(async () => ({ data: { items: [], total: 0 } }));
+  render(await page({ tab: "needs-review" }));
+  expect(screen.getAllByText("Nothing in this list.").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Nothing in this list. Change the search.").length).toBeGreaterThan(0);
+  expect(screen.queryByText(/Choose another status/)).toBeNull();
+});
+it("labels ended campaigns with the decided Finished state word", async () => {
+  render(await page({ tab: "ended", source: "finished" }));
+  expect(screen.getByRole("link", { name: "Finished" })).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Completed" })).toBeNull();
+});

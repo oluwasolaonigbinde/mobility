@@ -67,7 +67,7 @@ function forgetConfirmableUpload(clientRequestId: string): void {
 
 async function responseJson<T>(response: Response): Promise<T> {
   const body = (await response.json()) as T;
-  if (!response.ok) throw new Error("The upload failed. Try again.");
+  if (!response.ok) throw new CreativeUploadError("The upload failed. Try again.");
   return body;
 }
 
@@ -78,19 +78,44 @@ async function sha256(file: File): Promise<string> {
 
 function scanFailure(status: StoredFile["scan_status"]): Error {
   if (status === "infected")
-    return new Error("This file failed our safety check. Try another file.");
-  if (status === "rejected") return new Error("Use a PNG, JPEG, WebP or PDF file.");
-  return new Error("We couldn't check this file. Retry the upload.");
+    return new CreativeUploadError("This file failed our safety check. Try another file.");
+  if (status === "rejected") return new CreativeUploadError("Use a PNG, JPEG, WebP or PDF file.");
+  return new CreativeUploadError("We couldn't check this file. Retry the upload.");
 }
+
+/** Messages written for the advertiser; any other failure gets one fixed message. */
+export class CreativeUploadError extends Error {
+  override name = "CreativeUploadError";
+}
+
+type UploadOptions = { pollDelayMs?: number; maxPolls?: number; clientRequestId?: string };
+type UploadResult = { storedFileId: string; creativeType: "image" | "pdf" };
 
 export async function uploadCreativeFile(
   file: File,
   onPhase: (phase: CreativeUploadPhase) => void,
-  options: { pollDelayMs?: number; maxPolls?: number; clientRequestId?: string } = {},
-): Promise<{ storedFileId: string; creativeType: "image" | "pdf" }> {
-  if (!ACCEPTED_TYPES.has(file.type)) throw new Error("Choose a PNG, JPEG, WebP or PDF file.");
+  options: UploadOptions = {},
+): Promise<UploadResult> {
+  try {
+    return await uploadCreative(file, onPhase, options);
+  } catch (error) {
+    if (error instanceof CreativeUploadError) throw error;
+    // Fetch, parse and hashing failures carry browser text that is not for the advertiser.
+    throw new CreativeUploadError(
+      "The upload couldn't be finished. Select the file again to retry.",
+    );
+  }
+}
+
+async function uploadCreative(
+  file: File,
+  onPhase: (phase: CreativeUploadPhase) => void,
+  options: UploadOptions,
+): Promise<UploadResult> {
+  if (!ACCEPTED_TYPES.has(file.type))
+    throw new CreativeUploadError("Choose a PNG, JPEG, WebP or PDF file.");
   if (file.size <= 0 || file.size > MAX_CREATIVE_BYTES) {
-    throw new Error("Files must be 25 MB or smaller.");
+    throw new CreativeUploadError("Files must be 25 MB or smaller.");
   }
 
   onPhase("hashing");
@@ -99,7 +124,7 @@ export async function uploadCreativeFile(
   const fingerprint = JSON.stringify([file.name, file.type, file.size, checksum]);
   const resumable = readConfirmableUpload(clientRequestId);
   if (resumable && resumable.fingerprint !== fingerprint) {
-    throw new Error("Choose the same file when retrying this upload.");
+    throw new CreativeUploadError("Choose the same file when retrying this upload.");
   }
 
   let uploadId = resumable?.uploadId;
@@ -124,7 +149,7 @@ export async function uploadCreativeFile(
     for (const [name, value] of Object.entries(intent.upload.fields)) form.append(name, value);
     form.append("file", file);
     const uploaded = await fetch(intent.upload.url, { method: "POST", body: form });
-    if (!uploaded.ok) throw new Error("The upload failed. Retry the upload.");
+    if (!uploaded.ok) throw new CreativeUploadError("The upload failed. Retry the upload.");
     uploadId = intent.upload_id;
     rememberConfirmableUpload(clientRequestId, { fingerprint, uploadId });
   }
@@ -142,7 +167,7 @@ export async function uploadCreativeFile(
     );
   }
   if (stored.scan_status === "pending") {
-    throw new Error("We are still checking your file. Please try again in a moment.");
+    throw new CreativeUploadError("We're still checking your file. Try again in a moment.");
   }
   if (stored.scan_status !== "clean") throw scanFailure(stored.scan_status);
   forgetConfirmableUpload(clientRequestId);

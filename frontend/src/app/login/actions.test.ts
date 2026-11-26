@@ -149,7 +149,7 @@ describe("loginAction", () => {
 
     await expect(loginAction({}, formData)).resolves.toEqual({
       email: "advertiser@example.com",
-      error: "Sign-in is temporarily unavailable. Please try again.",
+      error: "Sign-in is temporarily unavailable. Try again.",
     });
   });
 

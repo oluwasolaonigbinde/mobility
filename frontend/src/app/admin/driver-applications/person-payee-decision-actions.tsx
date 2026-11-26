@@ -15,6 +15,13 @@ import {
 
 const initialState: PersonPayeeDecisionState = {};
 const initialEvidenceState: PersonPayeeEvidenceState = {};
+const SUBMISSION_STATUS_LABELS: Record<string, string> = {
+  pending_review: "Needs review",
+  approved: "Approved",
+  rejected: "Rejected",
+  expired: "Expired",
+  not_submitted: "Not submitted",
+};
 
 function EvidenceRead({
   kind,
@@ -174,9 +181,13 @@ export function PersonPayeeDecisionActions({
     setReadKeys((previous) => (previous.has(key) ? previous : new Set(previous).add(key)));
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <p className="text-faint mb-2 text-xs">
-        Identity documents are reviewed together. Bank details are checked separately before the
-        combined decision.
+      {/* One submission-level status: the rows below hold different evidence, not their own decisions. */}
+      <p className="text-muted mb-2 text-sm">
+        Status:{" "}
+        {Object.hasOwn(SUBMISSION_STATUS_LABELS, status)
+          ? SUBMISSION_STATUS_LABELS[status]
+          : "Status unavailable"}
+        .
       </p>
       <section aria-label="Driver agreement" className="border-edge border-b py-3">
         <h3 className="font-medium">Driver agreement</h3>
@@ -194,16 +205,6 @@ export function PersonPayeeDecisionActions({
         >
           <div>
             <h3 className="font-medium">{row.name}</h3>
-            <p className="text-muted mt-1 text-sm">
-              {!row.id
-                ? "Not submitted"
-                : ({
-                    pending_review: "Needs review",
-                    approved: "Approved",
-                    rejected: "Rejected",
-                    expired: "Expired",
-                  }[status] ?? "Status unavailable")}
-            </p>
             {row.kind === "account" && bankNameConfirmed === false ? (
               <p className="text-muted mt-1 text-sm">Name not confirmed by the bank</p>
             ) : null}
@@ -344,7 +345,7 @@ export function PersonPayeeDecisionActions({
                 />
               </label>
             </div>
-            <p>Record each document’s outcome. Accepted documents stay on file during renewal.</p>
+            <p>Accepted documents stay on file during renewal.</p>
           </fieldset>
           <div
             role="group"

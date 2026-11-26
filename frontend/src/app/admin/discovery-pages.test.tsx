@@ -73,7 +73,7 @@ describe("admin named discovery pages", () => {
       params: { query: { limit: 25, offset: 0, q: undefined, role: "admin" } },
     });
     expect(screen.getAllByRole("alert")).toHaveLength(1);
-    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
+    expect(screen.getByRole("alert")).toHaveTextContent("This section couldn't be loaded.");
     expect(screen.queryByText(/count unavailable/)).toBeNull();
   });
 
@@ -118,7 +118,7 @@ describe("admin named discovery pages", () => {
     expect(mocks.get).toHaveBeenCalledExactlyOnceWith("/api/v1/admin/vehicles", {
       params: { query: { limit: 25, offset: 0, q: undefined, status: "pending" } },
     });
-    expect(screen.getByText("Couldn't load this section — try again")).toBeTruthy();
+    expect(screen.getByText("This section couldn't be loaded.")).toBeTruthy();
     expect(screen.queryByText("No cars recorded")).toBeNull();
   });
   it("cars: plate results open the actual driver's Cars section", async () => {
@@ -180,7 +180,7 @@ describe("admin named discovery pages", () => {
     mocks.get.mockRejectedValue(new Error("offline"));
     render(await AdminDriversPage(props({})));
     expect(screen.getAllByRole("alert")).toHaveLength(1);
-    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
+    expect(screen.getByRole("alert")).toHaveTextContent("This section couldn't be loaded.");
     expect(screen.queryByText(/No matching drivers/)).toBeNull();
   });
 });

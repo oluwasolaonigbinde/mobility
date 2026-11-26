@@ -23,7 +23,7 @@ import {
   reverseReceiptAction,
   recordPaymentNotReceivedAction,
 } from "./actions";
-import { billingErrorCopy } from "./billing-errors";
+import { billingErrorCopy, billingSavedCopy } from "./billing-errors";
 import { ApiError } from "@/lib/api/errors";
 
 describe("receipt reversal and payment not received", () => {
@@ -79,7 +79,7 @@ describe("receipt reversal and payment not received", () => {
     ],
     [
       "CANCELLATION_SNAPSHOT_INCOMPLETE",
-      "The cancellation's payment records are incomplete. Ask the team to check them before continuing.",
+      "The cancellation's payment records are incomplete, so this can't continue.",
     ],
   ])("redirects %s with friendly fixed copy", async (code, copy) => {
     post.mockRejectedValueOnce(new ApiError(409, { code, message: "private backend detail" }));
@@ -282,6 +282,37 @@ it("explains that a transfer needs an issued invoice", async () => {
   );
 });
 
+describe("recordManualTransferAction result", () => {
+  beforeEach(() => vi.clearAllMocks());
+  it.each([
+    [{ data: { matched: true } }, "transfer"],
+    [{ data: { matched: false } }, "transfer_unmatched"],
+    [{ data: undefined }, "transfer_unknown"],
+    [{ data: {} }, "transfer_unknown"],
+  ])("redirects %j as saved=%s", async (response, saved) => {
+    post.mockResolvedValueOnce(response);
+    await expect(
+      recordManualTransferAction("campaign-1", "org-1", "terms-1", new FormData()),
+    ).rejects.toThrow(`redirect:/admin/campaigns/campaign-1?saved=${saved}#money`);
+  });
+  it("keeps a rejected transfer on the error redirect", async () => {
+    post.mockRejectedValueOnce(new ApiError(500, { code: "BOOM", message: "private" }));
+    await expect(
+      recordManualTransferAction("campaign-1", "org-1", "terms-1", new FormData()),
+    ).rejects.toThrow("redirect:/admin/campaigns/campaign-1?error=failed#money");
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("billingSavedCopy", () => {
+  it("returns fixed copy for known codes only", () => {
+    expect(billingSavedCopy("issued")).toEqual({ text: "Invoice issued.", tone: "green" });
+    expect(billingSavedCopy("toString")).toBeNull();
+    expect(billingSavedCopy("Transfer applied, call 0800")).toBeNull();
+    expect(billingSavedCopy(undefined)).toBeNull();
+  });
+});
+
 describe("recordInvoiceCorrectionAction", () => {
   beforeEach(() => vi.clearAllMocks());
   it("sends only the net amount; the server derives VAT", async () => {
@@ -312,7 +343,7 @@ describe("recordInvoiceCorrectionAction", () => {
     ],
     [
       "INVOICE_CORRECTION_VAT_INCONSISTENT",
-      "Earlier corrections on this invoice don't match its VAT rate, so another correction can't be added. Ask the team to check this invoice.",
+      "Earlier corrections on this invoice don't match its VAT rate, so another correction can't be added.",
     ],
     [
       "INVOICE_CREDIT_EXCEEDS_OBLIGATION",
@@ -332,10 +363,10 @@ describe("recordInvoiceCorrectionAction", () => {
 describe("billingErrorCopy", () => {
   it("never echoes URL text", () => {
     expect(billingErrorCopy("Your account is locked, call 0800")).toBe(
-      "That didn't work. Please try again.",
+      "That didn't work. Refresh the page and try again.",
     );
-    expect(billingErrorCopy("failed")).toBe("That didn't work. Please try again.");
-    expect(billingErrorCopy("toString")).toBe("That didn't work. Please try again.");
+    expect(billingErrorCopy("failed")).toBe("That didn't work. Refresh the page and try again.");
+    expect(billingErrorCopy("toString")).toBe("That didn't work. Refresh the page and try again.");
     expect(billingErrorCopy(undefined)).toBeNull();
   });
 });
@@ -350,7 +381,7 @@ describe("billing failure copy does not claim money was recorded", () => {
     form.set("tax_percentage", "0");
     expect(await recordRevisionAction("campaign-1", "quote-1", form)).toEqual({
       error: api
-        ? "That didn't work. Please try again."
+        ? "That didn't work. Try again."
         : "The quotation could not be saved. Try again.",
     });
     expect(revalidatePath).not.toHaveBeenCalled();

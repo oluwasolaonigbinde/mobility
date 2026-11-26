@@ -91,7 +91,7 @@ export async function submitDriverApplicationAction(
     });
     if (!data)
       return {
-        error: "We couldn't send your application right now. Please try again later.",
+        error: "We couldn't send your application right now. Try again later.",
         values: typedValues(formData),
       };
     return { submitted: true };
@@ -123,9 +123,9 @@ export async function submitDriverApplicationAction(
               error,
               {
                 EMAIL_NOT_CONFIGURED:
-                  "Driver applications aren't available right now. Please contact Terrax Media.",
+                  "Driver applications aren't available right now. Contact Terrax Media.",
               },
-              "We couldn't send your application right now. Please try again later.",
+              "We couldn't send your application right now. Try again later.",
             )
           : "We couldn't connect. Check your internet connection and try again.",
     };
@@ -160,7 +160,7 @@ export async function requestDriverOnboardingAccessAction(
         caught,
         {
           EMAIL_NOT_CONFIGURED:
-            "Application links aren't available right now. Please contact Terrax Media.",
+            "Application links aren't available right now. Contact Terrax Media.",
         },
         "We couldn't send a new link right now. Try again in a few minutes.",
       ),

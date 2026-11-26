@@ -41,7 +41,8 @@ it("keeps all five rows without allowing reads or decisions when nothing is subm
   );
   for (const name of ["Identity (NIN)", "Driver’s licence", "Driver photo", "Bank account"]) {
     const row = within(screen.getByRole("region", { name }));
-    expect(row.getByText("Not submitted")).toBeInTheDocument();
+    // Rows never claim presence or a decision; the one status line covers the submission.
+    expect(row.queryByText(/Not submitted|Needs review|Approved/)).toBeNull();
     expect(
       row.getByRole("button", {
         name:
@@ -53,6 +54,7 @@ it("keeps all five rows without allowing reads or decisions when nothing is subm
       }),
     ).toBeDisabled();
   }
+  expect(screen.getAllByText("Status: Not submitted.")).toHaveLength(1);
   expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Check bank details" })).toBeNull();
   expect(mocks.read).not.toHaveBeenCalled();
@@ -151,10 +153,11 @@ it("keeps unavailable document rows and the exact bank reference requirements", 
   render(<PersonPayeeDecisionActions {...props} documentFileIds={{}} />);
   for (const name of ["Driver’s licence", "Driver photo"]) {
     const row = within(screen.getByRole("region", { name }));
-    expect(row.getByText("Not submitted")).toBeInTheDocument();
+    expect(row.queryByText(/Not submitted|Needs review/)).toBeNull();
     expect(row.getByRole("button", { name: "Open document" })).toBeDisabled();
     expect(row.queryByRole("checkbox")).toBeNull();
   }
+  expect(screen.getAllByText("Status: Needs review.")).toHaveLength(1);
   const reference = screen.getByLabelText(
     "Reference of the small test payment you sent to this account",
   );
@@ -181,19 +184,36 @@ it("keeps unavailable document rows and the exact bank reference requirements", 
   expect(screen.getByRole("button", { name: "Reject" })).toBeEnabled();
 });
 
+it("never reads an inherited object key as a status label", () => {
+  render(<PersonPayeeDecisionActions {...props} status="toString" />);
+  expect(screen.getAllByText("Status: Status unavailable.")).toHaveLength(1);
+});
+
 it.each([
   ["approved", "Approved"],
   ["rejected", "Rejected"],
   ["expired", "Expired"],
 ])("shows the combined %s decision separately from a bank check", (status, label) => {
   render(<PersonPayeeDecisionActions {...props} status={status} bankAccountVerified />);
+  // The submission decision shows once, never on the bank row beside the separate bank check.
+  expect(screen.getAllByText(`Status: ${label}.`)).toHaveLength(1);
   expect(
-    within(screen.getByRole("region", { name: "Bank account" })).getByText(label),
-  ).toBeInTheDocument();
+    within(screen.getByRole("region", { name: "Bank account" })).queryByText(label),
+  ).toBeNull();
   expect(
     within(screen.getByRole("region", { name: "Bank account" })).getByRole("status"),
   ).toHaveTextContent(/^Bank details checked$/);
   expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+});
+
+it("keeps the bank name notice on the bank row", () => {
+  render(<PersonPayeeDecisionActions {...props} bankNameConfirmed={false} />);
+  expect(
+    within(screen.getByRole("region", { name: "Bank account" })).getByText(
+      "Name not confirmed by the bank",
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getAllByText("Status: Needs review.")).toHaveLength(1);
 });
 
 it("confirms a successful bank check after the page refreshes as checked", async () => {

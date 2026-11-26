@@ -326,9 +326,7 @@ export function ZonesEditor({
 
   return (
     <div>
-      <p className="text-muted mb-3 text-sm">
-        {editable ? "Draw your campaign areas on the map." : "Your saved campaign areas."}
-      </p>
+      {editable ? null : <p className="text-muted mb-3 text-sm">Your saved campaign areas.</p>}
       {unknownOutcome ? (
         <p role="alert" className="mb-4 text-sm">
           Your last area change couldn’t be confirmed.{" "}
@@ -359,7 +357,7 @@ export function ZonesEditor({
               ) : drawing ? (
                 <>
                   <span className="micro bg-bg/85 text-amber rounded-lg px-3 py-2 backdrop-blur">
-                    Click to add points · click the first point to close
+                    Tap or click to add points. Select the first point to finish.
                   </span>
                   <Button
                     type="button"

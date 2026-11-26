@@ -3,8 +3,9 @@ import { ApiError } from "@/lib/api/errors";
 /** The account page shows only this fixed copy; the URL carries a code, never text. */
 const COMPANY_UPDATE_ERRORS = {
   busy: "This page is busy. Try again in a moment.",
-  failed: "That didn't work. Please try again.",
-  unavailable: "Could not update company profile",
+  failed: "That didn't work. Try again.",
+  unavailable:
+    "We couldn't confirm your company details were saved. Check the details before trying again.",
 } as const;
 
 export type CompanyUpdateError = keyof typeof COMPANY_UPDATE_ERRORS;

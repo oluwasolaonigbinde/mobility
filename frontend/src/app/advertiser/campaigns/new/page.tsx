@@ -129,9 +129,9 @@ export default async function NewCampaignPage({
         eyebrow={
           existingCampaign
             ? areasEditable
-              ? "Your draft is saved. Choose its areas and advert design."
-              : "Your campaign is saved. Add its advert design."
-            : "Start with the basics, then choose your areas and advert design"
+              ? "Your draft is saved. Choose its areas and artwork."
+              : "Your campaign is saved. Add its artwork."
+            : "Start with the basics, then choose your areas and artwork."
         }
       />
       <CampaignWizard

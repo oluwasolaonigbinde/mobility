@@ -7,6 +7,6 @@ export function InvitePassword() {
   const token = useFragmentToken(advertiserInviteLink);
   if (token === null) return <p role="status">Opening your invite…</p>;
   if (!token)
-    return <p role="alert">This invite link is incomplete. Ask Terrax for a new invite.</p>;
+    return <p role="alert">This invite link is incomplete. Ask Terrax Media for a new invite.</p>;
   return <PasswordResetForm token={token} invite />;
 }

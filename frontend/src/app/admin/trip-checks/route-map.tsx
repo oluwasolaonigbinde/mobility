@@ -85,8 +85,8 @@ export function RecordedRouteMap({ points }: { points: Point[] }) {
           </li>
         </ul>
         <span className="text-muted">
-          Drawn from the recorded locations only — not a street map. The grid shows scale, not
-          streets. These records do not confirm that the trip was valid.
+          Not a street map. The route shows recorded locations. It does not establish whether the
+          trip was valid.
         </span>
       </figcaption>
     </figure>

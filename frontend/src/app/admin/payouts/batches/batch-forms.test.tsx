@@ -6,7 +6,9 @@ import { BatchActions, CreateBatchForm, MaskedDestination } from "./batch-forms"
 it("keeps an unsent run saved when payments are not connected", () => {
   render(<BatchActions batchId="saved" status="reserved" approved providerReady={false} />);
   expect(screen.queryByRole("button", { name: "Send payments" })).not.toBeInTheDocument();
-  expect(screen.getByText("Run saved, not sent. Payments are not connected.")).toBeInTheDocument();
+  expect(
+    screen.getByText("The run is saved but not sent, because payouts aren't connected yet."),
+  ).toBeInTheDocument();
 });
 import type { EligiblePayment } from "./operation-types";
 

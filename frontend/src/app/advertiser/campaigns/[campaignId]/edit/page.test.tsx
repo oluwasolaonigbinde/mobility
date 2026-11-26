@@ -55,12 +55,21 @@ describe("EditCampaignPage", () => {
 
     expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
     expect(
-      screen.getByText(/To change a running campaign, use Request a change/),
+      screen.getByText(
+        "To change dates or budget, open Manage, then Campaign changes, on the campaign page.",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back to the campaign" })).toHaveAttribute(
       "href",
       `/advertiser/campaigns/${CAMPAIGN_ID}`,
     );
+  });
+
+  it("does not point a finished campaign to campaign changes", async () => {
+    get.mockResolvedValue({ data: { ...campaign, status: "finished" } });
+    render(await EditCampaignPage(input));
+    expect(screen.queryByText(/Campaign changes/)).toBeNull();
+    expect(screen.getByText(/can no\s+longer be edited here/)).toBeInTheDocument();
   });
 
   it("treats another company's campaign as missing", async () => {

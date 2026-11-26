@@ -111,7 +111,7 @@ it.each(["file", "access", "purpose", "request"])(
         change === "purpose" ? "vehicle_evidence" : "driver_kyc",
         progress,
       ),
-    ).rejects.toThrow("choose your files again");
+    ).rejects.toThrow("Choose your files again");
     expect(fetch).toHaveBeenCalledTimes(4);
   },
 );
@@ -130,7 +130,7 @@ it("fences a late intent response before storage upload or confirmation", async 
   await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
   progress.cancelled = true;
   release(Response.json({ upload_id: "late", upload: { url: "http://storage", fields: {} } }));
-  await expect(pending).rejects.toThrow("choose your files again");
+  await expect(pending).rejects.toThrow("Choose your files again");
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(progress.intent).toBeUndefined();
 });

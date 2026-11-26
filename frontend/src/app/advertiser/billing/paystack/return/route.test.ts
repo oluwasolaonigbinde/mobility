@@ -29,9 +29,8 @@ describe("Paystack return route", () => {
 
       expect(destination.pathname).toBe("/advertiser/billing");
       expect(destination.searchParams.get("payment")).toBe("error");
-      expect(destination.searchParams.get("message")).toBe(
-        "We couldn't find this payment. Check your invoices.",
-      );
+      expect(destination.searchParams.get("code")).toBe("payment_not_found");
+      expect(destination.searchParams.has("message")).toBe(false);
       expect(mocks.post).not.toHaveBeenCalled();
     },
   );
@@ -66,15 +65,29 @@ describe("Paystack return route", () => {
     expect(destination.searchParams.has("message")).toBe(false);
   });
 
-  it("reports a safe retry message when verification is unavailable", async () => {
-    mocks.post.mockRejectedValueOnce(new Error("private upstream detail"));
+  it.each([
+    ["an unavailable verifier", new Error("private upstream detail"), "payment_unconfirmed"],
+    [
+      "a server error",
+      new ApiError(500, { code: "INTERNAL_ERROR", message: "private upstream detail" }),
+      "payment_unconfirmed",
+    ],
+    [
+      "an unknown checkout",
+      new ApiError(404, { code: "PAYMENT_CHECKOUT_NOT_FOUND", message: "private upstream detail" }),
+      "payment_not_found",
+    ],
+  ])("returns a fixed code, never text, for %s", async (_case, error, code) => {
+    mocks.post.mockRejectedValueOnce(error);
 
     const response = await GET(request(`reference=${REFERENCE}`));
     const destination = new URL(response.headers.get("location")!);
 
+    expect(destination.origin).toBe("https://cardvert.example");
+    expect(destination.pathname).toBe("/advertiser/billing");
     expect(destination.searchParams.get("payment")).toBe("error");
-    expect(destination.searchParams.get("message")).toBe(
-      "We couldn't confirm this payment yet. Check back shortly.",
-    );
+    expect(destination.searchParams.get("code")).toBe(code);
+    expect(destination.searchParams.has("message")).toBe(false);
+    expect(destination.toString()).not.toContain("private");
   });
 });

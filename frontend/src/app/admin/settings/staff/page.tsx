@@ -24,7 +24,7 @@ export default async function StaffPage({
     <div className="mx-auto max-w-5xl">
       <PageHeader
         title="Staff logins"
-        eyebrow="Terrax staff"
+        eyebrow="Terrax Media staff"
         actions={
           <Link className="text-cyan underline" href="/admin/settings/staff/new">
             Add staff login

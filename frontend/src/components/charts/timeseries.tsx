@@ -172,7 +172,7 @@ export function AreaTimeseries({ points, color, currency, ariaLabel }: ChartBase
   const ticks = useMemo(() => niceTicks(max), [max]);
 
   if (points.length === 0) {
-    return <p className="text-muted px-2 py-10 text-center text-sm">No data in this window yet.</p>;
+    return <p className="text-muted px-2 py-10 text-center text-sm">No data for these dates yet.</p>;
   }
 
   const xFor = (i: number) =>
@@ -248,7 +248,7 @@ export function BarTimeseries({ points, color, currency, ariaLabel }: ChartBaseP
   const ticks = useMemo(() => niceTicks(max), [max]);
 
   if (points.length === 0) {
-    return <p className="text-muted px-2 py-10 text-center text-sm">No data in this window yet.</p>;
+    return <p className="text-muted px-2 py-10 text-center text-sm">No data for these dates yet.</p>;
   }
 
   const slot = IW / points.length;

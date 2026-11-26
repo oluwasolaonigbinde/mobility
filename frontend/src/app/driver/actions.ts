@@ -15,7 +15,13 @@ export interface DriverActionState {
   error?: string;
 }
 
-function toState(error: unknown): DriverActionState {
+const SAVE_UNCERTAIN =
+  "We couldn't confirm this was saved. Refresh the page to check before trying again.";
+const START_UNCERTAIN =
+  "We couldn't confirm the trip started. Check trip status before trying again.";
+
+/** `fallback` is for non-API failures; reads keep the neutral default. */
+function toState(error: unknown, fallback = "That didn't work. Try again."): DriverActionState {
   if (error instanceof ApiError)
     return {
       error: publicActionError(error, {
@@ -25,7 +31,7 @@ function toState(error: unknown): DriverActionState {
           "This car is already booked on another campaign for some of these dates. A car can only run one campaign at a time.",
       }),
     };
-  return { error: "Could not reach the server. Please try again." };
+  return { error: fallback };
 }
 
 function revalidateDriver() {
@@ -57,7 +63,7 @@ export async function assignmentAction(
     }
   } catch (error) {
     unstable_rethrow(error);
-    return toState(error);
+    return toState(error, SAVE_UNCERTAIN);
   }
   revalidateDriver();
   return {};
@@ -108,7 +114,8 @@ export async function startTripAction(assignmentId: string): Promise<StartTripRe
     if (error instanceof ApiError && [400, 403, 404, 422].includes(error.status)) {
       return { error: publicActionError(error), outcome: "failed" };
     }
-    return { ...toState(error), outcome: "unknown" };
+    // Anything else may have started the trip; the tracker checks trip status to recover.
+    return { error: START_UNCERTAIN, outcome: "unknown" };
   }
 }
 
@@ -581,7 +588,7 @@ export async function updateProfileAction(
     await api.PATCH("/api/v1/driver/profile", { body: parsed.data });
   } catch (error) {
     unstable_rethrow(error);
-    return toState(error);
+    return toState(error, SAVE_UNCERTAIN);
   }
   revalidatePath("/driver/profile");
   return {};

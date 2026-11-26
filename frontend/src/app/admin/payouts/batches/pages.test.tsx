@@ -5,7 +5,13 @@ import PaymentRunsPage, { ReadyToPay } from "./content";
 import BatchDetailPage from "./[batchId]/content";
 import LineHistoryPage from "./[batchId]/lines/[lineId]/content";
 
-const mocks = vi.hoisted(() => ({ api: vi.fn(), role: vi.fn(), notFound: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  api: vi.fn(),
+  role: vi.fn(),
+  notFound: vi.fn(),
+  // When set, the page renders the real BatchActions instead of the stub.
+  realBatchActions: false,
+}));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: async () => ({}) }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("./batch-api", () => ({ batchApi: mocks.api }));
@@ -14,14 +20,20 @@ vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   notFound: mocks.notFound,
 }));
-vi.mock("./batch-forms", () => ({
-  CreateBatchForm: ({ draftId }: { draftId?: string }) => <div>Credit selection {draftId}</div>,
-  BatchActions: ({ approved }: { approved?: boolean }) => (
-    <div>{approved ? "Approved batch actions" : "Batch actions"}</div>
-  ),
-  MaskedDestination: () => <div>Explicit destination review</div>,
-  PollLineAction: () => <button>Verify line</button>,
-}));
+vi.mock("./batch-forms", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./batch-forms")>();
+  return {
+    CreateBatchForm: ({ draftId }: { draftId?: string }) => <div>Credit selection {draftId}</div>,
+    BatchActions: (props: Parameters<typeof actual.BatchActions>[0]) =>
+      mocks.realBatchActions ? (
+        <actual.BatchActions {...props} />
+      ) : (
+        <div>{props.approved ? "Approved batch actions" : "Batch actions"}</div>
+      ),
+    MaskedDestination: () => <div>Explicit destination review</div>,
+    PollLineAction: () => <button>Verify line</button>,
+  };
+});
 const summary = {
   id: "batch",
   status: "reserved",
@@ -154,7 +166,7 @@ describe("bounded payout pages", () => {
   ])("shows one unavailable state, never an empty list, after %s", async (_kind, error) => {
     mocks.api.mockRejectedValue(error);
     const earnings = render(await ReadyToPay({ searchParams: Promise.resolve({}) }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
+    expect(screen.getByRole("alert")).toHaveTextContent("This section couldn't be loaded.");
     expect(
       screen.queryByText(/Credit selection|0 available earnings records|₦0\.00/),
     ).not.toBeInTheDocument();
@@ -176,9 +188,62 @@ describe("bounded payout pages", () => {
     earnings.unmount();
     render(await PaymentRunsPage({ searchParams: Promise.resolve({ runs: "oops" }) }));
     expect(mocks.api).toHaveBeenLastCalledWith("/summaries?limit=25&offset=0");
-    expect(screen.getByText("No payment runs match this page.")).toBeVisible();
+    expect(screen.getByText("No payment runs yet.")).toBeVisible();
     expect(screen.queryByRole("link", { name: "Next runs" })).not.toBeInTheDocument();
   });
+
+  it.each([
+    [{ runs: "3" }, 0, "No payment runs match this page."],
+    [{ status: "reserved" }, 0, "No payment runs match this page."],
+    // Unfiltered first page with no rows but a positive total: runs exist, so keep the page text.
+    [{}, 4, "No payment runs match this page."],
+  ])("keeps the page-specific empty text for %j with total %i", async (params, total, text) => {
+    mocks.api.mockResolvedValue({ items: [], total });
+    render(await PaymentRunsPage({ searchParams: Promise.resolve(params) }));
+    expect(screen.getByText(text)).toBeVisible();
+    expect(screen.queryByText("No payment runs yet.")).not.toBeInTheDocument();
+  });
+
+  const terminalLine = (id: string, outcome: string) => ({
+    ...line,
+    id,
+    status: outcome,
+    outcome,
+    reconciled_at: summary.created_at,
+  });
+  it.each([
+    ["reconciled", [terminalLine("a", "succeeded"), terminalLine("b", "void")], false],
+    ["reconciled", [terminalLine("a", "succeeded"), terminalLine("b", "failed")], true],
+    ["failed", [terminalLine("a", "failed")], true],
+  ])(
+    "offers failed-payment replacement on a %s run only when a payment failed",
+    async (status, lines, shown) => {
+      const outcomes: Record<string, number> = {};
+      for (const item of lines) outcomes[item.outcome] = (outcomes[item.outcome] ?? 0) + 1;
+      mocks.api.mockResolvedValue({
+        summary: {
+          ...summary,
+          status,
+          outcomes,
+          line_count: lines.length,
+          approved_at: summary.created_at,
+        },
+        lines,
+        total: lines.length,
+      });
+      mocks.realBatchActions = true;
+      try {
+        render(await BatchDetailPage(detailProps()));
+        expect(
+          Boolean(
+            screen.queryByRole("button", { name: "Request replacement for failed payments" }),
+          ),
+        ).toBe(shown);
+      } finally {
+        mocks.realBatchActions = false;
+      }
+    },
+  );
 
   it("renders unknown line outcomes without inventing failed or paid finality", async () => {
     mocks.api.mockResolvedValue({ summary, lines: [line], total: 60 });
@@ -219,7 +284,10 @@ describe("bounded payout pages", () => {
     });
     render(await BatchDetailPage(detailProps()));
     expect(screen.getByText(/Approved automatically by/)).toHaveTextContent("Cardvert");
-    expect(screen.getByRole("link", { name: "Automatic payouts" })).toHaveAttribute(
+    expect(screen.getByText(/Follow up problems on the/)).toHaveTextContent(
+      "Follow up problems on the Automatic tab.",
+    );
+    expect(screen.getByRole("link", { name: "Automatic" })).toHaveAttribute(
       "href",
       "/admin/money?tab=automatic",
     );

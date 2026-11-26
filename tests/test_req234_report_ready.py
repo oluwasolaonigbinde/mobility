@@ -140,7 +140,7 @@ def test_report_ready_notice_is_small_preference_governed_and_once_per_window(
         )
         assert feed.status_code == 200, feed.text
         item = next(row for row in feed.json()["items"] if row["type_key"] == "report_ready")
-        assert item["body"] == f"Your {kind} report for {campaign.name} is ready"
+        assert item["body"] == f"Your {kind} report for {campaign.name} is ready."
         assert item["action_url"] == f"/advertiser/campaigns/{campaign.id}/report"
         if email_enabled:
             assert len(mail.messages) == 1

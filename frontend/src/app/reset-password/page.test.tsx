@@ -108,11 +108,11 @@ describe("password reset completion page", () => {
 });
 
 it("keeps password-validation errors editable without suggesting a new link", async () => {
-  completePasswordResetAction.mockResolvedValue({ error: "Passwords do not match" });
+  completePasswordResetAction.mockResolvedValue({ error: "The passwords don't match." });
   const ResetPasswordPage = await openPage("/reset-password#token=valid-token");
   render(<ResetPasswordPage />);
   await userEvent.click(await screen.findByRole("button", { name: "Reset password" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Passwords do not match");
+  expect(await screen.findByRole("alert")).toHaveTextContent("The passwords don't match.");
   expect(screen.queryByRole("link", { name: "Send a new link" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Reset password" })).toBeEnabled();
 });

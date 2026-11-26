@@ -42,7 +42,7 @@ it("keeps only the tracker and passes current authority for recovery", async () 
 });
 
 it("shows the live-job conflict and keeps the current trip available for recovery", async () => {
-  const message = "Two jobs are live on your account. Please contact support so we can fix it.";
+  const message = "Two jobs are live on your account. Contact support so we can fix it.";
   mocks.journey.mockResolvedValue({
     journey: { steps: [], canStart: false },
     currentJobError: message,

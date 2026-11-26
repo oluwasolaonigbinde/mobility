@@ -34,9 +34,12 @@ it("lets advertisers edit company details", async () => {
 });
 
 it.each([
-  ["failed", "That didn't work. Please try again."],
+  ["failed", "That didn't work. Try again."],
   ["busy", "This page is busy. Try again in a moment."],
-  ["unavailable", "Could not update company profile"],
+  [
+    "unavailable",
+    "We couldn't confirm your company details were saved. Check the details before trying again.",
+  ],
 ])("maps the %s error code to fixed copy", async (error, copy) => {
   mocks.role.mockResolvedValue({ user: { full_name: "Ada", email: "ada@example.test" } });
   render(await CompanyPage({ searchParams: Promise.resolve({ error }) }));

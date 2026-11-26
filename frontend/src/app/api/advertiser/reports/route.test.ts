@@ -131,3 +131,48 @@ it.each([
   expect(result.status).toBe(404);
   expect(result.headers.get("location")).toBeNull();
 });
+
+function create() {
+  return POST(
+    new Request("http://localhost/api/advertiser/reports", {
+      method: "POST",
+      body: JSON.stringify({ client_request_id: "request" }),
+    }),
+  );
+}
+
+it.each([
+  [409, "REPORT_NO_CAMPAIGNS", "There are no campaigns to report on."],
+  [422, "REPORT_TOO_LARGE", "Choose fewer campaigns or a shorter reporting period."],
+  [
+    409,
+    "REPORT_REQUEST_CONFLICT",
+    "This request was already used. Refresh the page and try again.",
+  ],
+])("maps the %s %s create refusal to fixed copy", async (status, code, message) => {
+  mocks.post.mockRejectedValue(
+    new ApiError(status, {
+      code,
+      message: "internal backend detail",
+      details: { secret: "x" },
+      request_id: "req-1",
+    }),
+  );
+  const result = await create();
+  expect(result.status).toBe(status);
+  expect(result.headers.get("cache-control")).toBe("no-store");
+  expect(await result.json()).toEqual({
+    error: { code, message, details: {}, request_id: "req-1" },
+  });
+});
+
+it("gives an unknown create refusal the generic fallback without leaking", async () => {
+  mocks.post.mockRejectedValue(
+    new ApiError(400, { code: "SOMETHING_ELSE", message: "internal backend detail" }),
+  );
+  const result = await create();
+  const json = await result.json();
+  expect(result.status).toBe(400);
+  expect(json.error.message).toBe("That didn't work. Try again.");
+  expect(JSON.stringify(json)).not.toContain("internal backend detail");
+});

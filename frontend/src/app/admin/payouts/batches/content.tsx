@@ -157,7 +157,11 @@ export default async function PaymentRuns({ searchParams }: { searchParams: Prom
               </table>
             </div>
           ) : (
-            <p>No payment runs match this page.</p>
+            <p>
+              {!runStatus && runs === 0 && summary.total === 0
+                ? "No payment runs yet."
+                : "No payment runs match this page."}
+            </p>
           )}
           <nav aria-label="Payment run pages" className="flex flex-wrap gap-4 text-sm">
             {runs > 0 ? (

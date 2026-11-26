@@ -31,6 +31,14 @@ const receiptStatusLabel: Record<string, string> = {
   reversed: "Reversed",
 };
 
+const PAYSTACK_RETURN_NOTICES = {
+  payment_not_found: { heading: "We couldn't find this payment", body: "Check your invoices." },
+  payment_unconfirmed: {
+    heading: "We couldn't confirm your payment yet",
+    body: "Check back shortly.",
+  },
+} as const;
+
 function SectionHeading({ id, title, hint }: { id: string; title: string; hint: string }) {
   return (
     <div className="mb-3">
@@ -48,6 +56,13 @@ export default async function AdvertiserBillingPage({
   searchParams?: Promise<{ payment?: string; code?: string }>;
 }) {
   const paymentResult = (await searchParams) ?? {};
+  // Return-route codes are honoured only on an error return; URL text is never shown.
+  const returnNotice =
+    paymentResult.payment === "error" &&
+    paymentResult.code &&
+    Object.hasOwn(PAYSTACK_RETURN_NOTICES, paymentResult.code)
+      ? PAYSTACK_RETURN_NOTICES[paymentResult.code as keyof typeof PAYSTACK_RETURN_NOTICES]
+      : undefined;
   await requireRole("advertiser");
   const api = createApiClient(await getSessionToken());
   const [historyResult, campaignResult] = await Promise.all([
@@ -126,30 +141,34 @@ export default async function AdvertiserBillingPage({
             href="/advertiser/account#company"
             className="border-edge bg-raised rounded-lg border px-4 py-2.5 text-sm"
           >
-            Billing details
+            Company details
           </Link>
         }
       />
       {paymentResult.payment ? (
         <Panel className="mb-6 px-6 py-4" role="status">
           <p className="text-sm font-semibold">
-            {paymentResult.payment === "confirmed"
-              ? "Payment confirmed"
-              : paymentResult.payment === "failed"
-                ? "Paystack did not complete the payment"
-                : paymentResult.payment === "pending"
-                  ? "Payment confirmation is still pending"
-                  : "Online payment could not be opened"}
+            {returnNotice?.heading ??
+              (paymentResult.payment === "confirmed"
+                ? "Payment confirmed"
+                : paymentResult.payment === "failed"
+                  ? "Paystack did not complete the payment"
+                  : paymentResult.payment === "pending"
+                    ? "Payment confirmation is still pending"
+                    : "Online payment could not be opened")}
           </p>
           <p className="text-muted mt-1 text-sm">
-            {(paymentResult.code === "invalid_invoice"
-              ? "Choose a valid invoice."
-              : paymentResult.code === "checkout_unavailable"
-                ? "Online payment could not be opened. Check your payment status before trying again."
-                : undefined) ??
+            {returnNotice?.body ??
+              (paymentResult.code === "invalid_invoice"
+                ? "Choose a valid invoice."
+                : paymentResult.code === "checkout_unavailable"
+                  ? "Online payment could not be opened. Check your payment status before trying again."
+                  : undefined) ??
               (paymentResult.payment === "confirmed"
                 ? "We're adding your payment to the invoice."
-                : "Your payment hasn't been confirmed yet.")}
+                : paymentResult.payment === "pending"
+                  ? "Check back shortly."
+                  : "Your payment hasn't been confirmed yet.")}
           </p>
         </Panel>
       ) : null}

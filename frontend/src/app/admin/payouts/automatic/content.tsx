@@ -71,8 +71,11 @@ function StatusPanel({ status }: { status: AutomaticStatus }) {
       </dl>
       {status.paused ? (
         <p className="text-sm">
-          Paused by Terrax Media ({status.pause_changed_by_name ?? "unknown"}) on{" "}
-          {formatWat(status.pause_changed_at)} (WAT): “{status.pause_reason}”
+          Paused by Terrax Media
+          {status.pause_changed_by_name?.trim()
+            ? ` (${status.pause_changed_by_name.trim()})`
+            : ""}{" "}
+          on {formatWat(status.pause_changed_at)} (WAT): “{status.pause_reason}”
         </p>
       ) : null}
       {status.paused ? (

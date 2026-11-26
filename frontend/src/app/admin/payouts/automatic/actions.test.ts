@@ -38,7 +38,24 @@ describe("automatic payout actions", () => {
 
   it("refuses a short reason and maps known refusal codes without exposing backend text", async () => {
     expect(await switchAutomaticPayoutsAction({}, form({ intent: "pause", reason: "x" }))).toEqual({
-      error: "Give a reason of at least 3 characters",
+      error: "Give a reason of at least 3 characters.",
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
+    // An invalid intent or alert ID never reads as a missing reason or exposes the raw enum or UUID check.
+    const badIntent = await switchAutomaticPayoutsAction(
+      {},
+      form({ intent: "explode", reason: "Bank check" }),
+    );
+    expect(badIntent).toEqual({ error: "Check the form and try again." });
+    expect(
+      await resolveAlertAction({}, form({ alert_id: "not-a-uuid", note: "Followed up" })),
+    ).toEqual({ error: "Check the form and try again." });
+    // When the intent or alert ID and the text are both invalid, the ID problem wins.
+    expect(
+      await switchAutomaticPayoutsAction({}, form({ intent: "explode", reason: "x" })),
+    ).toEqual({ error: "Check the form and try again." });
+    expect(await resolveAlertAction({}, form({ alert_id: "not-a-uuid", note: "" }))).toEqual({
+      error: "Check the form and try again.",
     });
     expect(mocks.post).not.toHaveBeenCalled();
     mocks.post.mockRejectedValueOnce(
@@ -50,7 +67,7 @@ describe("automatic payout actions", () => {
     );
     expect(
       await switchAutomaticPayoutsAction({}, form({ intent: "pause", reason: "Again" })),
-    ).toEqual({ error: "Automatic payouts are already paused" });
+    ).toEqual({ error: "Automatic payouts are already paused." });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
     mocks.post.mockRejectedValueOnce(
       new ApiError(409, {
@@ -60,7 +77,7 @@ describe("automatic payout actions", () => {
     );
     expect(
       await switchAutomaticPayoutsAction({}, form({ intent: "resume", reason: "Again" })),
-    ).toEqual({ error: "Automatic payouts are not paused" });
+    ).toEqual({ error: "Automatic payouts are not paused." });
     mocks.post.mockRejectedValueOnce(new Error("offline"));
     expect(await releaseUnsentAction({}, form({ reason: "Move them" }))).toEqual({
       error: "Could not reach the server. Try again.",
@@ -115,7 +132,7 @@ describe("automatic payout actions", () => {
     );
     mocks.revalidatePath.mockClear();
     expect(await resolveAlertAction({}, form({ alert_id: ALERT_ID, note: "Again" }))).toEqual({
-      error: "This alert is already followed up",
+      error: "This alert is already followed up.",
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
