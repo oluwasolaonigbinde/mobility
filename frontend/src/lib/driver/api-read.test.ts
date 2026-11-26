@@ -11,7 +11,7 @@ it("explains the duplicate-job conflict without exposing backend details", async
     }),
   ).toEqual({
     state: "unavailable",
-    message: "Two jobs are live on your account. Please contact support so we can fix it.",
+    message: "Two jobs are live on your account. Contact support so we can fix it.",
   });
 });
 

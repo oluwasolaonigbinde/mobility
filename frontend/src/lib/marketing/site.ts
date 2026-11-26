@@ -175,7 +175,6 @@ export const PATHWAYS: readonly [Pathway, Pathway] = [
     eyebrow: "For Brands",
     title: "Extend campaigns beyond the screen",
     points: [
-      "Extend campaigns beyond digital screens",
       "Build repeated visibility across real city routes",
       "Create location-aware brand experiences",
     ],

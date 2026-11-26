@@ -22,7 +22,7 @@ async function scan(method: "GET" | "HEAD", code: string) {
     if (response.status === 302 && location && new URL(location).protocol === "https:")
       return new Response(null, { status: 302, headers: { ...headers, location } });
     return new Response(
-      method === "HEAD" ? null : "This advert link is temporarily unavailable. Please try again.",
+      method === "HEAD" ? null : "This advert link isn't working right now. Try again later.",
       {
         status: [404, 429].includes(response.status) ? response.status : 503,
         headers: {
@@ -35,7 +35,7 @@ async function scan(method: "GET" | "HEAD", code: string) {
     );
   } catch {
     return new Response(
-      method === "HEAD" ? null : "This advert link is temporarily unavailable. Please try again.",
+      method === "HEAD" ? null : "This advert link isn't working right now. Try again later.",
       { status: 503, headers },
     );
   }

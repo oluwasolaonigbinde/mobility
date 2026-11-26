@@ -65,7 +65,7 @@ it("validates a trimmed short reason without dispatching", async () => {
   await user.type(reason, "   ");
   await user.tab();
   fireEvent.submit(container.querySelector("form")!);
-  expect(screen.getByRole("alert")).toHaveTextContent("Please add a short reason.");
+  expect(screen.getByRole("alert")).toHaveTextContent("Add a short reason.");
   expect(submit).not.toHaveBeenCalled();
 });
 it("keeps the same request ID on retry and never simulates success on failure", async () => {

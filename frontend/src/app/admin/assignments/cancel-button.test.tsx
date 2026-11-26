@@ -20,9 +20,9 @@ it("collects the permanent reason in a named on-page confirmation", async () => 
     />,
   );
 
-  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await user.click(screen.getByRole("button", { name: "Cancel job" }));
   expect(screen.getByRole("alertdialog")).toHaveTextContent(
-    "Abuja Airport launch for Tunde Driver",
+    "Cancel job: Abuja Airport launch for Tunde Driver?",
   );
   await user.type(screen.getByLabelText("Cancellation reason"), "Vehicle unavailable");
   await user.click(screen.getByRole("button", { name: "Confirm cancellation" }));
@@ -40,7 +40,7 @@ it("renders a cancellation failure once in one live alert", async () => {
     />,
   );
 
-  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await user.click(screen.getByRole("button", { name: "Cancel job" }));
   await user.type(screen.getByLabelText("Cancellation reason"), "Vehicle unavailable");
   await user.click(screen.getByRole("button", { name: "Confirm cancellation" }));
 

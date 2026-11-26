@@ -36,7 +36,7 @@ describe("cancelAssignmentAction", () => {
 
   it("requires and trims the permanent removal reason", async () => {
     await expect(cancelAssignmentAction(ASSIGNMENT_ID, "   ")).resolves.toEqual({
-      error: "A cancellation reason is required",
+      error: "Add a cancellation reason.",
     });
     expect(mocks.post).not.toHaveBeenCalled();
 
@@ -69,7 +69,9 @@ describe("job start and recommendation failures", () => {
         : new Error("connection"),
     );
     expect(await activateAssignmentAction(ASSIGNMENT_ID)).toEqual({
-      error: api ? "That didn't work. Please try again." : "Could not reach the server.",
+      error: api
+        ? "That didn't work. Try again."
+        : "We couldn't confirm the job started. Refresh the page to check before trying again.",
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
@@ -100,9 +102,18 @@ describe("job start and recommendation failures", () => {
           service_city: "Abuja",
         }),
       ).toEqual({
-        error: api ? "That didn't work. Please try again." : "Could not reach the server.",
+        error: "That didn't work. Try again.",
       });
       expect(mocks.post).not.toHaveBeenCalled();
+    },
+  );
+  it.each(["", "x".repeat(129)])(
+    "returns fixed copy, not validator text, for an invalid city (%#)",
+    async (service_city) => {
+      expect(
+        await listAssignmentRecommendationsAction({ campaign_id: ASSIGNMENT_ID, service_city }),
+      ).toEqual({ error: "Choose a campaign and enter a city." });
+      expect(mocks.get).not.toHaveBeenCalled();
     },
   );
 });
@@ -210,11 +221,12 @@ describe("createAssignmentAction", () => {
     expect(mocks.post).not.toHaveBeenCalled();
   });
 
-  it("reports an unreachable server without redirecting", async () => {
+  it("says the offer may have been sent when the result is unknown, without redirecting", async () => {
     mocks.redirect.mockClear();
     mocks.post.mockRejectedValueOnce(new TypeError("fetch failed"));
     expect(await createAssignmentAction({}, offer())).toEqual({
-      error: "Could not reach the server.",
+      error:
+        "We couldn't confirm the job offer was sent. Refresh the page to check before trying again.",
     });
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
@@ -226,7 +238,7 @@ describe("createAssignmentAction", () => {
       "DRIVER_PERSON_PAYEE_NOT_APPROVED",
       "Approve the driver’s identity and payment details first.",
     ],
-    ["UNRECOGNISED_CODE", "That didn't work. Please try again."],
+    ["UNRECOGNISED_CODE", "That didn't work. Try again."],
   ])("shows fixed copy for %s", async (code, error) => {
     mocks.post.mockRejectedValueOnce(new ApiError(409, { code, message: "Internal detail" }));
     expect(await createAssignmentAction({}, offer())).toEqual({ error });

@@ -5,6 +5,7 @@ import { getSessionToken } from "@/lib/auth/session";
 
 const REFERENCE = /^[A-Za-z0-9.=-]{1,100}$/;
 
+// Only fixed codes travel back to the billing page; it maps them to its own copy.
 export async function GET(request: NextRequest) {
   const reference = request.nextUrl.searchParams.get("reference")?.trim() ?? "";
   const transactionReference = request.nextUrl.searchParams.get("trxref")?.trim() ?? "";
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
     (transactionReference !== "" && transactionReference !== reference)
   ) {
     destination.searchParams.set("payment", "error");
-    destination.searchParams.set("message", "We couldn't find this payment. Check your invoices.");
+    destination.searchParams.set("code", "payment_not_found");
     return NextResponse.redirect(destination);
   }
   try {
@@ -27,14 +28,15 @@ export async function GET(request: NextRequest) {
       data?.status === "confirmed" ? "confirmed" : data?.status === "failed" ? "failed" : "pending",
     );
   } catch (caught) {
-    destination.searchParams.set(
-      "payment",
-      caught instanceof ApiError && caught.code === "PAYMENT_NOT_FINAL" ? "pending" : "error",
-    );
-    if (!(caught instanceof ApiError && caught.code === "PAYMENT_NOT_FINAL")) {
+    if (caught instanceof ApiError && caught.code === "PAYMENT_NOT_FINAL") {
+      destination.searchParams.set("payment", "pending");
+    } else {
+      destination.searchParams.set("payment", "error");
       destination.searchParams.set(
-        "message",
-        "We couldn't confirm this payment yet. Check back shortly.",
+        "code",
+        caught instanceof ApiError && caught.code === "PAYMENT_CHECKOUT_NOT_FOUND"
+          ? "payment_not_found"
+          : "payment_unconfirmed",
       );
     }
   }

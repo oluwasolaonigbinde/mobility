@@ -100,7 +100,9 @@ it("shows successful empty history", async () => {
 it("hides partial totals on failure", async () => {
   mocks.earnings.mockResolvedValue({ state: "unavailable" });
   render(await Earnings());
-  expect(screen.getByRole("alert")).toHaveTextContent("complete daily history");
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "We couldn't load your earnings. Try again shortly.",
+  );
 });
 it("redirects expired sessions", async () => {
   mocks.earnings.mockResolvedValue({ state: "auth" });

@@ -183,7 +183,7 @@ describe("Trip check work lists", () => {
     );
     render(await page({ flag: "flag" }));
     expect(screen.queryByRole("img")).toBeNull();
-    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
+    expect(screen.getByRole("alert")).toHaveTextContent("This section couldn't be loaded.");
   });
   it("shows missing recorded locations honestly", async () => {
     get.mockImplementation(async (path, options) =>
@@ -322,5 +322,29 @@ describe("Trip check work lists", () => {
     render(await page());
     expect(screen.queryByRole("alert")).toBeNull();
     expect(get.mock.calls.some(([path]) => path.endsWith("/analytics"))).toBe(false);
+  });
+});
+
+describe("Trip check empty lists", () => {
+  beforeEach(() => {
+    get.mockReset();
+    get.mockImplementation(async () => ({ data: { items: [], total: 0 } }));
+  });
+  it("says nothing is recorded when no filter is set on either list", async () => {
+    render(await page());
+    expect(screen.getByText("No trip reviews recorded.")).toBeInTheDocument();
+    cleanup();
+    render(await page({ tab: "in-person" }));
+    expect(screen.getByText("No in-person checks recorded.")).toBeInTheDocument();
+  });
+  it("mentions filters only when one is set", async () => {
+    render(await page({ tab: "in-person", driver_profile_id: "driver" }));
+    expect(screen.getByText("Nothing matches these filters.")).toBeInTheDocument();
+    cleanup();
+    render(await page({ status: "open" }));
+    expect(screen.getByText("Nothing matches these filters.")).toBeInTheDocument();
+    cleanup();
+    render(await page({ tab: "in-person", status: "open" }));
+    expect(screen.getByText("No in-person checks recorded.")).toBeInTheDocument();
   });
 });

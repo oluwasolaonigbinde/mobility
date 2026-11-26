@@ -40,14 +40,15 @@ export async function newOrderAction(
     lagos_day: String(formData.get("lagos_day") ?? ""),
     reason: String(formData.get("reason") ?? ""),
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  if (!parsed.success)
+    return { error: parsed.error.issues[0]?.message ?? "Check the form and try again." };
   const { campaign_id, lagos_day, reason } = parsed.data;
   const intent = String(formData.get("intent") ?? "project");
 
   const api = createApiClient(await getSessionToken());
   try {
     if (intent === "create") {
-      if (!reason) return { error: "A reason is required" };
+      if (!reason) return { error: "Add a reason." };
       await api.POST("/api/v1/admin/payouts/correction-orders", {
         body: { campaign_id, lagos_day, reason },
       });
@@ -97,7 +98,7 @@ export async function orderTransitionAction(
   let release_at: string | null = null;
   if (rawReleaseAt) {
     release_at = lagosLocalToApi(rawReleaseAt);
-    if (!release_at) return { error: "Enter a valid release date and time" };
+    if (!release_at) return { error: "Enter a valid release date and time." };
   }
   const api = createApiClient(await getSessionToken());
   try {
@@ -112,5 +113,5 @@ export async function orderTransitionAction(
     };
   }
   revalidatePath("/admin/money");
-  return { done: "Completed — pay changes recorded" };
+  return { done: "Pay correction recorded." };
 }

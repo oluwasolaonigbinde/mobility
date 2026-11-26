@@ -26,6 +26,9 @@ beforeEach(() => {
 it("saves a draft before areas, then offers design and review without auto-submitting", async () => {
   const user = userEvent.setup();
   const { container } = render(<CampaignWizard currency="NGN" />);
+  expect(
+    screen.getByText("Continue saves your draft. Then choose areas and artwork."),
+  ).toBeInTheDocument();
   await user.type(screen.getByLabelText("Campaign name *"), "Wuse lunch rush");
   fireEvent.change(screen.getByLabelText("Starts, Nigeria time (WAT)"), {
     target: { value: "2026-11-03T00:00" },
@@ -46,12 +49,20 @@ it("saves a draft before areas, then offers design and review without auto-submi
   );
   expect(window.location.search).toBe(`?campaignId=${id}`);
   expect(screen.queryByLabelText("Campaign name *")).toBeNull();
-  await user.click(screen.getByRole("button", { name: "Continue →" }));
-  expect(await screen.findByRole("button", { name: "+ Add advert design" })).toBeInTheDocument();
+  expect(screen.queryByText(/Continue saves your draft/)).toBeNull();
+  await user.click(await screen.findByRole("button", { name: "Continue →" }));
+  expect(await screen.findByRole("button", { name: "+ Add artwork" })).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "Upload your artwork. We’ll check the file before adding it to your campaign.",
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getByText("You can also add artwork later from the campaign page.")).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Continue →" }));
   expect(screen.getByRole("heading", { name: "Review your draft" })).toBeInTheDocument();
   expect(screen.getByText("Draft")).toBeVisible();
   expect(screen.getByText("3 Nov 2026 → 10 Nov 2026")).toBeVisible();
+  expect(screen.getByText("Dates")).toBeVisible();
   expect(screen.queryByText(/Existing campaign/)).not.toBeInTheDocument();
   expect(mocks.create).toHaveBeenCalledTimes(1);
   expect(container.querySelector("form form")).toBeNull();
@@ -128,12 +139,12 @@ it("starts submitted artwork recovery at design and keeps saved areas read-only 
       areasEditable={false}
     />,
   );
-  expect(screen.getByRole("button", { name: "+ Add advert design" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "+ Add artwork" })).toBeInTheDocument();
   expect(mocks.areas).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: /Back/ }));
   expect(mocks.areas).toHaveBeenLastCalledWith(
     expect.objectContaining({ campaignId: id, editable: false }),
   );
   expect(screen.queryByText(/Your draft is saved. Draw/)).not.toBeInTheDocument();
-  expect(screen.getByText(/Contact Terrax if you need to change them/)).toBeInTheDocument();
+  expect(screen.getByText(/Contact Terrax Media if you need to change them/)).toBeInTheDocument();
 });

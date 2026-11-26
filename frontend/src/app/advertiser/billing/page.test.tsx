@@ -2,8 +2,14 @@ import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const get = vi.hoisted(() => vi.fn());
+// POST is used only by the real Paystack return route in the flow test; it fails closed by default.
+const post = vi.hoisted(() =>
+  vi.fn(async (): Promise<unknown> => {
+    throw new Error("unmocked POST");
+  }),
+);
 
-vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
+vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get, POST: post }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 vi.mock("./actions", () => ({ startInvoicePayment: vi.fn() }));
 const role = vi.hoisted(() => vi.fn());
@@ -11,7 +17,10 @@ vi.mock("@/lib/auth/current-user", () => ({
   requireRole: role,
 }));
 
+import { NextRequest } from "next/server";
+import { ApiError } from "@/lib/api/errors";
 import AdvertiserBillingPage from "./page";
+import { GET as paystackReturn } from "./paystack/return/route";
 
 const TERMS_ID = "00000000-0000-0000-0000-000000000031";
 
@@ -261,7 +270,7 @@ describe("AdvertiserBillingPage", () => {
   it.each([
     ["confirmed", "Payment confirmed", "We're adding your payment to the invoice."],
     ["failed", "Paystack did not complete the payment", "Your payment hasn't been confirmed yet."],
-    ["pending", "Payment confirmation is still pending", "Your payment hasn't been confirmed yet."],
+    ["pending", "Payment confirmation is still pending", "Check back shortly."],
     [
       "error",
       "Online payment could not be opened",
@@ -282,6 +291,64 @@ describe("AdvertiserBillingPage", () => {
     expect(screen.getByRole("status")).toHaveTextContent(heading);
     expect(screen.getByRole("status")).toHaveTextContent(message);
   });
+
+  it.each([
+    ["pending", "payment_not_found"],
+    ["confirmed", "payment_unconfirmed"],
+    ["error", "toString"],
+    ["error", "payment_lost_call_0800"],
+  ])(
+    "ignores return code %s/%s outside an error return or the allowlist",
+    async (payment, code) => {
+      mockBilling([]);
+      render(await AdvertiserBillingPage({ searchParams: Promise.resolve({ payment, code }) }));
+      expect(screen.getByRole("status")).not.toHaveTextContent(
+        /couldn't find this payment|couldn't confirm your payment yet|0800/,
+      );
+    },
+  );
+
+  it.each([
+    [
+      "a verification server error",
+      new ApiError(500, { code: "INTERNAL_ERROR", message: "zebra-upstream-secret" }),
+      "We couldn't confirm your payment yet",
+      "Check back shortly.",
+    ],
+    [
+      "an unknown checkout",
+      new ApiError(404, { code: "PAYMENT_CHECKOUT_NOT_FOUND", message: "zebra-upstream-secret" }),
+      "We couldn't find this payment",
+      "Check your invoices.",
+    ],
+  ])(
+    "carries %s from the real return route to the banner as fixed copy",
+    async (_case, error, heading, body) => {
+      // Mocked end-to-end: no provider call; the verify POST is the only mocked request.
+      post.mockRejectedValueOnce(error);
+      const response = await paystackReturn(
+        new NextRequest(
+          "https://cardvert.example/advertiser/billing/paystack/return?reference=cv-synthetic-0001&trxref=cv-synthetic-0001",
+        ),
+      );
+      const destination = new URL(response.headers.get("location")!);
+      expect(destination.origin).toBe("https://cardvert.example");
+      expect(destination.pathname).toBe("/advertiser/billing");
+      expect(destination.searchParams.has("message")).toBe(false);
+      expect(destination.toString()).not.toContain("zebra");
+
+      mockBilling([]);
+      render(
+        await AdvertiserBillingPage({
+          searchParams: Promise.resolve(Object.fromEntries(destination.searchParams)),
+        }),
+      );
+      const banner = screen.getByRole("status");
+      expect(banner).toHaveTextContent(heading);
+      expect(banner).toHaveTextContent(body);
+      expect(document.body.textContent).not.toContain("zebra");
+    },
+  );
 });
 
 describe("AdvertiserBillingPage money rules", () => {

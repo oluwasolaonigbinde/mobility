@@ -17,7 +17,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 it("uses the existing guarded resume operation with a required reason", async () => {
-  expect(await resumeCampaign({}, form())).toEqual({ done: "Campaign resumed" });
+  expect(await resumeCampaign({}, form())).toEqual({ done: "Campaign resumed." });
   expect(mocks.guard).toHaveBeenCalledWith("admin");
   expect(mocks.post).toHaveBeenCalledExactlyOnceWith(
     "/api/v1/admin/campaigns/{campaign_id}/budget-policy-resume",
@@ -28,7 +28,7 @@ it("uses the existing guarded resume operation with a required reason", async ()
 it("sends the recorded pause ID to the staff Resume operation and never changes its reason category", async () => {
   const input = form(" Inspection complete ");
   input.set("pause_id", id);
-  expect(await resumeCampaign({}, input)).toEqual({ done: "Campaign resumed" });
+  expect(await resumeCampaign({}, input)).toEqual({ done: "Campaign resumed." });
   expect(mocks.post).toHaveBeenCalledExactlyOnceWith(
     "/api/v1/admin/campaigns/{campaign_id}/resume",
     {
@@ -57,8 +57,8 @@ it.each([
   expect(await resumeCampaign({}, form())).toEqual({
     error:
       error instanceof ApiError
-        ? "That didn't work. Please try again."
-        : "Could not reach the server.",
+        ? "That didn't work. Try again."
+        : "We couldn't confirm the campaign resumed. Refresh the page to check before trying again.",
   });
   expect(mocks.revalidatePath).not.toHaveBeenCalled();
 });

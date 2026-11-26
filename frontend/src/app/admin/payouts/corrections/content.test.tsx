@@ -147,7 +147,7 @@ describe("correction preview failures never create pay changes", () => {
     return f;
   }
   it("requires a reason before creating an order", async () => {
-    expect(await newOrderAction({}, form("create"))).toEqual({ error: "A reason is required" });
+    expect(await newOrderAction({}, form("create"))).toEqual({ error: "Add a reason." });
     expect(mocks.post).not.toHaveBeenCalled();
     expect(mocks.revalidate).not.toHaveBeenCalled();
   });
@@ -169,7 +169,7 @@ describe("correction preview failures never create pay changes", () => {
         : new Error("network"),
     );
     expect(await newOrderAction({}, form())).toEqual({
-      error: api ? "That didn't work. Please try again." : "Could not reach the server.",
+      error: api ? "That didn't work. Try again." : "Could not reach the server.",
     });
     expect(mocks.post).not.toHaveBeenCalled();
   });

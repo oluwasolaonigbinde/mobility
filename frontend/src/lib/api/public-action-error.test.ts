@@ -85,5 +85,5 @@ it("does not put staff vehicle approval instructions in the shared fallback", ()
     publicActionError(
       new ApiError(409, { code: "VEHICLE_APPROVAL_REQUIRED", message: "raw internal detail" }),
     ),
-  ).toBe("That didn't work. Please try again.");
+  ).toBe("That didn't work. Try again.");
 });

@@ -47,17 +47,25 @@ export async function createUserAction(
     password: formData.get("password"),
     current_password: formData.get("current_password") ?? undefined,
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  if (!parsed.success)
+    return { error: parsed.error.issues[0]?.message ?? "Check the details and try again." };
   const { current_password, ...user } = parsed.data;
   try {
     const { data } = await createApiClient(await getSessionToken()).POST("/api/v1/admin/users", {
       body: { ...user, status: "active", ...(user.role === "admin" ? { current_password } : {}) },
     });
-    if (!data) return { error: "Unexpected empty response creating the user." };
+    if (!data)
+      return {
+        error:
+          "We couldn't confirm the login was created. Refresh the page to check before trying again.",
+      };
   } catch (error) {
     unstable_rethrow(error);
     return {
-      error: error instanceof ApiError ? publicActionError(error) : "Could not reach the server.",
+      error:
+        error instanceof ApiError
+          ? publicActionError(error)
+          : "We couldn't confirm the login was created. Refresh the page to check before trying again.",
     };
   }
   const destination = user.role === "admin" ? "/admin/settings/staff" : "/admin/drivers";

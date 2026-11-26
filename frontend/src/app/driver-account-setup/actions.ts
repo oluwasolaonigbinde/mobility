@@ -9,12 +9,12 @@ import { publicActionError } from "@/lib/api/public-action-error";
 const setupSchema = z
   .object({
     token: z.string().trim().min(1).max(512),
-    newPassword: z.string().min(12, "Use at least 12 characters"),
+    newPassword: z.string().min(12, "Use at least 12 characters."),
     confirmPassword: z.string(),
   })
   .refine((value) => value.newPassword === value.confirmPassword, {
     path: ["confirmPassword"],
-    message: "Passwords do not match",
+    message: "The passwords don't match.",
   });
 
 export interface DriverAccountSetupState {
@@ -45,7 +45,8 @@ export async function completeDriverAccountSetupAction(
       error: publicActionError(
         error,
         {
-          DRIVER_ACCOUNT_SETUP_INVALID: "This link has expired or has already been used.",
+          DRIVER_ACCOUNT_SETUP_INVALID:
+            "This account setup link no longer works. If you've already set your password, sign in. Otherwise, contact Terrax Media for help.",
           PASSWORD_TOO_SHORT: "Use at least 12 characters.",
         },
         "Account setup is temporarily unavailable. Try again later.",

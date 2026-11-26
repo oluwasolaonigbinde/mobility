@@ -82,8 +82,7 @@ const campaignActionErrors = {
   CAMPAIGN_REVIEW_STATE_CONFLICT: "The campaign state changed. Refresh and try again.",
   CAMPAIGN_INCOMPLETE_FOR_REVIEW:
     "Add start and end dates, a total budget and at least one target area before submitting for review.",
-  CREATIVE_REVIEW_STATE_CONFLICT:
-    "This artwork has changed. Refresh the page. Refresh and try again.",
+  CREATIVE_REVIEW_STATE_CONFLICT: "This artwork has changed. Refresh the page and try again.",
   CREATIVE_FILE_NOT_CLEARED: "Your artwork file isn't ready yet.",
 } as const;
 
@@ -110,7 +109,7 @@ const campaignEditErrors = {
   CAMPAIGN_REVIEW_STATE_CONFLICT:
     "This campaign can no longer be edited. Open it again to see its current status.",
   ORGANIZATION_WRITE_FORBIDDEN:
-    "Your advertiser access is unavailable. Ask Terrax to check your account.",
+    "Your advertiser access is unavailable. Ask Terrax Media to check your account.",
   INVALID_CAMPAIGN_BUDGET: "The daily budget cannot exceed the total budget.",
   CAMPAIGN_BUDGET_BELOW_ACCEPTED_TOTAL:
     "The total budget can't be less than the quotation you accepted. Enter at least the accepted total.",
@@ -224,6 +223,13 @@ export async function previewCampaignChangeAction(
   }
 }
 
+const CHANGE_RESULT: Readonly<Record<string, string>> = {
+  applied: "Change applied.",
+  pending_admin: "Change sent to Terrax Media for review.",
+  pending_funding: "Change saved. It is waiting for payment.",
+  rejected: "This change was not approved.",
+};
+
 export async function confirmCampaignChangeAction(
   _previous: CampaignReviewActionState,
   formData: FormData,
@@ -268,7 +274,10 @@ export async function confirmCampaignChangeAction(
     revalidatePath("/admin/campaigns");
     return {
       commandId: parsed.data.clientRequestId,
-      done: "Campaign change confirmed.",
+      // The stored status decides the message; a replay may differ from the earlier preview.
+      done: Object.hasOwn(CHANGE_RESULT, String(data.status))
+        ? CHANGE_RESULT[String(data.status)]
+        : "Change request recorded.",
       confirmedRequest: data,
     };
   } catch (error) {

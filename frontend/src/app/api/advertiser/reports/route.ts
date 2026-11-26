@@ -3,6 +3,13 @@ import { getSessionToken } from "@/lib/auth/session";
 import { reportIssuanceError } from "../report-issuances/_responses";
 import type { components } from "@/lib/api/schema";
 
+/** Refusal codes the create endpoint returns (campaign_reports.py). */
+const CREATE_REFUSALS = {
+  REPORT_NO_CAMPAIGNS: "There are no campaigns to report on.",
+  REPORT_TOO_LARGE: "Choose fewer campaigns or a shorter reporting period.",
+  REPORT_REQUEST_CONFLICT: "This request was already used. Refresh the page and try again.",
+};
+
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
@@ -35,6 +42,6 @@ export async function POST(request: Request) {
     );
     return Response.json(data, { status: 202, headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return reportIssuanceError(error);
+    return reportIssuanceError(error, CREATE_REFUSALS);
   }
 }

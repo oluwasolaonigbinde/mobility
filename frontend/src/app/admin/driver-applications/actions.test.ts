@@ -311,7 +311,7 @@ describe("reviewPersonPayeeAction", () => {
     decision.set("intent", "approve");
     decision.set("valid_until", "2099-01-01T00:00");
     await expect(reviewVehicleAction({}, decision)).resolves.toEqual({
-      error: "Complete every vehicle approval confirmation.",
+      error: "Tick every check before approving.",
       validUntil: "2099-01-01T00:00",
     });
     for (const name of [

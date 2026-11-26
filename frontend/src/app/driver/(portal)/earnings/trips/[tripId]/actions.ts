@@ -45,11 +45,22 @@ export async function submitFraudDisputeAction(
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof ApiError) {
-      if (error.status === 401 || error.status === 403) {
+      if (error.status === 401) {
         return { error: "You've been signed out. Sign in again." };
       }
+      if (error.status === 403) {
+        return { error: "You can't send a dispute for this trip check." };
+      }
       if (error.status === 409) {
-        return { error: "A dispute already exists for this trip. Refresh to see it." };
+        if (error.code === "FRAUD_DISPUTE_REPLAY_CONFLICT") {
+          return { error: "A dispute already exists for this trip. Refresh to see it." };
+        }
+        if (error.code === "FRAUD_FLAG_NOT_DISPUTABLE") {
+          return {
+            error: "This check is closed, so it can't be disputed. Refresh to see the result.",
+          };
+        }
+        return { error: "We couldn't send your dispute. Refresh and try again." };
       }
       return { error: publicActionError(error) };
     }
@@ -57,5 +68,5 @@ export async function submitFraudDisputeAction(
   }
 
   revalidatePath(`/driver/earnings/trips/${trip_id}`);
-  return { done: "Your dispute was submitted for staff review." };
+  return { done: "Your dispute was sent to Terrax Media." };
 }

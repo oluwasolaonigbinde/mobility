@@ -87,7 +87,7 @@ it("shows the reviewer's reason as given above the form when changes are needed"
   );
   await journey("/apply?step=car#application_access_token=fix-it", "car");
   expect(await screen.findByText("Car form fix-it 0")).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Please make a change" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Changes needed" })).toBeInTheDocument();
   expect(screen.getByText(reason)).toBeInTheDocument();
 });
 it("treats a state that does not match its step as an unavailable link", async () => {

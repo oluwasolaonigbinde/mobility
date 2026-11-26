@@ -99,9 +99,9 @@ afterEach(() => {
 it("shows each recorded outcome, only failed uploads, no filenames or saved identity/bank fields", async () => {
   render(<DocumentRenewals driverId="driver" />);
   expect(screen.getByRole("status")).toHaveTextContent("Loading");
-  await screen.findByText("hard to read, upload a clearer photo");
-  expect(screen.getByText("expired 3 Oct, upload a current document")).toBeTruthy();
-  expect(screen.getAllByText("accepted")).toHaveLength(3);
+  await screen.findByText("Hard to read. Upload a clearer photo.");
+  expect(screen.getByText("Expired 3 Oct. Upload a current document.")).toBeTruthy();
+  expect(screen.getAllByText("Accepted")).toHaveLength(3);
   expect(screen.getByLabelText("Replace Driving licence")).toBeTruthy();
   expect(screen.getByLabelText("Replace Insurance")).toBeTruthy();
   expect(screen.queryByLabelText("NIN")).toBeNull();
@@ -194,7 +194,7 @@ it("handles loading failure and retry", async () => {
   render(<DocumentRenewals driverId="driver" />);
   await screen.findByRole("alert");
   fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-  await screen.findByText("hard to read, upload a clearer photo");
+  await screen.findByText("Hard to read. Upload a clearer photo.");
 });
 it("requests all fresh vehicle files after payload purge", async () => {
   fetchMock.mockResolvedValue(
@@ -216,7 +216,7 @@ it.each(["driver_photo", "insurance"])(
     Object.assign(group, { [kind]: { status: "rejected", reason_code: "missing_evidence" } });
     fetchMock.mockResolvedValue(Response.json(data));
     render(<DocumentRenewals driverId="driver" />);
-    await screen.findByText("missing, upload this document");
+    await screen.findByText("Missing. Upload this document.");
     expect(
       screen.getByLabelText(kind === "insurance" ? "Replace Insurance" : "Replace Your photo"),
     ).toBeTruthy();
@@ -253,7 +253,7 @@ it("offers zero-file renewal for an expired whole-car approval without relabelli
   );
   render(<DocumentRenewals driverId="driver" />);
   await screen.findByText(/Car approval expired/);
-  expect(screen.getByText("accepted")).toBeTruthy();
+  expect(screen.getByText("Accepted")).toBeTruthy();
   expect(screen.queryByLabelText(/Replace/)).toBeNull();
   fireEvent.submit(screen.getByRole("button", { name: "Send for review" }).closest("form")!);
   await waitFor(() =>
@@ -276,7 +276,7 @@ it.each([0, 1])(
   async (index) => {
     const file = selectedFile();
     render(<DocumentRenewals driverId="driver" />);
-    await screen.findByText("hard to read, upload a clearer photo");
+    await screen.findByText("Hard to read. Upload a clearer photo.");
     const form = screen
       .getAllByRole("button", { name: "Send for review" })
       [index]!.closest("form")!;
@@ -312,7 +312,7 @@ it("recovers a failed scan without submitting a revision", async () => {
   const file = selectedFile();
   mocks.upload.mockRejectedValueOnce(new Error("Choose another file."));
   render(<DocumentRenewals driverId="driver" />);
-  await screen.findByText("hard to read, upload a clearer photo");
+  await screen.findByText("Hard to read. Upload a clearer photo.");
   fireEvent.change(screen.getByLabelText("Replace Driving licence"), { target: { files: [file] } });
   fireEvent.submit(screen.getAllByRole("button", { name: "Send for review" })[0]!.closest("form")!);
   await screen.findByText("Choose another file.");

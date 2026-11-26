@@ -125,7 +125,7 @@ export default async function DriverTripEarningsPage({
         </div>
         <DriverDataUnavailable
           title="Trip review status is unavailable"
-          detail="We couldn't load this trip's pay. Try again shortly."
+          detail="We couldn't load this trip's checks. Try again shortly."
           retryHref={`/driver/earnings/trips/${tripId}`}
         />
       </div>

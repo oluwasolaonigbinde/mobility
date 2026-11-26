@@ -21,8 +21,8 @@ export function CampaignChangeReviewActions({
       <input type="hidden" name="request_id" value={requestId} />
       {pendingFunding ? (
         <p className="text-muted text-sm">
-          This change is approved. The approval stays in place. When there is enough funding, press
-          Retry approved change to apply it.
+          This change is approved. When there is enough funding, press Retry approved change to
+          apply it.
         </p>
       ) : null}
       <label className="flex w-full flex-col gap-1">

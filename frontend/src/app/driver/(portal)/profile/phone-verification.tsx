@@ -168,7 +168,7 @@ function PhoneVerificationForPhone({ savedPhone }: { savedPhone: string }) {
           required
         />
         <Button type="submit" disabled={busy || refreshing}>
-          {busy ? "Please wait…" : "Save phone number"}
+          {busy ? "Working…" : "Save phone number"}
         </Button>
       </form>
       {contact ? (
@@ -213,7 +213,7 @@ function PhoneVerificationForPhone({ savedPhone }: { savedPhone: string }) {
               hour: "2-digit",
               minute: "2-digit",
             })}{" "}
-            Nigeria time (WAT). Terrax will record your message to verify your phone.
+            Nigeria time (WAT). Terrax Media will record your message to verify your phone.
           </p>
           <Button
             variant="ghost"

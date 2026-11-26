@@ -259,6 +259,16 @@ export function NotificationCenter({
       ]
     : undefined;
   const totalNotifications = loadedPages?.at(-1)?.total ?? 0;
+  // "Caught up" needs both reads to agree: a zero count and an empty, loaded feed.
+  const feedEmpty = shownItems?.length === 0;
+  const caughtUp =
+    feedEmpty &&
+    isOnline &&
+    count.isSuccess &&
+    count.data.unread_count === 0 &&
+    notifications.isSuccess;
+  const countFailed = feedEmpty && count.isError;
+  const checking = feedEmpty && !caughtUp && !countFailed;
   const showPreferences: Preferences | undefined =
     isOnline && !preferences.isError ? preferences.data : undefined;
 
@@ -386,14 +396,15 @@ export function NotificationCenter({
           ) : null}
           {!isOnline ? (
             <p role="alert" className="text-amber py-6 text-sm">
-              Reconnect to load current notifications. Saved notification data is not shown as
-              current while offline.
+              You&apos;re offline. Reconnect to see your notifications.
             </p>
           ) : null}
-          {shownItems?.length === 0 ? (
-            <p className="text-muted py-6 text-sm">You are all caught up.</p>
+          {caughtUp ? <p className="text-muted py-6 text-sm">You are all caught up.</p> : null}
+          {countFailed ? (
+            <p className="text-coral py-6 text-sm">Could not load notifications.</p>
           ) : null}
-          {shownItems?.length ? (
+          {checking ? <p className="text-muted py-6 text-sm">Checking for notifications…</p> : null}
+          {shownItems?.length || checking ? (
             <>
               <ul className="mt-2 max-h-96 overflow-y-auto">
                 {shownItems.map((notification) => (
@@ -408,7 +419,9 @@ export function NotificationCenter({
               <div className="border-edge mt-2 flex items-center justify-between gap-3 border-t pt-2">
                 <p className="text-faint text-xs">
                   Showing {shownItems.length} of {totalNotifications}
-                  {notifications.hasNextPage ? " · Mark all read includes older ones" : ""}
+                  {notifications.hasNextPage
+                    ? " · Mark all read includes older unread notifications."
+                    : ""}
                 </p>
                 {notifications.hasNextPage ? (
                   <button

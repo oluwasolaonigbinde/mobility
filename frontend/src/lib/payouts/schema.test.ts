@@ -27,7 +27,7 @@ describe("dailyRateFormSchema", () => {
   it("requires every value and never fills one in", () => {
     expect(firstError({ daily_rate_naira: "" })).toBe("Day rate is required");
     expect(firstError({ daily_target_miles: "" })).toBe("Daily miles is required");
-    expect(firstError({ reason: " " })).toMatch(/reason is required/);
+    expect(firstError({ reason: " " })).toMatch(/Add a reason\./);
   });
 
   it("checks positive amounts and the future start", () => {

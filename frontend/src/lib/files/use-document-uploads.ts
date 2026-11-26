@@ -52,7 +52,7 @@ export function useDocumentUploads() {
     context: string,
     send: (requestId: string, progress: DocumentUploadProgress) => Promise<string>,
   ): Promise<string> {
-    if (!active.current) return Promise.reject(new Error("Please sign in again."));
+    if (!active.current) return Promise.reject(new Error("Sign in again."));
     let entry = entries.current.get(key);
     if (entry && (entry.file !== file || entry.context !== context)) {
       remove(key);

@@ -116,9 +116,7 @@ export function PersonPayeeForm({ accessToken }: { accessToken: string }) {
       fileUploads.clear();
     } catch (caught) {
       if (!isCurrent()) return;
-      setError(
-        caught instanceof Error ? caught.message : "Something went wrong. Please try again.",
-      );
+      setError(caught instanceof Error ? caught.message : "Something went wrong. Try again.");
     } finally {
       if (fileUploads.alive()) {
         if (!isCurrent()) uploads.clearUploading();

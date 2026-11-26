@@ -100,7 +100,7 @@ export async function listAssignmentRecommendationsAction(
   values: unknown,
 ): Promise<AssignmentRecommendationActionState> {
   const parsed = recommendationSchema.safeParse(values);
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  if (!parsed.success) return { error: "Choose a campaign and enter a city." };
   try {
     const api = createApiClient(await getSessionToken());
     const { data, error } = await api.GET("/api/v1/admin/campaign-assignments/recommendations", {
@@ -111,7 +111,7 @@ export async function listAssignmentRecommendationsAction(
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof ApiError) return { error: publicActionError(error) };
-    return { error: "Could not reach the server." };
+    return { error: "That didn't work. Try again." };
   }
 }
 
@@ -156,7 +156,10 @@ export async function createAssignmentAction(
         cityRequiredForDriver: parsed.data.driver_profile_id,
       };
     if (error instanceof ApiError) return { error: publicActionError(error, offerErrors) };
-    return { error: "Could not reach the server." };
+    return {
+      error:
+        "We couldn't confirm the job offer was sent. Refresh the page to check before trying again.",
+    };
   }
   revalidatePath("/admin/campaigns");
   revalidatePath("/admin/campaigns/[campaignId]", "page");
@@ -170,7 +173,7 @@ export async function cancelAssignmentAction(
   const parsed = z
     .object({ assignmentId: z.string().uuid(), reason: z.string().trim().min(1).max(1000) })
     .safeParse({ assignmentId, reason });
-  if (!parsed.success) return { error: "A cancellation reason is required" };
+  if (!parsed.success) return { error: "Add a cancellation reason." };
   try {
     const api = createApiClient(await getSessionToken());
     await api.POST("/api/v1/admin/campaign-assignments/{assignment_id}/cancel", {
@@ -180,7 +183,10 @@ export async function cancelAssignmentAction(
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof ApiError) return { error: publicActionError(error) };
-    return { error: "Could not reach the server." };
+    return {
+      error:
+        "We couldn't confirm the job was cancelled. Refresh the page to check before trying again.",
+    };
   }
   revalidatePath("/admin/campaigns");
   revalidatePath("/admin/campaigns/[campaignId]", "page");
@@ -199,7 +205,9 @@ export async function activateAssignmentAction(assignmentId: string): Promise<Ad
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof ApiError) return { error: publicActionError(error) };
-    return { error: "Could not reach the server." };
+    return {
+      error: "We couldn't confirm the job started. Refresh the page to check before trying again.",
+    };
   }
   revalidatePath("/admin/campaigns");
   revalidatePath("/admin/campaigns/[campaignId]", "page");

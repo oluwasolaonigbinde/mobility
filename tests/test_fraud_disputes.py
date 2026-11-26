@@ -89,8 +89,8 @@ def test_driver_projection_is_sanitized_and_dispute_reply_is_exactly_idempotent(
     assert item["reason"] == {
         "code": "route_pattern_review",
         "version": "v1",
-        "title": "Route needs review",
-        "body": "A route pattern for this trip needs a staff review.",
+        "title": "Route",
+        "body": "This check looks at the route recorded for this trip.",
     }
     serialized = str(item)
     for secret in (
@@ -432,3 +432,37 @@ def test_disputed_route_replay_flag_cannot_be_removed_or_rewritten(
     assert removed is False
     assert changed is False
     assert evidence == original_evidence
+
+
+def test_driver_hold_reasons_group_route_checks_and_fall_back_for_unmapped_types(
+    db_client, db_sessionmaker
+) -> None:
+    graph = build_graph(db_sessionmaker, "reason-copy")
+    speed = create_flag(db_sessionmaker, graph)
+    replay = create_flag(db_sessionmaker, graph, flag_type="route_replay")
+    # No public reason is mapped for this stored type, so the driver sees the generic text.
+    unmapped = create_flag(db_sessionmaker, graph, flag_type="physical_spot_check_failed")
+    driver_headers = auth_headers(db_client, graph.driver.email, PASSWORD)
+
+    listed = db_client.get("/api/v1/driver/fraud-holds", headers=driver_headers)
+    assert listed.status_code == 200
+    reasons = {item["id"]: item["reason"] for item in listed.json()["items"]}
+    route = {
+        "code": "route_pattern_review",
+        "version": "v1",
+        "title": "Route",
+        "body": "This check looks at the route recorded for this trip.",
+    }
+    # Grouped route checks share one public code and text, so the card never says which fired.
+    assert reasons[str(speed.id)] == route
+    assert reasons[str(replay.id)] == route
+    assert reasons[str(unmapped.id)] == {
+        "code": "trip_review",
+        "version": "v1",
+        "title": "Trip details",
+        "body": "This check concerns the recorded trip details.",
+    }
+    for reason in reasons.values():
+        # State-neutral: true while open, confirmed or cleared, and no "staff" wording.
+        assert "needs review" not in reason["title"].lower()
+        assert "staff" not in reason["body"].lower()

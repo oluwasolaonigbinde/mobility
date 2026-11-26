@@ -13,7 +13,7 @@ export function driverJobConflictMessage(error: unknown): string | undefined {
     error.status === 409 &&
     error.code === "MULTIPLE_ACTIVE_ASSIGNMENTS"
   )
-    return "Two jobs are live on your account. Please contact support so we can fix it.";
+    return "Two jobs are live on your account. Contact support so we can fix it.";
 }
 
 /** Preserve the difference between successful emptiness, missing ownership and failed authority. */

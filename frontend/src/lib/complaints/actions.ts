@@ -72,7 +72,7 @@ function explain(error: unknown, notFound: string): ComplaintActionState {
   }
   if (error.status === 404) return { error: notFound };
   if (error.code === "COMPLAINT_MESSAGE_LIMIT") {
-    return { error: "This conversation is full. Please send a new message instead." };
+    return { error: "This conversation is full. A new conversation is needed." };
   }
   if (error.status === 409) {
     return { error: "This was already sent with different details. Refresh the page to see it." };
@@ -208,8 +208,8 @@ export async function updateComplaintAction(
   });
   if (!parsed.success) return { error: "Choose a status." };
   const { complaint_id, status } = parsed.data;
-  const body: { status?: "open" | "resolved" } = {};
-  if (status) body.status = status;
+  if (!status) return { done: "No change made." };
+  const body: { status?: "open" | "resolved" } = { status };
   const api = createApiClient(await getSessionToken());
   try {
     await api.PATCH("/api/v1/admin/complaints/{complaint_id}", {

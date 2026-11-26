@@ -195,6 +195,21 @@ describe("Support work lists", () => {
     });
     expect(screen.getByRole("button", { name: "Record outcome task" })).toBeVisible();
   });
+  it("names contact purposes in rows and the drawer without raw codes", async () => {
+    const offer = { ...task, purpose: "campaign_assignment_offer" };
+    const other = { ...task, id: "other", purpose: "earnings_release" };
+    get.mockImplementation(async (path) => ({
+      data: path.endsWith("manual-driver-contact-tasks")
+        ? { items: [offer, other], total: 2 }
+        : { items: [], total: 0 },
+    }));
+    const { container } = render(await page({ tab: "contact", task: "task" }));
+    expect(screen.getAllByText(/Job offer ·/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/Driver contact ·/)).toBeVisible();
+    expect(container).not.toHaveTextContent(/campaign_assignment_offer|earnings_release/);
+    expect(container).not.toHaveTextContent("current consent and verified phone");
+    expect(screen.getByRole("button", { name: "Record outcome task" })).toBeVisible();
+  });
   it("keeps contact history read-only and never labels a missing name as empty", async () => {
     get.mockResolvedValue({ data: { items: [task], total: 1 } });
     const first = render(await page({ tab: "contact", task: "task", history: "true" }));
@@ -203,7 +218,7 @@ describe("Support work lists", () => {
     first.unmount();
     get.mockResolvedValue({ data: { items: [{ ...task, driver_name: null }], total: 1 } });
     render(await page({ tab: "contact" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
+    expect(screen.getByRole("alert")).toHaveTextContent("This section couldn't be loaded.");
     expect(screen.queryByText("No contact tasks match these filters.")).toBeNull();
   });
 });

@@ -17,7 +17,9 @@ export interface ProcessTripState {
   steps?: string[];
 }
 
-const tripIdSchema = z.string().uuid("Enter a valid trip ID");
+const tripIdSchema = z
+  .string()
+  .uuid("We couldn't identify this trip. Refresh the page and try again.");
 
 /**
  * The full trip → money pipeline, in order:
@@ -32,7 +34,12 @@ export async function processTripAction(
   formData: FormData,
 ): Promise<ProcessTripState> {
   const parsed = tripIdSchema.safeParse(String(formData.get("trip_id") ?? "").trim());
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Enter a valid trip ID" };
+  if (!parsed.success)
+    return {
+      error:
+        parsed.error.issues[0]?.message ??
+        "We couldn't identify this trip. Refresh the page and try again.",
+    };
   const tripId = parsed.data;
 
   const api = createApiClient(await getSessionToken());

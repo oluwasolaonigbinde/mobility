@@ -38,7 +38,7 @@ describe("reviewCampaignAction", () => {
 
   it("approves only through the dedicated admin endpoint", async () => {
     await expect(reviewCampaignAction({}, reviewForm("approve"))).resolves.toEqual({
-      done: "Campaign approved",
+      done: "Campaign approved.",
     });
     expect(mocks.post).toHaveBeenCalledWith("/api/v1/admin/campaigns/{campaign_id}/approve", {
       params: { path: { campaign_id: CAMPAIGN_ID } },
@@ -48,14 +48,14 @@ describe("reviewCampaignAction", () => {
 
   it("requires and trims a rejection reason before using the dedicated endpoint", async () => {
     await expect(reviewCampaignAction({}, reviewForm("reject", "   "))).resolves.toEqual({
-      error: "A rejection reason is required",
+      error: "Add a rejection reason.",
     });
     expect(mocks.post).not.toHaveBeenCalled();
 
     await expect(
       reviewCampaignAction({}, reviewForm("reject", "  Revise the legal copy.  ")),
     ).resolves.toEqual({
-      done: "Campaign rejected",
+      done: "Campaign rejected.",
     });
     expect(mocks.post).toHaveBeenCalledWith("/api/v1/admin/campaigns/{campaign_id}/reject", {
       params: { path: { campaign_id: CAMPAIGN_ID } },
@@ -73,7 +73,7 @@ describe("reviewCampaignAction", () => {
     );
 
     await expect(reviewCampaignAction({}, reviewForm("approve"))).resolves.toEqual({
-      error: "This campaign has changed. Refresh the page. Refresh and try again.",
+      error: "This campaign has changed. Refresh the page and try again.",
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
@@ -95,13 +95,13 @@ describe("reviewCampaignChangeAction", () => {
 
   it("requires a reason for both decisions and uses the governed endpoints", async () => {
     await expect(reviewCampaignChangeAction({}, changeForm("approve"))).resolves.toEqual({
-      error: "A decision reason is required",
+      error: "Add a decision reason.",
     });
     expect(mocks.post).not.toHaveBeenCalled();
 
     await expect(
       reviewCampaignChangeAction({}, changeForm("approve", "  Funded headroom verified  ")),
-    ).resolves.toEqual({ done: "Change approved" });
+    ).resolves.toEqual({ done: "Change approved." });
     expect(mocks.post).toHaveBeenCalledWith(
       "/api/v1/admin/campaign-change-requests/{request_id}/approve",
       {
@@ -120,7 +120,7 @@ describe("reviewCampaignChangeAction", () => {
     await expect(
       reviewCampaignChangeAction({}, changeForm("approve", "Approval retained")),
     ).resolves.toEqual({
-      notice: "Approval kept. Still waiting for enough funding.",
+      notice: "Approval kept. The change is still waiting for funding.",
     });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns/[campaignId]", "page");
   });
@@ -129,7 +129,7 @@ describe("reviewCampaignChangeAction", () => {
     mocks.post.mockResolvedValue({ data: { status: "applied" } });
     await expect(
       reviewCampaignChangeAction({}, changeForm("approve", "Funding checked")),
-    ).resolves.toEqual({ done: "Change approved" });
+    ).resolves.toEqual({ done: "Change approved." });
   });
 });
 
@@ -149,7 +149,7 @@ describe("reviewCreativeAction", () => {
 
   it("uses the dedicated creative decision endpoints and requires rejection reason", async () => {
     await expect(reviewCreativeAction({}, creativeForm("approve"))).resolves.toEqual({
-      done: "Creative approved",
+      done: "Artwork approved.",
     });
     expect(mocks.post).toHaveBeenCalledWith("/api/v1/admin/creatives/{creative_id}/approve", {
       params: { path: { creative_id: CREATIVE_ID } },
@@ -157,13 +157,13 @@ describe("reviewCreativeAction", () => {
 
     vi.clearAllMocks();
     await expect(reviewCreativeAction({}, creativeForm("reject", "  "))).resolves.toEqual({
-      error: "A rejection reason is required",
+      error: "Add a rejection reason.",
     });
     expect(mocks.post).not.toHaveBeenCalled();
 
     await expect(
       reviewCreativeAction({}, creativeForm("reject", "  Replace the low-resolution asset. ")),
-    ).resolves.toEqual({ done: "Creative rejected" });
+    ).resolves.toEqual({ done: "Artwork rejected." });
     expect(mocks.post).toHaveBeenCalledWith("/api/v1/admin/creatives/{creative_id}/reject", {
       params: { path: { creative_id: CREATIVE_ID } },
       body: { reason: "Replace the low-resolution asset." },
@@ -201,7 +201,7 @@ describe("reviewInstallationEvidenceAction", () => {
     vi.clearAllMocks();
     await expect(
       reviewInstallationEvidenceAction({}, evidenceForm("reject", "   ")),
-    ).resolves.toEqual({ error: "A rejection reason is required" });
+    ).resolves.toEqual({ error: "Add a rejection reason." });
     expect(mocks.post).not.toHaveBeenCalled();
   });
 
@@ -218,5 +218,50 @@ describe("reviewInstallationEvidenceAction", () => {
     await expect(reviewInstallationEvidenceAction({}, evidenceForm("approve"))).resolves.toEqual({
       done: "Installation approved. Job has not started: Accept the quotation and approve production first.",
     });
+  });
+});
+
+describe("decision outcome unknown after a network failure", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.post.mockRejectedValue(new TypeError("fetch failed"));
+  });
+
+  function form(fields: Record<string, string>): FormData {
+    const data = new FormData();
+    for (const [key, value] of Object.entries(fields)) data.set(key, value);
+    return data;
+  }
+
+  it("tells staff to check before retrying instead of claiming the decision failed", async () => {
+    await expect(
+      reviewCampaignChangeAction(
+        {},
+        form({ request_id: CHANGE_ID, intent: "approve", reason: "Funding checked" }),
+      ),
+    ).resolves.toEqual({
+      error:
+        "We couldn't confirm this decision was saved. Refresh the page to check before trying again.",
+    });
+    await expect(reviewCampaignAction({}, reviewForm("approve"))).resolves.toEqual({
+      error:
+        "We couldn't confirm this decision was saved. Refresh the page to check before trying again.",
+    });
+    await expect(
+      reviewCreativeAction({}, form({ creative_id: CREATIVE_ID, intent: "approve", reason: "" })),
+    ).resolves.toEqual({
+      error:
+        "We couldn't confirm this artwork decision was saved. Refresh the page to check before trying again.",
+    });
+    await expect(
+      reviewInstallationEvidenceAction(
+        {},
+        form({ submission_id: EVIDENCE_ID, intent: "approve", reason: "" }),
+      ),
+    ).resolves.toEqual({
+      error:
+        "We couldn't confirm this photo decision was saved. Refresh the page to check before trying again.",
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });

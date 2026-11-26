@@ -98,7 +98,7 @@ async function signIn(formData: FormData): Promise<LoginState> {
     const api = createLoginApiClient(clientIp);
     const { data } = await api.POST("/api/v1/auth/login", { body: parsed.data });
     if (!data) {
-      return { error: "Sign-in is temporarily unavailable. Please try again." };
+      return { error: "Sign-in is temporarily unavailable. Try again." };
     }
     await setSessionCookie(data.access_token, data.expires_in);
     home = data.user.must_change_password
@@ -114,10 +114,10 @@ async function signIn(formData: FormData): Promise<LoginState> {
             ? `Too many attempts. Try again in ${String(error.details?.retry_after_seconds ?? "a few")} seconds.`
             : error.status === 401 || error.status === 403
               ? "Invalid email or password, or the account is not active."
-              : "Sign-in is temporarily unavailable. Please try again.",
+              : "Sign-in is temporarily unavailable. Try again.",
       };
     }
-    return { error: "Could not reach the server. Please try again." };
+    return { error: "We couldn't sign you in. Try again." };
   }
   redirect(home);
 }

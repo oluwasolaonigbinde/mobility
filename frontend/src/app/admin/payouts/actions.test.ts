@@ -53,7 +53,7 @@ it.each([0, 1, 2])("reports only completed work when payout step %s fails", asyn
   const result = await processTripAction({}, form);
   expect(result.steps).toEqual(completed.slice(0, failedStep));
   expect(result.error).toBe(
-    "That didn't work. Please try again." +
+    "That didn't work. Try again." +
       (failedStep ? ` (completed: ${completed.slice(0, failedStep).join(" · ")})` : ""),
   );
   expect(mocks.post).toHaveBeenCalledTimes(failedStep + 1);
@@ -72,6 +72,8 @@ it("reports a connection failure without claiming pay was calculated", async () 
 it.each([undefined, "not-a-trip"])("refuses invalid trip %s before recalculating", async (id) => {
   const form = new FormData();
   if (id) form.set("trip_id", id);
-  expect((await processTripAction({}, form)).error).toBe("Enter a valid trip ID");
+  expect((await processTripAction({}, form)).error).toBe(
+    "We couldn't identify this trip. Refresh the page and try again.",
+  );
   expect(mocks.post).not.toHaveBeenCalled();
 });

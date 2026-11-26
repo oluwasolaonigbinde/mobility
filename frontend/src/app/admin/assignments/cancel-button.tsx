@@ -40,12 +40,12 @@ export function CancelAssignmentButton({
         disabled={pending}
         className="micro text-muted hover:text-coral transition-colors disabled:opacity-50"
       >
-        {pending ? "…" : "Cancel"}
+        {pending ? "…" : "Cancel job"}
       </button>
       <ConfirmationDialog
         open={confirming}
         onOpenChange={setConfirming}
-        title={`Cancel ${assignmentLabel}?`}
+        title={`Cancel job: ${assignmentLabel}?`}
         description="The driver will stop earning from this job."
         cancelLabel="Keep job"
         confirmLabel="Confirm cancellation"

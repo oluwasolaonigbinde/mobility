@@ -133,7 +133,9 @@ export default async function AdminAuditPage({
                   <td className="px-5 py-3 whitespace-nowrap">
                     {formatDateTime(event.created_at)}
                   </td>
-                  <td className="px-5 py-3">{adminActor(event.actor_email)}</td>
+                  <td className="px-5 py-3">
+                    {adminActor(event.actor_email, event.actor_name, event.actor_user_id)}
+                  </td>
                   <td className="px-5 py-3">{adminActivity(event.action)}</td>
                 </tr>
               ))}
@@ -142,7 +144,7 @@ export default async function AdminAuditPage({
         </div>
         {items.length === 0 ? (
           <p className="text-muted p-8 text-center">
-            {activeFilters.length ? "No activity matches these filters." : "No matching events."}
+            {activeFilters.length ? "No activity matches these filters." : "No activity recorded."}
           </p>
         ) : null}
       </Panel>

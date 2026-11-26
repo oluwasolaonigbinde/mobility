@@ -39,13 +39,13 @@ export async function runSignOutFlow(
   try {
     const result = await action();
     if (result.globalRevocationFailed) {
-      return "Sign-out on every device could not be confirmed. Please try again.";
+      return "Sign-out on every device could not be confirmed. Try again.";
     }
     if (result.globalRevocationConfirmed) notifyDriverLogout();
     navigate("/login");
     return undefined;
   } catch {
-    return "Sign-out on every device could not be confirmed. Please try again.";
+    return "Sign-out on every device could not be confirmed. Try again.";
   }
 }
 

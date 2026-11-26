@@ -20,6 +20,14 @@ function subscribeToStorage(callback: () => void) {
 
 const subscribeToNothing = () => () => {};
 
+const UNCERTAIN_REQUEST = "We couldn't confirm this request. Check the list before trying again.";
+
+/** The route has already replaced backend text with fixed public copy. */
+function publicRefusal(body: unknown): string | undefined {
+  const message = (body as { error?: { message?: unknown } } | null)?.error?.message;
+  return typeof message === "string" && message.trim() ? message : undefined;
+}
+
 async function readReports(url: string): Promise<ReportList> {
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) throw new Error("Reports could not be loaded");
@@ -107,39 +115,48 @@ export function Reports({
     } catch {
       /* retry uses state */
     }
-    try {
-      const response = await fetch("/api/advertiser/reports", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      await response.json();
-      if (!response.ok) {
-        if (response.status >= 400 && response.status < 500) {
-          setPending(null);
-          try {
-            sessionStorage.removeItem(storageKey);
-          } catch {
-            /* optional */
-          }
-        }
-        throw new Error("We couldn't confirm this request. Check the list before trying again.");
-      }
+    function clearRequest() {
       setPending(null);
       try {
         sessionStorage.removeItem(storageKey);
       } catch {
         /* optional */
       }
+    }
+    try {
+      let response: Response;
+      try {
+        response = await fetch("/api/advertiser/reports", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } catch {
+        // Network failure: the request may have arrived, so keep the same payload.
+        setMessage(UNCERTAIN_REQUEST);
+        return;
+      }
+      let body: unknown;
+      try {
+        body = await response.json();
+      } catch {
+        // An unreadable reply decides nothing, whatever its status: keep the payload.
+        setMessage(UNCERTAIN_REQUEST);
+        return;
+      }
+      if (response.status >= 400 && response.status < 500) {
+        clearRequest();
+        setMessage(publicRefusal(body) ?? "This report couldn't be created. Try again.");
+        return;
+      }
+      if (!response.ok) {
+        setMessage(UNCERTAIN_REQUEST);
+        return;
+      }
+      clearRequest();
       setMessage("Report requested. Its downloads will appear when it is ready.");
       setOffset(0);
       await queryClient.invalidateQueries({ queryKey: ["campaign-reports", sessionScope] });
-    } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "We couldn't confirm your request. Check the list before trying again.",
-      );
     } finally {
       setBusy(false);
     }
@@ -206,7 +223,7 @@ export function Reports({
           <p role="status" className="text-muted text-sm">
             {message ||
               (restored
-                ? "Check your last request before sending another. Check it before creating another report."
+                ? "Select Check request to see whether your last request went through."
                 : "")}
           </p>
           <p className="text-muted max-w-3xl text-sm leading-relaxed">

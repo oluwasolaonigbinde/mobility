@@ -21,16 +21,16 @@ const labels: Record<string, string> = {
   vehicle_photo: "Car photo",
 };
 const reasons: Record<string, string> = {
-  missing_evidence: "missing, upload this document",
-  rejected_evidence: "not approved, upload a replacement",
-  expired_evidence: "expired, upload a current document",
-  unsafe_evidence: "file checks failed, upload another file",
-  unreadable_evidence: "hard to read, upload a clearer photo",
-  identity_mismatch: "identity details do not match, upload a replacement",
-  owner_mismatch: "owner details do not match, upload a replacement",
-  vehicle_identity_mismatch: "car details do not match, upload a replacement",
-  not_roadworthy: "contact Terrax Media about roadworthiness",
-  not_pilot_eligible: "contact Terrax Media about this car",
+  missing_evidence: "Missing. Upload this document.",
+  rejected_evidence: "Not approved. Upload a replacement.",
+  expired_evidence: "Expired. Upload a current document.",
+  unsafe_evidence: "File checks failed. Upload another file.",
+  unreadable_evidence: "Hard to read. Upload a clearer photo.",
+  identity_mismatch: "Identity details don't match. Upload a replacement.",
+  owner_mismatch: "Owner details don't match. Upload a replacement.",
+  vehicle_identity_mismatch: "Car details don't match. Upload a replacement.",
+  not_roadworthy: "Contact Terrax Media about roadworthiness.",
+  not_pilot_eligible: "Contact Terrax Media about this car.",
 };
 
 /** One plain bank line from the stage the page already loads; a rejected account has its own message. */
@@ -238,12 +238,12 @@ function DocumentStatus({
             }
           >
             {item.status === "accepted"
-              ? "accepted"
+              ? "Accepted"
               : item.status === "on_file"
-                ? "on file, awaiting review"
+                ? "Waiting for review"
                 : item.status === "expired" && item.expires_on
-                  ? `expired ${new Date(item.expires_on + "T12:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Africa/Lagos" })}, upload a current document`
-                  : (reasons[item.reason_code ?? ""] ?? "upload a replacement")}
+                  ? `Expired ${new Date(item.expires_on + "T12:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Africa/Lagos" })}. Upload a current document.`
+                  : (reasons[item.reason_code ?? ""] ?? "Upload a replacement.")}
           </span>
         </li>
       ))}

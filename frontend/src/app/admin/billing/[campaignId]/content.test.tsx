@@ -1,8 +1,18 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { get } = vi.hoisted(() => ({ get: vi.fn() }));
-vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
+const { get, post, redirect, revalidatePath } = vi.hoisted(() => ({
+  get: vi.fn(),
+  // Only the real transfer action in the flow test posts; it fails closed by default.
+  post: vi.fn<(path: string, init?: unknown) => Promise<unknown>>(async () => {
+    throw new Error("unmocked POST");
+  }),
+  redirect: vi.fn((path: string) => {
+    throw new Error(`redirect:${path}`);
+  }),
+  revalidatePath: vi.fn(),
+}));
+vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get, POST: post }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("@/lib/auth/current-user", () => ({
   requireRole: async () => ({ user: { id: "admin-1" } }),
@@ -10,7 +20,9 @@ vi.mock("@/lib/auth/current-user", () => ({
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   notFound: vi.fn(),
+  redirect,
 }));
+vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("./actions", () => ({
   createInvoiceAction: vi.fn(),
   issueInvoiceAction: vi.fn(),
@@ -436,7 +448,7 @@ it("renders one section failure when its supporting money read fails", async () 
     }),
   );
   expect(screen.getAllByRole("alert")).toHaveLength(1);
-  expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
+  expect(screen.getByRole("alert")).toHaveTextContent("This section couldn't be loaded.");
   expect(screen.queryByRole("heading", { name: "Quotation" })).toBeNull();
 });
 it.each([false, true])(
@@ -493,8 +505,83 @@ it("never shows text taken from the URL", async () => {
     }),
   );
   expect(screen.queryByText(/0800/)).toBeNull();
-  expect(screen.getByText("That didn't work. Please try again.")).toHaveClass("text-coral");
+  expect(screen.getByText("That didn't work. Refresh the page and try again.")).toHaveClass(
+    "text-coral",
+  );
 });
+describe("manual transfer result on the Money tab (mocked end-to-end)", () => {
+  // The real transfer action runs against a mocked API; its actual redirect feeds the real page.
+  async function transferThenRender(response: unknown, observed: string, expected: string) {
+    vi.clearAllMocks();
+    get.mockImplementation(async (path: string) =>
+      path.endsWith("/commercial")
+        ? { data: commercial }
+        : path === "/api/v1/admin/billing"
+          ? { data: [] }
+          : { data: campaign },
+    );
+    post.mockResolvedValueOnce(response);
+    const { recordManualTransferAction } =
+      await vi.importActual<typeof import("./actions")>("./actions");
+    const form = new FormData();
+    form.set("observed_amount", observed);
+    form.set("expected_amount", expected);
+    await expect(
+      recordManualTransferAction("campaign-1", "org-1", "terms-1", form),
+    ).rejects.toThrow("redirect:");
+    expect((post.mock.calls[0]![1] as { body: unknown }).body).toMatchObject({
+      observed_amount: observed,
+      expected_amount: expected,
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/campaigns/campaign-1");
+    const url = new URL(String(redirect.mock.calls[0]![0]), "https://cardvert.test");
+    expect(url.pathname).toBe("/admin/campaigns/campaign-1");
+    render(
+      await AdminCampaignBillingPage({
+        params: Promise.resolve({ campaignId: "campaign-1" }),
+        searchParams: Promise.resolve({ saved: url.searchParams.get("saved") ?? undefined }),
+      }),
+    );
+    return screen.getByRole("status");
+  }
+
+  it("shows a matched transfer as applied, in the success colour", async () => {
+    const status = await transferThenRender({ data: { matched: true } }, "107500.00", "107500.00");
+    expect(status).toHaveTextContent("Transfer recorded and applied to the invoice.");
+    expect(status).toHaveClass("text-green");
+    expect(status).not.toHaveClass("text-terrax-gold-ink");
+  });
+
+  it("warns, in a distinct colour, that a mismatched transfer was not applied", async () => {
+    const status = await transferThenRender({ data: { matched: false } }, "100.00", "107500.00");
+    expect(status).toHaveTextContent(
+      "Transfer recorded but not applied: the amount doesn't match the expected amount.",
+    );
+    expect(status).toHaveClass("text-terrax-gold-ink");
+    expect(status).not.toHaveClass("text-green");
+  });
+
+  it("never shows an unreadable result as applied", async () => {
+    const status = await transferThenRender({ data: undefined }, "107500.00", "107500.00");
+    expect(status).toHaveTextContent("We couldn't confirm the transfer result.");
+    expect(status).toHaveClass("text-terrax-gold-ink");
+    expect(status).not.toHaveClass("text-green");
+  });
+});
+
+it.each(["toString", "Transfer applied, call 0800"])(
+  "shows no confirmation for an unknown saved code (%s)",
+  async (saved) => {
+    render(
+      await AdminCampaignBillingPage({
+        params: Promise.resolve({ campaignId: "campaign-1" }),
+        searchParams: Promise.resolve({ saved }),
+      }),
+    );
+    expect(screen.queryByText(/0800/)).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+  },
+);
 it("asks only for the amount before VAT on an issued invoice's correction", async () => {
   get.mockImplementation(async (path: string) =>
     path.endsWith("/commercial")

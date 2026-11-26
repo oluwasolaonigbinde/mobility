@@ -11,6 +11,8 @@ vi.mock("@/lib/env", () => ({
 vi.mock("@/lib/api/client", () => ({ createLoginApiClient: mocks.client }));
 import { submitCampaignEnquiry } from "./campaign-enquiry-actions";
 
+const UNCERTAIN = "We couldn't confirm your enquiry was sent. Try again or email us directly.";
+
 function form() {
   const data = new FormData();
   Object.entries({
@@ -91,6 +93,24 @@ describe("campaign enquiry action", () => {
   });
   it("handles network failures", async () => {
     mocks.post.mockRejectedValue(new Error("internal hostname"));
-    expect((await submitCampaignEnquiry({}, form())).error).not.toContain("internal hostname");
+    expect((await submitCampaignEnquiry({}, form())).error).toBe(UNCERTAIN);
+  });
+  it.each([
+    [429, "rate_limited", "Wait before sending another enquiry, or email us directly."],
+    [
+      422,
+      "validation_error",
+      "Your enquiry wasn't sent. Check the form and try again, or email us directly.",
+    ],
+    [
+      413,
+      "request_too_large",
+      "Your enquiry is too long. Shorten it and try again, or email us directly.",
+    ],
+    [400, "bad_request", "Your enquiry wasn't sent. Try again or email us directly."],
+    [503, "unavailable", UNCERTAIN],
+  ])("tells the sender what a %s means", async (status, code, message) => {
+    mocks.post.mockRejectedValue(new ApiError(status, { code, message: "internal" }));
+    expect((await submitCampaignEnquiry({}, form())).error).toBe(message);
   });
 });

@@ -29,7 +29,7 @@ it("opens PDF artwork through the authorized route with an honest neutral previe
   expect(link).toHaveAttribute("href", "/api/driver/jobs/assignment/artwork");
   expect(link).toHaveAttribute("rel", "noopener noreferrer");
   expect(container.querySelector('image[href^="/api/driver/"]')).toBeNull();
-  expect(screen.getByText("Preview shows image files")).toBeInTheDocument();
+  expect(screen.queryByText("Preview shows image files")).toBeNull();
 });
 it("does not fetch or link artwork without an authoritative live assignment", () => {
   const { container } = render(<JobArtwork kind="image" compact={false} />);

@@ -26,6 +26,17 @@ describe("resolveOperation", () => {
       "a blank note",
       { kind: "contact", id: TASK, note: "   ", outcome: "reached", confirmed: "on" },
     ],
+  ])(
+    "asks for the note and tick when %s is sent, without calling the API",
+    async (_label, values) => {
+      expect(await resolveOperation({}, form(values))).toEqual({
+        error: "Add a note and tick the box.",
+      });
+      expect(mocks.POST).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
     ["an unknown kind", { kind: "delete", id: TASK, note: "x", confirmed: "on" }],
     ["a malformed id", { kind: "apply", id: "task", trip: TRIP, note: "x", confirmed: "on" }],
     [
@@ -34,7 +45,7 @@ describe("resolveOperation", () => {
     ],
   ])("rejects %s without calling the API", async (_label, values) => {
     expect(await resolveOperation({}, form(values))).toEqual({
-      error: "Confirm the action and provide its reason or recorded contact outcome.",
+      error: "This task couldn't be recorded. Refresh the page and try again.",
     });
     expect(mocks.POST).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
@@ -78,7 +89,7 @@ describe("resolveOperation", () => {
         form({ kind, id: TASK, trip: TRIP, note: "Reviewed", confirmed: "on" }),
       ),
     ).toEqual({
-      error: "Confirm the action and provide its reason or recorded contact outcome.",
+      error: "This task couldn't be recorded. Refresh the page and try again.",
     });
     expect(mocks.POST).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
@@ -97,7 +108,7 @@ describe("resolveOperation", () => {
         {},
         form({ kind: "contact", id: TASK, note: "Called", confirmed: "on" }),
       ),
-    ).toEqual({ error: "That didn't work. Please try again." });
+    ).toEqual({ error: "That didn't work. Try again." });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
@@ -108,6 +119,9 @@ describe("resolveOperation", () => {
         {},
         form({ kind: "contact", id: TASK, note: "Called", outcome: "failed", confirmed: "on" }),
       ),
-    ).toEqual({ error: "No result was confirmed. Reload or retry the same action and note." });
+    ).toEqual({
+      error:
+        "We couldn't confirm the contact outcome was saved. Refresh the page to check before trying again.",
+    });
   });
 });

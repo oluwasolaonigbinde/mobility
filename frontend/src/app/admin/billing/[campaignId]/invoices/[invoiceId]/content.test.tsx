@@ -68,6 +68,6 @@ describe("admin invoice page", () => {
     await expect(AdminInvoicePage(input())).rejects.toThrow("notFound");
     get.mockRejectedValue(new ApiError(503, { code: "UNAVAILABLE", message: "x" }));
     render(await AdminInvoicePage(input()));
-    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
+    expect(screen.getByRole("alert")).toHaveTextContent("This section couldn't be loaded.");
   });
 });

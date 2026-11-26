@@ -37,7 +37,9 @@ export function PauseSwitchForm({ paused }: { paused: boolean }) {
     <form action={action} className="space-y-2">
       <input type="hidden" name="intent" value={paused ? "resume" : "pause"} />
       <label htmlFor={id} className="block text-sm font-medium">
-        {paused ? "Why are you resuming automatic payouts?" : "Why are you pausing them?"}
+        {paused
+          ? "Why are you resuming automatic payouts?"
+          : "Why are you pausing automatic payouts?"}
       </label>
       <textarea
         id={id}

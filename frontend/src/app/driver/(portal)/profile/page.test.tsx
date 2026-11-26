@@ -128,4 +128,10 @@ describe("DriverProfilePage campaign authority", () => {
     expect(screen.getByText("Your documents")).toBeInTheDocument();
     expect(screen.getByText("Phone verification")).toBeInTheDocument();
   });
+
+  it("describes a car with no recorded details in words, not its raw type", async () => {
+    render(await DriverProfilePage());
+    expect(screen.getByText("Car details not added")).toBeInTheDocument();
+    expect(screen.queryByText("car", { exact: true })).toBeNull();
+  });
 });

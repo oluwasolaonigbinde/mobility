@@ -61,9 +61,7 @@ it.each([
   mocks.patch.mockRejectedValueOnce(error);
   expect(await updateDriverDetailsAction({}, form())).toEqual({
     error:
-      error instanceof ApiError
-        ? "That didn't work. Please try again."
-        : "Could not reach the server.",
+      error instanceof ApiError ? "That didn't work. Try again." : "Could not reach the server.",
   });
   expect(mocks.revalidatePath).not.toHaveBeenCalled();
 });

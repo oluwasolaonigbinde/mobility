@@ -276,9 +276,9 @@ test("production login and sign-out set and expire the host-only hardened sessio
       ).toBe(false);
       await expect(
         page.getByRole("alert").filter({
-          hasText: "Sign-out on every device could not be confirmed. Please try again.",
+          hasText: "Sign-out on every device could not be confirmed. Try again.",
         }),
-      ).toHaveText("Sign-out on every device could not be confirmed. Please try again.");
+      ).toHaveText("Sign-out on every device could not be confirmed. Try again.");
       await expect(page).toHaveURL(signedInUrl);
       await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeEnabled();
       const retained = (await page.context().cookies()).find(

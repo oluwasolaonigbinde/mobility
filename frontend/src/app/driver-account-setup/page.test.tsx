@@ -35,7 +35,7 @@ describe("DriverAccountSetupPage", () => {
       render(<DriverAccountSetupPage />);
 
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        "This link is incomplete. Ask Terrax for a new account setup email.",
+        "This link is incomplete. Ask Terrax Media for a new account setup email.",
       );
       expect(screen.queryByRole("button", { name: "Set password" })).not.toBeInTheDocument();
     },

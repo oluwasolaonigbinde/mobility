@@ -14,7 +14,16 @@ import {
 } from "@/lib/campaigns/schema";
 
 const WRITE_ACCESS_MESSAGE =
-  "Your advertiser access is unavailable. Ask Terrax to check your account.";
+  "Your advertiser access is unavailable. Ask Terrax Media to check your account.";
+
+/** Definite refusals when attaching artwork; anything else leaves the result unknown. */
+const ARTWORK_REFUSALS = {
+  CREATIVE_FILE_ALREADY_BOUND: "That file is already attached elsewhere.",
+  CREATIVE_FILE_NOT_CLEARED: "That file hasn't passed its security scan.",
+  CREATIVE_TYPE_MISMATCH: "That file doesn't match the artwork type you chose.",
+  // D121 locked copy: keep exactly.
+  CAMPAIGN_ARTWORK_LOCKED: "This campaign's artwork is locked. Ask Terrax to change it.",
+};
 
 export interface CreateCampaignState {
   error?: string;
@@ -108,18 +117,14 @@ export async function createCampaignAction(
     } catch (error) {
       unstable_rethrow(error);
       // Campaign exists; be honest about exactly what failed.
-      const reason = publicActionError(
-        error,
-        {
-          CREATIVE_FILE_ALREADY_BOUND: "that file is already attached elsewhere",
-          CREATIVE_FILE_NOT_CLEARED: "that file has not passed its security scan",
-          CREATIVE_TYPE_MISMATCH: "that file does not match the selected creative type",
-          CAMPAIGN_ARTWORK_LOCKED: "This campaign's artwork is locked. Ask Terrax to change it.",
-        },
-        "the attachment result is not yet confirmed",
-      );
+      const reason =
+        error instanceof ApiError && Object.hasOwn(ARTWORK_REFUSALS, error.code)
+          ? publicActionError(error, ARTWORK_REFUSALS)
+          : undefined;
       return {
-        error: `Your draft is saved, but advert design ${index + 1} ("${creative.name}") couldn't be attached: ${reason}`,
+        error: reason
+          ? `Your draft is saved, but artwork ${index + 1} ("${creative.name}") couldn't be added. ${reason}`
+          : "Your draft is saved. Check its artwork before trying again.",
         createdCampaignId: campaignId,
       };
     }

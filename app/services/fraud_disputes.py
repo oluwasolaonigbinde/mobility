@@ -34,54 +34,54 @@ class DisputeMutationResult:
 PUBLIC_REASONS = {
     "insufficient_pings": (
         "location_data_incomplete",
-        "Location data needs review",
+        "Location data",
         "Some location information for this trip could not be verified.",
     ),
     "impossible_speed": (
         "route_pattern_review",
-        "Route needs review",
-        "A route pattern for this trip needs a staff review.",
+        "Route",
+        "This check looks at the route recorded for this trip.",
     ),
     "poor_accuracy": (
         "location_accuracy_review",
-        "Location accuracy needs review",
-        "The location accuracy for this trip needs a staff review.",
+        "Location accuracy",
+        "This check looks at the accuracy of this trip's locations.",
     ),
     "stationary_trip": (
         "movement_review",
-        "Trip movement needs review",
-        "The recorded movement for this trip needs a staff review.",
+        "Trip movement",
+        "This check looks at the movement recorded for this trip.",
     ),
     "excessive_ping_gap": (
         "location_data_incomplete",
-        "Location data needs review",
+        "Location data",
         "Some location information for this trip could not be verified.",
     ),
     "future_timestamp": (
         "location_time_review",
-        "Location timing needs review",
-        "The timing of location information for this trip needs a staff review.",
+        "Location timing",
+        "This check looks at the timing of this trip's locations.",
     ),
     "route_looping": (
         "route_pattern_review",
-        "Route needs review",
-        "A route pattern for this trip needs a staff review.",
+        "Route",
+        "This check looks at the route recorded for this trip.",
     ),
     "route_replay": (
         "route_pattern_review",
-        "Route needs review",
-        "A route pattern for this trip needs a staff review.",
+        "Route",
+        "This check looks at the route recorded for this trip.",
     ),
     "exclusion_zone_presence": (
         "route_area_review",
-        "Trip area needs review",
-        "The recorded trip area needs a staff review.",
+        "Trip area",
+        "This check looks at the areas this trip went through.",
     ),
 }
 GENERIC_PUBLIC_REASON = (
     "trip_review",
-    "Trip needs review",
-    "This trip needs a staff review before its earnings can be released.",
+    "Trip details",
+    "This check concerns the recorded trip details.",
 )
 PUBLIC_STATUS = {
     "open": "assessment_pending",

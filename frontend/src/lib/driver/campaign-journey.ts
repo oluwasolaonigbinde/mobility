@@ -258,7 +258,7 @@ function offerStep(source: DriverJourneyFacts["offers"]): DriverJourneyStep {
       ...base,
       state: "degraded",
       title: "Job needs attention",
-      detail: "There's a problem with your job. Please contact support.",
+      detail: "There's a problem with your job. Contact support.",
     };
   if (source.value.active === 1)
     return {
@@ -315,7 +315,7 @@ function activationStep(
         ...base,
         state: "degraded",
         title: "Job needs attention",
-        detail: "There's a problem with your job. Please contact support.",
+        detail: "There's a problem with your job. Contact support.",
       };
     return {
       ...base,
@@ -329,7 +329,7 @@ function activationStep(
       ...base,
       state: "degraded",
       title: "Job needs attention",
-      detail: "There's a problem with your job. Please contact support.",
+      detail: "There's a problem with your job. Contact support.",
     };
   return {
     ...base,

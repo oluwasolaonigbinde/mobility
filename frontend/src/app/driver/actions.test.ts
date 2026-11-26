@@ -11,14 +11,15 @@ import {
   reconcileTripEvidenceAction,
   sendPingBatchAction,
   startTripAction,
+  updateProfileAction,
   verifyDriverTripOwnershipAction,
 } from "./actions";
 
-const mocks = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
+const mocks = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn(), patch: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn().mockResolvedValue("token") }));
 vi.mock("@/lib/api/client", () => ({
-  createApiClient: () => ({ POST: mocks.post, GET: mocks.get, PATCH: vi.fn() }),
+  createApiClient: () => ({ POST: mocks.post, GET: mocks.get, PATCH: mocks.patch }),
 }));
 
 const TRIP_ID = "11111111-1111-4111-8111-111111111111";
@@ -108,13 +109,35 @@ describe("driver trip BFF actions", () => {
     );
     await expect(startTripAction(ASSIGNMENT_ID)).resolves.toMatchObject({ outcome: "failed" });
 
+    const uncertain = {
+      error: "We couldn't confirm the trip started. Check trip status before trying again.",
+      outcome: "unknown",
+    };
     mocks.post.mockRejectedValueOnce(
       new ApiError(409, { code: "ACTIVE_TRIP_EXISTS", message: "maybe committed" }),
     );
-    await expect(startTripAction(ASSIGNMENT_ID)).resolves.toMatchObject({ outcome: "unknown" });
+    await expect(startTripAction(ASSIGNMENT_ID)).resolves.toEqual(uncertain);
 
     mocks.post.mockRejectedValueOnce(new Error("response lost"));
-    await expect(startTripAction(ASSIGNMENT_ID)).resolves.toMatchObject({ outcome: "unknown" });
+    await expect(startTripAction(ASSIGNMENT_ID)).resolves.toEqual(uncertain);
+  });
+
+  it("keeps reads neutral and writes honest when the result is unknown", async () => {
+    mocks.get.mockRejectedValueOnce(new Error("connection reset"));
+    await expect(getCurrentTripAction()).resolves.toEqual({
+      error: "That didn't work. Try again.",
+      outcome: "unknown",
+    });
+    const saveUncertain =
+      "We couldn't confirm this was saved. Refresh the page to check before trying again.";
+    mocks.post.mockRejectedValueOnce(new Error("connection reset"));
+    await expect(
+      legacyAssignmentAction({ assignmentId: ASSIGNMENT_ID, action: "accept" }),
+    ).resolves.toEqual({ error: saveUncertain });
+    mocks.patch.mockRejectedValueOnce(new Error("connection reset"));
+    const profile = new FormData();
+    profile.set("service_city", "Lagos");
+    await expect(updateProfileAction({}, profile)).resolves.toEqual({ error: saveUncertain });
   });
 
   it("explains that weekly installation photos need approval before starting", async () => {
@@ -285,7 +308,13 @@ describe("driver trip BFF actions", () => {
     );
     await expect(reconcileTripEvidenceAction(TRIP_ID)).resolves.toEqual({
       outcome: "unknown",
-      error: "That didn't work. Please try again.",
+      error: "That didn't work. Try again.",
+    });
+
+    mocks.post.mockRejectedValueOnce(new Error("connection reset"));
+    await expect(reconcileTripEvidenceAction(TRIP_ID)).resolves.toEqual({
+      outcome: "unknown",
+      error: "That didn't work. Try again.",
     });
   });
 

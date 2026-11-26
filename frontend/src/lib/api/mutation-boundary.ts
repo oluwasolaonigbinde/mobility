@@ -61,7 +61,7 @@ export async function mutationBoundary(request: NextRequest): Promise<NextRespon
             return deny(
               415,
               "BFF_MEDIA_TYPE_DENIED",
-              "Please retry this action without sending extra data",
+              "Something went wrong. Refresh the page and try again.",
             );
           }
         }

@@ -310,7 +310,7 @@ test("campaign submission and admin approval preserve immutable review history",
     await expect(page.locator('[aria-current="step"]')).toHaveText("2 Areas");
     // Area drawing has its own journey; the API target-area setup below remains explicit.
     await page.getByRole("button", { name: "Continue →" }).click();
-    await expect(page.getByRole("button", { name: "+ Add advert design" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "+ Add artwork" })).toBeVisible();
     await page.getByRole("button", { name: "Continue →" }).click();
 
     // Step 4 — review shows the saved draft without creating another campaign.

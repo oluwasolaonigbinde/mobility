@@ -26,7 +26,7 @@ export default function GlobalError({
       <Panel className="w-full max-w-sm p-8 text-center">
         <h1 className="font-display mt-2 text-2xl font-semibold">Something went wrong.</h1>
         <p className="text-muted mt-3 text-sm">
-          Please reload the page. If it happens again, contact Terrax Media.
+          Reload the page. If it happens again, contact Terrax Media.
         </p>
         <Button type="button" onClick={retry} className="mt-6 w-full">
           Reload page

@@ -11,7 +11,6 @@ export default function DriverAccountSetupPage() {
   return (
     <main className="bg-atmosphere flex flex-1 items-center justify-center p-6">
       <div className="animate-rise w-full max-w-md">
-        <p className="micro text-amber mb-3">Driver account setup</p>
         <h1 className="font-display text-4xl font-semibold">Set up your driver account</h1>
         <p className="text-muted mt-3 text-sm">
           Choose a password to finish setting up your driver account.

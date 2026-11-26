@@ -71,7 +71,7 @@ def _report_ready(payload: dict[str, Any]) -> RenderedEmail:
         raise ValueError("report_ready_context_missing")
     return _linked(
         "Your Cardvert report is ready",
-        f"Your {kind} report for {name} is ready",
+        f"Your {kind} report for {name} is ready.",
         payload.get("action_url"),
         "View report",
     )

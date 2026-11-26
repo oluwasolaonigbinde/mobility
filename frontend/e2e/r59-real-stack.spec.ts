@@ -455,7 +455,7 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
       await expect(check).toBeEnabled();
       await expect(
         page.getByRole("alert").filter({
-          hasText: "Could not reach the server. Please try again.",
+          hasText: "That didn't work. Try again.",
         }),
       ).toBeVisible();
       expect(startRequests).toBe(1);

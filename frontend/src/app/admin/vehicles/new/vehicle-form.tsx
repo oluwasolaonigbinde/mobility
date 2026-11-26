@@ -7,8 +7,6 @@ import { Field } from "@/components/ui/field";
 
 const initialState: AdminActionState = {};
 
-const TYPES = ["car"] as const;
-
 export function VehicleForm({
   users,
   fixedUserId,
@@ -60,18 +58,7 @@ export function VehicleForm({
         />
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="v-type" className="micro text-muted">
-          Vehicle type
-        </label>
-        <select id="v-type" name="vehicle_type" defaultValue="car" className={selectClass}>
-          {TYPES.map((t) => (
-            <option key={t} value={t} className="capitalize">
-              {t}
-            </option>
-          ))}
-        </select>
-      </div>
+      <input type="hidden" name="vehicle_type" value="car" />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Make" name="make" placeholder="Toyota" />

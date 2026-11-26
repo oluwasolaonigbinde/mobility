@@ -49,7 +49,7 @@ const tabs = [
     title: "Ended",
     statuses: ["finished", "cancelled", "rejected"],
     sources: [
-      { id: "finished", title: "Completed" },
+      { id: "finished", title: "Finished" },
       { id: "cancelled", title: "Cancelled" },
       { id: "rejected", title: "Not approved" },
     ],
@@ -265,6 +265,7 @@ async function CampaignList(
         })),
       )
     : [];
+  const searchable = !["artwork", "changes", "installation"].includes(source.id);
   return (
     <div className="mx-auto max-w-6xl">
       {!embedded ? (
@@ -288,7 +289,7 @@ async function CampaignList(
           />
         </>
       ) : null}
-      {!["artwork", "changes", "installation"].includes(source.id) ? (
+      {searchable ? (
         <QueueSearch q={p.q} label="Search campaigns">
           <input type="hidden" name="tab" value={tab.id} />
           <input type="hidden" name="source" value={source.id} />
@@ -317,7 +318,15 @@ async function CampaignList(
                     : "campaigns"}
           </p>
           {!items.length ? (
-            <p>Nothing in this list. Choose another status or change the search.</p>
+            <p>
+              {!embedded && searchable
+                ? "Nothing in this list. Choose another status or change the search."
+                : !embedded
+                  ? "Nothing in this list. Choose another status."
+                  : searchable
+                    ? "Nothing in this list. Change the search."
+                    : "Nothing in this list."}
+            </p>
           ) : (
             <div className="grid gap-3">
               {items.map(({ key, campaign, next, section, job }, i) => {

@@ -29,7 +29,7 @@ export default async function DriverEarningsPage() {
         {result.state !== "ready" ? (
           <DriverDataUnavailable
             title="Earnings unavailable"
-            detail="Your complete daily history could not be verified."
+            detail="We couldn't load your earnings. Try again shortly."
             retryHref="/driver/earnings"
           />
         ) : result.data.days.length === 0 ? (

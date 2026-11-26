@@ -44,7 +44,7 @@ describe("private upload retry identity", () => {
     act(() => window.dispatchEvent(new Event("cardvert-driver-logout")));
     await expect(
       result.current.upload("licence", new File(["private"], "licence.png"), "access", send),
-    ).rejects.toThrow("Please sign in again.");
+    ).rejects.toThrow("Sign in again.");
     expect(send).not.toHaveBeenCalled();
   });
 });

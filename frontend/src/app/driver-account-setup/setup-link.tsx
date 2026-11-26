@@ -16,7 +16,7 @@ export function DriverAccountSetupLink() {
     return (
       <div>
         <p role="alert" className="text-coral text-sm">
-          This link is incomplete. Ask Terrax for a new account setup email.
+          This link is incomplete. Ask Terrax Media for a new account setup email.
         </p>
         <Link href="/apply" className="text-amber mt-4 inline-block text-sm">
           Return to application information

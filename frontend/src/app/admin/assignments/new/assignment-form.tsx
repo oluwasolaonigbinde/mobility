@@ -1,5 +1,5 @@
 "use client";
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
 import {
   createAssignmentAction,
   listAssignmentRecommendationsAction,
@@ -23,10 +23,30 @@ export function AssignmentForm({
   const [driver, setDriver] = useState(driverId ?? "");
   const [vehicle, setVehicle] = useState("");
   const [city, setCity] = useState("");
-  const [recommendations, setRecommendations] = useState<AssignmentRecommendation[]>([]);
-  const [selected, setSelected] = useState<AssignmentRecommendation>();
-  const [error, setError] = useState<string>();
+  // Results, errors and a chosen recommendation belong to the criteria they were found
+  // with (campaign, city and the driver this form is scoped to); any other inputs hide them.
+  const criteriaKey = JSON.stringify([campaign, city.trim(), driverId ?? ""]);
+  const [search, setSearch] = useState<{
+    key: string;
+    city: string;
+    candidates: AssignmentRecommendation[];
+    error?: string;
+  } | null>(null);
+  const latestToken = useRef(0);
+  const [chosen, setChosen] = useState<{ key: string; recommendation: AssignmentRecommendation }>();
   const [finding, start] = useTransition();
+  const current = !finding && search?.key === criteriaKey ? search : undefined;
+  const recommendations = current?.candidates ?? [];
+  const error = current?.error;
+  const showEmpty = !!current && !current.error && !current.candidates.length;
+  const selected = chosen?.key === criteriaKey ? chosen.recommendation : undefined;
+  const setSelected = (recommendation?: AssignmentRecommendation) =>
+    setChosen(recommendation ? { key: criteriaKey, recommendation } : undefined);
+  function invalidateSearch() {
+    latestToken.current += 1;
+    setSearch(null);
+    setChosen(undefined);
+  }
   return (
     <form action={action} className="flex flex-col gap-5">
       {campaignId ? (
@@ -39,8 +59,7 @@ export function AssignmentForm({
           value={campaign}
           onSelect={(id) => {
             setCampaign(id);
-            setSelected(undefined);
-            setRecommendations([]);
+            invalidateSearch();
           }}
         />
       )}
@@ -84,7 +103,10 @@ export function AssignmentForm({
           City
           <input
             value={city}
-            onChange={(e) => setCity(e.target.value)}
+            onChange={(e) => {
+              setCity(e.target.value);
+              invalidateSearch();
+            }}
             className="border-edge bg-raised rounded border p-2"
           />
         </label>
@@ -93,16 +115,21 @@ export function AssignmentForm({
           disabled={!campaign || !city.trim() || finding}
           onClick={() =>
             start(async () => {
+              const token = ++latestToken.current;
+              const key = criteriaKey;
               const next = await listAssignmentRecommendationsAction({
                 campaign_id: campaign,
                 service_city: city,
               });
-              setRecommendations(
-                (next.candidates ?? []).filter(
+              if (token !== latestToken.current) return;
+              setSearch({
+                key,
+                city: city.trim(),
+                candidates: (next.candidates ?? []).filter(
                   (candidate) => !driverId || candidate.driver_profile_id === driverId,
                 ),
-              );
-              setError(next.error);
+                error: next.error,
+              });
               setSelected(undefined);
             })
           }
@@ -110,6 +137,13 @@ export function AssignmentForm({
           {finding ? "Finding…" : "Find drivers"}
         </Button>
         {error ? <p role="alert">{error}</p> : null}
+        {showEmpty ? (
+          <p role="status" className="text-muted text-sm">
+            {driverId
+              ? `This driver has no match for this campaign in ${current.city}.`
+              : `No drivers found for this campaign in ${current.city}.`}
+          </p>
+        ) : null}
         {recommendations.map((c) => (
           <div className="border-edge my-2 rounded border p-3" key={c.fingerprint}>
             <p>

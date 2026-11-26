@@ -64,7 +64,7 @@ describe("driver application actions", () => {
     form.set("service_city", "Lagos");
 
     await expect(submitDriverApplicationAction({}, form)).resolves.toEqual({
-      error: "We couldn't send your application right now. Please try again later.",
+      error: "We couldn't send your application right now. Try again later.",
       values: {
         email: "driver@example.com",
         full_name: "Driver Name",
@@ -181,9 +181,9 @@ it("refuses both application entry points with fixed text when email is off", as
   form.set("full_name", "Driver");
   form.set("service_city", "Abuja");
   expect((await submitDriverApplicationAction({}, form)).error).toBe(
-    "Driver applications aren't available right now. Please contact Terrax Media.",
+    "Driver applications aren't available right now. Contact Terrax Media.",
   );
   expect((await requestDriverOnboardingAccessAction({}, form)).error).toBe(
-    "Application links aren't available right now. Please contact Terrax Media.",
+    "Application links aren't available right now. Contact Terrax Media.",
   );
 });

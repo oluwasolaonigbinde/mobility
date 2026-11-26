@@ -124,7 +124,7 @@ export function CreateBatchForm({
       } catch {
         setState({
           error:
-            "This browser can't create payment runs. Check your saved runs or use Chrome, Edge or Safari.",
+            "Your unfinished payment run couldn't be loaded. Check your saved payment runs before starting a new one.",
         });
       }
     };
@@ -233,7 +233,7 @@ export function CreateBatchForm({
                 setState({});
               }}
             >
-              Finish
+              Clear this browser&apos;s draft
             </Button>
           ) : null}
         </div>
@@ -453,7 +453,7 @@ export function BatchActions({
           </Button>
           {!approved ? null : providerReady === false ? (
             <p className="text-muted w-full text-sm">
-              Run saved, not sent. Payments are not connected.
+              The run is saved but not sent, because payouts aren&apos;t connected yet.
             </p>
           ) : (
             <Button type="submit" name="intent" value="submit" formNoValidate disabled={pending}>
@@ -515,7 +515,7 @@ export function PollLineAction({ lineId }: { lineId: string }) {
         />
       </label>
       <Button type="submit" disabled={pending} variant="ghost">
-        {pending ? "Verifying…" : "Check payment result"}
+        {pending ? "Checking…" : "Check payment result"}
       </Button>
       {state.error ? (
         <p role="alert" className="text-coral text-sm">

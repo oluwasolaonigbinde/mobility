@@ -56,7 +56,8 @@ it("uses invite wording and its own completion endpoint, without an automatic si
     new ApiError(400, { code: "ADVERTISER_INVITE_INVALID", message: "private token details" }),
   );
   expect(await completeAdvertiserInviteAction({}, resetForm())).toEqual({
-    error: "This invite link is invalid, expired, or already used. Ask Terrax for a new invite.",
+    error:
+      "This invite link is invalid, expired, or already used. Ask Terrax Media for a new invite.",
   });
 });
 

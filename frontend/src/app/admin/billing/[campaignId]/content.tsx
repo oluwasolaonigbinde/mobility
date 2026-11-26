@@ -31,7 +31,7 @@ import {
   recordPaymentNotReceivedAction,
   reverseReceiptAction,
 } from "./actions";
-import { billingErrorCopy } from "./billing-errors";
+import { billingErrorCopy, billingSavedCopy } from "./billing-errors";
 
 const ADVERTISER_SEES_REASON = "The advertiser sees this reason.";
 
@@ -80,6 +80,7 @@ export default async function AdminCampaignBillingPage({
   const me = await requireRole("admin");
   const notice = await searchParams;
   const errorCopy = billingErrorCopy(notice.error);
+  const savedCopy = errorCopy ? null : billingSavedCopy(notice.saved);
   const api = createApiClient(await getSessionToken());
   let campaign, commercial, history;
   try {
@@ -146,6 +147,14 @@ export default async function AdminCampaignBillingPage({
         See money summary
       </Link>
       {errorCopy ? <p className="text-coral mb-4 text-sm">{errorCopy}</p> : null}
+      {savedCopy ? (
+        <p
+          role="status"
+          className={`${savedCopy.tone === "warning" ? "text-terrax-gold-ink" : "text-green"} mb-4 text-sm`}
+        >
+          {savedCopy.text}
+        </p>
+      ) : null}
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel className="p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
@@ -399,12 +408,7 @@ export default async function AdminCampaignBillingPage({
 
           <Panel className="p-6">
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="font-display text-xl font-semibold">Invoice</h2>
-                <p className="micro text-muted mt-1">
-                  Saved invoice amounts with VAT shown separately
-                </p>
-              </div>
+              <h2 className="font-display text-xl font-semibold">Invoice</h2>
               <StatusChip
                 tone={invoice?.status === "issued" ? "green" : invoice ? "amber" : "default"}
               >
@@ -544,7 +548,7 @@ export default async function AdminCampaignBillingPage({
                     Receipt reversal &amp; settlement
                   </h2>
                   <p className="micro text-muted mt-1">
-                    {receiptEntry.receipt.external_transaction_id} ·{" "}
+                    Reference: {receiptEntry.receipt.external_transaction_id} ·{" "}
                     {formatMoney(receiptEntry.receipt.amount, receiptEntry.receipt.currency)}
                   </p>
                 </div>
@@ -646,9 +650,6 @@ export default async function AdminCampaignBillingPage({
         <Panel className="mt-6 overflow-hidden">
           <div className="px-6 py-5">
             <h2 className="font-display text-xl font-semibold">Settlement history</h2>
-            <p className="micro text-muted mt-1">
-              Recorded refund and credit settlements for this campaign
-            </p>
           </div>
           <ul className="divide-edge/60 border-edge divide-y border-t">
             {commercial.settlements.map((settlement) => (

@@ -107,7 +107,9 @@ describe("payout form states", () => {
   it("warns when saved recovery storage cannot be read", () => {
     localStorage.setItem("cardvert-payout-draft:maker", "{not json");
     render(<CreateBatchForm entries={[entry]} actorId="maker" />);
-    expect(screen.getByRole("alert")).toHaveTextContent("This browser can't create payment runs.");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Your unfinished payment run couldn't be loaded.",
+    );
   });
 
   it("keeps the saved request when the reservation call itself fails", async () => {
@@ -151,7 +153,7 @@ describe("payout form states", () => {
       "href",
       "/admin/money?tab=runs&batch=batch-1",
     );
-    await clickWhenEnabled(user, "Finish");
+    await clickWhenEnabled(user, "Clear this browser's draft");
     expect(localStorage.getItem("cardvert-payout-draft:maker")).toBeNull();
     expect(screen.queryByRole("status")).toBeNull();
     expect(screen.getByRole("checkbox")).not.toBeChecked();
@@ -192,11 +194,11 @@ describe("payout form states", () => {
   });
 
   it("reports line verification results and refusals", async () => {
-    calls.poll.mockResolvedValueOnce({ done: "Payment result added." });
+    calls.poll.mockResolvedValueOnce({ done: "Payment checked." });
     const { unmount } = render(<PollLineAction lineId="line-1" />);
     await fillReasons();
     await userEvent.click(screen.getByRole("button", { name: "Check payment result" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Payment result added.");
+    expect(await screen.findByRole("status")).toHaveTextContent("Payment checked.");
     expect((calls.poll.mock.calls[0]![1] as FormData).get("line_id")).toBe("line-1");
     unmount();
 

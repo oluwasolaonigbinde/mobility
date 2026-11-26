@@ -216,6 +216,8 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
     );
   };
   const total = tab === "suspicious" ? flags?.total : checkPage?.total;
+  // Drawer ids and page offsets do not filter the list.
+  const filtered = !!(p.driver_profile_id || p.campaign_id || (tab === "suspicious" && flagStatus));
   const listHref = (changes: Partial<Query>) =>
     href({
       offset: undefined,
@@ -269,7 +271,13 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
       ) : (
         <>
           {!total ? (
-            <p>Nothing matches these filters.</p>
+            <p>
+              {filtered
+                ? "Nothing matches these filters."
+                : tab === "suspicious"
+                  ? "No trip reviews recorded."
+                  : "No in-person checks recorded."}
+            </p>
           ) : (
             <ul className="grid gap-3">
               {tab === "suspicious"

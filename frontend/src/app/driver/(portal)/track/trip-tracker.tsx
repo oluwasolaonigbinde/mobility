@@ -94,7 +94,7 @@ function trackingPresentation({
   if (bufferedCount > 0 && !online && queueHealthy) {
     return {
       label: "Saved on this phone",
-      detail: "Trip updates are safe on this phone and will wait here until Cardvert is online.",
+      detail: "Trip updates are saved on this phone. Reconnect so Cardvert can try sending them.",
       tone: "text-amber",
       dot: "bg-amber",
     } as const;
@@ -148,10 +148,10 @@ function trackingPresentation({
       dot: "bg-cyan",
     } as const;
   }
-  if (syncedCount > 0) {
+  if (syncedCount > 0 && bufferedCount === 0) {
     return {
       label: "Sent",
-      detail: "Everything saved for this trip has reached Cardvert. Tracking continues on screen.",
+      detail: "Trip updates have reached Cardvert. Tracking continues on screen.",
       tone: "text-green",
       dot: "bg-green animate-pulse-dot",
     } as const;
@@ -963,8 +963,20 @@ export function TripTracker({
                         ),
                       ),
                     ];
+                    const parts = [
+                      rejected ? `${rejected} not accepted` : "",
+                      quarantined ? `${quarantined} waiting for review` : "",
+                    ].filter(Boolean);
                     setError(
-                      `Earlier location updates need checking: ${rejected} not accepted, ${quarantined} waiting for review. ${reasons.join("; ")}. They remain on this phone and will not be sent again.`,
+                      [
+                        parts.length
+                          ? `Earlier location updates need checking: ${parts.join(", ")}.`
+                          : "Earlier location updates need checking.",
+                        reasons.length ? `${reasons.join("; ")}.` : "",
+                        "They remain on this phone and will not be sent again.",
+                      ]
+                        .filter(Boolean)
+                        .join(" "),
                     );
                   }
                 } else {

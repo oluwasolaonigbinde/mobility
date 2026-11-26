@@ -78,7 +78,7 @@ describe("CampaignChangePanel", () => {
           id: commandId,
           status: "applied",
         },
-        done: "Campaign change confirmed.",
+        done: "Change applied.",
       };
     });
     vi.stubGlobal("crypto", { randomUUID: vi.fn(() => SECOND_REQUEST_ID) });

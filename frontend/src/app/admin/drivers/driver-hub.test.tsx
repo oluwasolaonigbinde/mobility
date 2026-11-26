@@ -368,7 +368,7 @@ it("labels calculation dates accurately and recalculates only the selected trip 
 it("keeps failed document reads unavailable and activation blocked", async () => {
   reads({ failApplication: true });
   render(await DriverHub({ driverId }));
-  expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
+  expect(screen.getByRole("alert")).toHaveTextContent("This section couldn't be loaded.");
   expect(screen.queryByText("No current identity submission is linked to this driver.")).toBeNull();
   expect(mocks.driverMenu).toHaveBeenCalledWith(
     expect.objectContaining({ activationBlocked: true }),
@@ -454,7 +454,7 @@ it("keeps failed secondary reads unavailable instead of claiming empty records o
     const section = document.getElementById(sectionId)!;
     expect(within(section).getAllByRole("alert")).toHaveLength(1);
     expect(within(section).getByRole("alert")).toHaveTextContent(
-      "Couldn't load this section — try again",
+      "This section couldn't be loaded.",
     );
   }
   expect(
@@ -474,6 +474,8 @@ it("shows driver's own reviews and activity and preserves each page's filters", 
               id: "event",
               action: "admin.driver_profile.updated",
               actor_email: "staff@example.invalid",
+              actor_name: "Ada Staff",
+              actor_user_id: "staff-user",
               created_at: "2026-09-29T10:00:00Z",
             },
           ],
@@ -501,9 +503,8 @@ it("shows driver's own reviews and activity and preserves each page's filters", 
     "href",
     `/admin/trip-checks?tab=suspicious&driver_profile_id=${driverId}&flag=review`,
   );
-  expect(screen.getByText(/Driver details or status updated/)).toHaveTextContent(
-    "staff@example.invalid",
-  );
+  expect(screen.getByText(/Driver details or status updated/)).toHaveTextContent("Ada Staff");
+  expect(screen.queryByText(/staff@example\.invalid/)).toBeNull();
   const next = screen.getAllByRole("link", { name: "Next →" });
   expect(next.some((link) => link.getAttribute("href")?.includes("reviews_offset=50"))).toBe(true);
   expect(next.some((link) => link.getAttribute("href")?.includes("activity_offset=50"))).toBe(true);
@@ -599,7 +600,7 @@ it.each([
     render(await DriverHub({ driverId }));
     expect(screen.getByText(next)).toBeInTheDocument();
     // The invited account waits on setup only once nothing else needs review.
-    expect(screen.queryByText("Waiting for driver to set a password") !== null).toBe(
+    expect(screen.queryByText("Sign-in not set up yet") !== null).toBe(
       next === "Next: complete sign-in setup.",
     );
   },

@@ -79,13 +79,13 @@ export function GlobalSearch() {
           {loading || (!result && !error) ? (
             <p className="text-muted p-2 text-sm">Searching…</p>
           ) : null}
-          {error ? <p role="alert">Couldn&apos;t load this section — try again</p> : null}
+          {error ? <p role="alert">Search couldn&apos;t load. Try again.</p> : null}
           {result?.map((group) => (
             <section key={group.name} className="mb-3">
               <h2 className="micro text-muted px-2">{group.name}</h2>
               {group.unavailable ? (
                 <p role="alert" className="px-2 text-sm">
-                  Couldn&apos;t load this section — try again
+                  These results couldn&apos;t be loaded.
                 </p>
               ) : null}
               {!group.items.length && !group.unavailable ? (

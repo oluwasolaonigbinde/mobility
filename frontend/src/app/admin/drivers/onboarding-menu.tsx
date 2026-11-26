@@ -85,9 +85,9 @@ export function DriverOnboardingMenu({
         description={
           confirming === "suspended"
             ? "The driver will no longer be able to start campaign work."
-            : "The application will leave the active review queue."
+            : `${driverName} moves to Not approved.`
         }
-        cancelLabel={confirming === "suspended" ? "Keep driver active" : "Keep pending"}
+        cancelLabel={confirming === "suspended" ? "Keep driver active" : "Cancel"}
         confirmLabel={`Confirm ${confirming === "suspended" ? "suspension" : "rejection"}`}
         onConfirm={() => {
           if (confirming) run(confirming, true, true);

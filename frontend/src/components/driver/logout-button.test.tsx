@@ -100,7 +100,7 @@ describe("multi-tab logout", () => {
         }),
         navigate,
       ),
-    ).resolves.toBe("Sign-out on every device could not be confirmed. Please try again.");
+    ).resolves.toBe("Sign-out on every device could not be confirmed. Try again.");
 
     expect(FakeBroadcastChannel.instances).toHaveLength(0);
     expect(navigate).not.toHaveBeenCalled();
@@ -112,7 +112,7 @@ describe("multi-tab logout", () => {
     render(<DriverLogoutButton />);
     fireEvent.submit(screen.getByRole("button", { name: "Sign out" }).closest("form")!);
     expect(
-      await screen.findByText("Sign-out on every device could not be confirmed. Please try again."),
+      await screen.findByText("Sign-out on every device could not be confirmed. Try again."),
     ).toHaveAttribute("role", "alert");
   });
 });

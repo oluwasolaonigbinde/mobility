@@ -31,7 +31,7 @@ function reviewMoney(value: string, currency: string) {
     : formatMoney(value, currency);
 }
 
-const STEPS = ["Basics", "Areas", "Your advert design", "Review"] as const;
+const STEPS = ["Basics", "Areas", "Artwork", "Review"] as const;
 
 const CREATIVE_TYPES = [
   { value: "image", label: "Image" },
@@ -341,10 +341,13 @@ export function CampaignWizard({
               </div>
             </div>
 
-            <div className="border-amber/30 bg-amber/10 rounded-lg border p-3.5 text-sm">
-              <p className="font-medium">Next: save your draft</p>
-              <p className="text-muted mt-1">Save your draft, then choose areas and artwork.</p>
-            </div>
+            {!campaignId ? (
+              <div className="border-amber/30 bg-amber/10 rounded-lg border p-3.5 text-sm">
+                <p className="text-muted">
+                  Continue saves your draft. Then choose areas and artwork.
+                </p>
+              </div>
+            ) : null}
           </fieldset>
         ) : null}
 
@@ -353,7 +356,7 @@ export function CampaignWizard({
             <p className="text-muted mb-4 text-sm">
               {areasEditable
                 ? "Your draft is saved. Draw and name the areas where you’d like your advert seen. You can add or change areas later."
-                : "These are your campaign’s saved areas. Contact Terrax if you need to change them."}
+                : "These are your campaign’s saved areas. Contact Terrax Media if you need to change them."}
             </p>
             <ZonesEditor
               editable={areasEditable}
@@ -366,14 +369,14 @@ export function CampaignWizard({
         {step === 2 ? (
           <div className="flex flex-col gap-5">
             <p className="text-muted text-sm">
-              Upload your advert design. We’ll check the file before adding it to your campaign.
+              Upload your artwork. We’ll check the file before adding it to your campaign.
             </p>
 
             {creatives.fields.map((field, i) => (
               <Panel key={field.id} className="bg-raised/60 relative p-5">
                 <button
                   type="button"
-                  aria-label={`Remove design ${i + 1}`}
+                  aria-label={`Remove artwork ${i + 1}`}
                   onClick={() => creatives.remove(i)}
                   disabled={Boolean(
                     uploadState[field.id]?.phase && uploadState[field.id]?.phase !== "clean",
@@ -385,7 +388,7 @@ export function CampaignWizard({
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="sm:col-span-2">
                     <label htmlFor={`cr-name-${i}`} className={labelClass}>
-                      Design name *
+                      Artwork name *
                     </label>
                     <input
                       id={`cr-name-${i}`}
@@ -431,7 +434,7 @@ export function CampaignWizard({
                   </div>
                   <div className="sm:col-span-2">
                     <label htmlFor={`cr-file-${i}`} className={labelClass}>
-                      Design file *
+                      Artwork file *
                     </label>
                     <input
                       id={`cr-file-${i}`}
@@ -457,7 +460,7 @@ export function CampaignWizard({
                     ) : null}
                     {uploadState[field.id]?.error ? (
                       <p className={errorClass} role="alert">
-                        {uploadState[field.id]?.error} Select the file again to retry.
+                        {uploadState[field.id]?.error}
                       </p>
                     ) : errors.creatives?.[i]?.stored_file_id ? (
                       <p className={errorClass}>{errors.creatives[i]?.stored_file_id?.message}</p>
@@ -480,10 +483,10 @@ export function CampaignWizard({
               }
               className="border-edge text-muted hover:border-edge-strong hover:text-ink rounded-lg border border-dashed px-4 py-3.5 text-sm transition-colors"
             >
-              + Add advert design
+              + Add artwork
             </button>
             <p className="micro text-faint">
-              You can also add your design later from the campaign page.
+              You can also add artwork later from the campaign page.
             </p>
           </div>
         ) : null}
@@ -496,7 +499,7 @@ export function CampaignWizard({
                 ["Name", values.basics.name || "—"],
                 ["Description", values.basics.description || "—"],
                 [
-                  "Window",
+                  "Dates",
                   `${formatDate(values.basics.start_at?.slice(0, 10))} → ${formatDate(values.basics.end_at?.slice(0, 10))}`,
                 ],
                 [
@@ -513,7 +516,7 @@ export function CampaignWizard({
                 ],
                 [campaignId ? "Campaign" : "Create as", "Draft"],
                 [
-                  "Advert design",
+                  "Artwork",
                   values.creatives.length ? `${values.creatives.length} ready to add` : "Add later",
                 ],
               ].map(([k, v]) => (

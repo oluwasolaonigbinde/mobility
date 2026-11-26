@@ -62,9 +62,7 @@ describe.each(cases)("$field upload retry", ({ show, files, field }) => {
 
   async function fail(form: HTMLFormElement) {
     fireEvent.submit(form);
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Something went wrong. Please try again.",
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong. Try again.");
   }
 
   it("shows which file failed to upload and which uploaded", async () => {
@@ -186,7 +184,7 @@ describe.each(cases)("$field upload retry", ({ show, files, field }) => {
     fireEvent.submit(form);
     await waitFor(() => expect(uploadOnboardingFile).toHaveBeenCalledTimes(files.length + 1));
     release("continuing-sibling");
-    await screen.findByText("Something went wrong. Please try again.");
+    await screen.findByText("Something went wrong. Try again.");
     expect(uploadOnboardingFile).toHaveBeenCalledTimes(files.length + 1);
     fireEvent.submit(form);
     await screen.findByRole("status");
@@ -289,9 +287,7 @@ describe("vehicle upload scope", () => {
         .mocked(fetch)
         .mock.calls.filter(([url]) => String(url) === "/api/apply/onboarding/vehicle");
     fireEvent.submit(form);
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Something went wrong. Please try again.",
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong. Try again.");
     expect(uploadOnboardingFile).toHaveBeenCalledTimes(3);
     const first = JSON.parse(String(submissions()[0]![1]!.body));
     expect(first.vehicle_id).toBe("car-a");
@@ -300,9 +296,7 @@ describe("vehicle upload scope", () => {
     expect(screen.queryAllByText("Uploaded")).toHaveLength(0);
     fireEvent.submit(form);
     await waitFor(() => expect(submissions()).toHaveLength(2));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Something went wrong. Please try again.",
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong. Try again.");
     const second = JSON.parse(String(submissions()[1]![1]!.body));
     expect(second.vehicle_id).toBe("car-b");
     expect(uploadOnboardingFile).toHaveBeenCalledTimes(6);

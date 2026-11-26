@@ -50,7 +50,7 @@ const sections = [
   { id: "drivers", title: "Drivers" },
   { id: "pay-terms", title: "Pay terms" },
   { id: "money", title: "Money" },
-  { id: "results", title: "Results" },
+  { id: "results", title: "Reports" },
   { id: "trip-reviews", title: "Trip reviews" },
   { id: "activity", title: "Activity" },
 ];
@@ -528,7 +528,7 @@ export default async function CampaignHub({
           )}
           {ended ? null : terms?.ready ? (
             <details className="mt-4">
-              <summary className="text-cyan cursor-pointer">Offer a job · Find drivers</summary>
+              <summary className="text-cyan cursor-pointer">Offer a job</summary>
               <div className="mt-4">
                 <AssignmentForm campaignId={campaignId} />
               </div>
@@ -597,7 +597,7 @@ export default async function CampaignHub({
           ) : (
             <>
               {!reviews.data.items.length ? (
-                <p>No matching trip reviews.</p>
+                <p>No trip reviews for this campaign.</p>
               ) : (
                 reviews.data.items.map((review) => (
                   <Link
@@ -631,7 +631,7 @@ export default async function CampaignHub({
                 activity.data.items.map((event) => (
                   <p className="mb-2 text-sm" key={event.id}>
                     {formatDate(event.created_at)} · {adminActivity(event.action)} ·{" "}
-                    {adminActor(event.actor_email, event.actor_name)}
+                    {adminActor(event.actor_email, event.actor_name, event.actor_user_id)}
                   </p>
                 ))
               )}

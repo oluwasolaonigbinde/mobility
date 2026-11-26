@@ -30,7 +30,7 @@ export default function GlobalError({
           <section style={{ maxWidth: "24rem", textAlign: "center" }}>
             <title>Something went wrong · Cardvert</title>
             <h1>Something went wrong.</h1>
-            <p>Please reload the page. If it happens again, contact Terrax Media.</p>
+            <p>Reload the page. If it happens again, contact Terrax Media.</p>
             <button type="button" onClick={retry}>
               Reload page
             </button>

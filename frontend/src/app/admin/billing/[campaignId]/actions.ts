@@ -89,9 +89,10 @@ export async function recordManualTransferAction(
   termsId: string,
   formData: FormData,
 ) {
+  let matched: boolean | undefined;
   try {
     const api = createApiClient(await getSessionToken());
-    await api.POST("/api/v1/admin/billing/manual-transfers", {
+    const { data } = await api.POST("/api/v1/admin/billing/manual-transfers", {
       body: {
         organization_id: organizationId,
         commercial_terms_id: termsId,
@@ -107,12 +108,16 @@ export async function recordManualTransferAction(
         observed_at: new Date().toISOString(),
       },
     });
+    matched = data?.matched;
   } catch (error) {
     unstable_rethrow(error);
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
-  redirect(`${path(campaignId)}?saved=transfer#money`);
+  // A mismatched amount is recorded but not applied; an unreadable result is never shown as applied.
+  const saved =
+    matched === true ? "transfer" : matched === false ? "transfer_unmatched" : "transfer_unknown";
+  redirect(`${path(campaignId)}?saved=${saved}#money`);
 }
 
 export async function createInvoiceAction(campaignId: string, termsId: string) {

@@ -28,7 +28,7 @@ it("explains two live jobs while keeping support available", async () => {
   );
   render(await Help());
   expect(screen.getByRole("alert")).toHaveTextContent(
-    "Two jobs are live on your account. Please contact support so we can fix it.",
+    "Two jobs are live on your account. Contact support so we can fix it.",
   );
   expect(screen.getByRole("region", { name: "driver help" })).toBeVisible();
   expect(screen.queryByText(/Your day rate is/)).not.toBeInTheDocument();

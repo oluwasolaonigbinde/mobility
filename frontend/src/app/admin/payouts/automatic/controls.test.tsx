@@ -20,7 +20,7 @@ describe("automatic payout controls", () => {
   it("sends the pause intent with the reason and shows the result", async () => {
     mocks.switchAction.mockResolvedValue({ done: "Automatic payouts are paused." });
     render(<PauseSwitchForm paused={false} />);
-    fireEvent.change(screen.getByLabelText("Why are you pausing them?"), {
+    fireEvent.change(screen.getByLabelText("Why are you pausing automatic payouts?"), {
       target: { value: "Bank check" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Pause automatic payouts" }));

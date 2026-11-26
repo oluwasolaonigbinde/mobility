@@ -10,7 +10,7 @@ const initialState: AdminActionState = {};
 
 const ROLES = [
   { value: "driver", label: "Driver", hint: "Drives, tracks trips, earns" },
-  { value: "admin", label: "Terrax staff", hint: "Terrax Media operations" },
+  { value: "admin", label: "Terrax Media staff", hint: "Terrax Media operations" },
 ] as const;
 
 export function CreateUserForm({ fixedRole }: { fixedRole?: "admin" | "driver" }) {
